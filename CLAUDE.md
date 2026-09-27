@@ -42,6 +42,9 @@ js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ย�
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP ในเครื่องก่อน, ลิงก์ชั่วคราวไฟล์ส่วนตัว
 supabase/*.sql        migration เรียงเลข รันใน Supabase SQL Editor ตามลำดับ (ไฟล์ใหม่ = เลขถัดไป)
 tests/rls_test.py     ทดสอบสิทธิ์ฐานข้อมูลกับ Postgres ในเครื่อง (ดูหัวข้อทดสอบ)
+.github/workflows/    keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์ → Google Drive, เข้ารหัส) · restore (กู้ข้อมูล)
+tools/backup/         สคริปต์สำรอง/กู้ข้อมูล (bash + Python มาตรฐาน) — วิธีตั้งค่าอยู่ใน docs/BACKUP.md
+tests/backup/run.sh   ทดสอบสำรอง → ทดลองกู้ → กู้จริง ครบวงจรในเครื่อง (จำลอง Google Drive/Storage)
 tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS (รันก่อน commit ทุกครั้ง)
 ```
 
@@ -65,11 +68,13 @@ tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS
 
 - ดึงชื่อผู้ใช้แบบ embed ต้องระบุชื่อ foreign key เสมอ เช่น `author:profiles!news_author_id_fkey(full_name)` — news↔profiles มีหลายเส้นทาง (news_likes, news_comments) ถ้าไม่ระบุ Supabase จะ error PGRST201
 - แชท: ผู้ดูแลเปิดกล่องของ รพ.สต. ได้ แต่ห้ามเรียก mark_conversation_read (จะล้างตัวเลขยังไม่อ่านของหน่วยนั้น) · ปิด channel ทุกครั้งที่ออกจากหน้า (route() เรียก leaveMe/unmountInbox)
+- GitHub Actions: repo สาธารณะ ใครก็อ่าน log ได้ — ห้าม echo ข้อมูลจริง/ค่าลับ ห้าม upload artifact ที่มีข้อมูล ค่าลับอยู่ใน GitHub Secrets เท่านั้น
 - id ใน index.html ใช้ร่วมทั้งหน้า ต้องไม่ซ้ำ — ตั้งคำนำหน้าตามส่วน (ar=หน้าอ่านข่าว, an=ผู้ดูแลข่าว, rv=ตรวจประเมิน, ad=เอกสารผู้ดูแล, sd=เอกสารเจ้าหน้าที่, df=ยา, ct=ติดต่อ, rf=บัญชี)
 
 ## การทดสอบ
 - ฐานข้อมูล: ติดตั้ง Postgres 16 → สร้าง DB → รัน `tests/stub_new_default.sql`, `supabase/01…` แล้ว `03…` ขึ้นไปตามลำดับ → `python3 tests/rls_test.py` (ต้องผ่านทั้งหมด)
   (แก้ค่าเชื่อมต่อบรรทัด PSQL ในไฟล์ทดสอบให้ตรงกับเครื่อง)
+- สำรองข้อมูล: `bash tests/backup/run.sh` (หลังรัน rls_test แล้ว) ต้องขึ้น PASS 2 บรรทัด
 - หน้าเว็บ: `python3 -m http.server` ในโฟลเดอร์ repo แล้วเปิด http://localhost:8000 (login จริงต้องเพิ่ม URL นี้ใน Supabase → URL Configuration → Redirect URLs)
 
 ## สถานะ (อัปเดตทุกครั้งที่ทำขั้นใหม่เสร็จ)
@@ -78,5 +83,5 @@ tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS
 - [x] 4.2 เจ้าหน้าที่: ส่งข่าว, ผลงาน, ส่งหลักฐานเกณฑ์, เยี่ยมบ้าน, ข้อเสนอแนะ
 - [x] 4.3 ผู้ดูแล: ตรวจข่าว/ผลงาน, ความคืบหน้า, ยา, ช่องทางติดต่อ, ปีงบใหม่, เอกสาร, ข้อเสนอแนะ
 - [x] 4.4 ประชาชน: ข้อมูลส่วนตัว + แชท real-time (เมนู "ข้อความ" ของเจ้าหน้าที่/ผู้ดูแล)
-- [ ] 5 GitHub Actions: กัน Supabase หยุดโปรเจกต์ + สำรองข้อมูลรายสัปดาห์ไป Google Drive กลาง
+- [x] 5 GitHub Actions: กัน Supabase หยุดโปรเจกต์ + สำรองข้อมูลรายสัปดาห์ไป Google Drive กลาง (docs/BACKUP.md)
 - ต้นแบบ UI เดิม (ใช้อ้างอิงหน้าตา/ฟีเจอร์ที่ยังไม่ย้าย): Claude Artifact "Primary Care Pharmacy Services" ของเจ้าของโปรเจกต์

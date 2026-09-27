@@ -1,5 +1,5 @@
 // อัปโหลดไฟล์ขึ้น Supabase Storage — ย่อรูปในเครื่องก่อน (WebP) เพื่อให้อยู่ในพื้นที่ฟรี 1 GB
-import { sb } from './supabase.js';
+import { sb } from './supabase.js?v=4.4';
 
 const rand = () => Math.random().toString(36).slice(2, 8);
 export const extOf = (name) => (String(name).match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();

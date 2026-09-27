@@ -1,8 +1,8 @@
 // เจ้าหน้าที่: เยี่ยมบ้าน — ผู้ป่วยของ รพ.สต. ตัวเอง + บันทึกการเยี่ยม (SOAP, รายการยา, DRPs)
 // ข้อมูลอ่อนไหว: RLS ให้เห็นเฉพาะ รพ.สต. เดียวกัน + ผู้ดูแล · ทุกการเพิ่ม/แก้/ลบถูกบันทึกใน audit_log
-import { sb } from '../supabase.js';
-import { $, esc, thaiDate, initials, toast, errText, busy, fiscalYearOf } from '../util.js';
-import { auth } from '../auth.js';
+import { sb } from '../supabase.js?v=4.4';
+import { $, esc, thaiDate, initials, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
+import { auth } from '../auth.js?v=4.4';
 
 export const DRP_CATS = [
   'ได้รับยาที่ไม่จำเป็น (Unnecessary drug therapy)', 'ควรได้รับยาเพิ่มเติม (Needs additional therapy)',
@@ -12,19 +12,33 @@ export const DRP_CATS = [
 const COVERAGE = ['บัตรทอง (สปสช.)', 'ข้าราชการ/รัฐวิสาหกิจ', 'ประกันสังคม', 'ประชาชนทั่วไป', 'อื่นๆ'];
 const MED_UNITS = ['เม็ด', 'แคปซูล', 'ซอง', 'ขวด', 'แผง', 'มล.', 'หลอด', 'อื่นๆ'];
 
-let patients = [], selected = null, visits = [], mode = 'view', editVisit = null, bound = false;
+let patients = [], selected = null, visits = [], mode = 'view', editVisit = null, ws = null, unit = null;
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const maskId = (id) => (id ? `x-xxxx-xxxxx-${id.slice(10, 12)}-${id.slice(12)}` : '–');
 const age = (dob) => { if (!dob) return ''; const d = new Date(dob), n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n < new Date(n.getFullYear(), d.getMonth(), d.getDate())) a--; return a; };
 
-export async function initVisits() {
-  if (!bound) { bound = true; bind(); }
+const WS_HTML = `<div class="split">
+  <div class="panel">
+    <div class="panel-head"><h2>ผู้ป่วยในความดูแล <span class="num muted" id="ptCount"></span></h2><button type="button" class="btn btn-p btn-sm" id="ptAddBtn">+ เพิ่มผู้ป่วย</button></div>
+    <label for="ptSearch" class="sr-only">ค้นหาผู้ป่วย</label>
+    <input id="ptSearch" class="input" type="search" placeholder="ค้นหาชื่อ / HN / เลข 13 หลัก">
+    <div class="list" id="ptList"></div>
+  </div>
+  <div class="panel" id="ptPanel"></div>
+</div>`;
+
+/** แสดงหน้าจอเยี่ยมบ้านของ รพ.สต. unitId ลงใน slot (เจ้าหน้าที่ = หน่วยตัวเอง, ผู้ดูแล = เลือกหน่วย) */
+export async function mountVisits(slot, unitId) {
+  if (!ws) { ws = document.createElement('div'); ws.innerHTML = WS_HTML; slot.appendChild(ws); bind(); }
+  else if (ws.parentNode !== slot) slot.appendChild(ws);
+  if (unit !== unitId) { unit = unitId; selected = null; mode = 'view'; editVisit = null; $('#ptSearch').value = ''; }
   await loadPatients();
 }
+export const initVisits = () => mountVisits($('#staffVisitsSlot'), auth.profile.unit_id);
 
 async function loadPatients() {
   $('#ptList').innerHTML = '<div class="skeleton" style="margin-top:8px"></div>';
-  const { data, error } = await sb.from('patients').select('*').eq('unit_id', auth.profile.unit_id).order('first_name');
+  const { data, error } = await sb.from('patients').select('*').eq('unit_id', unit).order('first_name');
   if (error) { $('#ptList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   patients = data;
   if (selected) selected = patients.find((p) => p.id === selected.id) || null;
@@ -178,7 +192,7 @@ async function savePatient(form) {
   const editing = editVisit === 'edit-patient' && selected;
   const res = editing
     ? await sb.from('patients').update(row).eq('id', selected.id).select().single()
-    : await sb.from('patients').insert({ ...row, unit_id: auth.profile.unit_id }).select().single();
+    : await sb.from('patients').insert({ ...row, unit_id: unit }).select().single();
   busy(btn, false);
   if (res.error) return err(errText(res.error));
   toast(editing ? 'บันทึกข้อมูลผู้ป่วยแล้ว' : 'เพิ่มผู้ป่วยแล้ว');
@@ -202,7 +216,7 @@ async function saveVisit(form) {
   const btn = form.querySelector('[type=submit]'); busy(btn, true, 'กำลังบันทึก…');
   const res = editVisit
     ? await sb.from('visits').update(row).eq('id', editVisit.id).select()
-    : await sb.from('visits').insert({ ...row, unit_id: auth.profile.unit_id }).select();
+    : await sb.from('visits').insert({ ...row, unit_id: unit }).select();
   busy(btn, false);
   if (res.error) { m.style.color = 'var(--error)'; m.textContent = errText(res.error); return; }
   toast(`บันทึกการเยี่ยมแล้ว (ปีงบ ${fiscalYearOf(date)})`);

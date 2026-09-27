@@ -1,6 +1,6 @@
 // ข้อมูลอ้างอิงที่ใช้หลายหน้า (โหลดครั้งเดียวแล้วเก็บไว้)
-import { sb } from './supabase.js';
-import { fiscalYearOf } from './util.js';
+import { sb } from './supabase.js?v=4.4';
+import { fiscalYearOf } from './util.js?v=4.4';
 
 let units = null, years = null;
 
@@ -13,6 +13,16 @@ export async function loadUnits(force = false) {
   return units;
 }
 export const unitName = (id) => units?.find((u) => u.id === id)?.name || '';
+
+export function resetYears() { years = null; }
+
+/** เรียงข้อเกณฑ์: หัวข้อ → หัวข้อย่อย (ตามลำดับที่ปรากฏ) → เลขข้อ (1.2 ก่อน 1.10) */
+export function sortItems(items) {
+  const subPos = new Map();
+  [...items].sort((a, b) => a.sort - b.sort).forEach((it) => { const k = it.topic_no + '|' + it.sub_id; if (!subPos.has(k)) subPos.set(k, subPos.size); });
+  const last = (no) => +String(no).split('.').pop();
+  return [...items].sort((a, b) => a.topic_no - b.topic_no || subPos.get(a.topic_no + '|' + a.sub_id) - subPos.get(b.topic_no + '|' + b.sub_id) || last(a.item_no) - last(b.item_no));
+}
 
 /** ปีงบประมาณที่มีเกณฑ์ในระบบ + ปีงบปัจจุบัน (เรียงเก่า → ใหม่) */
 export async function loadYears() {

@@ -1,7 +1,7 @@
 // ข่าวประชาสัมพันธ์: สไลด์หน้าแรก, รายการข่าว, หน้าอ่านข่าว (ถูกใจ / ความคิดเห็น / ผู้เข้าชม)
-import { sb, publicImageUrl } from '../supabase.js';
-import { $, esc, thaiDate, art, toast, errText, busy } from '../util.js';
-import { auth } from '../auth.js';
+import { sb, publicImageUrl } from '../supabase.js?v=4.4';
+import { $, esc, thaiDate, art, toast, errText, busy } from '../util.js?v=4.4';
+import { auth } from '../auth.js?v=4.4';
 
 let news = null;          // cache ข่าวที่เผยแพร่แล้ว
 let loading = null;
