@@ -1,6 +1,6 @@
 // เครื่องคำนวณขนาดยาตามน้ำหนักตัว (รายการยามาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
-import { sb } from '../supabase.js?v=4.3';
-import { $, esc } from '../util.js?v=4.3';
+import { sb } from '../supabase.js?v=4.3.1';
+import { $, esc } from '../util.js?v=4.3.1';
 
 let drugs = null, bound = false;
 

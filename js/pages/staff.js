@@ -1,13 +1,13 @@
 // เจ้าหน้าที่ รพ.สต.: โครงหน้า + ข่าว (ส่งตรวจ) + ผลงาน (เผยแพร่ทันที) + ข้อเสนอแนะ
 // มาตรฐาน → criteria.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
-import { sb, publicImageUrl } from '../supabase.js?v=4.3';
-import { $, $$, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.3';
-import { auth } from '../auth.js?v=4.3';
-import { uploadPublicImage, removeFiles } from '../upload.js?v=4.3';
-import { initCriteria } from './criteria.js?v=4.3';
-import { initVisits } from './visits.js?v=4.3';
-import { initStaffDocs } from './docs.js?v=4.3';
-import { setCurrent } from '../nav.js?v=4.3';
+import { sb, publicImageUrl } from '../supabase.js?v=4.3.1';
+import { $, $$, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.3.1';
+import { auth } from '../auth.js?v=4.3.1';
+import { uploadPublicImage, removeFiles } from '../upload.js?v=4.3.1';
+import { initCriteria } from './criteria.js?v=4.3.1';
+import { initVisits } from './visits.js?v=4.3.1';
+import { initStaffDocs } from './docs.js?v=4.3.1';
+import { setCurrent } from '../nav.js?v=4.3.1';
 
 export const STAFF_TABS = {
   news: 'ข่าวประชาสัมพันธ์',

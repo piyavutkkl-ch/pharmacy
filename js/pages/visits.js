@@ -1,8 +1,8 @@
 // เจ้าหน้าที่: เยี่ยมบ้าน — ผู้ป่วยของ รพ.สต. ตัวเอง + บันทึกการเยี่ยม (SOAP, รายการยา, DRPs)
 // ข้อมูลอ่อนไหว: RLS ให้เห็นเฉพาะ รพ.สต. เดียวกัน + ผู้ดูแล · ทุกการเพิ่ม/แก้/ลบถูกบันทึกใน audit_log
-import { sb } from '../supabase.js?v=4.3';
-import { $, esc, thaiDate, initials, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.3';
-import { auth } from '../auth.js?v=4.3';
+import { sb } from '../supabase.js?v=4.3.1';
+import { $, esc, thaiDate, initials, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.3.1';
+import { auth } from '../auth.js?v=4.3.1';
 
 export const DRP_CATS = [
   'ได้รับยาที่ไม่จำเป็น (Unnecessary drug therapy)', 'ควรได้รับยาเพิ่มเติม (Needs additional therapy)',

@@ -1,11 +1,11 @@
 // ผู้ดูแล › ข่าว: ตรวจข่าวจากเจ้าหน้าที่ (อนุมัติ/ขอแก้/ไม่ผ่าน) + เขียนข่าวเอง + จัดการข่าวที่เผยแพร่
-import { sb, publicImageUrl } from '../supabase.js?v=4.3';
-import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.3';
-import { auth } from '../auth.js?v=4.3';
-import { loadUnits, unitName } from '../data.js?v=4.3';
-import { uploadPublicImage, removeFiles } from '../upload.js?v=4.3';
-import { loadNews, renderSlides } from './news.js?v=4.3';
-import { refreshAdminBadges } from './admin.js?v=4.3';
+import { sb, publicImageUrl } from '../supabase.js?v=4.3.1';
+import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.3.1';
+import { auth } from '../auth.js?v=4.3.1';
+import { loadUnits, unitName } from '../data.js?v=4.3.1';
+import { uploadPublicImage, removeFiles } from '../upload.js?v=4.3.1';
+import { loadNews, renderSlides } from './news.js?v=4.3.1';
+import { refreshAdminBadges } from './admin.js?v=4.3.1';
 
 let queue = [], published = [], reviewing = null, editing = null, bound = false;
 
@@ -16,8 +16,9 @@ export async function initAdminNews() {
 }
 
 async function loadQueue() {
-  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,unit_id,created_at,author:profiles(full_name)').eq('status', 'pending').order('created_at');
-  queue = error ? [] : data;
+  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,unit_id,created_at,author:profiles!news_author_id_fkey(full_name)').eq('status', 'pending').order('created_at');
+  if (error) { $('#anQueue').innerHTML = `<p class="empty">โหลดข่าวรอตรวจไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
+  queue = data;
   $('#anQueueCount').textContent = queue.length ? `(${queue.length})` : '';
   $('#anQueue').innerHTML = queue.length ? queue.map((n) => `<div class="li"><div class="l"><b>${esc(n.title)}</b>`
     + `<span class="small muted">${esc(n.author?.full_name || '-')} · รพ.สต. ${esc(unitName(n.unit_id))} · ${esc(n.tag)} · ${esc(thaiDate(n.created_at))}</span></div>`
@@ -57,7 +58,8 @@ async function decide(status, btn) {
 
 async function loadPublished() {
   const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,comments_closed,view_count,published_at,unit_id').eq('status', 'published').order('published_at', { ascending: false });
-  published = error ? [] : data;
+  if (error) { $('#anList').innerHTML = `<p class="empty">โหลดข่าวไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
+  published = data;
   $('#anCount').textContent = `(${published.length})`;
   $('#anList').innerHTML = published.length ? published.map((n) => `<div class="newsrow"><div class="thumb2">${n.image_path ? `<img src="${esc(publicImageUrl(n.image_path))}" alt="" loading="lazy">` : ''}</div>`
     + `<div class="l"><b>${esc(n.title)}</b><span class="small muted">${esc(n.tag)} · ${esc(thaiDate(n.published_at))} · ${n.view_count.toLocaleString('th-TH')} ผู้เข้าชม${n.unit_id != null ? ' · จาก รพ.สต. ' + esc(unitName(n.unit_id)) : ''}${n.comments_closed ? ' · ปิดความคิดเห็น' : ''}</span></div>`

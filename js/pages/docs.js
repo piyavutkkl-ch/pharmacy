@@ -2,10 +2,10 @@
 //   ผู้ดูแล: อัปโหลด / แก้ไขรายละเอียด / เปลี่ยนไฟล์ (เลขรุ่น +1) / ลบ   → initAdminDocs()
 //   เจ้าหน้าที่: ดาวน์โหลดเอกสาร "ทุก รพ.สต." + ของหน่วยตัวเอง            → initStaffDocs()
 // ที่เก็บไฟล์: all/<ชื่อสุ่ม>.<ext> (ทุกหน่วย) หรือ <unit>/<ชื่อสุ่ม>.<ext> — RLS ของ storage อ่านตามโฟลเดอร์นี้
-import { sb } from '../supabase.js?v=4.3';
-import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.3';
-import { loadUnits, unitName } from '../data.js?v=4.3';
-import { extOf } from '../upload.js?v=4.3';
+import { sb } from '../supabase.js?v=4.3.1';
+import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.3.1';
+import { loadUnits, unitName } from '../data.js?v=4.3.1';
+import { extOf } from '../upload.js?v=4.3.1';
 
 const CATS = ['แบบฟอร์ม', 'คู่มือ / แนวทาง', 'หนังสือสั่งการ / ประกาศ', 'อื่น ๆ'];
 const TYPES = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', csv: 'text/csv', txt: 'text/plain' };

@@ -1,5 +1,5 @@
 // เมนูด้านข้าง (จอใหญ่) / เมนูล่างจอ (มือถือ) — ปุ่ม "เพิ่มเติม" เปิดเมนูที่เหลือบนมือถือ
-import { $$ } from './util.js?v=4.3';
+import { $$ } from './util.js?v=4.3.1';
 
 export function closeMoreSheets() {
   $$('.sidenav.more-open').forEach((n) => { n.classList.remove('more-open'); n.querySelector('.more-btn')?.setAttribute('aria-expanded', 'false'); });

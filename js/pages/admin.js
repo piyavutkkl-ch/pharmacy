@@ -1,17 +1,17 @@
 // ผู้ดูแล: โครงหน้า + เมนู + ตัวเลขงานค้าง + ข้อเสนอแนะ
 // ข่าว → admin-news.js · ตรวจประเมิน → admin-review.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
 // ตั้งค่า → admin-settings.js (ยา, ช่องทางติดต่อ) + admin-staff.js (บัญชีเจ้าหน้าที่)
-import { sb } from '../supabase.js?v=4.3';
-import { $, $$, esc, thaiDate, toast, errText } from '../util.js?v=4.3';
-import { auth } from '../auth.js?v=4.3';
-import { loadUnits, unitName } from '../data.js?v=4.3';
-import { setCurrent } from '../nav.js?v=4.3';
-import { initAdminNews } from './admin-news.js?v=4.3';
-import { initReview } from './admin-review.js?v=4.3';
-import { mountVisits } from './visits.js?v=4.3';
-import { initAdminDocs } from './docs.js?v=4.3';
-import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.3';
-import { initRoster } from './admin-staff.js?v=4.3';
+import { sb } from '../supabase.js?v=4.3.1';
+import { $, $$, esc, thaiDate, toast, errText } from '../util.js?v=4.3.1';
+import { auth } from '../auth.js?v=4.3.1';
+import { loadUnits, unitName } from '../data.js?v=4.3.1';
+import { setCurrent } from '../nav.js?v=4.3.1';
+import { initAdminNews } from './admin-news.js?v=4.3.1';
+import { initReview } from './admin-review.js?v=4.3.1';
+import { mountVisits } from './visits.js?v=4.3.1';
+import { initAdminDocs } from './docs.js?v=4.3.1';
+import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.3.1';
+import { initRoster } from './admin-staff.js?v=4.3.1';
 
 export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', docs: 'จัดการเอกสาร', feedback: 'ข้อเสนอแนะ', settings: 'ตั้งค่า' };
 const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster };
@@ -59,7 +59,7 @@ let fbFilter = 'all';
 async function initFeedback() {
   await loadUnits();
   $('#afList').innerHTML = '<div class="skeleton"></div>';
-  const { data, error } = await sb.from('feedback').select('id,body,source,unit_id,created_at,author:profiles(full_name,email)').order('created_at', { ascending: false }).limit(300);
+  const { data, error } = await sb.from('feedback').select('id,body,source,unit_id,created_at,author:profiles!feedback_author_id_fkey(full_name,email)').order('created_at', { ascending: false }).limit(300);
   if (error) { $('#afList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   const n = { all: data.length, staff: data.filter((f) => f.source === 'staff').length, public: data.filter((f) => f.source === 'public').length };
   $('#afFilter').innerHTML = [['all', 'ทั้งหมด'], ['staff', 'จากเจ้าหน้าที่'], ['public', 'จากหน้าเว็บ (ประชาชน)']]

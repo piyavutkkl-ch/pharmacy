@@ -6,15 +6,15 @@
 //   #/me               ประชาชน (4.4)
 //   #/staff[/news|achievements|criteria|visits|docs|feedback]                 เจ้าหน้าที่ รพ.สต.
 //   #/admin[/news|review|visits|docs|feedback|settings[/dose|contacts|staff]]  ผู้ดูแล (โรงพยาบาล)
-import { sb } from './supabase.js?v=4.3';
-import { $, $$, esc, toast, errText, busy } from './util.js?v=4.3';
-import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.3';
-import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState } from './pages/news.js?v=4.3';
-import { initDose } from './pages/dose.js?v=4.3';
-import { initTracking, initAchievements, initContacts } from './pages/stats.js?v=4.3';
-import { showAdmin } from './pages/admin.js?v=4.3';
-import { bindMoreSheets } from './nav.js?v=4.3';
-import { showStaff } from './pages/staff.js?v=4.3';
+import { sb } from './supabase.js?v=4.3.1';
+import { $, $$, esc, toast, errText, busy } from './util.js?v=4.3.1';
+import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.3.1';
+import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState } from './pages/news.js?v=4.3.1';
+import { initDose } from './pages/dose.js?v=4.3.1';
+import { initTracking, initAchievements, initContacts } from './pages/stats.js?v=4.3.1';
+import { showAdmin } from './pages/admin.js?v=4.3.1';
+import { bindMoreSheets } from './nav.js?v=4.3.1';
+import { showStaff } from './pages/staff.js?v=4.3.1';
 
 const HOME_PANELS = ['news', 'dose', 'tracking', 'achievements', 'contact'];
 

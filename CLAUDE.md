@@ -61,6 +61,7 @@ tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS
 - มือถือ: ตรวจที่ 390px ห้ามมี scroll แนวนอน · ปุ่มกดสูง ≥ 44px
 - ข้อความ UI ภาษาไทย สุภาพ สั้น
 
+- ดึงชื่อผู้ใช้แบบ embed ต้องระบุชื่อ foreign key เสมอ เช่น `author:profiles!news_author_id_fkey(full_name)` — news↔profiles มีหลายเส้นทาง (news_likes, news_comments) ถ้าไม่ระบุ Supabase จะ error PGRST201
 - id ใน index.html ใช้ร่วมทั้งหน้า ต้องไม่ซ้ำ — ตั้งคำนำหน้าตามส่วน (ar=หน้าอ่านข่าว, an=ผู้ดูแลข่าว, rv=ตรวจประเมิน, ad=เอกสารผู้ดูแล, sd=เอกสารเจ้าหน้าที่, df=ยา, ct=ติดต่อ, rf=บัญชี)
 
 ## การทดสอบ
