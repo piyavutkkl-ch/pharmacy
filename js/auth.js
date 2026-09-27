@@ -1,5 +1,5 @@
 // สถานะการเข้าสู่ระบบ + โปรไฟล์ (role มาจากตาราง profiles ซึ่งผู้ใช้แก้เองไม่ได้)
-import { sb } from './supabase.js';
+import { sb } from './supabase.js?v=4.3';
 
 export const ROLE_LABEL = { citizen: 'ประชาชนทั่วไป', staff: 'เจ้าหน้าที่ รพ.สต.', admin: 'ผู้ดูแลระบบ' };
 export const ROLE_HOME = { citizen: '#/me', staff: '#/staff', admin: '#/admin' };

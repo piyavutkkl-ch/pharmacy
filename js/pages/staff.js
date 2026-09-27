@@ -1,17 +1,20 @@
 // เจ้าหน้าที่ รพ.สต.: โครงหน้า + ข่าว (ส่งตรวจ) + ผลงาน (เผยแพร่ทันที) + ข้อเสนอแนะ
-// มาตรฐาน → criteria.js · เยี่ยมบ้าน → visits.js
-import { sb, publicImageUrl } from '../supabase.js';
-import { $, $$, esc, thaiDate, toast, errText, busy } from '../util.js';
-import { auth } from '../auth.js';
-import { uploadPublicImage, removeFiles } from '../upload.js';
-import { initCriteria } from './criteria.js';
-import { initVisits } from './visits.js';
+// มาตรฐาน → criteria.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
+import { sb, publicImageUrl } from '../supabase.js?v=4.3';
+import { $, $$, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.3';
+import { auth } from '../auth.js?v=4.3';
+import { uploadPublicImage, removeFiles } from '../upload.js?v=4.3';
+import { initCriteria } from './criteria.js?v=4.3';
+import { initVisits } from './visits.js?v=4.3';
+import { initStaffDocs } from './docs.js?v=4.3';
+import { setCurrent } from '../nav.js?v=4.3';
 
 export const STAFF_TABS = {
   news: 'ข่าวประชาสัมพันธ์',
   achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.',
   criteria: 'ประเมินมาตรฐานด้านยา รพ.สต.',
   visits: 'เยี่ยมบ้าน',
+  docs: 'เอกสารดาวน์โหลด',
   feedback: 'ข้อเสนอแนะถึงทีมพัฒนา',
 };
 let bound = false;
@@ -22,10 +25,10 @@ export function showStaff(tab) {
   $('#staffHello').textContent = 'สวัสดี ' + (p.full_name || '');
   $('#staffUnit').textContent = 'รพ.สต. ' + (p.unit?.name || '');
   $('#staffViewTitle').textContent = STAFF_TABS[tab];
-  $$('[data-staff-tab]').forEach((a) => { if (a.dataset.staffTab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindAch(); bindFeedback(); }
-  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: initVisits, feedback: loadFeedback })[tab]();
+  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: initVisits, docs: initStaffDocs, feedback: loadFeedback })[tab]();
   refreshBadges();
 }
 

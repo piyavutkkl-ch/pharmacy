@@ -21,19 +21,26 @@ assets/app.css        design tokens (:root สี/เงา/ฟอนต์ + da
 js/config.js          SUPABASE_URL / SUPABASE_KEY (ค่าสาธารณะ)
 js/supabase.js        client + publicImageUrl()
 js/auth.js            session/profile/role, signIn(), signOut(), ROLE_HOME
-js/data.js            ข้อมูลอ้างอิงที่ cache: units, ปีงบ
+js/data.js            ข้อมูลอ้างอิงที่ cache: units, ปีงบ, sortItems() เรียงข้อเกณฑ์
+js/nav.js             เมนูข้าง/เมนูล่างจอ (มือถือ) + ปุ่ม "เพิ่มเติม", setCurrent()
 js/util.js            esc, fiscalYearOf, thaiDate, toast, busy, errText, art()
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
 js/pages/news.js      สไลด์ข่าว, รายการข่าว, หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น)
 js/pages/dose.js      เครื่องคำนวณโดสยา (ตาราง dose_drugs)
 js/pages/stats.js     ผลการดำเนินงาน, ผลงาน รพ.สต. + อันดับ, ช่องทางติดต่อ
-js/pages/admin.js     ผู้ดูแล: จัดการบัญชีเจ้าหน้าที่ (staff_roster)
+js/pages/admin.js     ผู้ดูแล: โครงหน้า/เมนู (#/admin/<tab>[/<sub>]) + ตัวเลขงานค้าง + ข้อเสนอแนะ
+js/pages/admin-news.js     ผู้ดูแล › ข่าว: ตรวจข่าวจาก รพ.สต. (อนุมัติ/ขอแก้/ไม่ผ่าน) + เขียน/แก้/ลบข่าว
+js/pages/admin-review.js   ผู้ดูแล › ตรวจประเมิน: ตรวจหลักฐานราย รพ.สต., ความคืบหน้า, แก้เกณฑ์, เริ่มปีงบใหม่
+js/pages/admin-settings.js ผู้ดูแล › ตั้งค่า: รายการยาเครื่องคำนวณโดส + ช่องทางติดต่อ รพ.สต.
+js/pages/admin-staff.js    ผู้ดูแล › ตั้งค่า › บัญชีเจ้าหน้าที่ (staff_roster)
+js/pages/docs.js      เอกสารดาวน์โหลด: ผู้ดูแลอัปโหลด/แก้/แทนที่ไฟล์/ลบ, เจ้าหน้าที่ดาวน์โหลด (bucket documents)
 js/pages/staff.js     เจ้าหน้าที่: โครงหน้า/เมนู + ข่าว (ส่งตรวจ) + ผลงาน + ข้อเสนอแนะ + ตัวเลขแจ้งเตือน
 js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence)
-js/pages/visits.js    เจ้าหน้าที่: ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP, รายการยา, DRPs)
+js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP, รายการยา, DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP ในเครื่องก่อน, ลิงก์ชั่วคราวไฟล์ส่วนตัว
 supabase/*.sql        migration เรียงเลข รันใน Supabase SQL Editor ตามลำดับ (ไฟล์ใหม่ = เลขถัดไป)
 tests/rls_test.py     ทดสอบสิทธิ์ฐานข้อมูลกับ Postgres ในเครื่อง (ดูหัวข้อทดสอบ)
+tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS (รันก่อน commit ทุกครั้ง)
 ```
 
 ## ฐานข้อมูล (Supabase, region Singapore)
@@ -47,11 +54,14 @@ tests/rls_test.py     ทดสอบสิทธิ์ฐานข้อมู�
 - ไฟล์: bucket `public-images` (≤1 MB, สาธารณะ), `documents` (≤5 MB), `evidence` (≤2 MB, path `ปีงบ/unit/…`) รวมฟรี 1 GB
 
 ## แนวทางเขียนโค้ด
+- **ทุกครั้งที่แก้ .js/.css ต้องรัน `python3 tools/bump_version.py <เวอร์ชันใหม่>` ก่อน commit** (ติด ?v= ให้ทุกไฟล์ กันเบราว์เซอร์ใช้ไฟล์เก่า — GitHub Pages ให้ cache 10 นาที) · import ไฟล์ในโปรเจกต์ต้องมี ?v= เหมือนกันทุกไฟล์ ไม่งั้นโมดูลจะถูกโหลดซ้ำเป็นคนละตัว
 - ES modules, ไม่มี framework · ฟังก์ชันหน้าใหม่ใส่ `js/pages/<ชื่อ>.js` แล้วต่อเส้นทางใน `route()` ของ main.js
 - สไตล์ใช้ class/token ใน app.css — หลีกเลี่ยง inline style ใหม่
 - ทุกหน้าต้องมีสถานะ: กำลังโหลด (`.skeleton`), ว่าง (`.empty`), ผิดพลาด (`toast(…,'err')`), ปุ่มระหว่างรอ (`busy()`)
 - มือถือ: ตรวจที่ 390px ห้ามมี scroll แนวนอน · ปุ่มกดสูง ≥ 44px
 - ข้อความ UI ภาษาไทย สุภาพ สั้น
+
+- id ใน index.html ใช้ร่วมทั้งหน้า ต้องไม่ซ้ำ — ตั้งคำนำหน้าตามส่วน (ar=หน้าอ่านข่าว, an=ผู้ดูแลข่าว, rv=ตรวจประเมิน, ad=เอกสารผู้ดูแล, sd=เอกสารเจ้าหน้าที่, df=ยา, ct=ติดต่อ, rf=บัญชี)
 
 ## การทดสอบ
 - ฐานข้อมูล: ติดตั้ง Postgres 16 → สร้าง DB → รัน `tests/stub_new_default.sql`, `supabase/01…` แล้ว `03…` ขึ้นไปตามลำดับ → `python3 tests/rls_test.py` (ต้องผ่านทั้งหมด)
@@ -62,7 +72,7 @@ tests/rls_test.py     ทดสอบสิทธิ์ฐานข้อมู�
 - [x] 1 ฐานข้อมูล + RLS · [x] 2 Google login · [x] 3 GitHub Pages
 - [x] 4.1 หน้าสาธารณะ + login ตามสิทธิ์ + ผู้ดูแลจัดการบัญชีเจ้าหน้าที่ผ่านเว็บ
 - [x] 4.2 เจ้าหน้าที่: ส่งข่าว, ผลงาน, ส่งหลักฐานเกณฑ์, เยี่ยมบ้าน, ข้อเสนอแนะ
-- [ ] 4.3 ผู้ดูแล: ตรวจข่าว/ผลงาน, ความคืบหน้า, ยา, ช่องทางติดต่อ, ปีงบใหม่, เอกสาร, ข้อเสนอแนะ
+- [x] 4.3 ผู้ดูแล: ตรวจข่าว/ผลงาน, ความคืบหน้า, ยา, ช่องทางติดต่อ, ปีงบใหม่, เอกสาร, ข้อเสนอแนะ
 - [ ] 4.4 ประชาชน: ข้อมูลส่วนตัว + แชท real-time
 - [ ] 5 GitHub Actions: กัน Supabase หยุดโปรเจกต์ + สำรองข้อมูลรายสัปดาห์ไป Google Drive กลาง
 - ต้นแบบ UI เดิม (ใช้อ้างอิงหน้าตา/ฟีเจอร์ที่ยังไม่ย้าย): Claude Artifact "Primary Care Pharmacy Services" ของเจ้าของโปรเจกต์

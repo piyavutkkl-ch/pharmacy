@@ -412,3 +412,14 @@ body.has-bottomnav .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 .drp-list{display:flex;flex-direction:column;gap:4px}
 .kv{grid-template-columns:110px 1fr}
 .btn-wrap{white-space:normal;text-align:left;max-width:100%}
+.unit-tabs .tab-link{border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;white-space:nowrap;text-decoration:none;flex-shrink:0}
+.unit-tabs .tab-link:hover{border-color:var(--faint)}
+.unit-tabs .tab-link[aria-current="page"]{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
+.review-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.bar-row .meter span.low{background:var(--warning)}
+.topic-h{font-size:15px;margin:18px 0 4px;padding-top:12px;border-top:1px solid var(--line)}
+.topic-h:first-child{border-top:0;padding-top:0;margin-top:4px}
+.review-list .crit-item .btn{flex-shrink:0}
+.sub-edit{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
+.sub-edit .crit-item .input{flex:1;min-width:0}
+.crit-editor textarea{min-height:56px}

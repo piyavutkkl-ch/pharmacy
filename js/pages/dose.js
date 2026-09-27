@@ -1,8 +1,11 @@
 // เครื่องคำนวณขนาดยาตามน้ำหนักตัว (รายการยามาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
-import { sb } from '../supabase.js';
-import { $, esc } from '../util.js';
+import { sb } from '../supabase.js?v=4.3';
+import { $, esc } from '../util.js?v=4.3';
 
-let drugs = null;
+let drugs = null, bound = false;
+
+/** ให้โหลดรายการยาใหม่ครั้งถัดไป (เรียกหลังผู้ดูแลแก้รายการยา) */
+export function resetDose() { drugs = null; }
 
 export async function initDose() {
   if (drugs) return;
@@ -12,6 +15,8 @@ export async function initDose() {
   drugs = error ? [] : data;
   sel.innerHTML = drugs.length ? drugs.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('') : '<option value="">ยังไม่มีรายการยา</option>';
   fillConc(); toggleRenal(); render();
+  if (bound) return;
+  bound = true;
   ['doseWeight', 'doseHeight', 'doseAge', 'doseCr'].forEach((id) => $('#' + id).addEventListener('input', render));
   ['doseConc', 'doseRenal', 'doseSex'].forEach((id) => $('#' + id).addEventListener('change', render));
   sel.addEventListener('change', () => { fillConc(); render(); });
