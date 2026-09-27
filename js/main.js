@@ -3,7 +3,8 @@
 // เส้นทาง (URL หลัง #):
 //   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
-//   #/me               ประชาชน (4.4)      #/staff            เจ้าหน้าที่ (4.2)      #/admin[/staff]   ผู้ดูแล
+//   #/me               ประชาชน (4.4)      #/staff[/news|achievements|criteria|visits|feedback]  เจ้าหน้าที่
+//   #/admin[/staff]    ผู้ดูแล
 import { sb } from './supabase.js';
 import { $, $$, esc, toast, errText, busy } from './util.js';
 import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js';
@@ -11,12 +12,13 @@ import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto
 import { initDose } from './pages/dose.js';
 import { initTracking, initAchievements, initContacts } from './pages/stats.js';
 import { initAdminStaff } from './pages/admin.js';
+import { showStaff } from './pages/staff.js';
 
 const HOME_PANELS = ['news', 'dose', 'tracking', 'achievements', 'contact'];
 
 function showView(name) {
   $$('[data-view]').forEach((v) => { v.hidden = v.dataset.view !== name; });
-  document.body.classList.toggle('in-app', ['me', 'staff', 'admin'].includes(name));
+  document.body.classList.toggle('has-bottomnav', ['staff', 'admin'].includes(name));   // มือถือ: เมนูล่างจอ
   if (name === 'home') startAuto(); else stopAuto();
 }
 
@@ -72,14 +74,7 @@ async function route() {
   }
   if (!auth.ready) { showView('message'); $('#msgTitle').textContent = 'กำลังโหลด…'; $('#msgBody').textContent = ''; return; }
   if (a === 'me') { if (requireRole(['citizen', 'staff', 'admin'])) { $('#meHello').textContent = 'สวัสดี ' + (auth.profile.full_name || ''); showView('me'); } return; }
-  if (a === 'staff') {
-    if (requireRole(['staff'])) {
-      $('#staffHello').textContent = 'สวัสดี ' + (auth.profile.full_name || '');
-      $('#staffUnit').textContent = 'รพ.สต. ' + (auth.profile.unit?.name || '');
-      showView('staff');
-    }
-    return;
-  }
+  if (a === 'staff') { if (requireRole(['staff'])) { showView('staff'); showStaff(b); } return; }
   if (a === 'admin') { if (requireRole(['admin'])) { showView('admin'); initAdminStaff(); } return; }
   message('ไม่พบหน้านี้', 'ลิงก์อาจไม่ถูกต้อง');
 }

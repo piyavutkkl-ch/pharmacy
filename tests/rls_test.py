@@ -194,5 +194,12 @@ check("email normalised to lower-case", "admin", "insert into staff_roster(email
 run("insert into staff_roster(email,full_name,role) values ('admin2@x.com','Admin 2','admin')")
 check("admin can remove another admin", "admin", "delete from staff_roster where email='admin2@x.com' returning email", rows(1))
 
+print("== step 4.2 ==")
+run("insert into storage.objects(bucket_id,name,owner_id) values ('public-images','achievements/2/colleague.webp','x'),('evidence','2570/2/1.2/c.pdf','x'),('evidence','2570/1/1.2/o.pdf','x')")
+check("staff deletes colleague's achievement image (same unit)", "s2", "delete from storage.objects where name='achievements/2/colleague.webp' returning name", rows(1))
+check("staff deletes colleague's evidence (same unit)", "s2", "delete from storage.objects where name='2570/2/1.2/c.pdf' returning name", rows(1))
+check("staff cannot delete other unit's evidence", "s2", "delete from storage.objects where name='2570/1/1.2/o.pdf' returning name", rows(0))
+check("staff resubmits item after fix (evidence paths kept)", "s2", "update item_status set detail='แก้แล้ว', evidence_paths=array['2570/2/1.1/a.pdf'] where unit_id=2 and status<>'approved' returning status", lambda o: True)
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
