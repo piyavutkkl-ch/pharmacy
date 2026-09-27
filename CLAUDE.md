@@ -28,6 +28,10 @@ js/pages/news.js      สไลด์ข่าว, รายการข่า�
 js/pages/dose.js      เครื่องคำนวณโดสยา (ตาราง dose_drugs)
 js/pages/stats.js     ผลการดำเนินงาน, ผลงาน รพ.สต. + อันดับ, ช่องทางติดต่อ
 js/pages/admin.js     ผู้ดูแล: จัดการบัญชีเจ้าหน้าที่ (staff_roster)
+js/pages/staff.js     เจ้าหน้าที่: โครงหน้า/เมนู + ข่าว (ส่งตรวจ) + ผลงาน + ข้อเสนอแนะ + ตัวเลขแจ้งเตือน
+js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence)
+js/pages/visits.js    เจ้าหน้าที่: ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP, รายการยา, DRPs)
+js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP ในเครื่องก่อน, ลิงก์ชั่วคราวไฟล์ส่วนตัว
 supabase/*.sql        migration เรียงเลข รันใน Supabase SQL Editor ตามลำดับ (ไฟล์ใหม่ = เลขถัดไป)
 tests/rls_test.py     ทดสอบสิทธิ์ฐานข้อมูลกับ Postgres ในเครื่อง (ดูหัวข้อทดสอบ)
 ```
@@ -39,6 +43,7 @@ tests/rls_test.py     ทดสอบสิทธิ์ฐานข้อมู�
 - เกณฑ์มาตรฐานแยกชุดต่อปีงบ (`criteria_items.fiscal_year`) · ขึ้นปีใหม่ด้วย `start_fiscal_year(ปี)` · ห้ามแก้เกณฑ์ปีเก่า
 - trigger guard: เจ้าหน้าที่ส่งข่าว/ผลงานได้แค่สถานะ pending/submitted, ผู้ดูแลลดสิทธิ์ตัวเองไม่ได้, ต้องมีผู้ดูแล ≥ 1
 - Supabase โปรเจกต์ใหม่ **ไม่ grant ตารางให้อัตโนมัติ** → ตารางใหม่ต้อง `grant ... to authenticated/anon` เอง (ดู 03_grants.sql)
+- เส้นทางไฟล์: รูปข่าว `news/<user id>/…`, รูปผลงาน `achievements/<unit>/…`, หลักฐาน `<ปีงบ>/<unit>/<ข้อ>/…`
 - ไฟล์: bucket `public-images` (≤1 MB, สาธารณะ), `documents` (≤5 MB), `evidence` (≤2 MB, path `ปีงบ/unit/…`) รวมฟรี 1 GB
 
 ## แนวทางเขียนโค้ด
@@ -49,14 +54,14 @@ tests/rls_test.py     ทดสอบสิทธิ์ฐานข้อมู�
 - ข้อความ UI ภาษาไทย สุภาพ สั้น
 
 ## การทดสอบ
-- ฐานข้อมูล: ติดตั้ง Postgres 16 → สร้าง DB → รัน `tests/stub_new_default.sql`, `supabase/01…`, `03…`, `04…` → `python3 tests/rls_test.py` (ต้องผ่านทั้งหมด)
+- ฐานข้อมูล: ติดตั้ง Postgres 16 → สร้าง DB → รัน `tests/stub_new_default.sql`, `supabase/01…` แล้ว `03…` ขึ้นไปตามลำดับ → `python3 tests/rls_test.py` (ต้องผ่านทั้งหมด)
   (แก้ค่าเชื่อมต่อบรรทัด PSQL ในไฟล์ทดสอบให้ตรงกับเครื่อง)
 - หน้าเว็บ: `python3 -m http.server` ในโฟลเดอร์ repo แล้วเปิด http://localhost:8000 (login จริงต้องเพิ่ม URL นี้ใน Supabase → URL Configuration → Redirect URLs)
 
 ## สถานะ (อัปเดตทุกครั้งที่ทำขั้นใหม่เสร็จ)
 - [x] 1 ฐานข้อมูล + RLS · [x] 2 Google login · [x] 3 GitHub Pages
 - [x] 4.1 หน้าสาธารณะ + login ตามสิทธิ์ + ผู้ดูแลจัดการบัญชีเจ้าหน้าที่ผ่านเว็บ
-- [ ] 4.2 เจ้าหน้าที่: ส่งข่าว, ผลงาน, ส่งหลักฐานเกณฑ์, เยี่ยมบ้าน
+- [x] 4.2 เจ้าหน้าที่: ส่งข่าว, ผลงาน, ส่งหลักฐานเกณฑ์, เยี่ยมบ้าน, ข้อเสนอแนะ
 - [ ] 4.3 ผู้ดูแล: ตรวจข่าว/ผลงาน, ความคืบหน้า, ยา, ช่องทางติดต่อ, ปีงบใหม่, เอกสาร, ข้อเสนอแนะ
 - [ ] 4.4 ประชาชน: ข้อมูลส่วนตัว + แชท real-time
 - [ ] 5 GitHub Actions: กัน Supabase หยุดโปรเจกต์ + สำรองข้อมูลรายสัปดาห์ไป Google Drive กลาง

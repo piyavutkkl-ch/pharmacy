@@ -183,12 +183,88 @@
   </div>
 </section>
 
-<!-- ============ เจ้าหน้าที่ รพ.สต. (ขั้น 4.2) ============ -->
+<!-- ============ เจ้าหน้าที่ รพ.สต. ============ -->
 <section data-view="staff" class="app" hidden>
   <div class="app-head"><div><span class="small muted" id="staffUnit">รพ.สต.</span><h1 id="staffHello">สวัสดี</h1></div></div>
-  <div class="panel">
-    <h2>กำลังเปิดใช้งาน</h2>
-    <p class="small muted">เมนูเจ้าหน้าที่ (ส่งข่าว ผลงาน ประเมินมาตรฐาน เยี่ยมบ้าน กล่องข้อความ เอกสาร) จะเปิดในขั้นถัดไป บัญชีของคุณได้รับสิทธิ์เจ้าหน้าที่เรียบร้อยแล้ว</p>
+  <div class="app-body">
+    <nav class="sidenav" aria-label="เมนูเจ้าหน้าที่">
+      <a href="#/staff/news" data-staff-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="stfNewsBadge" class="badge num"></span></a>
+      <a href="#/staff/achievements" data-staff-tab="achievements" title="ผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">ผลงาน</span></a>
+      <a href="#/staff/criteria" data-staff-tab="criteria" title="มาตรฐาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">มาตรฐาน</span><span id="stfCritBadge" class="badge num"></span></a>
+      <a href="#/staff/visits" data-staff-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
+      <a href="#/staff/feedback" data-staff-tab="feedback" title="ข้อเสนอแนะ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><span class="lbl">ข้อเสนอแนะ</span></a>
+    </nav>
+    <div class="app-main">
+      <h2 class="view-title" id="staffViewTitle"></h2>
+
+      <!-- ข่าว: เจ้าหน้าที่ส่ง → ผู้ดูแลตรวจก่อนเผยแพร่ -->
+      <div data-staff-view="news" hidden>
+        <div class="panel">
+          <h2 id="snFormTitle">ส่งข่าวประชาสัมพันธ์</h2>
+          <p class="small muted">ข่าวที่ส่งจะเข้าคิวให้ผู้ดูแลตรวจก่อน เมื่ออนุมัติแล้วจึงขึ้นหน้าหลัก</p>
+          <form id="snForm" class="form-grid" novalidate>
+            <div class="field full"><label for="snTitle">หัวข้อข่าว <span class="req">*</span></label><input id="snTitle" class="input" maxlength="200"></div>
+            <div class="field"><label for="snTag">ประเภท</label><select id="snTag" class="input"><option>ประกาศ</option><option>อบรม</option><option>รายงาน</option></select></div>
+            <div class="field"><label for="snImage">รูปประกอบ (ถ้ามี)</label><input id="snImage" class="input" type="file" accept="image/*"><span class="small muted" id="snImageNote"></span></div>
+            <div class="field full"><label for="snBody">เนื้อหาข่าว <span class="req">*</span></label><textarea id="snBody" maxlength="20000" rows="6"></textarea></div>
+            <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="snSubmit">ส่งให้ผู้ดูแลตรวจ</button><button class="btn btn-o btn-sm" type="button" id="snCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="snMsg" aria-live="polite"></span></div>
+          </form>
+        </div>
+        <div class="panel"><h2>ข่าวที่ฉันส่ง</h2><div class="list" id="snList"></div></div>
+      </div>
+
+      <!-- ผลงาน: เผยแพร่ได้ทันที -->
+      <div data-staff-view="achievements" hidden>
+        <div class="panel">
+          <h2 id="saFormTitle">เพิ่มผลงาน</h2>
+          <p class="small muted">ผลงานของ รพ.สต. จะขึ้นหน้าหลักทันที ไม่ต้องรอผู้ดูแลตรวจ</p>
+          <form id="saForm" class="form-grid" novalidate>
+            <div class="field full"><label for="saTitle">ชื่อผลงาน <span class="req">*</span></label><input id="saTitle" class="input" maxlength="200"></div>
+            <div class="field full"><label for="saBody">รายละเอียด</label><textarea id="saBody" maxlength="10000" rows="4"></textarea></div>
+            <div class="field full"><label for="saImage">รูปผลงาน (ถ้ามี)</label><input id="saImage" class="input" type="file" accept="image/*"><span class="small muted" id="saImageNote"></span></div>
+            <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="saSubmit">เผยแพร่ผลงาน</button><button class="btn btn-o btn-sm" type="button" id="saCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="saMsg" aria-live="polite"></span></div>
+          </form>
+        </div>
+        <div class="panel"><h2>ผลงานของ รพ.สต.</h2><div class="list" id="saList"></div></div>
+      </div>
+
+      <!-- มาตรฐาน: ส่งหลักฐานรายข้อ -->
+      <div data-staff-view="criteria" hidden>
+        <div class="unit-tabs" id="scYears" aria-label="เลือกปีงบประมาณ"></div>
+        <div class="panel" id="scSummary"></div>
+        <div class="panel">
+          <div class="panel-head"><h2 id="scTitle">เกณฑ์มาตรฐานงานเภสัชกรรมปฐมภูมิ</h2><b class="num" id="scScore" style="font-size:20px"></b></div>
+          <p class="small muted" id="scNote"></p>
+          <div class="crit" id="scList"></div>
+        </div>
+      </div>
+
+      <!-- เยี่ยมบ้าน -->
+      <div data-staff-view="visits" hidden>
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>ผู้ป่วยในความดูแล <span class="num muted" id="ptCount"></span></h2><button type="button" class="btn btn-p btn-sm" id="ptAddBtn">+ เพิ่มผู้ป่วย</button></div>
+            <label for="ptSearch" class="sr-only">ค้นหาผู้ป่วย</label>
+            <input id="ptSearch" class="input" type="search" placeholder="ค้นหาชื่อ / HN / เลข 13 หลัก">
+            <div class="list" id="ptList"></div>
+          </div>
+          <div class="panel" id="ptPanel"></div>
+        </div>
+      </div>
+
+      <!-- ข้อเสนอแนะถึงทีมพัฒนา -->
+      <div data-staff-view="feedback" hidden>
+        <div class="panel">
+          <h2>ส่งข้อเสนอแนะ / แจ้งปัญหาการใช้งาน</h2>
+          <form id="sfForm" class="field" novalidate>
+            <label for="sfText" class="sr-only">ข้อความ</label>
+            <textarea id="sfText" maxlength="2000" rows="4" placeholder="เช่น อยากให้เพิ่มช่อง… / หน้า… ใช้งานไม่ได้"></textarea>
+            <div class="row-btns" style="align-items:center;margin-top:8px"><button class="btn btn-p btn-sm" type="submit">ส่ง</button><span class="small" id="sfMsg" aria-live="polite"></span></div>
+          </form>
+        </div>
+        <div class="panel"><h2>ที่ฉันส่ง</h2><div class="list" id="sfList"></div></div>
+      </div>
+    </div>
   </div>
 </section>
 
