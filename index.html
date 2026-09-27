@@ -2,132 +2,269 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Primary Care Pharmacy Services · โรงพยาบาลควนกาหลง</title>
-<meta name="description" content="งานเภสัชกรรมปฐมภูมิ โรงพยาบาลควนกาหลง จังหวัดสตูล">
+<meta name="description" content="งานเภสัชกรรมปฐมภูมิ โรงพยาบาลควนกาหลง จังหวัดสตูล — ข่าวประชาสัมพันธ์ คำนวณขนาดยา ผลการดำเนินงาน และช่องทางติดต่อ รพ.สต.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230B5FAB'/%3E%3Cpath d='M12 7v6M9 10h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700&display=swap">
-<style>
-:root{--bg:#F6F9FA;--surface:#fff;--sunken:#EDF2F4;--line:#DCE4E8;--ink:#16222B;--muted:#4F636D;--primary:#0B5FAB;--primary-hover:#094B87;--primary-soft:#E4F0FA;--on-primary:#fff;--success:#106B3B;--success-soft:#E1F5E9;--error:#B02A2A;--error-soft:#FBE4E4}
-@media (prefers-color-scheme:dark){:root{--bg:#0F161B;--surface:#151F26;--sunken:#1B2830;--line:#26343D;--ink:#E6EDF1;--muted:#A3B4BD;--primary:#6AB0EC;--primary-hover:#8CC3F2;--primary-soft:#16314A;--on-primary:#0B1A26;--success:#6BD197;--success-soft:#13301F;--error:#F08A8A;--error-soft:#3A1818}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Thai",system-ui,sans-serif;font-size:15px;line-height:1.65}
-.wrap{max-width:720px;margin:0 auto;padding:0 16px}
-header{border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;gap:10px;height:64px;font-weight:700}
-.mark{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--primary);color:var(--on-primary)}
-.mark svg{width:18px;height:18px}
-main.wrap{padding:48px 16px 64px}
-h1{font-size:clamp(26px,5vw,36px);line-height:1.25;margin:0 0 8px}
-h1 span{color:var(--primary)}
-.lead{color:var(--muted);margin:0 0 32px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:24px;display:flex;flex-direction:column;gap:14px}
-.card h2{font-size:16px;margin:0}
-.muted{color:var(--muted)}.small{font-size:13px}
-.btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:10px;font:inherit;font-weight:600;font-size:14px;border-radius:999px;padding:11px 20px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;min-height:44px}
-.btn:hover{border-color:var(--muted)}
-.btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-.btn:disabled{opacity:.55;cursor:wait}
-.btn svg{width:18px;height:18px}
-.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:0}
-.kv dt{color:var(--muted)}.kv dd{margin:0;overflow-wrap:anywhere}
-.role{display:inline-block;font-size:13px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--primary-soft);color:var(--primary)}
-.msg{border-radius:12px;padding:12px 14px;font-size:14px}
-.msg.err{background:var(--error-soft);color:var(--error)}
-.msg.ok{background:var(--success-soft);color:var(--success)}
-footer{border-top:1px solid var(--line);padding:24px 0;font-size:13px;color:var(--muted)}
-footer a{color:var(--primary)}
-footer .links{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px}
-[hidden]{display:none!important}
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
-<header><div class="wrap"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 8v6M9 11h6"/></svg></span>Primary Care Pharmacy Services</div></header>
 
-<main class="wrap">
-  <h1>งานเภสัชกรรมปฐมภูมิ<br><span>โรงพยาบาลควนกาหลง</span></h1>
-  <p class="lead">ระบบงานเภสัชกรรมปฐมภูมิสำหรับ รพ.สต. ในอำเภอควนกาหลง จังหวัดสตูล — ข่าวประชาสัมพันธ์ เครื่องคำนวณขนาดยา ผลการดำเนินงาน และช่องทางสอบถามเจ้าหน้าที่ · ระบบเต็มกำลังเปิดใช้งานเร็ว ๆ นี้</p>
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#/"><i aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v4"/><path d="M14 8h-4"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><path d="M18 22V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v17"/><path d="M4 22h16"/><path d="M6 12H4v10"/><path d="M18 12h2v10"/></svg></i><b>Primary care pharmacy services</b></a>
+    <nav class="nav" aria-label="เมนูหลัก" id="topNav">
+      <a href="#/" data-route="home">หน้าหลัก</a>
+      <a href="#/login" class="cta" data-route="login">เข้าสู่ระบบ</a>
+    </nav>
+  </div>
+</header>
 
-  <section class="card" aria-live="polite">
-    <div id="out">
-      <h2>เข้าสู่ระบบ</h2>
-      <p class="small muted">ใช้บัญชี Google เท่านั้น · ประชาชนทั่วไปเข้าได้ทันที เจ้าหน้าที่จะได้รับสิทธิ์ตามที่ผู้ดูแลลงทะเบียนไว้</p>
-      <button class="btn" type="button" id="loginBtn">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.26 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.85A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.09A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.43.34-2.09V7.06H2.18A11 11 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85C6.71 7.3 9.14 5.38 12 5.38z"/></svg>
-        เข้าสู่ระบบด้วย Google
-      </button>
-      <p class="small muted">การเข้าสู่ระบบถือว่ายอมรับ <a href="privacy.html">นโยบายความเป็นส่วนตัว</a> และ <a href="terms.html">ข้อตกลงการใช้งาน</a></p>
+<main class="wrap" id="main">
+
+<!-- ============ HOME (ทุกคนดูได้) ============ -->
+<section data-view="home" class="home" hidden>
+  <div class="hero">
+    <div class="hero-text">
+      <span class="eyebrow">จังหวัดสตูล</span>
+      <h1>งานเภสัชกรรมปฐมภูมิ<br><em>โรงพยาบาลควนกาหลง</em></h1>
+      <div class="menu-icons" role="group" aria-label="เลือกเนื้อหา">
+        <a class="menu-icon-btn" href="#/news" data-panel-link="news" aria-expanded="false">
+          <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span>
+          <span class="mi-label">ข่าวประชาสัมพันธ์</span>
+        </a>
+        <a class="menu-icon-btn" href="#/dose" data-panel-link="dose" aria-expanded="false">
+          <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></span>
+          <span class="mi-label">คำนวณโดสยา</span>
+        </a>
+        <a class="menu-icon-btn" href="#/tracking" data-panel-link="tracking" aria-expanded="false">
+          <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+          <span class="mi-label">ผลการดำเนินงานเภสัชกรรมปฐมภูมิ</span>
+        </a>
+      </div>
     </div>
-    <div id="msg" class="msg" hidden></div>
-  </section>
+
+    <div class="slider" id="slider" role="region" aria-roledescription="carousel" aria-label="ข่าวเด่น">
+      <div class="slides" id="slides"></div>
+      <div class="slider-foot">
+        <div class="dots" id="dots" role="group" aria-label="เลือกข่าว"></div>
+        <div class="arrows">
+          <button type="button" class="arrow" id="prev" aria-label="ข่าวก่อนหน้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button type="button" class="arrow" id="next" aria-label="ข่าวถัดไป"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec reveal" data-panel="news" hidden>
+    <div class="sec-head"><h2>ข่าวประชาสัมพันธ์</h2></div>
+    <div class="news" id="newsGrid"></div>
+  </div>
+
+  <div class="sec reveal" data-panel="dose" hidden>
+    <div class="sec-head"><h2>คำนวณโดสยา</h2></div>
+    <div class="panel">
+      <p class="small muted">คำนวณขนาดยาโดยประมาณตามน้ำหนักตัว สำหรับใช้เป็นข้อมูลอ้างอิงเบื้องต้นเท่านั้น เภสัชกร/แพทย์ต้องพิจารณาและตรวจสอบซ้ำก่อนสั่งใช้ยาจริงทุกครั้ง</p>
+      <div class="form-grid three">
+        <div class="field"><label for="doseWeight">น้ำหนักตัว (กก.)</label><input id="doseWeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="เช่น 12.5"></div>
+        <div class="field"><label for="doseHeight">ส่วนสูง (ซม.)</label><input id="doseHeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="เช่น 90"></div>
+        <div class="field"><label for="doseDrug">รายการยา</label><select id="doseDrug" class="input"></select></div>
+      </div>
+      <div class="field"><label for="doseConc">ความแรงของยาที่มี</label><select id="doseConc" class="input"></select></div>
+      <label class="small"><input type="checkbox" id="doseRenalAdjust"> ปรับขนาดยาตามการทำงานของไต (คำนวณ CrCl จากค่า Serum creatinine)</label>
+      <div class="field" id="doseRenalManualWrap"><label for="doseRenal">ระดับการทำงานของไต (ประมาณเอง)</label>
+        <select id="doseRenal" class="input">
+          <option value="normal">ปกติ / ไม่ทราบ</option>
+          <option value="mild">ไตเสื่อมเล็กน้อย–ปานกลาง (CrCl 30–60 มล./นาที)</option>
+          <option value="moderate">ไตเสื่อมปานกลาง–รุนแรง (CrCl 10–30 มล./นาที)</option>
+          <option value="severe">ไตเสื่อมรุนแรง / ฟอกไต (CrCl &lt;10 มล./นาที)</option>
+        </select>
+      </div>
+      <div class="form-grid four" id="doseRenalCalcWrap" hidden>
+        <div class="field"><label for="doseAge">อายุ (ปี)</label><input id="doseAge" class="input" type="number" inputmode="numeric" min="0" max="130"></div>
+        <div class="field"><label for="doseSex">เพศ</label><select id="doseSex" class="input"><option value="m">ชาย</option><option value="f">หญิง</option></select></div>
+        <div class="field"><label for="doseCr">Serum creatinine (มก./ดล.)</label><input id="doseCr" class="input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="เช่น 1.0"></div>
+        <div class="field"><label for="doseCrClOut">CrCl (Cockcroft-Gault)</label><input id="doseCrClOut" class="input" type="text" readonly tabindex="-1"></div>
+      </div>
+      <div id="doseResult" class="panel result-panel" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="sec reveal" data-panel="tracking" hidden>
+    <div class="sec-head"><h2>ผลการดำเนินงานเภสัชกรรมปฐมภูมิ</h2></div>
+    <div class="unit-tabs" id="trkUnitTabs" aria-label="เลือก รพ.สต. หรือดูรวมทั้งอำเภอ"></div>
+    <div class="unit-tabs" id="trkYearTabs" aria-label="เลือกปีงบประมาณ"></div>
+    <div class="panel">
+      <div class="track-grid">
+        <div class="cover" id="trackArt"></div>
+        <div class="track-figs" aria-live="polite">
+          <div class="fig"><div class="n num" id="trkVisits">–</div><div class="t">จำนวนการออกเยี่ยม</div></div>
+          <div class="fig"><div class="n num" id="trkDrps">–</div><div class="t">DRPs ที่พบ / ที่ได้รับการแก้ไขสำเร็จ</div></div>
+          <div class="fig"><div class="n num" id="trkMedExcess">–</div><div class="t">ผู้ป่วยที่ได้รับการแก้ไขยาคงค้างที่บ้านเกิน 1 เดือน</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec reveal" data-panel="achievements" hidden>
+    <div class="sec-head"><h2>ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.</h2></div>
+    <div class="news" id="achGrid"></div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>อันดับผลการประเมินเกณฑ์มาตรฐานงานเภสัชกรรมปฐมภูมิ</h2>
+        <div class="unit-tabs" id="lbYearTabs" aria-label="เลือกปีงบประมาณ"></div>
+      </div>
+      <div id="lbPodium"></div>
+      <div class="list" id="lbList"></div>
+    </div>
+  </div>
+
+  <div class="sec reveal" data-panel="contact" hidden>
+    <div class="sec-head"><h2>ช่องทางติดต่อ รพ.สต.</h2></div>
+    <div class="centers" id="contactGrid"></div>
+  </div>
+</section>
+
+<!-- ============ ARTICLE ============ -->
+<section data-view="article" class="article" hidden>
+  <a class="back" href="#/news"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>ข่าวประชาสัมพันธ์</a>
+  <div class="article-head">
+    <span class="tag" id="arTag"></span>
+    <h1 id="arTitle"></h1>
+    <span class="d num" id="arDate"></span>
+  </div>
+  <div class="cover" id="arCover"></div>
+  <div class="article-body" id="arBody"></div>
+  <div class="row-btns" style="align-items:center">
+    <button type="button" class="btn btn-o btn-sm" id="arLikeBtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+      ถูกใจ <span class="num" id="arLikeCount">0</span>
+    </button>
+    <span class="small muted num" id="arViewCount"></span>
+    <button type="button" class="btn btn-o btn-sm" id="arShareBtn">แชร์</button>
+    <span class="small muted" id="arShareMsg" aria-live="polite"></span>
+  </div>
+  <div class="panel">
+    <h2>ความคิดเห็น (<span class="num" id="arCommentCount">0</span>)</h2>
+    <p class="small muted" id="arCommentsClosed" hidden>ผู้ดูแลปิดรับความคิดเห็นสำหรับข่าวนี้แล้ว</p>
+    <p class="small muted" id="arCommentLogin" hidden><a href="#/login">เข้าสู่ระบบด้วย Google</a> เพื่อแสดงความคิดเห็น</p>
+    <form id="arCommentForm" class="chat-form" hidden>
+      <label for="arCommentText" class="sr-only">แสดงความคิดเห็น</label>
+      <input id="arCommentText" class="input" maxlength="1000" placeholder="แสดงความคิดเห็น" autocomplete="off">
+      <button class="btn btn-p btn-sm" type="submit">ส่ง</button>
+    </form>
+    <p class="small" id="arCommentMsg" aria-live="polite"></p>
+    <div class="list" id="arComments"></div>
+  </div>
+</section>
+
+<!-- ============ LOGIN ============ -->
+<section data-view="login" class="login" hidden>
+  <div class="login-card">
+    <h1>เข้าสู่ระบบ</h1>
+    <p class="muted small">ใช้บัญชี Google เท่านั้น · ประชาชนทั่วไปเข้าได้ทันที เจ้าหน้าที่จะได้รับสิทธิ์ตามที่ผู้ดูแลลงทะเบียนอีเมลไว้</p>
+    <button class="btn google" type="button" id="googleBtn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.26 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.85A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.09A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.43.34-2.09V7.06H2.18A11 11 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85C6.71 7.3 9.14 5.38 12 5.38z"/></svg>
+      เข้าสู่ระบบด้วย Google
+    </button>
+    <p class="small" id="loginMsg" aria-live="polite"></p>
+    <p class="small muted">การเข้าสู่ระบบถือว่ายอมรับ <a href="privacy.html">นโยบายความเป็นส่วนตัว</a> และ <a href="terms.html">ข้อตกลงการใช้งาน</a></p>
+  </div>
+</section>
+
+<!-- ============ ประชาชน (ขั้น 4.4) ============ -->
+<section data-view="me" class="app" hidden>
+  <div class="app-head"><div><span class="small muted">ประชาชนทั่วไป</span><h1 id="meHello">สวัสดี</h1></div></div>
+  <div class="panel">
+    <h2>กำลังเปิดใช้งาน</h2>
+    <p class="small muted">หน้าข้อมูลส่วนตัวและแชทสอบถามเจ้าหน้าที่ รพ.สต. / ห้องยา จะเปิดในขั้นถัดไป ระหว่างนี้ดูข่าว คำนวณโดสยา และผลการดำเนินงานได้ที่ <a href="#/">หน้าหลัก</a></p>
+  </div>
+</section>
+
+<!-- ============ เจ้าหน้าที่ รพ.สต. (ขั้น 4.2) ============ -->
+<section data-view="staff" class="app" hidden>
+  <div class="app-head"><div><span class="small muted" id="staffUnit">รพ.สต.</span><h1 id="staffHello">สวัสดี</h1></div></div>
+  <div class="panel">
+    <h2>กำลังเปิดใช้งาน</h2>
+    <p class="small muted">เมนูเจ้าหน้าที่ (ส่งข่าว ผลงาน ประเมินมาตรฐาน เยี่ยมบ้าน กล่องข้อความ เอกสาร) จะเปิดในขั้นถัดไป บัญชีของคุณได้รับสิทธิ์เจ้าหน้าที่เรียบร้อยแล้ว</p>
+  </div>
+</section>
+
+<!-- ============ ผู้ดูแล ============ -->
+<section data-view="admin" class="app" hidden>
+  <div class="app-head"><div><span class="small muted">ผู้ดูแลระบบ</span><h1 id="adminHello">สวัสดี</h1></div></div>
+  <div class="app-body">
+    <nav class="sidenav" aria-label="เมนูผู้ดูแล">
+      <a href="#/admin/staff" data-admin-tab="staff" aria-current="page" title="บัญชีเจ้าหน้าที่"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="lbl">บัญชีเจ้าหน้าที่</span></a>
+    </nav>
+    <div class="app-main">
+      <h2 class="view-title">บัญชีเจ้าหน้าที่ / ผู้ดูแล</h2>
+      <div class="panel">
+        <h2 id="rosterFormTitle">เพิ่มบัญชีเจ้าหน้าที่</h2>
+        <p class="small muted">ใส่อีเมล Google (Gmail) ที่เจ้าหน้าที่ใช้เข้าสู่ระบบ เมื่อเขาเข้าสู่ระบบด้วยอีเมลนี้ จะได้สิทธิ์ตามที่ตั้งไว้ทันที</p>
+        <form id="rosterForm" class="form-grid" novalidate>
+          <div class="field"><label for="rfEmail">อีเมล Google <span class="req">*</span></label><input id="rfEmail" class="input" type="email" inputmode="email" autocomplete="off" maxlength="120" placeholder="name@gmail.com"></div>
+          <div class="field"><label for="rfName">ชื่อ-นามสกุล <span class="req">*</span></label><input id="rfName" class="input" maxlength="120"></div>
+          <div class="field"><label for="rfRole">บทบาท</label><select id="rfRole" class="input"><option value="staff">เจ้าหน้าที่ รพ.สต.</option><option value="admin">ผู้ดูแลระบบ (โรงพยาบาล)</option></select></div>
+          <div class="field" id="rfUnitWrap"><label for="rfUnit">รพ.สต. ที่สังกัด <span class="req">*</span></label><select id="rfUnit" class="input"></select></div>
+          <div class="field"><label for="rfPhone">เบอร์โทร</label><input id="rfPhone" class="input" type="tel" inputmode="tel" maxlength="20"></div>
+          <div class="field" id="rfActiveWrap" hidden><label for="rfActive">สถานะ</label><select id="rfActive" class="input"><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน (เข้าได้แบบประชาชน)</option></select></div>
+          <div class="full row-btns" style="align-items:center">
+            <button class="btn btn-p btn-sm" type="submit" id="rfSubmit">เพิ่มบัญชี</button>
+            <button class="btn btn-o btn-sm" type="button" id="rfCancel" hidden>ยกเลิกการแก้ไข</button>
+            <span class="small" id="rfMsg" aria-live="polite"></span>
+          </div>
+        </form>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>รายชื่อทั้งหมด <span class="num muted" id="rosterCount"></span></h2></div>
+        <div class="unit-tabs" id="rosterFilter" aria-label="กรองตามหน่วย"></div>
+        <div class="list" id="rosterList"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ไม่มีสิทธิ์ / ไม่พบหน้า ============ -->
+<section data-view="message" class="login" hidden>
+  <div class="login-card">
+    <h1 id="msgTitle">ไม่พบหน้านี้</h1>
+    <p class="muted" id="msgBody"></p>
+    <a class="btn btn-o" href="#/">กลับหน้าหลัก</a>
+  </div>
+</section>
+
 </main>
 
-<footer><div class="wrap">
-  ฝ่ายเภสัชกรรมและงานคุ้มครองผู้บริโภค โรงพยาบาลควนกาหลง จังหวัดสตูล · ติดต่อ 074-752-081 ต่อ 455 (ห้องยา)
-  <div class="links"><a href="privacy.html">นโยบายความเป็นส่วนตัว</a><a href="terms.html">ข้อตกลงการใช้งาน</a></div>
-</div></footer>
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-col">
+      <a class="mark" href="#/"><i aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v4"/><path d="M14 8h-4"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><path d="M18 22V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v17"/><path d="M4 22h16"/><path d="M6 12H4v10"/><path d="M18 12h2v10"/></svg></i><b>Primary care pharmacy services</b></a>
+      <p>ฝ่ายเภสัชกรรมและงานคุ้มครองผู้บริโภค โรงพยาบาลควนกาหลง จังหวัดสตูล</p>
+      <p>ติดต่อ 074-752-081 ต่อ 455 (ห้องยา)</p>
+      <div class="footer-links">
+        <a href="#/achievements" class="footer-link">ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.</a>
+        <a href="#/contact" class="footer-link">ช่องทางติดต่อ รพ.สต.</a>
+        <a href="privacy.html" class="footer-link">นโยบายความเป็นส่วนตัว</a>
+        <a href="terms.html" class="footer-link">ข้อตกลงการใช้งาน</a>
+      </div>
+    </div>
+    <div class="footer-col" style="min-width:240px">
+      <p class="num" id="viewCount"></p>
+      <form id="fbForm" class="chat-form">
+        <label for="fbInput" class="sr-only">ส่งความคิดเห็นถึงโรงพยาบาล</label>
+        <input id="fbInput" class="input" maxlength="2000" placeholder="ส่งความคิดเห็นถึงโรงพยาบาล">
+        <button class="btn btn-o btn-sm" type="submit">ส่ง</button>
+      </form>
+      <p class="small" id="fbMsg" aria-live="polite"></p>
+    </div>
+  </div>
+</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script>
-(function(){
-  // ค่าสาธารณะ (ออกแบบให้อยู่ในหน้าเว็บได้ · ความปลอดภัยคุมด้วย RLS ในฐานข้อมูล)
-  var SUPABASE_URL = 'https://wdlmoysjqleximfnjrwl.supabase.co';
-  var SUPABASE_KEY = 'sb_publishable_EEx7LfIpo_1sWJXoWmoA2w_JjVo62Y8';
-  var ROLE_LABEL = { citizen: 'ประชาชนทั่วไป', staff: 'เจ้าหน้าที่ รพ.สต.', admin: 'ผู้ดูแลระบบ' };
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  var out = document.getElementById('out'), msg = document.getElementById('msg');
-  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-  function show(text, kind){ msg.hidden = !text; msg.className = 'msg ' + (kind || 'err'); msg.textContent = text || ''; }
-
-  // error ที่ Supabase/Google ส่งกลับมาทาง URL
-  var q = new URLSearchParams(location.search + '&' + location.hash.replace(/^#/, ''));
-  if (q.get('error_description')) show('เข้าสู่ระบบไม่สำเร็จ: ' + q.get('error_description'));
-
-  if (!window.supabase) { show('โหลดระบบไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วรีเฟรช'); return; }
-  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true }
-  });
-
-  var loginBtn = document.getElementById('loginBtn');
-  loginBtn.addEventListener('click', function(){
-    loginBtn.disabled = true; show('');
-    sb.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } }
-    }).then(function(r){ if (r.error) { loginBtn.disabled = false; show(r.error.message); } });
-  });
-
-  var shownFor = null;
-  function renderSignedIn(session){
-    if (shownFor === session.user.id) return;
-    shownFor = session.user.id;
-    out.innerHTML = '<h2>เข้าสู่ระบบแล้ว</h2><p class="small muted">กำลังโหลดข้อมูลบัญชี…</p>';
-    sb.from('profiles')
-      .select('full_name,email,role,unit:units!profiles_unit_id_fkey(name)')
-      .eq('id', session.user.id).single()
-      .then(function(r){
-        if (r.error) { show('อ่านข้อมูลบัญชีไม่สำเร็จ: ' + r.error.message); return; }
-        var p = r.data;
-        out.innerHTML = '<h2>สวัสดี ' + esc(p.full_name || '') + '</h2>'
-          + '<dl class="kv"><dt>อีเมล</dt><dd>' + esc(p.email) + '</dd>'
-          + '<dt>สิทธิ์</dt><dd><span class="role">' + esc(ROLE_LABEL[p.role] || p.role) + '</span></dd>'
-          + (p.unit ? '<dt>หน่วยบริการ</dt><dd>รพ.สต. ' + esc(p.unit.name) + '</dd>' : '')
-          + '</dl><div><button class="btn" type="button" id="logoutBtn">ออกจากระบบ</button></div>';
-        document.getElementById('logoutBtn').addEventListener('click', function(){
-          sb.auth.signOut().then(function(){ location.replace(location.pathname); });
-        });
-        show('เชื่อมต่อฐานข้อมูลและ Google เรียบร้อย', 'ok');
-      });
-  }
-
-  sb.auth.getSession().then(function(r){
-    if (r.data && r.data.session) {
-      if (location.search) history.replaceState(null, '', location.pathname);
-      renderSignedIn(r.data.session);
-    }
-  });
-  sb.auth.onAuthStateChange(function(ev, session){ if (ev === 'SIGNED_IN' && session) renderSignedIn(session); });
-})();
-</script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

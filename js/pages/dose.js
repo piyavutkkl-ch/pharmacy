@@ -1,0 +1,81 @@
+// เครื่องคำนวณขนาดยาตามน้ำหนักตัว (รายการยามาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
+import { sb } from '../supabase.js';
+import { $, esc } from '../util.js';
+
+let drugs = null;
+
+export async function initDose() {
+  if (drugs) return;
+  const sel = $('#doseDrug');
+  sel.innerHTML = '<option>กำลังโหลด…</option>';
+  const { data, error } = await sb.from('dose_drugs').select('*').eq('active', true).order('sort');
+  drugs = error ? [] : data;
+  sel.innerHTML = drugs.length ? drugs.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('') : '<option value="">ยังไม่มีรายการยา</option>';
+  fillConc(); toggleRenal(); render();
+  ['doseWeight', 'doseHeight', 'doseAge', 'doseCr'].forEach((id) => $('#' + id).addEventListener('input', render));
+  ['doseConc', 'doseRenal', 'doseSex'].forEach((id) => $('#' + id).addEventListener('change', render));
+  sel.addEventListener('change', () => { fillConc(); render(); });
+  $('#doseRenalAdjust').addEventListener('change', () => { toggleRenal(); render(); });
+}
+
+function drug() { return drugs?.[+$('#doseDrug').value || 0]; }
+function fillConc() {
+  const d = drug();
+  $('#doseConc').innerHTML = (d?.concs || []).map((c, i) => `<option value="${i}">${esc(c.label)}</option>`).join('');
+}
+function toggleRenal() {
+  const on = $('#doseRenalAdjust').checked;
+  $('#doseRenalManualWrap').hidden = on;
+  $('#doseRenalCalcWrap').hidden = !on;
+}
+const rng = (a, b, dp) => (a.toFixed(dp) === b.toFixed(dp) ? a.toFixed(dp) : `${a.toFixed(dp)}–${b.toFixed(dp)}`);
+const fig = (n, t) => `<div class="fig"><div class="n num">${n}</div><div class="t">${t}</div></div>`;
+
+function render() {
+  const out = $('#doseResult');
+  const w = +$('#doseWeight').value, d = drug();
+  if (!(w > 0) || !d) { out.innerHTML = '<p class="small muted">กรอกน้ำหนักตัวและเลือกรายการยาเพื่อคำนวณ</p>'; return; }
+  const c = (d.concs || [])[+$('#doseConc').value || 0];
+  let minMg, maxMg, label;
+  if (d.per === 'dose') {
+    minMg = w * d.mg_per_kg_min; maxMg = w * d.mg_per_kg_max;
+    if (d.max_mg_per_dose) { minMg = Math.min(minMg, d.max_mg_per_dose); maxMg = Math.min(maxMg, d.max_mg_per_dose); }
+    label = 'ต่อครั้ง';
+  } else {
+    const dayMin = w * d.mg_per_kg_min, dayMax = w * d.mg_per_kg_max, n = d.dose_freq_per_day || 1;
+    minMg = dayMin / n; maxMg = dayMax / n;
+    label = `ต่อครั้ง (แบ่งจากขนาดรวม ${dayMin.toFixed(0)}–${dayMax.toFixed(0)} มก./วัน)`;
+  }
+  let vol = '';
+  if (c?.mgPer5ml) vol = fig(`${rng(minMg / c.mgPer5ml * 5, maxMg / c.mgPer5ml * 5, 1)} มล.`, `ปริมาณยา (${esc(c.label)}) ${label}`);
+  else if (c?.mgPerTab) vol = fig(`${rng(minMg / c.mgPerTab, maxMg / c.mgPerTab, 2)} เม็ด/แคปซูล`, `จาก ${esc(c.label)} ${label}`);
+
+  const h = +$('#doseHeight').value;
+  const bmi = h > 0 ? fig((w / Math.pow(h / 100, 2)).toFixed(1), `BMI (น้ำหนัก ${w} กก. ส่วนสูง ${h.toFixed(0)} ซม.)`) : '';
+
+  let renal = 'normal', crclNote = '';
+  if ($('#doseRenalAdjust').checked) {
+    const age = +$('#doseAge').value, cr = +$('#doseCr').value;
+    if (age > 0 && cr > 0) {
+      let crcl = ((140 - age) * w) / (72 * cr);
+      if ($('#doseSex').value === 'f') crcl *= 0.85;
+      $('#doseCrClOut').value = crcl.toFixed(1) + ' มล./นาที';
+      renal = crcl >= 60 ? 'normal' : crcl >= 30 ? 'mild' : crcl >= 10 ? 'moderate' : 'severe';
+      crclNote = `<p class="small muted">คำนวณจาก Cockcroft-Gault: CrCl ≈ ${crcl.toFixed(1)} มล./นาที</p>`;
+    } else $('#doseCrClOut').value = '';
+  } else renal = $('#doseRenal').value;
+
+  const labels = { mild: 'ไตเสื่อมเล็กน้อย–ปานกลาง (CrCl 30–60 มล./นาที)', moderate: 'ไตเสื่อมปานกลาง–รุนแรง (CrCl 10–30 มล./นาที)', severe: 'ไตเสื่อมรุนแรง / ฟอกไต (CrCl <10 มล./นาที)' };
+  let alert = '';
+  if (renal !== 'normal') {
+    alert = `<div class="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>`
+      + `<div><b>ขนาดยาในโรคไต — ${esc(labels[renal])}</b><div class="small">${esc(d.renal_note || 'ยานี้ยังไม่มีคำแนะนำการปรับขนาดยาในโรคไตในระบบ กรุณาปรึกษาเภสัชกรก่อนใช้')}</div>${crclNote}</div></div>`;
+  } else if (crclNote) alert = '<p class="small muted">การทำงานของไตปกติ (CrCl ≥ 60 มล./นาที) — ไม่จำเป็นต้องปรับขนาดยา</p>';
+
+  out.innerHTML = (d.indication ? `<p class="small muted"><b>ข้อบ่งใช้:</b> ${esc(d.indication)}</p>` : '')
+    + fig(`${rng(minMg, maxMg, 0)} มก.`, `ขนาดยา ${label}`) + vol + bmi
+    + `<p class="small muted">ความถี่: ${esc(d.freq || '-')}</p>`
+    + (d.renal_note ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต (ทั่วไป):</b> ${esc(d.renal_note)}</p>` : '')
+    + alert
+    + '<p class="small muted">ตัวเลขนี้เป็นการประมาณตามช่วงขนาดยาทั่วไป โปรดตรวจสอบกับเอกสารกำกับยา/แนวทางการรักษาและดุลยพินิจทางคลินิกก่อนใช้จริงเสมอ</p>';
+}
