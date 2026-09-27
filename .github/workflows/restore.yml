@@ -1,0 +1,53 @@
+# กู้ข้อมูลจากไฟล์สำรอง → โปรเจกต์ Supabase ปลายทาง (กดรันเองเท่านั้น) · อ่าน docs/BACKUP.md ก่อนใช้
+# ⚠️ ข้อมูลทั้งหมดในปลายทางจะถูกแทนที่ด้วยข้อมูลในไฟล์สำรอง
+name: restore
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'URL โปรเจกต์ Supabase ปลายทาง เช่น https://abcd1234.supabase.co'
+        required: true
+      confirm:
+        description: 'พิมพ์ RESTORE-<ref> เพื่อยืนยัน (ref = ตัวอักษรหน้า .supabase.co)'
+        required: true
+      backup:
+        description: 'ชื่อไฟล์ db-….tar.gz.gpg ที่ต้องการ (เว้นว่าง = ล่าสุด)'
+        required: false
+      files:
+        description: 'กู้ไฟล์รูป/เอกสาร/หลักฐานด้วย'
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: backup
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: ตรวจการยืนยัน
+        env:
+          TARGET: ${{ inputs.target_url }}
+          CONFIRM: ${{ inputs.confirm }}
+          DB: ${{ secrets.RESTORE_DB_URL }}
+        run: |
+          ref=$(echo "$TARGET" | grep -oE '^https://[a-z0-9]+\.supabase\.co/?$' | sed -E 's#https://([a-z0-9]+)\.supabase\.co/?#\1#')
+          [ -n "$ref" ] || { echo "::error::target_url ไม่ถูกต้อง"; exit 1; }
+          [ "$CONFIRM" = "RESTORE-$ref" ] || { echo "::error::ต้องพิมพ์ RESTORE-$ref ให้ตรง"; exit 1; }
+          [ -n "$DB" ] || { echo "::error::ยังไม่ได้ตั้ง Secret RESTORE_DB_URL"; exit 1; }
+          case "$DB" in *"$ref"*) ;; *) echo "::error::RESTORE_DB_URL ไม่ใช่ของโปรเจกต์ $ref"; exit 1 ;; esac
+      - uses: actions/checkout@v4
+      - name: กู้ข้อมูล
+        env:
+          RESTORE_SUPABASE_URL: ${{ inputs.target_url }}
+          RESTORE_DB_URL: ${{ secrets.RESTORE_DB_URL }}
+          RESTORE_SECRET_KEY: ${{ secrets.RESTORE_SECRET_KEY }}
+          BACKUP_NAME: ${{ inputs.backup }}
+          RESTORE_FILES: ${{ inputs.files }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+        run: bash tools/backup/restore.sh
