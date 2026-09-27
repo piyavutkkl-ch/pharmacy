@@ -1,19 +1,20 @@
 // ผู้ดูแล: โครงหน้า + เมนู + ตัวเลขงานค้าง + ข้อเสนอแนะ
-// ข่าว → admin-news.js · ตรวจประเมิน → admin-review.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
+// ข่าว → admin-news.js · ตรวจประเมิน → admin-review.js · ข้อความ → chat.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
 // ตั้งค่า → admin-settings.js (ยา, ช่องทางติดต่อ) + admin-staff.js (บัญชีเจ้าหน้าที่)
-import { sb } from '../supabase.js?v=4.3.1';
-import { $, $$, esc, thaiDate, toast, errText } from '../util.js?v=4.3.1';
-import { auth } from '../auth.js?v=4.3.1';
-import { loadUnits, unitName } from '../data.js?v=4.3.1';
-import { setCurrent } from '../nav.js?v=4.3.1';
-import { initAdminNews } from './admin-news.js?v=4.3.1';
-import { initReview } from './admin-review.js?v=4.3.1';
-import { mountVisits } from './visits.js?v=4.3.1';
-import { initAdminDocs } from './docs.js?v=4.3.1';
-import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.3.1';
-import { initRoster } from './admin-staff.js?v=4.3.1';
+import { sb } from '../supabase.js?v=4.4';
+import { $, $$, esc, thaiDate, toast, errText } from '../util.js?v=4.4';
+import { auth } from '../auth.js?v=4.4';
+import { loadUnits, unitName } from '../data.js?v=4.4';
+import { setCurrent } from '../nav.js?v=4.4';
+import { initAdminNews } from './admin-news.js?v=4.4';
+import { initReview } from './admin-review.js?v=4.4';
+import { mountVisits } from './visits.js?v=4.4';
+import { initAdminDocs } from './docs.js?v=4.4';
+import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.4';
+import { initRoster } from './admin-staff.js?v=4.4';
+import { mountInbox } from './chat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', docs: 'จัดการเอกสาร', feedback: 'ข้อเสนอแนะ', settings: 'ตั้งค่า' };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', review: 'ตรวจประเมินผลงาน', messages: 'ข้อความจากประชาชน', visits: 'เยี่ยมบ้าน', docs: 'จัดการเอกสาร', feedback: 'ข้อเสนอแนะ', settings: 'ตั้งค่า' };
 const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster };
 
 export async function showAdmin(tab, sub) {
@@ -26,6 +27,7 @@ export async function showAdmin(tab, sub) {
   refreshAdminBadges();
   if (tab === 'news') return initAdminNews();
   if (tab === 'review') return initReview();
+  if (tab === 'messages') return showMessages();
   if (tab === 'visits') return showVisits();
   if (tab === 'docs') return initAdminDocs();
   if (tab === 'feedback') return initFeedback();
@@ -43,6 +45,20 @@ export async function refreshAdminBadges() {
   ]);
   $('#admNewsBadge').textContent = n.count ? String(n.count) : '';
   $('#admReviewBadge').textContent = r.count ? String(r.count) : '';
+}
+
+/* ---------- ข้อความ: ห้องยา รพ. (ค่าเริ่มต้น) หรือดูกล่องของ รพ.สต. ---------- */
+let msgTarget = null;
+async function showMessages() {
+  const units = await loadUnits();
+  const { data } = await sb.from('conversations').select('target_unit,unread_staff');
+  const unread = (t) => (data || []).filter((c) => (c.target_unit ?? null) === t).reduce((s, c) => s + c.unread_staff, 0);
+  $('#amTargets').innerHTML = [null, ...units.map((u) => u.id)].map((t) => {
+    const n = unread(t);
+    return `<button type="button" data-t="${t ?? ''}" aria-current="${t === msgTarget}">${t == null ? 'ห้องยา รพ. (ตอบเอง)' : esc(unitName(t))}${n ? ` (${n})` : ''}</button>`;
+  }).join('');
+  $('#amTargets').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; msgTarget = b.dataset.t === '' ? null : +b.dataset.t; showMessages(); };
+  mountInbox($('#adminInboxSlot'), msgTarget);
 }
 
 /* ---------- เยี่ยมบ้าน (เลือก รพ.สต.) ---------- */

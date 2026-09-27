@@ -1,0 +1,174 @@
+// แชท ประชาชน ⇄ เจ้าหน้าที่ รพ.สต. / ห้องยา รพ. (ตาราง conversations + messages, Supabase Realtime)
+//   ห้องแชท 1 ห้อง = ประชาชน 1 คน × ปลายทาง 1 แห่ง (target_unit = รพ.สต., null = ห้องยา รพ.)
+//   ใครเห็นอะไร คุมด้วย RLS: ประชาชนเห็นของตัวเอง · เจ้าหน้าที่เห็นของหน่วยตัวเอง · ผู้ดูแลเห็นทั้งหมด
+//   ตัวเลข "ยังไม่อ่าน" ฐานข้อมูลนับให้ (trigger) และล้างด้วย rpc mark_conversation_read
+//
+//   mountInbox(slot, target)   กล่องข้อความฝั่งเจ้าหน้าที่/ผู้ดูแล (ใช้ทั้ง staff.js และ admin.js)
+//   startChatWatch()           ฟังการเปลี่ยนแปลงห้องแชทแบบ real-time → อัปเดตตัวเลขบนเมนู
+import { sb } from '../supabase.js?v=4.4';
+import { $, esc, thaiDate, toast, errText, busy, initials } from '../util.js?v=4.4';
+import { auth } from '../auth.js?v=4.4';
+import { loadUnits, unitName } from '../data.js?v=4.4';
+
+export const targetName = (t) => (t == null ? 'ห้องยา โรงพยาบาลควนกาหลง' : 'รพ.สต. ' + unitName(t));
+const time = (iso) => new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+
+/* ---------- ข้อความ ---------- */
+export async function loadMessages(convId) {
+  const { data, error } = await sb.from('messages').select('id,sender_id,sender_role,sender_name,body,created_at')
+    .eq('conversation_id', convId).order('created_at', { ascending: false }).limit(300);
+  if (error) throw error;
+  return data.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id - b.id));   // เก่า → ใหม่
+}
+
+export async function sendMessage(convId, body) {
+  const { data, error } = await sb.from('messages').insert({ conversation_id: convId, body }).select('id,sender_id,sender_role,sender_name,body,created_at').single();
+  if (error) throw error;
+  return data;
+}
+
+/** วาดข้อความ · side = 'citizen' (มุมมองประชาชน) หรือ 'staff' (มุมมองเจ้าหน้าที่) */
+export function renderLog(logEl, msgs, side, emptyText) {
+  if (!msgs.length) { logEl.innerHTML = `<p class="chat-empty">${esc(emptyText)}</p>`; return; }
+  let prev = null;
+  logEl.innerHTML = msgs.map((m) => {
+    const mine = m.sender_role === side;
+    const day = !prev || !sameDay(prev.created_at, m.created_at) ? `<div class="chat-day">${esc(thaiDate(m.created_at))}</div>` : '';
+    prev = m;
+    const who = m.sender_role === 'staff' && side === 'citizen' ? `${esc(m.sender_name || 'เจ้าหน้าที่')} · ` : (mine && side === 'staff' && m.sender_id !== auth.profile?.id ? `${esc(m.sender_name || '')} · ` : '');
+    return `${day}<div class="bubble${mine ? ' me' : ''}" data-mid="${m.id}">${esc(m.body)}<span class="meta">${who}${time(m.created_at)}</span></div>`;
+  }).join('');
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+/** เปิดห้องแบบ real-time: onNew(message) เมื่อมีข้อความใหม่ · คืนฟังก์ชันปิดห้อง */
+export function openRoom(convId, onNew) {
+  const ch = sb.channel('room-' + convId)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${convId}` }, (p) => onNew(p.new))
+    .subscribe();
+  return () => sb.removeChannel(ch);
+}
+
+export const markRead = (convId) => sb.rpc('mark_conversation_read', { p_conv: convId });
+
+/* ---------- ตัวเลขบนเมนู + real-time ทั้งระบบ ---------- */
+const listeners = new Set();
+let watching = null, lastTotal = null;
+
+/** ให้หน้าอื่นรู้เมื่อห้องแชทมีการเปลี่ยนแปลง (เช่น รีเฟรชรายการ) */
+export function onConversationChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+
+export async function refreshMsgBadge() {
+  const p = auth.profile; if (!p) return;
+  let q, col, el;
+  if (p.role === 'citizen') { q = sb.from('conversations').select('unread_citizen').eq('citizen_id', p.id); col = 'unread_citizen'; el = $('#navMsgBadge'); }
+  else if (p.role === 'staff') { q = sb.from('conversations').select('unread_staff').eq('target_unit', p.unit_id); col = 'unread_staff'; el = $('#stfMsgBadge'); }
+  else { q = sb.from('conversations').select('unread_staff').is('target_unit', null); col = 'unread_staff'; el = $('#admMsgBadge'); }
+  const { data } = await q;
+  const total = (data || []).reduce((s, r) => s + (r[col] || 0), 0);
+  if (el) el.textContent = total ? String(total) : '';
+  if (lastTotal !== null && total > lastTotal && !location.hash.includes('messages') && !location.hash.startsWith('#/me')) toast('มีข้อความใหม่ — เปิดเมนู "ข้อความ" เพื่ออ่าน');
+  lastTotal = total;
+}
+
+let timer = null;
+export function startChatWatch() {
+  if (watching || !auth.profile) return;
+  watching = sb.channel('conversations-' + auth.profile.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { refreshMsgBadge(); listeners.forEach((fn) => fn()); }, 300);
+    })
+    .subscribe();
+  refreshMsgBadge();
+}
+export function stopChatWatch() { if (watching) sb.removeChannel(watching); watching = null; lastTotal = null; }
+
+/* ================= กล่องข้อความ (เจ้าหน้าที่ / ผู้ดูแล) ================= */
+const INBOX_HTML = `<div class="inbox">
+  <div class="panel"><div class="panel-head"><h2>ผู้ที่ทักเข้ามา</h2><span class="small muted ib-count"></span></div><div class="list ib-list"></div></div>
+  <div class="panel chat-panel">
+    <div class="ib-head"><p class="small muted">เลือกรายชื่อทางซ้ายเพื่ออ่านและตอบกลับ</p></div>
+    <div class="chat-log ib-log" role="log" aria-live="polite"></div>
+    <form class="chat-form ib-form" novalidate><input class="input ib-input" maxlength="1000" placeholder="พิมพ์ตอบกลับ…" autocomplete="off" aria-label="พิมพ์ตอบกลับ" disabled><button class="btn btn-p btn-sm" type="submit" disabled>ส่ง</button></form>
+    <p class="small muted">ข้อความเป็นข้อมูลส่วนบุคคล เห็นเฉพาะผู้ถาม เจ้าหน้าที่หน่วยนั้น และผู้ดูแล · ห้ามขอเลขบัตรประชาชนทางแชท</p>
+  </div>
+</div>`;
+
+let ib = null;   // สถานะกล่องข้อความที่เปิดอยู่ (มีได้ทีละกล่อง)
+
+/** target: หมายเลข รพ.สต. หรือ null = ห้องยา รพ. */
+export async function mountInbox(slot, target) {
+  await loadUnits();
+  ib?.close?.(); ib?.off?.();
+  if (!slot.querySelector('.inbox')) slot.innerHTML = INBOX_HTML;
+  const el = (c) => slot.querySelector(c);
+  ib = { slot, target, convs: [], sel: null, msgs: [], close: null, off: null };
+  const me = ib;
+  // ผู้ดูแลเปิดดูกล่องของ รพ.สต. ได้ แต่ไม่ล้างตัวเลขยังไม่อ่านของหน่วยนั้น
+  const mayMarkRead = auth.profile.role === 'staff' || target == null;
+
+  async function loadList() {
+    let q = sb.from('conversations').select('id,target_unit,last_message_at,last_message_preview,unread_staff,citizen:profiles!conversations_citizen_id_fkey(full_name,email,phone,address,home_unit_id)');
+    q = target == null ? q.is('target_unit', null) : q.eq('target_unit', target);
+    const { data, error } = await q.order('last_message_at', { ascending: false, nullsFirst: false }).limit(200);
+    if (me !== ib) return;
+    if (error) { el('.ib-list').innerHTML = `<p class="empty">โหลดไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
+    me.convs = data.filter((c) => c.last_message_at);
+    el('.ib-count').textContent = me.convs.length ? `${me.convs.length} คน` : '';
+    el('.ib-list').innerHTML = me.convs.length ? me.convs.map((c) => {
+      const n = c.citizen?.full_name || c.citizen?.email || 'ไม่ระบุชื่อ';
+      return `<button type="button" class="li-btn${c.id === me.sel?.id ? ' sel' : ''}" data-conv="${c.id}"><span class="avatar" style="width:34px;height:34px;font-size:12px">${esc(initials(n))}</span>`
+        + `<span class="l" style="min-width:0;flex:1"><b>${esc(n)}</b><span class="small muted conv-last">${esc(c.last_message_preview || '')}</span><span class="small muted">${esc(thaiDate(c.last_message_at))} ${time(c.last_message_at)}</span></span>`
+        + (c.unread_staff ? `<span class="badge num" style="position:static">${c.unread_staff}</span>` : '') + '</button>';
+    }).join('') : `<p class="empty">ยังไม่มีผู้ทักเข้ามาที่${esc(targetName(target))}</p>`;
+  }
+
+  async function select(id) {
+    const c = me.convs.find((x) => x.id === id); if (!c) return;
+    me.close?.();
+    me.sel = c;
+    slot.querySelectorAll('[data-conv]').forEach((b) => b.classList.toggle('sel', b.dataset.conv === id));
+    const p = c.citizen || {};
+    el('.ib-head').innerHTML = `<div class="chat-who"><b>${esc(p.full_name || p.email || 'ไม่ระบุชื่อ')}</b>`
+      + `<span class="small muted">${p.phone ? `โทร <a href="tel:${esc(p.phone.replace(/[^0-9]/g, ''))}">${esc(p.phone)}</a>` : 'ไม่มีเบอร์โทร'}`
+      + `${p.home_unit_id != null ? ' · ใกล้ รพ.สต. ' + esc(unitName(p.home_unit_id)) : ''}${p.address ? ' · ' + esc(p.address) : ''}</span></div>`;
+    el('.ib-log').innerHTML = '<div class="skeleton"></div>';
+    try { me.msgs = await loadMessages(id); } catch (e) { el('.ib-log').innerHTML = `<p class="chat-empty">${esc(errText(e))}</p>`; return; }
+    if (me !== ib || me.sel?.id !== id) return;
+    renderLog(el('.ib-log'), me.msgs, 'staff', 'ยังไม่มีข้อความ');
+    el('.ib-input').disabled = false; el('.ib-form button').disabled = false;
+    if (window.matchMedia('(max-width: 819px)').matches) el('.chat-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else el('.ib-input').focus({ preventScroll: true });
+    if (mayMarkRead && c.unread_staff) { await markRead(id); c.unread_staff = 0; loadList(); refreshMsgBadge(); }
+    me.close = openRoom(id, (m) => {
+      if (me.msgs.some((x) => x.id === m.id)) return;
+      me.msgs.push(m); renderLog(el('.ib-log'), me.msgs, 'staff', '');
+      if (mayMarkRead && m.sender_role === 'citizen') markRead(id).then(refreshMsgBadge);
+    });
+  }
+
+  el('.ib-list').onclick = (e) => { const b = e.target.closest('[data-conv]'); if (b) select(b.dataset.conv); };
+  el('.ib-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const inp = el('.ib-input'), body = inp.value.trim();
+    if (!body || !me.sel) return;
+    const btn = el('.ib-form button'); busy(btn, true, '…');
+    try {
+      const m = await sendMessage(me.sel.id, body);
+      inp.value = '';
+      if (!me.msgs.some((x) => x.id === m.id)) me.msgs.push(m);
+      renderLog(el('.ib-log'), me.msgs, 'staff', '');
+    } catch (err) { toast(errText(err), 'err'); }
+    finally { busy(btn, false); inp.focus(); }
+  };
+  me.off = onConversationChange(loadList);
+  el('.ib-head').innerHTML = '<p class="small muted">เลือกรายชื่อทางซ้ายเพื่ออ่านและตอบกลับ</p>';
+  el('.ib-log').innerHTML = '<p class="chat-empty">ยังไม่ได้เลือกห้องสนทนา</p>';
+  el('.ib-input').disabled = true; el('.ib-form button').disabled = true;
+  await loadList();
+}
+
+/** ปิดห้องที่เปิดค้าง (เมื่อออกจากหน้าข้อความ) */
+export function unmountInbox() { ib?.close?.(); ib?.off?.(); ib = null; }

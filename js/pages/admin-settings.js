@@ -1,10 +1,10 @@
 // ผู้ดูแล › ตั้งค่า › คำนวณโดสยา (ตาราง dose_drugs) และ ช่องทางติดต่อ รพ.สต. (ตาราง units)
 // ความแรงยาเก็บใน dose_drugs.concs เป็น [{label, mgPer5ml}] (ยาน้ำ) หรือ [{label, mgPerTab}] (เม็ด/แคปซูล)
-import { sb, publicImageUrl } from '../supabase.js?v=4.3.1';
-import { $, esc, toast, errText, busy } from '../util.js?v=4.3.1';
-import { loadUnits } from '../data.js?v=4.3.1';
-import { uploadPublicImage, removeFiles } from '../upload.js?v=4.3.1';
-import { resetDose } from './dose.js?v=4.3.1';
+import { sb, publicImageUrl } from '../supabase.js?v=4.4';
+import { $, esc, toast, errText, busy } from '../util.js?v=4.4';
+import { loadUnits } from '../data.js?v=4.4';
+import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
+import { resetDose } from './dose.js?v=4.4';
 
 const num = (v) => (v === '' || v == null ? null : Number(v));
 function say(el, text, ok) { el.style.color = ok ? 'var(--success)' : 'var(--error)'; el.textContent = text; }

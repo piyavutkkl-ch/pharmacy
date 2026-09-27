@@ -3,18 +3,20 @@
 // เส้นทาง (URL หลัง #):
 //   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
-//   #/me               ประชาชน (4.4)
-//   #/staff[/news|achievements|criteria|visits|docs|feedback]                 เจ้าหน้าที่ รพ.สต.
-//   #/admin[/news|review|visits|docs|feedback|settings[/dose|contacts|staff]]  ผู้ดูแล (โรงพยาบาล)
-import { sb } from './supabase.js?v=4.3.1';
-import { $, $$, esc, toast, errText, busy } from './util.js?v=4.3.1';
-import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.3.1';
-import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState } from './pages/news.js?v=4.3.1';
-import { initDose } from './pages/dose.js?v=4.3.1';
-import { initTracking, initAchievements, initContacts } from './pages/stats.js?v=4.3.1';
-import { showAdmin } from './pages/admin.js?v=4.3.1';
-import { bindMoreSheets } from './nav.js?v=4.3.1';
-import { showStaff } from './pages/staff.js?v=4.3.1';
+//   #/me               ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่
+//   #/staff[/news|criteria|visits|messages|achievements|docs|feedback]                 เจ้าหน้าที่ รพ.สต.
+//   #/admin[/news|review|messages|visits|docs|feedback|settings[/dose|contacts|staff]]  ผู้ดูแล (โรงพยาบาล)
+import { sb } from './supabase.js?v=4.4';
+import { $, $$, esc, toast, errText, busy } from './util.js?v=4.4';
+import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.4';
+import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState } from './pages/news.js?v=4.4';
+import { initDose } from './pages/dose.js?v=4.4';
+import { initTracking, initAchievements, initContacts } from './pages/stats.js?v=4.4';
+import { showAdmin } from './pages/admin.js?v=4.4';
+import { bindMoreSheets } from './nav.js?v=4.4';
+import { showMe, leaveMe } from './pages/me.js?v=4.4';
+import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4.4';
+import { showStaff } from './pages/staff.js?v=4.4';
 
 const HOME_PANELS = ['news', 'dose', 'tracking', 'achievements', 'contact'];
 
@@ -61,6 +63,8 @@ async function route() {
   const [a, b] = parts;
   document.title = 'Primary Care Pharmacy Services · โรงพยาบาลควนกาหลง';
   setNavCurrent(a || 'home');
+  if (a !== 'me') leaveMe();                                 // ปิดห้องแชทที่เปิดค้างเมื่อออกจากหน้า
+  if (b !== 'messages') unmountInbox();
 
   if (!a || HOME_PANELS.includes(a) && !b) {
     showView('home');
@@ -75,7 +79,13 @@ async function route() {
     showView('login'); return;
   }
   if (!auth.ready) { showView('message'); $('#msgTitle').textContent = 'กำลังโหลด…'; $('#msgBody').textContent = ''; return; }
-  if (a === 'me') { if (requireRole(['citizen', 'staff', 'admin'])) { $('#meHello').textContent = 'สวัสดี ' + (auth.profile.full_name || ''); showView('me'); } return; }
+  if (a === 'me') {
+    if (requireRole(['citizen', 'staff', 'admin'])) {
+      if (auth.profile.role !== 'citizen') { location.replace(ROLE_HOME[auth.profile.role]); return; }   // เจ้าหน้าที่ใช้เมนู "ข้อความ" ในหน้างานแทน
+      showView('me'); showMe();
+    }
+    return;
+  }
   if (a === 'staff') { if (requireRole(['staff'])) { showView('staff'); showStaff(b); } return; }
   if (a === 'admin') { if (requireRole(['admin'])) { showView('admin'); showAdmin(b, parts[2]); } return; }
   message('ไม่พบหน้านี้', 'ลิงก์อาจไม่ถูกต้อง');
@@ -87,7 +97,7 @@ function renderNav() {
   if (auth.session && auth.profile) {
     const p = auth.profile;
     const appLink = { admin: 'ผู้ดูแลระบบ', staff: 'ระบบเจ้าหน้าที่', citizen: 'ของฉัน' }[p.role];
-    nav.innerHTML = `<a href="#/" data-route="home">หน้าหลัก</a><a href="${ROLE_HOME[p.role]}" data-route="${ROLE_HOME[p.role].slice(2)}">${appLink}</a>`
+    nav.innerHTML = `<a href="#/" data-route="home">หน้าหลัก</a><a href="${ROLE_HOME[p.role]}" data-route="${ROLE_HOME[p.role].slice(2)}">${appLink}${p.role === 'citizen' ? ' <span id="navMsgBadge" class="badge num"></span>' : ''}</a>`
       + `<span class="who-chip" title="${esc(p.email)}">${esc(p.full_name || p.email)}</span><a href="#" id="logoutLink">ออกจากระบบ</a>`;
     $('#logoutLink').addEventListener('click', (e) => { e.preventDefault(); signOut(); });
   } else {
@@ -149,6 +159,8 @@ async function boot() {
 
   onAuth(() => {
     renderNav();
+    stopChatWatch();
+    if (auth.profile) startChatWatch();                      // ตัวเลขข้อความใหม่แบบ real-time
     renderCommentState();
     if (location.search.includes('code=')) history.replaceState(null, '', location.pathname + location.hash);
     const dest = takePostLoginRedirect();

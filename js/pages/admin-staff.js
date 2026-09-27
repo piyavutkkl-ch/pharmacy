@@ -1,9 +1,9 @@
 // ผู้ดูแล › ตั้งค่า › บัญชีเจ้าหน้าที่ (ตาราง staff_roster)
 // ความปลอดภัยจริงอยู่ที่ RLS + trigger ในฐานข้อมูล (เช่น ห้ามลดสิทธิ์ตัวเอง, ต้องเหลือผู้ดูแล ≥ 1 คน)
-import { sb } from '../supabase.js?v=4.3.1';
-import { $, esc, initials, toast, errText, busy } from '../util.js?v=4.3.1';
-import { auth } from '../auth.js?v=4.3.1';
-import { loadUnits, unitName } from '../data.js?v=4.3.1';
+import { sb } from '../supabase.js?v=4.4';
+import { $, esc, initials, toast, errText, busy } from '../util.js?v=4.4';
+import { auth } from '../auth.js?v=4.4';
+import { loadUnits, unitName } from '../data.js?v=4.4';
 
 let roster = [], loggedIn = new Set(), editing = null, filter = 'all', bound = false;
 

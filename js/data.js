@@ -1,6 +1,6 @@
 // ข้อมูลอ้างอิงที่ใช้หลายหน้า (โหลดครั้งเดียวแล้วเก็บไว้)
-import { sb } from './supabase.js?v=4.3.1';
-import { fiscalYearOf } from './util.js?v=4.3.1';
+import { sb } from './supabase.js?v=4.4';
+import { fiscalYearOf } from './util.js?v=4.4';
 
 let units = null, years = null;
 

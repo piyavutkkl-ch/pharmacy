@@ -1,7 +1,7 @@
 // ผลการดำเนินงาน (ตัวเลขสรุป), ผลงาน รพ.สต., อันดับเกณฑ์มาตรฐาน, ช่องทางติดต่อ — ข้อมูลสาธารณะ ไม่มีข้อมูลรายบุคคล
-import { sb, publicImageUrl } from '../supabase.js?v=4.3.1';
-import { $, esc, art, thaiDate, fiscalYearOf } from '../util.js?v=4.3.1';
-import { loadUnits, loadYears, unitName } from '../data.js?v=4.3.1';
+import { sb, publicImageUrl } from '../supabase.js?v=4.4';
+import { $, esc, art, thaiDate, fiscalYearOf } from '../util.js?v=4.4';
+import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 

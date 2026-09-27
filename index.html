@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Primary Care Pharmacy Services · โรงพยาบาลควนกาหลง</title>
-<meta name="app-version" content="4.3.1">
+<meta name="app-version" content="4.4">
 <meta name="description" content="งานเภสัชกรรมปฐมภูมิ โรงพยาบาลควนกาหลง จังหวัดสตูล — ข่าวประชาสัมพันธ์ คำนวณขนาดยา ผลการดำเนินงาน และช่องทางติดต่อ รพ.สต.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230B5FAB'/%3E%3Cpath d='M12 7v6M9 10h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="assets/app.css?v=4.3.1">
+<link rel="stylesheet" href="assets/app.css?v=4.4">
 </head>
 <body>
 
@@ -178,9 +178,28 @@
 <!-- ============ ประชาชน (ขั้น 4.4) ============ -->
 <section data-view="me" class="app" hidden>
   <div class="app-head"><div><span class="small muted">ประชาชนทั่วไป</span><h1 id="meHello">สวัสดี</h1></div></div>
-  <div class="panel">
-    <h2>กำลังเปิดใช้งาน</h2>
-    <p class="small muted">หน้าข้อมูลส่วนตัวและแชทสอบถามเจ้าหน้าที่ รพ.สต. / ห้องยา จะเปิดในขั้นถัดไป ระหว่างนี้ดูข่าว คำนวณโดสยา และผลการดำเนินงานได้ที่ <a href="#/">หน้าหลัก</a></p>
+  <div class="citizen-split">
+    <div class="panel">
+      <h2>ข้อมูลส่วนตัว</h2>
+      <p class="small muted">ใช้ให้เจ้าหน้าที่ติดต่อกลับได้ · ไม่ต้องกรอกเลขบัตรประชาชน · เห็นเฉพาะเจ้าหน้าที่หน่วยที่คุณทักไปและผู้ดูแล</p>
+      <form id="meForm" class="form-grid" novalidate>
+        <div class="field full"><label for="meName">ชื่อ-นามสกุล <span class="req">*</span></label><input id="meName" class="input" autocomplete="name" maxlength="120"></div>
+        <div class="field"><label for="mePhone">เบอร์โทรศัพท์ <span class="req">*</span></label><input id="mePhone" class="input" type="tel" inputmode="tel" autocomplete="tel" placeholder="08x-xxx-xxxx" maxlength="15"></div>
+        <div class="field"><label for="meUnit">รพ.สต. ใกล้บ้าน</label><select id="meUnit" class="input"></select></div>
+        <div class="field full"><label for="meAddr">ที่อยู่ (หมู่บ้าน / ตำบล)</label><input id="meAddr" class="input" autocomplete="street-address" maxlength="200"></div>
+        <div class="field full"><label for="meEmail">อีเมล Google ที่ใช้เข้าสู่ระบบ</label><input id="meEmail" class="input" readonly></div>
+        <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="meSave">บันทึกข้อมูล</button><span class="small" id="meMsg" aria-live="polite"></span></div>
+      </form>
+    </div>
+    <div class="panel chat-panel">
+      <h2>สอบถามเรื่องยา</h2>
+      <div class="unit-tabs" id="meTargets" aria-label="เลือกหน่วยบริการที่ต้องการถาม"></div>
+      <p class="small muted" id="meChatTitle"></p>
+      <div class="chat-log" id="meLog" role="log" aria-live="polite"></div>
+      <form class="chat-form" id="meChatForm" novalidate><input id="meInput" class="input" maxlength="1000" placeholder="พิมพ์ข้อความ…" autocomplete="off" aria-label="พิมพ์ข้อความ"><button class="btn btn-p btn-sm" type="submit" id="meSend">ส่ง</button></form>
+      <p class="small" id="meChatHint" style="color:var(--warning)"></p>
+      <p class="small muted">เจ้าหน้าที่ตอบในเวลาราชการ · กรณีฉุกเฉิน โทร 1669 · ไม่ต้องส่งเลขบัตรประชาชนทางแชท</p>
+    </div>
   </div>
 </section>
 
@@ -190,10 +209,11 @@
   <div class="app-body">
     <nav class="sidenav" aria-label="เมนูเจ้าหน้าที่">
       <a href="#/staff/news" data-staff-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="stfNewsBadge" class="badge num"></span></a>
-      <a href="#/staff/achievements" data-staff-tab="achievements" title="ผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">ผลงาน</span></a>
       <a href="#/staff/criteria" data-staff-tab="criteria" title="มาตรฐาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">มาตรฐาน</span><span id="stfCritBadge" class="badge num"></span></a>
       <a href="#/staff/visits" data-staff-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
+      <a href="#/staff/messages" data-staff-tab="messages" title="ข้อความ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">ข้อความ</span><span id="stfMsgBadge" class="badge num"></span></a>
       <div class="more-group" id="staffMore">
+        <a href="#/staff/achievements" data-staff-tab="achievements" title="ผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">ผลงาน</span></a>
         <a href="#/staff/docs" data-staff-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
         <a href="#/staff/feedback" data-staff-tab="feedback" title="ข้อเสนอแนะ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><span class="lbl">ข้อเสนอแนะ</span></a>
       </div>
@@ -248,6 +268,9 @@
       <div data-staff-view="visits" hidden><div id="staffVisitsSlot"></div></div>
 
       <!-- เอกสารดาวน์โหลด -->
+      <!-- ข้อความจากประชาชนถึง รพ.สต. นี้ (real-time) -->
+      <div data-staff-view="messages" hidden><div id="staffInboxSlot"></div></div>
+
       <div data-staff-view="docs" hidden>
         <div class="panel">
           <div class="unit-tabs" id="sdCats" aria-label="หมวดเอกสาร"></div>
@@ -278,9 +301,10 @@
     <nav class="sidenav" aria-label="เมนูผู้ดูแล">
       <a href="#/admin/news" data-admin-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="admNewsBadge" class="badge num"></span></a>
       <a href="#/admin/review" data-admin-tab="review" title="ตรวจประเมิน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">ตรวจประเมิน</span><span id="admReviewBadge" class="badge num"></span></a>
+      <a href="#/admin/messages" data-admin-tab="messages" title="ข้อความ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">ข้อความ</span><span id="admMsgBadge" class="badge num"></span></a>
       <a href="#/admin/visits" data-admin-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
-      <a href="#/admin/docs" data-admin-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
       <div class="more-group" id="adminMore">
+        <a href="#/admin/docs" data-admin-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
         <a href="#/admin/feedback" data-admin-tab="feedback" title="ข้อเสนอแนะ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><span class="lbl">ข้อเสนอแนะ</span></a>
         <a href="#/admin/settings" data-admin-tab="settings" title="ตั้งค่า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">ตั้งค่า</span></a>
       </div>
@@ -313,6 +337,12 @@
         <div class="unit-tabs" id="rvUnits" aria-label="เลือก รพ.สต."></div>
         <div id="rvBody"></div>
         <div class="panel"><div class="panel-head"><h2>ความคืบหน้าทุก รพ.สต.</h2><span class="small muted" id="rvBarsYear"></span></div><div class="bars" id="rvBars"></div></div>
+      </div>
+
+      <!-- ข้อความ: ห้องยา รพ. (ตอบเอง) + ดูกล่องของ รพ.สต. ได้ -->
+      <div data-admin-view="messages" hidden>
+        <div class="unit-tabs" id="amTargets" aria-label="เลือกกล่องข้อความ" style="margin-bottom:12px"></div>
+        <div id="adminInboxSlot"></div>
       </div>
 
       <!-- เยี่ยมบ้าน: ดูแทน รพ.สต. ใดก็ได้ -->
@@ -456,6 +486,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<script type="module" src="js/main.js?v=4.3.1"></script>
+<script type="module" src="js/main.js?v=4.4"></script>
 </body>
 </html>

@@ -1,11 +1,11 @@
 // ผู้ดูแล › ข่าว: ตรวจข่าวจากเจ้าหน้าที่ (อนุมัติ/ขอแก้/ไม่ผ่าน) + เขียนข่าวเอง + จัดการข่าวที่เผยแพร่
-import { sb, publicImageUrl } from '../supabase.js?v=4.3.1';
-import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.3.1';
-import { auth } from '../auth.js?v=4.3.1';
-import { loadUnits, unitName } from '../data.js?v=4.3.1';
-import { uploadPublicImage, removeFiles } from '../upload.js?v=4.3.1';
-import { loadNews, renderSlides } from './news.js?v=4.3.1';
-import { refreshAdminBadges } from './admin.js?v=4.3.1';
+import { sb, publicImageUrl } from '../supabase.js?v=4.4';
+import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
+import { auth } from '../auth.js?v=4.4';
+import { loadUnits, unitName } from '../data.js?v=4.4';
+import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
+import { loadNews, renderSlides } from './news.js?v=4.4';
+import { refreshAdminBadges } from './admin.js?v=4.4';
 
 let queue = [], published = [], reviewing = null, editing = null, bound = false;
 
