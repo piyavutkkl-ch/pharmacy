@@ -348,5 +348,22 @@ check("admin moves to deleted (soft)", "admin", f"update news set status='delete
 check("admin restores → published again, trash cleared", "admin", f"update news set status='published' where id='{tn}' returning (trashed_at is null)::text", eq("true"))
 check("staff cannot unpublish admin news", "s2", f"update news set status='unpublished' where id='{tn}' returning id", rows(0))
 
+print("== step 18: document downloads ==")
+dall = run("select id from documents where for_unit is null limit 1")[1]
+dother = run("insert into documents(title,category,for_unit,file_path,file_name) values ('เฉพาะหน่วย 1','อื่น ๆ',1,'1/x.pdf','x.pdf') returning id")[1]
+check("staff counts a download of an all-units document", "s2", f"select bump_doc_download('{dall}')", eq(1))
+check("second download → 2", "s2", f"select bump_doc_download('{dall}')", eq(2))
+check("staff cannot count a document of another unit", "s2", f"select bump_doc_download('{dother}')", "deny")
+check("citizen cannot count downloads", "c1", f"select bump_doc_download('{dall}')", "deny")
+check("staff reads download count", "s2", f"select downloads from document_stats where doc_id='{dall}'", eq(2))
+check("staff cannot write counts directly", "s2", f"update document_stats set downloads=999 where doc_id='{dall}'", "deny")
+check("anon cannot read counts", "anon", "select * from document_stats", "deny")
+
+print("== step 19: dose indications ==")
+check("existing drugs got their dose as first indication", "anon", "select bool_and(jsonb_array_length(indications) = 1 and (indications->0->>'min')::numeric = mg_per_kg_min) from dose_drugs", eq("t"))
+check("admin saves a drug with 2 indications", "admin", """update dose_drugs set indications='[{"name":"ลดไข้","per":"dose","min":10,"max":15},{"name":"ปวด","per":"dose","min":15,"max":20}]' where id=1 returning jsonb_array_length(indications)""", eq(2))
+check("anon reads indications (public calculator)", "anon", "select jsonb_array_length(indications) from dose_drugs where id=1", eq(2))
+check("staff cannot edit indications", "s2", "update dose_drugs set indications='[]' returning id", rows(0))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

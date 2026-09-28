@@ -31,10 +31,28 @@ async function uploadDoc(f, forUnit) {
   return { file_path: path, file_name: f.name, file_size: f.size, content_type: TYPES[ext] };
 }
 
-/** ดาวน์โหลดด้วยลิงก์ชั่วคราว 5 นาที (ตั้งชื่อไฟล์ตามต้นฉบับ) */
-async function download(d) {
+/** จำนวนดาวน์โหลด (ตาราง document_stats) → d.downloads */
+async function withStats(list) {
+  const { data } = await sb.from('document_stats').select('doc_id,downloads');
+  const m = new Map((data || []).map((r) => [r.doc_id, r.downloads]));
+  list.forEach((d) => { d.downloads = m.get(d.id) || 0; });
+  return list;
+}
+
+/** ค้นหา / กรองประเภท / เรียงลำดับ ตามแถบเครื่องมือ (pre = 'ad' ผู้ดูแล | 'sd' เจ้าหน้าที่) */
+function applyTools(list, pre, catOverride) {
+  const q = $(`#${pre}Q`).value.trim().toLowerCase(), c = catOverride ?? $(`#${pre}FCat`)?.value ?? 'all';
+  const [key, dir] = $(`#${pre}Sort`).value.split('_'), k = dir === 'asc' ? 1 : -1;
+  const val = { updated: (d) => d.updated_at, title: (d) => d.title, dl: (d) => d.downloads || 0 }[key];
+  return list.filter((d) => (c === 'all' || d.category === c) && (!q || `${d.title} ${d.file_name} ${d.note || ''}`.toLowerCase().includes(q)))
+    .sort((a, b) => (key === 'title' ? a.title.localeCompare(b.title, 'th') : val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : 0) * k);
+}
+
+/** ดาวน์โหลดด้วยลิงก์ชั่วคราว 5 นาที (ตั้งชื่อไฟล์ตามต้นฉบับ) + นับจำนวนดาวน์โหลด */
+async function download(d, after) {
   const { data, error } = await sb.storage.from('documents').createSignedUrl(d.file_path, 300, { download: d.file_name });
   if (error) { toast('เปิดไฟล์ไม่สำเร็จ: ' + errText(error), 'err'); return; }
+  sb.rpc('bump_doc_download', { p_doc: d.id }).then(({ data: n }) => { if (n) { d.downloads = n; after?.(); } }, () => {});
   const a = document.createElement('a');
   a.href = data.signedUrl; a.rel = 'noopener'; a.target = '_blank';
   document.body.append(a); a.click(); a.remove();
@@ -42,7 +60,7 @@ async function download(d) {
 
 const docRow = (d, actions) => `<div class="li"><div class="l"><b>${esc(d.title)}</b>`
   + `<span class="small muted">${esc(d.category)} · ${d.for_unit == null ? 'ทุก รพ.สต.' : 'รพ.สต. ' + esc(unitName(d.for_unit))}`
-  + ` · ${esc(d.file_name)} (${size(d.file_size || 0)})${d.version > 1 ? ' · ฉบับที่ ' + d.version : ''} · ปรับปรุง ${esc(thaiDate(d.updated_at))}</span>`
+  + ` · ${esc(d.file_name)} (${size(d.file_size || 0)})${d.version > 1 ? ' · ฉบับที่ ' + d.version : ''} · ปรับปรุง ${esc(thaiDate(d.updated_at))} · ดาวน์โหลด ${(d.downloads || 0).toLocaleString('th-TH')} ครั้ง</span>`
   + (d.note ? `<span class="small">${esc(d.note)}</span>` : '') + `</div><div class="actions">${actions}</div></div>`;
 
 /* ======================= ผู้ดูแล ======================= */
@@ -60,6 +78,7 @@ export async function initAdminDocs() {
       try { if (f) checkFile(f); msg(''); } catch (e) { msg(e.message); $('#adFile').value = ''; }
     });
     $('#adList').addEventListener('click', onAdminList);
+    ['#adQ', '#adFCat', '#adSort'].forEach((s) => $(s).addEventListener(s === '#adQ' ? 'input' : 'change', renderAdminDocs));
   }
   await reloadDocs();
 }
@@ -68,13 +87,17 @@ async function reloadDocs() {
   $('#adList').innerHTML = '<div class="skeleton"></div>';
   const { data, error } = await sb.from('documents').select(COLS).order('updated_at', { ascending: false });
   if (error) { $('#adList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
-  docs = data;
-  $('#adCount').textContent = `(${docs.length})`;
-  $('#adList').innerHTML = docs.length ? docs.map((d) => docRow(d,
+  docs = await withStats(data);
+  renderAdminDocs();
+}
+
+function renderAdminDocs() {
+  const list = applyTools(docs, 'ad');
+  $('#adCount').textContent = list.length === docs.length ? `(${docs.length})` : `(${list.length} จาก ${docs.length})`;
+  $('#adList').innerHTML = !docs.length ? '<p class="empty">ยังไม่มีเอกสาร · อัปโหลดได้จากแบบฟอร์มด้านบน</p>' : !list.length ? '<p class="empty">ไม่พบเอกสารที่ค้นหา</p>' : list.map((d) => docRow(d,
     `<button type="button" class="btn btn-o btn-sm" data-dl="${d.id}">ดาวน์โหลด</button>`
     + `<button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">แก้ไข</button>`
-    + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button>`)).join('')
-    : '<p class="empty">ยังไม่มีเอกสาร · อัปโหลดได้จากแบบฟอร์มด้านบน</p>';
+    + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button>`)).join('');
 }
 
 function msg(text, ok) { const m = $('#adMsg'); m.style.color = ok ? 'var(--success)' : 'var(--error)'; m.textContent = text; }
@@ -145,7 +168,7 @@ async function saveDoc(e) {
 async function onAdminList(e) {
   const b = e.target.closest('button'); if (!b) return;
   const d = docs.find((x) => x.id === (b.dataset.dl || b.dataset.edit || b.dataset.del)); if (!d) return;
-  if (b.dataset.dl) return download(d);
+  if (b.dataset.dl) return download(d, renderAdminDocs);
   if (b.dataset.edit) return startEdit(d);
   if (!confirm(`ลบเอกสาร "${d.title}"? เจ้าหน้าที่จะดาวน์โหลดไม่ได้อีก`)) return;
   const { error } = await sb.from('documents').delete().eq('id', d.id);
@@ -166,13 +189,14 @@ export async function initStaffDocs() {
     $('#sdCats').addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (b) { cat = b.dataset.c; renderStaff(); } });
     $('#sdList').addEventListener('click', (e) => {
       const b = e.target.closest('[data-dl]'); if (!b) return;
-      const d = staffDocs.find((x) => x.id === b.dataset.dl); if (d) download(d);
+      const d = staffDocs.find((x) => x.id === b.dataset.dl); if (d) download(d, renderStaff);
     });
+    ['#sdQ', '#sdSort'].forEach((s) => $(s).addEventListener(s === '#sdQ' ? 'input' : 'change', renderStaff));
   }
   $('#sdList').innerHTML = '<div class="skeleton"></div>';
   const { data, error } = await sb.from('documents').select(COLS).order('category').order('title');   // RLS กรองให้เห็นเฉพาะที่มีสิทธิ์
   if (error) { $('#sdList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
-  staffDocs = data;
+  staffDocs = await withStats(data);
   renderStaff();
 }
 
@@ -180,8 +204,8 @@ function renderStaff() {
   const n = (c) => staffDocs.filter((d) => c === 'all' || d.category === c).length;
   $('#sdCats').innerHTML = ['all', ...CATS].filter((c) => c === 'all' || n(c))
     .map((c) => `<button type="button" data-c="${esc(c)}" aria-current="${cat === c}">${c === 'all' ? 'ทั้งหมด' : esc(c)} (${n(c)})</button>`).join('');
-  const list = staffDocs.filter((d) => cat === 'all' || d.category === cat);
+  const list = applyTools(staffDocs, 'sd', cat);
   $('#sdList').innerHTML = list.length
     ? list.map((d) => docRow(d, `<button type="button" class="btn btn-p btn-sm" data-dl="${d.id}">ดาวน์โหลด</button>`)).join('')
-    : '<p class="empty">ยังไม่มีเอกสารให้ดาวน์โหลด</p>';
+    : `<p class="empty">${staffDocs.length ? 'ไม่พบเอกสารที่ค้นหา' : 'ยังไม่มีเอกสารให้ดาวน์โหลด'}</p>`;
 }

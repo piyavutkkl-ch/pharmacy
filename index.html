@@ -71,8 +71,8 @@
       <div class="form-grid three">
         <div class="field"><label for="doseWeight">น้ำหนักตัว (กก.)</label><input id="doseWeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="เช่น 12.5"></div>
         <div class="field"><label for="doseHeight">ส่วนสูง (ซม.)</label><input id="doseHeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="เช่น 90"></div>
-        <div class="field"><label for="doseDrug">รายการยา</label><select id="doseDrug" class="input"></select></div>
       </div>
+      <div class="field"><label for="doseDrug">รายการยา</label><select id="doseDrug" class="input"></select></div>
       <div class="field"><label for="doseConc">ความแรงของยาที่มี</label><select id="doseConc" class="input"></select></div>
       <label class="small"><input type="checkbox" id="doseRenalAdjust"> ปรับขนาดยาตามการทำงานของไต (คำนวณ CrCl จากค่า Serum creatinine)</label>
       <div class="field" id="doseRenalManualWrap"><label for="doseRenal">ระดับการทำงานของไต (ประมาณเอง)</label>
@@ -277,6 +277,7 @@
 
       <div data-staff-view="docs" hidden>
         <div class="panel">
+          <div class="doc-tools"><div class="field doc-q"><label for="sdQ">ค้นหาชื่อเอกสาร</label><input id="sdQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อเอกสาร"></div><div class="field"><label for="sdSort">เรียงตาม</label><select id="sdSort" class="input"><option value="updated_desc">อัปเดตล่าสุดก่อน</option><option value="updated_asc">อัปเดตเก่าสุดก่อน</option><option value="title_asc">ชื่อ ก → ฮ</option><option value="title_desc">ชื่อ ฮ → ก</option><option value="dl_desc">ดาวน์โหลดมาก → น้อย</option><option value="dl_asc">ดาวน์โหลดน้อย → มาก</option></select></div></div>
           <div class="unit-tabs" id="sdCats" aria-label="หมวดเอกสาร"></div>
           <div class="list" id="sdList"></div>
         </div>
@@ -333,7 +334,7 @@
         <div class="panel"><h2>ข่าวจากเจ้าหน้าที่ รอตรวจ <span class="num muted" id="anQueueCount"></span></h2><div class="list" id="anQueue"></div></div>
         <div class="panel" id="anReview" hidden></div>
         <div class="panel"><h2>ข่าวที่เผยแพร่แล้ว <span class="num muted" id="anCount"></span></h2><div class="list" id="anList"></div></div>
-        <div class="panel"><h2>ถังข่าว <span class="num muted" id="anTrashCount"></span></h2><p class="small muted">ข่าวที่หยุดเผยแพร่ ถูกลบ หรือไม่ผ่าน · เรียกคืนได้ภายใน 30 วัน หลังจากนั้นระบบลบถาวรให้เอง</p><div class="list" id="anTrash"></div></div>
+        <div class="panel"><h2>ข่าวที่หยุดเผยแพร่ <span class="num muted" id="anTrashCount"></span></h2><p class="small muted">ข่าวที่หยุดเผยแพร่ ถูกลบ หรือไม่ผ่าน · เรียกคืนได้ภายใน 30 วัน หลังจากนั้นระบบลบถาวรให้เอง</p><div class="list" id="anTrash"></div></div>
       </div>
 
       <!-- ตรวจประเมิน: ตรวจหลักฐานราย รพ.สต. + ความคืบหน้า + แก้เกณฑ์ -->
@@ -371,7 +372,7 @@
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="adSubmit">อัปโหลด</button><button class="btn btn-o btn-sm" type="button" id="adCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="adMsg" aria-live="polite"></span></div>
           </form>
         </div>
-        <div class="panel"><h2>เอกสารทั้งหมด <span class="num muted" id="adCount"></span></h2><div class="list" id="adList"></div></div>
+        <div class="panel"><h2>เอกสารทั้งหมด <span class="num muted" id="adCount"></span></h2><div class="doc-tools"><div class="field doc-q"><label for="adQ">ค้นหาชื่อเอกสาร</label><input id="adQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อเอกสาร"></div><div class="field"><label for="adFCat">ประเภท</label><select id="adFCat" class="input"><option value="all">ทุกประเภท</option><option>แบบฟอร์ม</option><option>คู่มือ / แนวทาง</option><option>หนังสือสั่งการ / ประกาศ</option><option>อื่น ๆ</option></select></div><div class="field"><label for="adSort">เรียงตาม</label><select id="adSort" class="input"><option value="updated_desc">อัปเดตล่าสุดก่อน</option><option value="updated_asc">อัปเดตเก่าสุดก่อน</option><option value="title_asc">ชื่อ ก → ฮ</option><option value="title_desc">ชื่อ ฮ → ก</option><option value="dl_desc">ดาวน์โหลดมาก → น้อย</option><option value="dl_asc">ดาวน์โหลดน้อย → มาก</option></select></div></div><div class="list" id="adList"></div></div>
       </div>
 
 
@@ -396,14 +397,7 @@
             <p class="small muted">รายการนี้ใช้ในเครื่องคำนวณโดสยาหน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
             <form id="dfForm" class="form-grid" novalidate>
               <div class="field full"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>
-              <div class="field full"><label for="dfInd">ข้อบ่งใช้</label><input id="dfInd" class="input" maxlength="200"></div>
-              <div class="field"><label for="dfPer">คิดขนาดยาแบบ</label><select id="dfPer" class="input"><option value="dose">มก./กก./ครั้ง</option><option value="day">มก./กก./วัน (แบ่งให้)</option></select></div>
-              <div class="field" id="dfFreqWrap"><label for="dfTimes">แบ่งให้วันละ (ครั้ง)</label><input id="dfTimes" class="input" type="number" inputmode="numeric" min="1" max="12"></div>
-              <div class="field"><label for="dfMin">ขนาดต่ำสุด (มก./กก.) <span class="req">*</span></label><input id="dfMin" class="input" type="number" inputmode="decimal" min="0" step="0.01"></div>
-              <div class="field"><label for="dfMax">ขนาดสูงสุด (มก./กก.) <span class="req">*</span></label><input id="dfMax" class="input" type="number" inputmode="decimal" min="0" step="0.01"></div>
-              <div class="field"><label for="dfCap">เพดานต่อครั้ง (มก.)</label><input id="dfCap" class="input" type="number" inputmode="decimal" min="0" step="0.1"></div>
-              <div class="field"><label for="dfFreq">ความถี่ (ข้อความ)</label><input id="dfFreq" class="input" maxlength="120" placeholder="เช่น ทุก 4–6 ชั่วโมง"></div>
-              <div class="field full"><label for="dfRenal">ขนาดยาในโรคไต</label><textarea id="dfRenal" rows="2" maxlength="1000"></textarea></div>
+              <div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา <span class="req">*</span></span><span class="small muted">แต่ละข้อบ่งใช้ใส่ขนาดยาต่างกันได้ · กดที่หัวข้อเพื่อย่อ/ขยาย</span><div id="dfInds" class="ind-list"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddInd">+ เพิ่มข้อบ่งใช้</button></div></div>
               <div class="field full"><label>ความแรงของยา</label><div id="dfConcs" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddConc">+ เพิ่มความแรง</button></div></div>
               <div class="field"><label for="dfSort">ลำดับแสดง</label><input id="dfSort" class="input" type="number" inputmode="numeric" value="0"></div>
               <label class="small" style="align-self:end"><input type="checkbox" id="dfActive" checked> แสดงในเครื่องคำนวณ</label>
@@ -494,11 +488,9 @@
       <a class="mark" href="#/"><i aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v4"/><path d="M14 8h-4"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><path d="M18 22V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v17"/><path d="M4 22h16"/><path d="M6 12H4v10"/><path d="M18 12h2v10"/></svg></i><b>Primary care pharmacy services</b></a>
       <p>ฝ่ายเภสัชกรรมและงานคุ้มครองผู้บริโภค โรงพยาบาลควนกาหลง จังหวัดสตูล</p>
       <p>ติดต่อ 074-752-081 ต่อ 455 (ห้องยา)</p>
-      <div class="footer-links">
-        <a href="#/achievements" class="footer-link">ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.</a>
-        <a href="#/contact" class="footer-link">ช่องทางติดต่อ รพ.สต.</a>
-        <a href="privacy.html" class="footer-link">นโยบายความเป็นส่วนตัว</a>
-        <a href="terms.html" class="footer-link">ข้อตกลงการใช้งาน</a>
+      <div class="footer-cards">
+        <a href="#/achievements" class="footer-card"><span class="fc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.5 12.9 17 22l-5-3-5 3 1.5-9.1"/></svg></span><span>ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.</span><svg class="fc-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+        <a href="#/contact" class="footer-card"><span class="fc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span><span>ช่องทางติดต่อ รพ.สต.</span><svg class="fc-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
       </div>
     </div>
     <div class="footer-col" style="min-width:240px">
@@ -509,6 +501,10 @@
         <button class="btn btn-o btn-sm" type="submit">ส่ง</button>
       </form>
       <p class="small" id="fbMsg" aria-live="polite"></p>
+      <div class="footer-legal">
+        <a href="privacy.html" class="footer-link">นโยบายความเป็นส่วนตัว</a>
+        <a href="terms.html" class="footer-link">ข้อตกลงการใช้งาน</a>
+      </div>
     </div>
   </div>
 </footer>

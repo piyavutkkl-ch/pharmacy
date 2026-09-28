@@ -33,6 +33,10 @@ function toggleRenal() {
   $('#doseRenalManualWrap').hidden = on;
   $('#doseRenalCalcWrap').hidden = !on;
 }
+/** ข้อบ่งใช้ของยา — ยาเก่าที่ยังไม่มี indications ใช้ช่องเดิมเป็นข้อแรก */
+const indsOf = (d) => (d.indications?.length ? d.indications
+  : [{ name: d.indication, per: d.per, min: d.mg_per_kg_min, max: d.mg_per_kg_max, times: d.dose_freq_per_day, cap: d.max_mg_per_dose, freq: d.freq, renal: d.renal_note }]);
+const SHOW_OPEN = 3;   // แสดงพร้อมกันได้ 3 ข้อบ่งใช้ ที่เหลือย่อไว้ กดเพื่อขยาย
 const rng = (a, b, dp) => (a.toFixed(dp) === b.toFixed(dp) ? a.toFixed(dp) : `${a.toFixed(dp)}–${b.toFixed(dp)}`);
 const fig = (n, t) => `<div class="fig"><div class="n num">${n}</div><div class="t">${t}</div></div>`;
 
@@ -41,19 +45,27 @@ function render() {
   const w = +$('#doseWeight').value, d = drug();
   if (!(w > 0) || !d) { out.innerHTML = '<p class="small muted">กรอกน้ำหนักตัวและเลือกรายการยาเพื่อคำนวณ</p>'; return; }
   const c = (d.concs || [])[+$('#doseConc').value || 0];
-  let minMg, maxMg, label;
-  if (d.per === 'dose') {
-    minMg = w * d.mg_per_kg_min; maxMg = w * d.mg_per_kg_max;
-    if (d.max_mg_per_dose) { minMg = Math.min(minMg, d.max_mg_per_dose); maxMg = Math.min(maxMg, d.max_mg_per_dose); }
-    label = 'ต่อครั้ง';
-  } else {
-    const dayMin = w * d.mg_per_kg_min, dayMax = w * d.mg_per_kg_max, n = d.dose_freq_per_day || 1;
-    minMg = dayMin / n; maxMg = dayMax / n;
-    label = `ต่อครั้ง (แบ่งจากขนาดรวม ${dayMin.toFixed(0)}–${dayMax.toFixed(0)} มก./วัน)`;
-  }
-  let vol = '';
-  if (c?.mgPer5ml) vol = fig(`${rng(minMg / c.mgPer5ml * 5, maxMg / c.mgPer5ml * 5, 1)} มล.`, `ปริมาณยา (${esc(c.label)}) ${label}`);
-  else if (c?.mgPerTab) vol = fig(`${rng(minMg / c.mgPerTab, maxMg / c.mgPerTab, 2)} เม็ด/แคปซูล`, `จาก ${esc(c.label)} ${label}`);
+  /** ขนาดยาของข้อบ่งใช้ i สำหรับน้ำหนัก w */
+  const doseOf = (i) => {
+    let minMg, maxMg, label;
+    if (i.per !== 'day') {
+      minMg = w * i.min; maxMg = w * i.max;
+      if (i.cap) { minMg = Math.min(minMg, i.cap); maxMg = Math.min(maxMg, i.cap); }
+      label = 'ต่อครั้ง';
+    } else {
+      const dayMin = w * i.min, dayMax = w * i.max, n = i.times || 1;
+      minMg = dayMin / n; maxMg = dayMax / n;
+      label = `ต่อครั้ง (แบ่งจากขนาดรวม ${dayMin.toFixed(0)}–${dayMax.toFixed(0)} มก./วัน)`;
+    }
+    let vol = '';
+    if (c?.mgPer5ml) vol = fig(`${rng(minMg / c.mgPer5ml * 5, maxMg / c.mgPer5ml * 5, 1)} มล.`, `ปริมาณยา (${esc(c.label)}) ${label}`);
+    else if (c?.mgPerMl) vol = fig(`${rng(minMg / c.mgPerMl, maxMg / c.mgPerMl, 2)} มล.`, `ปริมาณยา (${esc(c.label)}) ${label}`);
+    else if (c?.mgPerTab) vol = fig(`${rng(minMg / c.mgPerTab, maxMg / c.mgPerTab, 2)} เม็ด/แคปซูล`, `จาก ${esc(c.label)} ${label}`);
+    return fig(`${rng(minMg, maxMg, 0)} มก.`, `ขนาดยา ${label}`) + vol
+      + `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
+      + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '');
+  };
+  const inds = indsOf(d);
 
   const h = +$('#doseHeight').value;
   const bmi = h > 0 ? fig((w / Math.pow(h / 100, 2)).toFixed(1), `BMI (น้ำหนัก ${w} กก. ส่วนสูง ${h.toFixed(0)} ซม.)`) : '';
@@ -74,13 +86,15 @@ function render() {
   let alert = '';
   if (renal !== 'normal') {
     alert = `<div class="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>`
-      + `<div><b>ขนาดยาในโรคไต — ${esc(labels[renal])}</b><div class="small">${esc(d.renal_note || 'ยานี้ยังไม่มีคำแนะนำการปรับขนาดยาในโรคไตในระบบ กรุณาปรึกษาเภสัชกรก่อนใช้')}</div>${crclNote}</div></div>`;
+      + `<div><b>ขนาดยาในโรคไต — ${esc(labels[renal])}</b><div class="small">${inds.some((i) => i.renal) ? 'ดูคำแนะนำ "ขนาดยาในโรคไต" ของแต่ละข้อบ่งใช้ด้านล่าง' : 'ยานี้ยังไม่มีคำแนะนำการปรับขนาดยาในโรคไตในระบบ กรุณาปรึกษาเภสัชกรก่อนใช้'}</div>${crclNote}</div></div>`;
   } else if (crclNote) alert = '<p class="small muted">การทำงานของไตปกติ (CrCl ≥ 60 มล./นาที) — ไม่จำเป็นต้องปรับขนาดยา</p>';
 
-  out.innerHTML = (d.indication ? `<p class="small muted"><b>ข้อบ่งใช้:</b> ${esc(d.indication)}</p>` : '')
-    + fig(`${rng(minMg, maxMg, 0)} มก.`, `ขนาดยา ${label}`) + vol + bmi
-    + `<p class="small muted">ความถี่: ${esc(d.freq || '-')}</p>`
-    + (d.renal_note ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต (ทั่วไป):</b> ${esc(d.renal_note)}</p>` : '')
-    + alert
+  const title = (i, k) => `ข้อบ่งใช้${inds.length > 1 ? ' ' + (k + 1) : ''}: ${esc(i.name || '-')}`;
+  out.innerHTML = alert
+    + (inds.length > SHOW_OPEN ? `<p class="small muted">ยานี้มี ${inds.length} ข้อบ่งใช้ · แสดง ${SHOW_OPEN} ข้อแรก ที่เหลือกดเพื่อดูขนาดยา</p>` : '')
+    + '<div class="ind-results">' + inds.map((i, k) => (k < SHOW_OPEN
+      ? `<section class="ind-result"><h4>${title(i, k)}</h4>${doseOf(i)}</section>`
+      : `<details class="ind-result"><summary>${title(i, k)}</summary>${doseOf(i)}</details>`)).join('') + '</div>'
+    + bmi
     + '<p class="small muted">ตัวเลขนี้เป็นการประมาณตามช่วงขนาดยาทั่วไป โปรดตรวจสอบกับเอกสารกำกับยา/แนวทางการรักษาและดุลยพินิจทางคลินิกก่อนใช้จริงเสมอ</p>';
 }

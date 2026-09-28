@@ -71,7 +71,7 @@ async function loadPublished() {
     : '<p class="empty">ยังไม่มีข่าวที่เผยแพร่</p>';
 }
 
-/* ---------- ถังข่าว: หยุดเผยแพร่ / ลบ / ไม่ผ่าน → เรียกคืนได้ 30 วัน ---------- */
+/* ---------- ข่าวที่หยุดเผยแพร่ (ถังข่าว): หยุดเผยแพร่ / ลบ / ไม่ผ่าน → เรียกคืนได้ 30 วัน ---------- */
 async function loadTrash() {
   const cut = new Date(Date.now() - KEEP_DAYS * DAY).toISOString();
   const old = await sb.from('news').select('id,image_path,file_path').in('status', TRASH).lt('trashed_at', cut);
@@ -90,7 +90,7 @@ async function loadTrash() {
       + `<div class="row-btns" style="align-items:center"><span class="chip ${cls}">${label}</span>`
       + `<button type="button" class="btn btn-o btn-sm" data-restore="${n.id}">${n.status === 'rejected' ? 'เรียกคืนไปรอตรวจ' : 'เรียกคืน (เผยแพร่อีกครั้ง)'}</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-purge="${n.id}">ลบถาวร</button></div></div>`;
-  }).join('') : '<p class="empty">ถังข่าวว่าง</p>';
+  }).join('') : '<p class="empty">ไม่มีข่าวที่หยุดเผยแพร่</p>';
 }
 
 async function setNewsStatus(id, status, msg) {
@@ -138,12 +138,12 @@ function bind() {
       $('#anForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); return;
     }
     const up = e.target.closest('[data-unpub]');
-    if (up) { const n = published.find((x) => x.id === up.dataset.unpub); if (n && confirm(`หยุดเผยแพร่ข่าว "${n.title}"?\nข่าวจะไปอยู่ในถังข่าว เรียกคืนได้ภายใน 30 วัน`)) setNewsStatus(n.id, 'unpublished', 'หยุดเผยแพร่แล้ว'); return; }
+    if (up) { const n = published.find((x) => x.id === up.dataset.unpub); if (n && confirm(`หยุดเผยแพร่ข่าว "${n.title}"?\nข่าวจะไปอยู่ใน "ข่าวที่หยุดเผยแพร่" เรียกคืนได้ภายใน 30 วัน`)) setNewsStatus(n.id, 'unpublished', 'หยุดเผยแพร่แล้ว'); return; }
     const dl = e.target.closest('[data-del]');
     if (dl) {
       const n = published.find((x) => x.id === dl.dataset.del);
-      if (!n || !confirm(`ลบข่าว "${n.title}" ออกจากเว็บ?\nข่าวจะไปอยู่ในถังข่าว เรียกคืนได้ภายใน 30 วัน`)) return;
-      setNewsStatus(n.id, 'deleted', 'ย้ายข่าวไปถังข่าวแล้ว');
+      if (!n || !confirm(`ลบข่าว "${n.title}" ออกจากเว็บ?\nข่าวจะไปอยู่ใน "ข่าวที่หยุดเผยแพร่" เรียกคืนได้ภายใน 30 วัน`)) return;
+      setNewsStatus(n.id, 'deleted', 'ลบแล้ว · เรียกคืนได้ใน ข่าวที่หยุดเผยแพร่');
     }
   });
   $('#anForm').addEventListener('submit', async (e) => {

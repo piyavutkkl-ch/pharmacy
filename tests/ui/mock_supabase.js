@@ -223,6 +223,11 @@ function rpc(name, a = {}) {
       db.criteria_years.push({ fiscal_year: a.p_year, created_at: now() });
       return { data: src.length, error: null };
     }
+    case 'bump_doc_download': {
+      const st = (db.document_stats ||= []), r = st.find((x) => x.doc_id === a.p_doc);
+      if (r) r.downloads++; else st.push({ doc_id: a.p_doc, downloads: 1 });
+      return { data: (r || st[st.length - 1]).downloads, error: null };
+    }
     case 'withdraw_item_status': {
       const s = db.item_status.find((x) => x.id === a.p_id);
       if (!s || !(isStaff() && s.unit_id === ME.unit_id)) return err('ไม่มีสิทธิ์', '42501');
