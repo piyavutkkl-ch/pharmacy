@@ -107,7 +107,8 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - [x] 6 ระบบอัตโนมัติ: Claude แก้ → ทดสอบ → push → Actions ทดสอบ/รวม/อัปเดตฐานข้อมูล/ขึ้นเว็บเอง
 
 ## งานค้าง (ทำแล้วลบบรรทัดออก)
-- ลบไฟล์ซ้ำที่หลุดมาอยู่ root ของ repo (เกิดจากอัปโหลดผ่านเว็บ ไม่ได้ใช้งาน · ของจริงอยู่ใน js/ assets/ supabase/ tools/ tests/ docs/):
-  `*.sql` `*.js` `*.py` `*.sh` `*.yml` `BACKUP.md` `app.css` ที่อยู่ระดับ root — เก็บไว้เฉพาะ index.html privacy.html terms.html README.md CLAUDE.md .gitignore
+- ไฟล์ซ้ำที่ root: ลบตัวที่ตรงกับของจริงทุกไบต์แล้ว 42 ไฟล์ · เหลือ 6 ไฟล์ที่เป็น**รุ่นเก่ากว่า**ของจริง (ไม่ได้ใช้งาน) รอเจ้าของเว็บยืนยันก่อนลบ:
+  `app.css`(→assets/) `BACKUP.md`(→docs/) `bump_version.py`(→tools/) `rls_test.py`(→tests/) `run.sh`(→tests/backup/) — ของจริงใหม่กว่าทุกตัว ไม่มีอะไรต้องย้ายกลับ
+  สุดท้าย root ควรเหลือเฉพาะ index.html privacy.html terms.html README.md CLAUDE.md .gitignore
 - เมนู Health Rider ยังไม่ได้กำหนดขอบเขต (ซ่อนไว้) — รอเจ้าของเว็บบอกความต้องการ
 - ต้นแบบ UI เดิม (ใช้อ้างอิงหน้าตา/ฟีเจอร์ที่ยังไม่ย้าย): Claude Artifact "Primary Care Pharmacy Services" ของเจ้าของโปรเจกต์
