@@ -1,0 +1,5 @@
+tests/ui/shots/
+__pycache__/
+*.pyc
+node_modules/
+_site/
