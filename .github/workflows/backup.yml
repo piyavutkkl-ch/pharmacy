@@ -28,9 +28,9 @@ jobs:
           POSTGRES_PASSWORD: verify-only
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 12
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: สำรองข้อมูล
         env:
           MODE: ${{ inputs.mode || 'auto' }}

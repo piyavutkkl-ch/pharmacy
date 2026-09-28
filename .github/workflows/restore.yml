@@ -38,7 +38,7 @@ jobs:
           [ "$CONFIRM" = "RESTORE-$ref" ] || { echo "::error::ต้องพิมพ์ RESTORE-$ref ให้ตรง"; exit 1; }
           [ -n "$DB" ] || { echo "::error::ยังไม่ได้ตั้ง Secret RESTORE_DB_URL"; exit 1; }
           case "$DB" in *"$ref"*) ;; *) echo "::error::RESTORE_DB_URL ไม่ใช่ของโปรเจกต์ $ref"; exit 1 ;; esac
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: กู้ข้อมูล
         env:
           RESTORE_SUPABASE_URL: ${{ inputs.target_url }}

@@ -12,6 +12,7 @@ Primary Care Pharmacy Services — เว็บงานเภสัชกรร
 5. GitHub Actions `ci-deploy.yml` ทำต่อเองทั้งหมด: ทดสอบซ้ำ → รวมเข้า main → อัปเดตฐานข้อมูล (ถ้ามี SQL ใหม่ · สำรองก่อน) → ขึ้นเว็บ → ตรวจว่าเว็บจริงเป็นรุ่นใหม่
 6. ตรวจผลรอบ Actions แล้วสรุปให้เจ้าของเว็บ: เปลี่ยนอะไร · ขึ้นเว็บแล้วหรือยัง · มีอะไรที่เขาต้องทำเองไหม (ปกติไม่มี)
    ถ้า Actions ไม่ผ่าน → อ่าน log แก้แล้ว push ใหม่เอง ไม่ต้องให้เจ้าของเว็บทำอะไร
+   ถ้าแก้ไฟล์ใน `.github/workflows/` → GitHub ไม่ให้ Actions รวมเข้า main เอง (รอบ branch ขึ้นคำเตือน) → หลังรอบ branch ผ่าน ให้ Claude `git push origin HEAD:main` เอง
 - สิ่งที่ Claude ทำแทนไม่ได้ (บอกเจ้าของเว็บเป็นขั้นตอนสั้น ๆ): ตั้งค่าใน Supabase Dashboard (Auth/Providers/URL), Google Cloud Console, GitHub Settings/Secrets
 - ย้อนเว็บกลับรุ่นก่อน: `git revert <commit>` แล้ว push (ฐานข้อมูลย้อนเองไม่ได้ — ใช้ไฟล์ SQL ใหม่แก้ หรือ restore ตาม docs/BACKUP.md)
 

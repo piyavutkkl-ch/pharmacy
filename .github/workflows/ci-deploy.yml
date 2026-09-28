@@ -30,9 +30,9 @@ jobs:
           POSTGRES_PASSWORD: ci-only
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 12
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: รวมกับ main (ทดสอบของที่จะขึ้นเว็บจริง)
@@ -44,9 +44,10 @@ jobs:
           if ! git merge -q --no-edit origin/main -m "รวม main เข้า ${GITHUB_REF_NAME}"; then
             echo "::error::งานนี้ชนกับโค้ดล่าสุดใน main — ให้ Claude ดึง main มารวมแล้ว push ใหม่"; exit 1
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
+          package-manager-cache: false   # งานนี้มีสิทธิ์ push เข้า main — ไม่ใช้แคชร่วม
       - name: ติดตั้งเครื่องมือทดสอบ
         run: |
           command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null; }
@@ -58,7 +59,7 @@ jobs:
         run: bash tests/run_all.sh
       - name: เก็บภาพหน้าจอจากการทดสอบ (ข้อมูลจำลอง)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-screenshots
           path: tests/ui/shots/
@@ -69,6 +70,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [ -n "$(git diff --name-only origin/main HEAD -- .github/workflows)" ]; then
+            echo "::warning::ทดสอบผ่าน แต่งานนี้แก้ไฟล์ใน .github/workflows ซึ่ง GitHub ไม่ให้ระบบอัตโนมัติรวมเข้า main เอง — Claude จะ push commit นี้เข้า main ต่อ (ยังไม่ขึ้นเว็บจนกว่าจะรวม)"
+            exit 0
+          fi
           git push origin HEAD:main
           gh workflow run ci-deploy.yml --ref main
           echo "ส่งเข้า main แล้ว — รอบ main จะอัปเดตฐานข้อมูล (ถ้ามี) และขึ้นเว็บต่อ"
@@ -82,7 +87,7 @@ jobs:
       group: supabase-migrate
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: อัปเดตโครงสร้างฐานข้อมูล (เฉพาะไฟล์ SQL ใหม่ · สำรองก่อนทุกครั้ง)
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -110,7 +115,7 @@ jobs:
       group: pages
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: เตรียมไฟล์หน้าเว็บ (เฉพาะไฟล์ที่ต้องขึ้นเว็บ + ติดเลขรุ่นกันแคช)
         id: build
         run: |
@@ -120,12 +125,12 @@ jobs:
           python3 tools/bump_version.py "$ver" _site
           echo "version=$ver" >> "$GITHUB_OUTPUT"
           echo "เว็บรุ่น $ver · $(find _site -type f | wc -l) ไฟล์"
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
       - name: ตรวจว่าเว็บจริงเป็นรุ่นใหม่แล้ว
         env:
           URL: ${{ steps.deployment.outputs.page_url }}
