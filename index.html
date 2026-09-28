@@ -44,6 +44,10 @@
           <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
           <span class="mi-label">ผลการดำเนินงานเภสัชกรรมปฐมภูมิ</span>
         </a>
+        <a class="menu-icon-btn" href="#/delivery" data-panel-link="delivery" aria-expanded="false">
+          <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg></span>
+          <span class="mi-label">บริการจัดส่งยาถึงบ้าน</span>
+        </a>
       </div>
     </div>
 
@@ -106,6 +110,22 @@
           <div class="fig"><div class="n num" id="trkMedExcess">–</div><div class="t">ผู้ป่วยที่ได้รับการแก้ไขยาคงค้างที่บ้านเกิน 1 เดือน</div></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="sec reveal" data-panel="delivery" hidden>
+    <div class="sec-head"><h2>บริการจัดส่งยาถึงบ้าน</h2></div>
+    <div class="poster-wrap">
+      <button type="button" class="poster-nav" data-poster-nav="prev" aria-label="เลื่อนไปทางซ้าย">‹</button>
+      <div class="poster-row" id="dlPosters" tabindex="0" role="region" aria-label="โปสเตอร์บริการจัดส่งยาถึงบ้าน (เลื่อนซ้าย-ขวาได้)"></div>
+      <button type="button" class="poster-nav" data-poster-nav="next" aria-label="เลื่อนไปทางขวา">›</button>
+    </div>
+    <div class="panel"><div class="article-body dl-info" id="dlInfo"></div></div>
+    <div class="panel">
+      <div class="panel-head"><h2>สถิติการจัดส่งยาถึงบ้าน</h2></div>
+      <div class="unit-tabs" id="dlYears" aria-label="เลือกปีงบประมาณ"></div>
+      <div class="track-figs dl-figs" id="dlFigs" aria-live="polite"></div>
+      <div class="bars" id="dlBars"></div>
     </div>
   </div>
 
@@ -400,8 +420,34 @@
           <a class="tab-link" href="#/admin/settings/dose" data-sub="dose">คำนวณโดสยา</a>
           <a class="tab-link" href="#/admin/settings/contacts" data-sub="contacts">ช่องทางติดต่อ รพ.สต.</a>
           <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่ <span class="badge num" id="admReqBadge"></span></a>
+          <a class="tab-link" href="#/admin/settings/delivery" data-sub="delivery">จัดส่งยาถึงบ้าน</a>
           <a class="tab-link" href="#/admin/settings/audit" data-sub="audit">ประวัติการเข้าถึง</a>
           <a class="tab-link" href="#/admin/settings/feedback" data-sub="feedback">ข้อเสนอแนะ</a>
+        </div>
+
+        <div data-admin-sub="delivery" hidden>
+          <div class="panel">
+            <h2>โปสเตอร์บริการจัดส่งยาถึงบ้าน</h2>
+            <p class="small muted">แสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน เลื่อนซ้าย-ขวาได้ · รูปย่อไม่เกินขนาด A4 อัตโนมัติ</p>
+            <div class="form-grid">
+              <div class="field"><label for="daTitle">ชื่อโปสเตอร์ (ถ้ามี)</label><input id="daTitle" class="input" maxlength="200"></div>
+              <div class="field"><label for="daImage">รูปโปสเตอร์ <span class="req">*</span></label><input id="daImage" class="input" type="file" accept="image/*"><span class="small muted" id="daImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-preview" id="daPreview" hidden><img alt="ตัวอย่างโปสเตอร์"></div></div>
+              <div class="full"><button type="button" class="btn btn-p btn-sm" id="daAdd">เพิ่มโปสเตอร์</button></div>
+            </div>
+            <div class="list" id="daList"></div>
+          </div>
+          <div class="panel">
+            <h2>ข้อความแนะนำบริการ</h2>
+            <label for="daInfo" class="small muted">แสดงใต้โปสเตอร์ · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่</label>
+            <textarea id="daInfo" rows="5" maxlength="5000"></textarea>
+            <div><button type="button" class="btn btn-p btn-sm" id="daInfoSave">บันทึกข้อความ</button></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>สถิติการจัดส่ง</h2><label class="small" for="daYear">ปีงบประมาณ</label></div>
+            <select id="daYear" class="input"></select>
+            <div class="da-stats" id="daStats"></div>
+            <div><button type="button" class="btn btn-p btn-sm" id="daStatSave">บันทึกสถิติ</button></div>
+          </div>
         </div>
 
         <div data-admin-sub="feedback" hidden>

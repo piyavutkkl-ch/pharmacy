@@ -544,3 +544,25 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .sr-actions label{display:flex;flex-direction:column;gap:4px;font-weight:600}
 .tab-link .badge{position:static;margin-left:4px}
 .tab-link .badge:empty{display:none}
+/* บริการจัดส่งยาถึงบ้าน: โปสเตอร์เลื่อนซ้าย-ขวา + สถิติ */
+.poster-wrap{position:relative;display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.poster-row{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 2px 10px;flex:1;min-width:0;scrollbar-width:thin}
+.poster-row:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.poster{flex:0 0 min(78%,300px);scroll-snap-align:start;display:flex;flex-direction:column;gap:6px;color:var(--ink);text-decoration:none}
+.poster img{width:100%;aspect-ratio:1/1.414;object-fit:cover;border-radius:14px;border:1px solid var(--line);background:var(--sunken);box-shadow:0 4px 14px rgba(22,34,43,.08)}
+.poster span{font-size:13px;font-weight:600}
+.poster-skel{flex:0 0 min(78%,300px);aspect-ratio:1/1.414;height:auto}
+.poster-nav{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:22px;cursor:pointer}
+.poster-nav:hover{border-color:var(--primary);color:var(--primary)}
+@media (max-width:560px){.poster-nav{display:none}}
+.dl-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:12px 0}
+.da-poster{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.da-poster:first-child{border-top:0}
+.da-poster img{width:56px;aspect-ratio:1/1.414;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.da-poster .l{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.da-poster .da-sort{width:90px;display:inline-block;margin-left:6px}
+.da-stats{display:flex;flex-direction:column;gap:8px}
+.da-stat{display:grid;grid-template-columns:minmax(0,1fr) 130px 130px;gap:8px;align-items:end}
+.da-stat > span{font-weight:600;padding-bottom:12px}
+.da-stat label{display:flex;flex-direction:column;gap:4px}
+@media (max-width:560px){.da-stat{grid-template-columns:1fr 1fr}.da-stat > span{grid-column:1/-1;padding:0}}

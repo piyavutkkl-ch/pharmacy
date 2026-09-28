@@ -386,5 +386,16 @@ rq2 = run("select id from staff_requests where status='pending' limit 1")[1]
 check("admin rejects with note", "admin", f"select reject_staff_request({rq2}, 'ไม่พบชื่อในทะเบียน'); select status||':'||review_note from staff_requests where id={rq2}", eq("rejected:ไม่พบชื่อในทะเบียน"))
 check("anon cannot read requests", "anon", "select * from staff_requests", "deny")
 
+print("== step 21: home delivery ==")
+check("anon reads delivery info text", "anon", "select count(*) from site_texts where key='delivery_info'", eq(1))
+check("admin adds a poster", "admin", "insert into delivery_posters(title,image_path) values ('โปสเตอร์','delivery/a.webp') returning id", rows(1))
+check("anon sees posters", "anon", "select count(*) from delivery_posters", eq(1))
+check("staff cannot add posters", "s2", "insert into delivery_posters(image_path) values ('x')", "deny")
+check("admin saves delivery stats", "admin", "insert into delivery_stats(fiscal_year,unit_id,deliveries,patients) values (2570,2,120,45) on conflict (fiscal_year,unit_id) do update set deliveries=excluded.deliveries returning deliveries", eq(120))
+check("anon reads delivery stats", "anon", "select sum(deliveries) from delivery_stats", eq(120))
+check("negative stats rejected", "admin", "update delivery_stats set deliveries=-1", "deny")
+check("citizen cannot edit info text", "c1", "update site_texts set body='x' returning key", rows(0))
+check("anon cannot edit stats", "anon", "update delivery_stats set patients=0", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

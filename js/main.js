@@ -14,11 +14,12 @@ import { initDose } from './pages/dose.js?v=4.4';
 import { initTracking, initAchievements, initContacts } from './pages/stats.js?v=4.4';
 import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
+import { initDelivery } from './pages/delivery.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
 import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4.4';
 import { showStaff } from './pages/staff.js?v=4.4';
 
-const HOME_PANELS = ['news', 'dose', 'tracking', 'achievements', 'contact'];
+const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'achievements', 'contact'];
 
 function showView(name) {
   $$('[data-view]').forEach((v) => { v.hidden = v.dataset.view !== name; });
@@ -42,7 +43,7 @@ function openPanel(id) {
   });
   $$('[data-panel-link]').forEach((a) => a.setAttribute('aria-expanded', a.dataset.panelLink === id ? 'true' : 'false'));
   if (!id) return;
-  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking,
+  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: initDelivery,
     achievements: initAchievements, contact: initContacts })[id]?.();
   const el = document.querySelector(`[data-panel="${id}"]`);
   requestAnimationFrame(() => el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));

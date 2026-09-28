@@ -76,3 +76,6 @@ commit;
 -- คำร้องขอสิทธิ์เจ้าหน้าที่ (ขั้น 20) — c2 ขอเป็นเจ้าหน้าที่ รพ.สต. 3
 insert into public.staff_requests(user_id, email, full_name, unit_id, position, phone, note) values
   ('00000000-0000-0000-0000-0000000000c2', 'c2@gmail.com', 'ประชาชน สอง', 3, 'จพ.เภสัชกรรม', '0811112222', 'ย้ายมาประจำ รพ.สต. ใหม่');
+-- บริการจัดส่งยาถึงบ้าน (ขั้น 21): สถิติตัวอย่าง
+insert into public.delivery_stats(fiscal_year, unit_id, deliveries, patients) values
+  (2569, 2, 48, 20), (2569, 3, 35, 14), (2569, 4, 22, 9);
