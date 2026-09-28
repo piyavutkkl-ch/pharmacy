@@ -138,6 +138,7 @@
   </div>
   <div class="cover" id="arCover"></div>
   <div class="article-body" id="arBody"></div>
+  <div id="arFile" hidden></div>
   <div class="row-btns" style="align-items:center">
     <button type="button" class="btn btn-o btn-sm" id="arLikeBtn" aria-pressed="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
@@ -196,9 +197,11 @@
       <div class="unit-tabs" id="meTargets" aria-label="เลือกหน่วยบริการที่ต้องการถาม"></div>
       <p class="small muted" id="meChatTitle"></p>
       <div class="chat-log" id="meLog" role="log" aria-live="polite"></div>
-      <form class="chat-form" id="meChatForm" novalidate><input id="meInput" class="input" maxlength="1000" placeholder="พิมพ์ข้อความ…" autocomplete="off" aria-label="พิมพ์ข้อความ"><button class="btn btn-p btn-sm" type="submit" id="meSend">ส่ง</button></form>
+      <div class="chat-pick" id="mePick" hidden><img alt="รูปที่จะส่ง"><button type="button" class="btn btn-o btn-sm chat-pick-x">ยกเลิกรูป</button></div>
+      <form class="chat-form" id="meChatForm" novalidate><label class="btn btn-o btn-sm chat-attach" id="meAttach" title="แนบรูป เช่น ฉลากยา ใบนัด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg><span class="sr-only">แนบรูป</span><input type="file" accept="image/*" class="sr-only chat-file" id="meFile"></label><input id="meInput" class="input" maxlength="1000" placeholder="พิมพ์ข้อความ…" autocomplete="off" aria-label="พิมพ์ข้อความ"><button class="btn btn-p btn-sm" type="submit" id="meSend">ส่ง</button></form>
+      <span class="small muted chat-pick-note" id="mePickNote"></span>
       <p class="small" id="meChatHint" style="color:var(--warning)"></p>
-      <p class="small muted">เจ้าหน้าที่ตอบในเวลาราชการ · กรณีฉุกเฉิน โทร 1669 · ไม่ต้องส่งเลขบัตรประชาชนทางแชท</p>
+      <p class="small muted">เจ้าหน้าที่ตอบในเวลาราชการ · กรณีฉุกเฉิน โทร 1669 · ส่งรูปฉลากยา/ใบนัดได้ · ไม่ต้องส่งเลขหรือรูปบัตรประชาชนทางแชท</p>
     </div>
   </div>
 </section>
@@ -229,8 +232,9 @@
           <p class="small muted">ข่าวที่ส่งจะเข้าคิวให้ผู้ดูแลตรวจก่อน เมื่ออนุมัติแล้วจึงขึ้นหน้าหลัก</p>
           <form id="snForm" class="form-grid" novalidate>
             <div class="field full"><label for="snTitle">หัวข้อข่าว <span class="req">*</span></label><input id="snTitle" class="input" maxlength="200"></div>
-            <div class="field"><label for="snTag">ประเภท</label><select id="snTag" class="input"><option>ประกาศ</option><option>อบรม</option><option>รายงาน</option></select></div>
-            <div class="field"><label for="snImage">รูปประกอบ (ถ้ามี)</label><input id="snImage" class="input" type="file" accept="image/*"><span class="small muted" id="snImageNote"></span></div>
+            <div class="field"><label for="snTag">ประเภท</label><select id="snTag" class="input"><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></div>
+            <div class="field"><label for="snImage">รูปประกอบ (ถ้ามี)</label><input id="snImage" class="input" type="file" accept="image/*"><span class="small muted" id="snImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-preview" id="snImagePreview" hidden><img alt="ตัวอย่างรูปประกอบข่าว"></div></div>
+            <div class="field full"><label for="snFile">ไฟล์ PDF แนบ (ถ้ามี · ไม่เกิน 5 MB)</label><input id="snFile" class="input" type="file" accept="application/pdf,.pdf"><span class="small muted" id="snFileNote">ผู้อ่านข่าวดาวน์โหลดไฟล์นี้ได้</span></div>
             <div class="field full"><label for="snBody">เนื้อหาข่าว <span class="req">*</span></label><textarea id="snBody" maxlength="20000" rows="6"></textarea></div>
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="snSubmit">ส่งให้ผู้ดูแลตรวจ</button><button class="btn btn-o btn-sm" type="button" id="snCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="snMsg" aria-live="polite"></span></div>
           </form>
@@ -300,12 +304,11 @@
   <div class="app-body">
     <nav class="sidenav" aria-label="เมนูผู้ดูแล">
       <a href="#/admin/news" data-admin-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="admNewsBadge" class="badge num"></span></a>
-      <a href="#/admin/review" data-admin-tab="review" title="ตรวจประเมิน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">ตรวจประเมิน</span><span id="admReviewBadge" class="badge num"></span></a>
       <a href="#/admin/messages" data-admin-tab="messages" title="ข้อความ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">ข้อความ</span><span id="admMsgBadge" class="badge num"></span></a>
+      <a href="#/admin/review" data-admin-tab="review" title="ตรวจประเมิน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">ตรวจประเมิน</span><span id="admReviewBadge" class="badge num"></span></a>
       <a href="#/admin/visits" data-admin-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
       <div class="more-group" id="adminMore">
         <a href="#/admin/docs" data-admin-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
-        <a href="#/admin/feedback" data-admin-tab="feedback" title="ข้อเสนอแนะ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><span class="lbl">ข้อเสนอแนะ</span></a>
         <a href="#/admin/settings" data-admin-tab="settings" title="ตั้งค่า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">ตั้งค่า</span></a>
       </div>
       <button type="button" class="more-btn" aria-expanded="false" aria-controls="adminMore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span class="lbl">เพิ่มเติม</span><span class="dot" aria-hidden="true"></span></button>
@@ -315,25 +318,28 @@
 
       <!-- ข่าว: ตรวจข่าวจากเจ้าหน้าที่ + เขียน/จัดการข่าว -->
       <div data-admin-view="news" hidden>
-        <div class="panel"><h2>ข่าวจากเจ้าหน้าที่ รอตรวจ <span class="num muted" id="anQueueCount"></span></h2><div class="list" id="anQueue"></div></div>
-        <div class="panel" id="anReview" hidden></div>
         <div class="panel">
           <h2 id="anFormTitle">เขียนข่าว (เผยแพร่ทันที)</h2>
           <form id="anForm" class="form-grid" novalidate>
             <div class="field full"><label for="anTitle">หัวข้อข่าว <span class="req">*</span></label><input id="anTitle" class="input" maxlength="200"></div>
-            <div class="field"><label for="anTag">ประเภท</label><select id="anTag" class="input"><option>ประกาศ</option><option>อบรม</option><option>รายงาน</option></select></div>
-            <div class="field"><label for="anImage">รูปประกอบ (ถ้ามี)</label><input id="anImage" class="input" type="file" accept="image/*"><span class="small muted" id="anImageNote"></span></div>
+            <div class="field"><label for="anTag">ประเภท</label><select id="anTag" class="input"><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></div>
+            <div class="field"><label for="anImage">รูปประกอบ (ถ้ามี)</label><input id="anImage" class="input" type="file" accept="image/*"><span class="small muted" id="anImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-preview" id="anImagePreview" hidden><img alt="ตัวอย่างรูปประกอบข่าว"></div></div>
+            <div class="field full"><label for="anFile">ไฟล์ PDF แนบ (ถ้ามี · ไม่เกิน 5 MB)</label><input id="anFile" class="input" type="file" accept="application/pdf,.pdf"><span class="small muted" id="anFileNote">ผู้อ่านข่าวดาวน์โหลดไฟล์นี้ได้</span></div>
             <div class="field full"><label for="anBody">เนื้อหาข่าว <span class="req">*</span></label><textarea id="anBody" rows="6" maxlength="20000"></textarea></div>
             <label class="small full"><input type="checkbox" id="anClosed"> ปิดรับความคิดเห็น</label>
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="anSubmit">เผยแพร่ข่าว</button><button class="btn btn-o btn-sm" type="button" id="anCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="anMsg" aria-live="polite"></span></div>
           </form>
         </div>
+        <div class="panel"><h2>ข่าวจากเจ้าหน้าที่ รอตรวจ <span class="num muted" id="anQueueCount"></span></h2><div class="list" id="anQueue"></div></div>
+        <div class="panel" id="anReview" hidden></div>
         <div class="panel"><h2>ข่าวที่เผยแพร่แล้ว <span class="num muted" id="anCount"></span></h2><div class="list" id="anList"></div></div>
+        <div class="panel"><h2>ถังข่าว <span class="num muted" id="anTrashCount"></span></h2><p class="small muted">ข่าวที่หยุดเผยแพร่ ถูกลบ หรือไม่ผ่าน · เรียกคืนได้ภายใน 30 วัน หลังจากนั้นระบบลบถาวรให้เอง</p><div class="list" id="anTrash"></div></div>
       </div>
 
       <!-- ตรวจประเมิน: ตรวจหลักฐานราย รพ.สต. + ความคืบหน้า + แก้เกณฑ์ -->
       <div data-admin-view="review" hidden>
         <div class="unit-tabs" id="rvYears" aria-label="เลือกปีงบประมาณ"></div>
+        <div class="year-actions" id="rvYearActs"></div>
         <div class="unit-tabs" id="rvUnits" aria-label="เลือก รพ.สต."></div>
         <div id="rvBody"></div>
         <div class="panel"><div class="panel-head"><h2>ความคืบหน้าทุก รพ.สต.</h2><span class="small muted" id="rvBarsYear"></span></div><div class="bars" id="rvBars"></div></div>
@@ -368,11 +374,6 @@
         <div class="panel"><h2>เอกสารทั้งหมด <span class="num muted" id="adCount"></span></h2><div class="list" id="adList"></div></div>
       </div>
 
-      <!-- ข้อเสนอแนะ -->
-      <div data-admin-view="feedback" hidden>
-        <div class="unit-tabs" id="afFilter" aria-label="กรองแหล่งที่มา"></div>
-        <div class="panel"><div class="list" id="afList"></div></div>
-      </div>
 
       <!-- ตั้งค่า -->
       <div data-admin-view="settings" hidden>
@@ -381,6 +382,12 @@
           <a class="tab-link" href="#/admin/settings/contacts" data-sub="contacts">ช่องทางติดต่อ รพ.สต.</a>
           <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่</a>
           <a class="tab-link" href="#/admin/settings/audit" data-sub="audit">ประวัติการเข้าถึง</a>
+          <a class="tab-link" href="#/admin/settings/feedback" data-sub="feedback">ข้อเสนอแนะ</a>
+        </div>
+
+        <div data-admin-sub="feedback" hidden>
+          <div class="unit-tabs" id="afFilter" aria-label="กรองแหล่งที่มา"></div>
+          <div class="panel"><h2>ข้อเสนอแนะ</h2><div class="list" id="afList"></div></div>
         </div>
 
         <div data-admin-sub="dose" hidden>

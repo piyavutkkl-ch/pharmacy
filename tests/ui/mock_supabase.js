@@ -104,7 +104,9 @@ function beforeInsert(table, row) {
       const c = db.conversations.find((x) => x.id === row.conversation_id);
       if (!convOk(c)) return 'new row violates row-level security policy for table "messages"';
       Object.assign(row, { sender_id: ME.id, sender_role: c.citizen_id === ME.id ? 'citizen' : 'staff', sender_name: ME.full_name });
-      Object.assign(c, { last_message_at: row.created_at, last_message_preview: String(row.body).slice(0, 120) });
+      row.body ??= ''; row.image_path ??= null;
+      if (!String(row.body).trim() && !row.image_path) return 'new row for relation "messages" violates check constraint "messages_body_check"';
+      Object.assign(c, { last_message_at: row.created_at, last_message_preview: String(row.body).trim() ? String(row.body).slice(0, 120) : 'ส่งรูปภาพ' });
       if (row.sender_role === 'citizen') c.unread_staff++; else c.unread_citizen++;
       break;
     }
@@ -114,9 +116,14 @@ function beforeInsert(table, row) {
 function beforeUpdate(table, row, patch) {
   if (table === 'staff_roster' && row.email === ME?.email && (patch.active === false || (patch.role && patch.role !== 'admin')))
     return 'ไม่สามารถลบ ปิดใช้งาน หรือลดสิทธิ์บัญชีของตัวเองได้ — ให้ผู้ดูแลคนอื่นทำแทน';
+  if (table === 'item_status' && isStaff()) delete patch.review_files;   // ไฟล์ของผู้ดูแล เจ้าหน้าที่แก้ไม่ได้
+  const prev = row.status;
   Object.assign(row, patch, { updated_at: now() });
   if (table === 'news' && isStaff()) row.status = 'pending';
   if (table === 'news' && patch.status === 'published' && !row.published_at) row.published_at = now();
+  if (table === 'news' && 'status' in patch) {
+    if (['unpublished', 'deleted', 'rejected'].includes(row.status)) { if (prev !== row.status) { row.trashed_at = now(); row.prev_status = prev; } } else row.trashed_at = null;
+  }
   if (table === 'item_status' && isStaff()) row.status = 'submitted';
   return null;
 }
@@ -216,6 +223,13 @@ function rpc(name, a = {}) {
       db.criteria_years.push({ fiscal_year: a.p_year, created_at: now() });
       return { data: src.length, error: null };
     }
+    case 'withdraw_item_status': {
+      const s = db.item_status.find((x) => x.id === a.p_id);
+      if (!s || !(isStaff() && s.unit_id === ME.unit_id)) return err('ไม่มีสิทธิ์', '42501');
+      if (s.status !== 'submitted') return err('ยกเลิกได้เฉพาะข้อที่ส่งแล้วและยังรอตรวจ', 'P0001');
+      s.status = s.review_comment && s.reviewed_at ? 'fix' : 'none'; s.submitted_at = null;
+      return { data: s.status, error: null };
+    }
     case 'mark_conversation_read': {
       const c = db.conversations.find((x) => x.id === a.p_conv);
       if (!convOk(c)) return err('ไม่มีสิทธิ์', 'P0001');
@@ -262,7 +276,9 @@ window.__emit = (table, row) => {
 export function createClient(url, key) {
   log({ createClient: [url, key] });
   const session = ME ? { user: { id: ME.id, email: ME.email } } : null;
-  const files = (window.__files = {});
+  const files = (window.__files = {}), blobs = new Map();
+  const PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="#dce4e8"/><text x="200" y="160" font-size="22" text-anchor="middle" fill="#4f636d">ไฟล์ตัวอย่าง</text></svg>');
+  const blobUrl = (key) => { const b = blobs.get(key); if (!b) return null; b.url ??= URL.createObjectURL(b.blob); return b.url; };
   return {
     auth: {
       getSession: async () => ({ data: { session } }),
@@ -279,11 +295,11 @@ export function createClient(url, key) {
     removeChannel(ch) { window.__channels = window.__channels.filter((x) => x !== ch); log({ unsubscribe: ch.name }); },
     storage: {
       from: (bucket) => ({
-        getPublicUrl: (p) => ({ data: { publicUrl: `https://img.test/${bucket}/${p}` } }),
-        upload: async (path, blob, o = {}) => { log({ upload: bucket, path, size: blob.size, type: o.contentType }); files[`${bucket}/${path}`] = blob.size; return { data: { path }, error: null }; },
+        getPublicUrl: (p) => ({ data: { publicUrl: blobUrl(`${bucket}/${p}`) || `https://img.test/${bucket}/${p}` } }),
+        upload: async (path, blob, o = {}) => { log({ upload: bucket, path, size: blob.size, type: o.contentType }); files[`${bucket}/${path}`] = blob.size; blobs.set(`${bucket}/${path}`, { blob }); return { data: { path }, error: null }; },
         remove: async (paths) => { log({ remove: bucket, paths }); return { data: null, error: null }; },
         move: async (from, to) => { log({ move: bucket, from, to }); return { data: null, error: null }; },
-        createSignedUrl: async (p, sec, o) => { log({ signed: bucket, path: p, opts: o }); return { data: { signedUrl: `https://signed.test/${bucket}/${p}` }, error: null }; },
+        createSignedUrl: async (p, sec, o) => { log({ signed: bucket, path: p, opts: o }); return { data: { signedUrl: blobUrl(`${bucket}/${p}`) || PLACEHOLDER }, error: null }; },
       }),
     },
   };

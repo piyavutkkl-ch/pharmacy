@@ -443,3 +443,59 @@ body.has-bottomnav .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 @media (max-width:560px){.audit-row{flex-direction:column;gap:6px}.audit-row .meta{flex-direction:row;align-items:center;flex-wrap:wrap}}
 .audit-more{margin-top:12px}
 .pdpa-note{margin:10px 0 0}
+
+/* กล่อง (panel) ที่ซ้อนกันในแต่ละเมนูของเจ้าหน้าที่/ผู้ดูแล — เว้นระยะเท่ากัน */
+[data-staff-view],[data-admin-view],[data-admin-sub]{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+/* ตัวอย่างรูปที่เลือก (ย่อแล้ว) ก่อนส่ง */
+.img-preview{margin-top:8px}
+.img-preview img{display:block;max-width:100%;max-height:360px;width:auto;height:auto;border-radius:10px;border:1px solid var(--line);background:var(--sunken)}
+.err-text{color:var(--error)}
+/* ไฟล์ PDF แนบข่าว */
+.file-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-weight:600;text-decoration:none;max-width:100%;overflow-wrap:anywhere}
+.file-link svg{width:18px;height:18px;flex-shrink:0;color:var(--error)}
+.file-link:hover{border-color:var(--primary)}
+/* ภาพย่อไฟล์ (หลักฐาน / ไฟล์ที่เลือกก่อนส่ง) */
+.fthumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.fthumb{appearance:none;margin:0;display:flex;flex-direction:column;gap:6px;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;min-width:0;cursor:default}
+button.fthumb{cursor:pointer}
+button.fthumb:hover{border-color:var(--primary)}
+.fthumb img,.fthumb .ficon{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;background:var(--sunken)}
+.fthumb .ficon{display:grid;place-items:center;font-weight:700;font-size:15px;color:var(--error);background:var(--error-soft)}
+.fthumb figcaption{font-size:12px;color:var(--muted);overflow-wrap:anywhere;line-height:1.35}
+.fthumb.gone{opacity:.5}
+.fthumb.gone figcaption{text-decoration:line-through}
+.fitem{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fitem .btn{width:100%}
+.wait-note{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;border-radius:12px;background:var(--info-soft)}
+/* ผู้ดูแล › แก้เกณฑ์: ข้อใหญ่ / หัวข้อย่อย */
+.topic-edit,.sub-head{display:flex;gap:8px;align-items:center}
+.topic-edit{margin-top:14px}
+.topic-edit .input{font-weight:700}
+.topic-edit .input,.sub-head .input{flex:1;min-width:0}
+.add-sub{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px dashed var(--line);border-radius:12px}
+.add-sub-row{display:flex;gap:8px;flex-wrap:wrap}
+.add-sub-row .input{flex:1 1 180px;min-width:0}
+.add-topic{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px dashed var(--primary);border-radius:14px}
+.add-topic h3{font-size:15px;color:var(--primary)}
+@media (max-width:560px){.topic-edit,.sub-head{flex-wrap:wrap}.topic-edit .btn,.sub-head .btn{margin-left:auto}}
+.samples-edit{display:flex;flex-direction:column;gap:8px}
+.fthumbs.samples{grid-template-columns:repeat(auto-fill,minmax(110px,150px))}
+.file-btn{position:relative;align-self:flex-start}
+.file-btn.is-busy{opacity:.6;pointer-events:none}
+.file-btn.is-busy::after{content:" กำลังอัปโหลด…"}
+/* แชท: แนบรูป */
+.chat-attach{display:inline-flex;align-items:center;justify-content:center;min-width:44px;padding-inline:10px;cursor:pointer}
+.chat-attach svg{width:18px;height:18px}
+.chat-attach.is-disabled{opacity:.5;pointer-events:none}
+.chat-attach:focus-within{outline:2px solid var(--primary);outline-offset:2px}
+.chat-pick{display:flex;align-items:center;gap:10px;padding:8px;border:1px dashed var(--line);border-radius:12px}
+.chat-pick img{width:72px;height:72px;object-fit:cover;border-radius:8px;background:var(--sunken)}
+.chat-pick-note:empty{display:none}
+.bubble.has-img{display:flex;flex-direction:column;gap:6px}
+.chat-img{appearance:none;padding:0;border:0;background:none;cursor:zoom-in;display:block;border-radius:10px;overflow:hidden}
+.chat-img img{display:block;max-width:min(240px,100%);max-height:240px;min-height:60px;min-width:60px;object-fit:cover;background:var(--sunken)}
+.fthumbs.visit-photos{grid-template-columns:repeat(auto-fill,minmax(72px,96px));margin-top:6px}
+.fthumbs.visit-photos figcaption{display:none}
+.year-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.year-actions:empty{display:none}

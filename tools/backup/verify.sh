@@ -7,7 +7,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 P=(psql "$url" -X -q -v ON_ERROR_STOP=1)
 quiet() { local out; out=$("$@" 2>&1 >/dev/null) || { echo "$out" | grep -v -e NOTICE -e WARNING -e HINT >&2; return 1; }; }
 quiet "${P[@]}" -f "$root/tests/stub_new_default.sql"
-for f in "$root"/supabase/0*.sql; do
+for f in "$root"/supabase/[0-9]*.sql; do
   case "$(basename "$f")" in 02_*) continue ;; esac          # 02 = ผู้ดูแลคนแรก (ข้อมูลจริงมาจากไฟล์สำรอง)
   quiet "${P[@]}" -f "$f" || { echo "ERROR: รัน $(basename "$f") ในฐานข้อมูลทดสอบไม่ผ่าน" >&2; exit 1; }
 done

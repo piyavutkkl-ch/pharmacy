@@ -250,5 +250,103 @@ check("admin cannot delete audit rows", "admin", "delete from audit_log", "deny"
 check("admin cannot edit audit rows", "admin", "update audit_log set actor_id=null", "deny")
 check("admin cannot forge audit rows", "admin", "insert into audit_log(action,table_name) values ('view','patients')", "deny")
 
+print("== step 8: chat images ==")
+img = f"{cid}/a1.webp"
+check("citizen uploads image into own chat folder", "c1", f"insert into storage.objects(bucket_id,name) values ('chat-images','{img}') returning name", rows(1))
+check("citizen cannot upload into someone else's chat", "c2", f"insert into storage.objects(bucket_id,name) values ('chat-images','{cid}/x.webp')", "deny")
+check("bad chat folder name rejected", "c1", "insert into storage.objects(bucket_id,name) values ('chat-images','not-a-uuid/x.webp')", "deny")
+check("staff of that unit sees the image", "s2", "select count(*) from storage.objects where bucket_id='chat-images'", eq(1))
+check("staff of other unit cannot see the image", "s1", "select count(*) from storage.objects where bucket_id='chat-images'", eq(0))
+check("another citizen cannot see the image", "c2", "select count(*) from storage.objects where bucket_id='chat-images'", eq(0))
+check("anon cannot see chat images", "anon", "select count(*) from storage.objects where bucket_id='chat-images'", eq(0))
+check("citizen cannot delete chat image (admin only)", "c1", "delete from storage.objects where bucket_id='chat-images' returning name", rows(0))
+run("select pg_sleep(0)")
+check("image-only message allowed + preview text", "c1",
+      f"insert into messages(conversation_id,image_path) values ('{cid}','{img}'); select last_message_preview from conversations where id='{cid}'", eq("ส่งรูปภาพ"))
+check("image + caption keeps caption as preview", "s2",
+      f"insert into messages(conversation_id,body,image_path) values ('{cid}','ใช่ครับ ยานี้','{cid}/b2.webp'); select last_message_preview from conversations where id='{cid}'", eq("ใช่ครับ ยานี้"))
+check("empty message without image rejected", "c1", f"insert into messages(conversation_id,body) values ('{cid}','  ')", "deny")
+other = run("select id from conversations where target_unit is null limit 1")[1]
+check("image path must belong to the same chat", "c1", f"insert into messages(conversation_id,image_path) values ('{other}','{cid}/a1.webp')", "deny")
+check("old-style text message still works", "c1", f"insert into messages(conversation_id,body) values ('{other}','สวัสดีค่ะ') returning image_path is null", eq("t"))
+
+print("== step 9: news tags ==")
+check("staff submits news with new tag ความรู้", "s2", "insert into news(title,body,tag) values ('เกร็ดความรู้','x','ความรู้') returning tag", eq("ความรู้"))
+check("new default tag is ข่าว", "admin", "insert into news(title,body,status) values ('ข่าวใหม่','x','published') returning tag", eq("ข่าว"))
+check("old tag still accepted (old news keeps working)", "admin", "insert into news(title,body,tag,status) values ('เก่า','x','อบรม','published') returning tag", eq("อบรม"))
+check("unknown tag rejected", "admin", "insert into news(title,body,tag) values ('x','x','โฆษณา')", "deny")
+
+print("== step 10: news PDF files ==")
+check("staff uploads news PDF into own folder", "s2", f"insert into storage.objects(bucket_id,name) values ('news-files','{U['s2']}/a.pdf') returning name", rows(1))
+check("staff cannot upload into another user's folder", "s2", f"insert into storage.objects(bucket_id,name) values ('news-files','{U['s1']}/a.pdf')", "deny")
+check("citizen cannot upload news files", "c1", f"insert into storage.objects(bucket_id,name) values ('news-files','{U['c1']}/a.pdf')", "deny")
+check("anyone can download news files (public)", "anon", "select count(*) from storage.objects where bucket_id='news-files'", eq(1))
+check("staff news keeps attached PDF name", "s2", f"insert into news(title,body,file_path,file_name) values ('มี PDF','x','{U['s2']}/a.pdf','คู่มือ.pdf') returning file_name||':'||status", eq("คู่มือ.pdf:pending"))
+check("other staff cannot delete someone's news file", "s1", "delete from storage.objects where bucket_id='news-files' returning name", rows(0))
+
+print("== step 11: withdraw evidence submission ==")
+fresh = run("select id from criteria_items where fiscal_year = fiscal_year_of(current_date) and id not in (select item_id from item_status where unit_id=2) order by id limit 1")[1]
+sid = check("staff submits an item", "s2", f"insert into item_status(item_id,unit_id,detail,evidence_paths) values ({fresh},2,'ร่าง',array['x.pdf']) returning id", rows(1))
+check("other unit's staff cannot withdraw it", "s1", f"select withdraw_item_status({sid})", "deny")
+check("citizen cannot withdraw", "c1", f"select withdraw_item_status({sid})", "deny")
+check("staff withdraws → back to none, detail/files kept", "s2", f"select withdraw_item_status({sid}); select status||':'||detail||':'||array_length(evidence_paths,1) from item_status where id={sid}", eq("none:ร่าง:1"))
+check("cannot withdraw twice (not waiting)", "s2", f"select withdraw_item_status({sid})", "deny")
+run(f"update item_status set status='fix', review_comment='ขอเอกสารเพิ่ม', reviewed_at=now() where id={sid}")
+check("staff resubmits after fix", "s2", f"update item_status set detail='แก้แล้ว' where id={sid} returning status", eq("submitted"))
+check("withdraw after fix → back to fix (admin note kept)", "s2", f"select withdraw_item_status({sid}); select status||':'||review_comment from item_status where id={sid}", eq("fix:ขอเอกสารเพิ่ม"))
+run(f"update item_status set status='approved' where id={sid}")
+check("cannot withdraw an approved item", "s2", f"select withdraw_item_status({sid})", "deny")
+
+print("== step 12: criteria evidence samples ==")
+check("admin uploads a sample file", "admin", "insert into storage.objects(bucket_id,name) values ('criteria-samples','2570/1/ex.pdf') returning name", rows(1))
+check("staff cannot upload samples", "s2", "insert into storage.objects(bucket_id,name) values ('criteria-samples','2570/1/x.pdf')", "deny")
+check("staff can view/download samples", "s2", "select count(*) from storage.objects where bucket_id='criteria-samples'", eq(1))
+check("citizen cannot see samples", "c1", "select count(*) from storage.objects where bucket_id='criteria-samples'", eq(0))
+check("anon cannot see samples", "anon", "select count(*) from storage.objects where bucket_id='criteria-samples'", eq(0))
+cy = run("select max(fiscal_year) from criteria_years")[1]
+check("admin attaches samples to a sub-topic (current year)", "admin",
+      f"""update criteria_items set evidence_samples='[{{"path":"2570/1/ex.pdf","name":"ตัวอย่าง.pdf"}}]' where fiscal_year={cy} and sub_id='1' returning id""", lambda o: len(o.splitlines()) >= 1)
+check("staff cannot change samples", "s2", f"update criteria_items set evidence_samples='[]' where fiscal_year={cy} returning id", rows(0))
+check("more than 10 samples rejected", "admin", f"update criteria_items set evidence_samples=(select jsonb_agg(jsonb_build_object('path',g,'name',g)) from generate_series(1,11) g) where fiscal_year={cy} and sub_id='1'", "deny")
+check("new fiscal year copies samples", "admin", f"select start_fiscal_year({int(cy)+1}); select count(*)>0 from criteria_items where fiscal_year={int(cy)+1} and jsonb_array_length(evidence_samples)=1", eq("t"))
+
+print("== step 13: review files ==")
+rsid = run("select id from item_status where unit_id=2 order by id limit 1")[1]
+check("admin attaches review files", "admin", f"update item_status set status='fix', review_comment='ดูตัวอย่างแนบ', review_files=array['2570/2/1.1/admin/r.pdf'] where id={rsid} returning array_length(review_files,1)", eq(1))
+check("staff resubmit keeps admin files", "s2", f"update item_status set detail='ส่งใหม่', review_files='{{}}' where id={rsid} returning array_length(review_files,1)", eq(1))
+check("staff cannot preset review files on insert", "s2", "insert into item_status(item_id,unit_id,review_files) select id,2,array['x'] from criteria_items where fiscal_year = fiscal_year_of(current_date) and id not in (select item_id from item_status where unit_id=2) limit 1 returning cardinality(review_files)", eq(0))
+
+print("== step 14: patient contact ==")
+check("staff saves patient address/phone/home unit", "s2", f"update patients set home_unit_id=3, address='ม.2 ต.ตัวอย่าง', phone='081-234-5678' where id='{pid}' returning home_unit_id||':'||phone", eq("3:081-234-5678"))
+check("bad patient phone rejected", "s2", f"update patients set phone='abc' where id='{pid}'", "deny")
+check("home unit does not grant access to that unit's staff", "s1", "select count(*) from patients", eq(0))
+check("audit records contact field names", None, f"select detail from audit_log where action='update' and row_id='{pid}' order by id desc limit 1", eq("address,home_unit_id,phone"))
+
+print("== step 15: visit photos ==")
+check("staff uploads visit photo into own unit folder", "s2", f"insert into storage.objects(bucket_id,name) values ('visit-photos','2/{pid}/a.webp') returning name", rows(1))
+check("staff cannot upload into another unit's folder", "s2", f"insert into storage.objects(bucket_id,name) values ('visit-photos','1/{pid}/a.webp')", "deny")
+check("other unit's staff cannot see the photo", "s1", "select count(*) from storage.objects where bucket_id='visit-photos'", eq(0))
+check("citizen cannot see visit photos", "c1", "select count(*) from storage.objects where bucket_id='visit-photos'", eq(0))
+check("admin sees visit photos", "admin", "select count(*) from storage.objects where bucket_id='visit-photos'", eq(1))
+check("bad folder name rejected", "s2", "insert into storage.objects(bucket_id,name) values ('visit-photos','x/y.webp')", "deny")
+check("visit saves med note + photos", "s2", f"insert into visits(patient_id,visit_date,med_note,photo_paths) values ('{pid}','2026-09-01','ยาเหลือในตู้เย็น',array['2/{pid}/a.webp']) returning cardinality(photo_paths)", eq(1))
+check("more than 5 photos rejected", "s2", f"insert into visits(patient_id,visit_date,photo_paths) values ('{pid}','2026-09-02',array['1','2','3','4','5','6'])", "deny")
+
+print("== step 16: hide / delete fiscal year ==")
+check("admin hides a year", "admin", f"update criteria_years set hidden=true where fiscal_year={cy} returning hidden", eq("t"))
+check("staff cannot hide/unhide years", "s2", f"update criteria_years set hidden=false where fiscal_year={cy} returning hidden", rows(0))
+run(f"update criteria_years set hidden=false where fiscal_year={cy}")
+check("year with submissions cannot be deleted", "admin", "delete from criteria_years where fiscal_year=fiscal_year_of(current_date)", "deny")
+check("staff cannot delete a year", "s2", f"delete from criteria_years where fiscal_year={int(cy)+1} returning fiscal_year", rows(0))
+check("admin deletes an empty future year (items go too)", "admin", f"delete from criteria_years where fiscal_year={int(cy)+1} returning fiscal_year; select count(*) from criteria_items where fiscal_year={int(cy)+1}", eq(0))
+
+print("== step 17: news trash ==")
+tn = check("admin publishes a news for trash test", "admin", "insert into news(title,body,status) values ('ถังข่าว','x','published') returning id", rows(1))
+check("admin unpublishes → trashed_at + prev_status", "admin", f"update news set status='unpublished' where id='{tn}' returning (trashed_at is not null)||':'||prev_status", eq("true:published"))
+check("public cannot see unpublished news", "anon", f"select count(*) from news where id='{tn}'", eq(0))
+check("admin moves to deleted (soft)", "admin", f"update news set status='deleted' where id='{tn}' returning status", eq("deleted"))
+check("admin restores → published again, trash cleared", "admin", f"update news set status='published' where id='{tn}' returning (trashed_at is null)::text", eq("true"))
+check("staff cannot unpublish admin news", "s2", f"update news set status='unpublished' where id='{tn}' returning id", rows(0))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

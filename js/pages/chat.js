@@ -9,6 +9,7 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, toast, errText, busy, initials } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits, unitName } from '../data.js?v=4.4';
+import { imagePicker, uploadChatImage, hydrateSigned, openPrivateFile } from '../upload.js?v=4.4';
 
 export const targetName = (t) => (t == null ? 'ห้องยา โรงพยาบาลควนกาหลง' : 'รพ.สต. ' + unitName(t));
 const time = (iso) => new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
@@ -16,17 +17,29 @@ const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateStrin
 
 /* ---------- ข้อความ ---------- */
 export async function loadMessages(convId) {
-  const { data, error } = await sb.from('messages').select('id,sender_id,sender_role,sender_name,body,created_at')
+  const { data, error } = await sb.from('messages').select('id,sender_id,sender_role,sender_name,body,image_path,created_at')
     .eq('conversation_id', convId).order('created_at', { ascending: false }).limit(300);
   if (error) throw error;
   return data.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id - b.id));   // เก่า → ใหม่
 }
 
-export async function sendMessage(convId, body) {
-  const { data, error } = await sb.from('messages').insert({ conversation_id: convId, body }).select('id,sender_id,sender_role,sender_name,body,created_at').single();
+/** ส่งข้อความ (body ว่างได้ถ้ามีรูป) · blob = รูปที่ย่อแล้วจาก imagePicker → อัปโหลดเข้า chat-images/<ห้อง>/ ก่อน */
+export async function sendMessage(convId, body, blob = null) {
+  const row = { conversation_id: convId, body: body || '' };
+  if (blob) row.image_path = await uploadChatImage(blob, convId);
+  const { data, error } = await sb.from('messages').insert(row).select('id,sender_id,sender_role,sender_name,body,image_path,created_at').single();
   if (error) throw error;
   return data;
 }
+
+/** ปุ่มแนบรูปในฟอร์มแชท: form ต้องมี .chat-file (input file) · box = .chat-pick (มี img + ปุ่ม .chat-pick-x) · note = .chat-pick-note */
+export function chatPicker(input, box, note) {
+  const pick = imagePicker(input, box, note);
+  box.querySelector('.chat-pick-x').addEventListener('click', () => pick.reset());
+  return pick;
+}
+
+const IMG_BTN = (m) => `<button type="button" class="chat-img" data-file="${esc(m.image_path)}" data-bucket="chat-images" aria-label="เปิดรูปขนาดเต็ม"><img data-signed="chat-images|${esc(m.image_path)}" alt="รูปที่ส่งในแชท"></button>`;
 
 /** วาดข้อความ · side = 'citizen' (มุมมองประชาชน) หรือ 'staff' (มุมมองเจ้าหน้าที่) */
 export function renderLog(logEl, msgs, side, emptyText) {
@@ -37,9 +50,13 @@ export function renderLog(logEl, msgs, side, emptyText) {
     const day = !prev || !sameDay(prev.created_at, m.created_at) ? `<div class="chat-day">${esc(thaiDate(m.created_at))}</div>` : '';
     prev = m;
     const who = m.sender_role === 'staff' && side === 'citizen' ? `${esc(m.sender_name || 'เจ้าหน้าที่')} · ` : (mine && side === 'staff' && m.sender_id !== auth.profile?.id ? `${esc(m.sender_name || '')} · ` : '');
-    return `${day}<div class="bubble${mine ? ' me' : ''}" data-mid="${m.id}">${esc(m.body)}<span class="meta">${who}${time(m.created_at)}</span></div>`;
+    return `${day}<div class="bubble${mine ? ' me' : ''}${m.image_path ? ' has-img' : ''}" data-mid="${m.id}">${m.image_path ? IMG_BTN(m) : ''}${m.body ? esc(m.body) : ''}<span class="meta">${who}${time(m.created_at)}</span></div>`;
   }).join('');
   logEl.scrollTop = logEl.scrollHeight;
+  logEl.onclick = (e) => { const b = e.target.closest('[data-file]'); if (b) openPrivateFile(b).catch((err) => toast(errText(err), 'err')); };
+  hydrateSigned(logEl).then(() => logEl.querySelectorAll('.chat-img img').forEach((i) => {
+    if (i.complete) logEl.scrollTop = logEl.scrollHeight; else i.addEventListener('load', () => { logEl.scrollTop = logEl.scrollHeight; }, { once: true });
+  }));
 }
 
 /** เปิดห้องแบบ real-time: onNew(message) เมื่อมีข้อความใหม่ · คืนฟังก์ชันปิดห้อง */
@@ -91,7 +108,9 @@ const INBOX_HTML = `<div class="inbox">
   <div class="panel chat-panel">
     <div class="ib-head"><p class="small muted">เลือกรายชื่อทางซ้ายเพื่ออ่านและตอบกลับ</p></div>
     <div class="chat-log ib-log" role="log" aria-live="polite"></div>
-    <form class="chat-form ib-form" novalidate><input class="input ib-input" maxlength="1000" placeholder="พิมพ์ตอบกลับ…" autocomplete="off" aria-label="พิมพ์ตอบกลับ" disabled><button class="btn btn-p btn-sm" type="submit" disabled>ส่ง</button></form>
+    <div class="chat-pick" hidden><img alt="รูปที่จะส่ง"><button type="button" class="btn btn-o btn-sm chat-pick-x">ยกเลิกรูป</button></div>
+    <form class="chat-form ib-form" novalidate><label class="btn btn-o btn-sm chat-attach" title="แนบรูป"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg><span class="sr-only">แนบรูป</span><input type="file" accept="image/*" class="sr-only chat-file ib-file" disabled></label><input class="input ib-input" maxlength="1000" placeholder="พิมพ์ตอบกลับ…" autocomplete="off" aria-label="พิมพ์ตอบกลับ" disabled><button class="btn btn-p btn-sm ib-send" type="submit" disabled>ส่ง</button></form>
+    <span class="small muted chat-pick-note"></span>
     <p class="small muted">ข้อความเป็นข้อมูลส่วนบุคคล เห็นเฉพาะผู้ถาม เจ้าหน้าที่หน่วยนั้น และผู้ดูแล · ห้ามขอเลขบัตรประชาชนทางแชท</p>
   </div>
 </div>`;
@@ -106,6 +125,9 @@ export async function mountInbox(slot, target) {
   const el = (c) => slot.querySelector(c);
   ib = { slot, target, convs: [], sel: null, msgs: [], close: null, off: null };
   const me = ib;
+  if (!slot.__pick) slot.__pick = chatPicker(el('.ib-file'), el('.chat-pick'), el('.chat-pick-note'));
+  const pick = slot.__pick; pick.reset();
+  const enable = (on) => { el('.ib-input').disabled = !on; el('.ib-send').disabled = !on; el('.ib-file').disabled = !on; el('.chat-attach').classList.toggle('is-disabled', !on); };
   // ผู้ดูแลเปิดดูกล่องของ รพ.สต. ได้ แต่ไม่ล้างตัวเลขยังไม่อ่านของหน่วยนั้น
   const mayMarkRead = auth.profile.role === 'staff' || target == null;
 
@@ -138,7 +160,7 @@ export async function mountInbox(slot, target) {
     try { me.msgs = await loadMessages(id); } catch (e) { el('.ib-log').innerHTML = `<p class="chat-empty">${esc(errText(e))}</p>`; return; }
     if (me !== ib || me.sel?.id !== id) return;
     renderLog(el('.ib-log'), me.msgs, 'staff', 'ยังไม่มีข้อความ');
-    el('.ib-input').disabled = false; el('.ib-form button').disabled = false;
+    enable(true);
     if (window.matchMedia('(max-width: 819px)').matches) el('.chat-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     else el('.ib-input').focus({ preventScroll: true });
     if (mayMarkRead && c.unread_staff) { await markRead(id); c.unread_staff = 0; loadList(); refreshMsgBadge(); }
@@ -153,11 +175,13 @@ export async function mountInbox(slot, target) {
   el('.ib-form').onsubmit = async (e) => {
     e.preventDefault();
     const inp = el('.ib-input'), body = inp.value.trim();
-    if (!body || !me.sel) return;
-    const btn = el('.ib-form button'); busy(btn, true, '…');
+    if (!me.sel) return;
+    const btn = el('.ib-send'); busy(btn, true, '…');
     try {
-      const m = await sendMessage(me.sel.id, body);
-      inp.value = '';
+      const blob = await pick.ready();
+      if (!body && !blob) return;
+      const m = await sendMessage(me.sel.id, body, blob);
+      inp.value = ''; pick.reset();
       if (!me.msgs.some((x) => x.id === m.id)) me.msgs.push(m);
       renderLog(el('.ib-log'), me.msgs, 'staff', '');
     } catch (err) { toast(errText(err), 'err'); }
@@ -166,7 +190,7 @@ export async function mountInbox(slot, target) {
   me.off = onConversationChange(loadList);
   el('.ib-head').innerHTML = '<p class="small muted">เลือกรายชื่อทางซ้ายเพื่ออ่านและตอบกลับ</p>';
   el('.ib-log').innerHTML = '<p class="chat-empty">ยังไม่ได้เลือกห้องสนทนา</p>';
-  el('.ib-input').disabled = true; el('.ib-form button').disabled = true;
+  enable(false);
   await loadList();
 }
 

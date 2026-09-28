@@ -4,6 +4,7 @@ import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, $$, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
+import { newsForm, removeNewsFiles } from './news-form.js?v=4.4';
 import { initCriteria } from './criteria.js?v=4.4';
 import { initVisits } from './visits.js?v=4.4';
 import { initStaffDocs } from './docs.js?v=4.4';
@@ -46,7 +47,7 @@ export async function refreshBadges() {
 }
 
 const STATUS = {
-  pending: ['รอตรวจ', 'c-rev'], fix: ['ต้องแก้ไข', 'c-fix'], rejected: ['ไม่ผ่าน', 'c-off'], published: ['เผยแพร่แล้ว', 'c-ok'],
+  pending: ['รอตรวจ', 'c-rev'], fix: ['ต้องแก้ไข', 'c-fix'], rejected: ['ไม่ผ่าน', 'c-off'], published: ['เผยแพร่แล้ว', 'c-ok'], unpublished: ['หยุดเผยแพร่', 'c-off'], deleted: ['ผู้ดูแลลบแล้ว', 'c-off'],
 };
 
 /* ---------------- ข่าว ---------------- */
@@ -54,7 +55,7 @@ let myNews = [], editingNews = null;
 
 async function loadNews() {
   $('#snList').innerHTML = '<div class="skeleton"></div>';
-  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,status,review_comment,created_at,updated_at')
+  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,file_path,file_name,status,review_comment,created_at,updated_at')
     .eq('author_id', auth.profile.id).order('created_at', { ascending: false });
   if (error) { $('#snList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   myNews = data;
@@ -72,19 +73,20 @@ async function loadNews() {
 }
 
 function resetNews() {
-  editingNews = null; $('#snForm').reset(); $('#snImageNote').textContent = '';
+  editingNews = null; $('#snForm').reset(); snKit?.reset();
   $('#snFormTitle').textContent = 'ส่งข่าวประชาสัมพันธ์'; $('#snSubmit').textContent = 'ส่งให้ผู้ดูแลตรวจ'; $('#snCancel').hidden = true; $('#snMsg').textContent = '';
 }
 
+let snKit = null;
 function bindNews() {
+  snKit = newsForm('sn');
   $('#snCancel').addEventListener('click', resetNews);
   $('#snList').addEventListener('click', async (e) => {
     const ed = e.target.closest('[data-edit]');
     if (ed) {
       const n = myNews.find((x) => x.id === ed.dataset.edit); if (!n) return;
       editingNews = n;
-      $('#snTitle').value = n.title; $('#snTag').value = n.tag; $('#snBody').value = n.body;
-      $('#snImageNote').textContent = n.image_path ? 'มีรูปเดิมอยู่แล้ว · เลือกรูปใหม่เพื่อเปลี่ยน' : '';
+      $('#snTitle').value = n.title; $('#snBody').value = n.body; snKit.edit(n);
       $('#snFormTitle').textContent = 'แก้ไขข่าว'; $('#snSubmit').textContent = 'ส่งตรวจอีกครั้ง'; $('#snCancel').hidden = false;
       $('#snForm').scrollIntoView({ behavior: 'smooth' }); return;
     }
@@ -94,7 +96,7 @@ function bindNews() {
       dl.disabled = true;
       const { error } = await sb.from('news').delete().eq('id', n.id);
       if (error) { dl.disabled = false; toast(errText(error), 'err'); return; }
-      removeFiles('public-images', n.image_path ? [n.image_path] : []);
+      removeNewsFiles(n);
       if (editingNews?.id === n.id) resetNews();
       toast('ลบข่าวแล้ว'); loadNews(); refreshBadges();
     }
@@ -104,18 +106,18 @@ function bindNews() {
     const title = $('#snTitle').value.trim(), body = $('#snBody').value.trim(), m = $('#snMsg');
     if (!title || !body) { m.style.color = 'var(--error)'; m.textContent = 'กรุณากรอกหัวข้อและเนื้อหาข่าว'; return; }
     const btn = $('#snSubmit'); busy(btn, true, 'กำลังส่ง…'); m.textContent = '';
+    let up = null;
     try {
-      const file = $('#snImage').files[0];
-      const row = { title, tag: $('#snTag').value, body };
-      if (file) row.image_path = await uploadPublicImage(file, `news/${auth.profile.id}`);
+      up = await snKit.upload(auth.profile.id);
+      const row = { title, tag: $('#snTag').value, body, ...up.fields };
       const res = editingNews
         ? await sb.from('news').update(row).eq('id', editingNews.id).select()
         : await sb.from('news').insert(row).select();
       if (res.error) throw res.error;
-      if (file && editingNews?.image_path) removeFiles('public-images', [editingNews.image_path]);
+      if (editingNews) removeNewsFiles(editingNews, up.fields);
       toast(editingNews ? 'ส่งตรวจอีกครั้งแล้ว' : 'ส่งข่าวให้ผู้ดูแลตรวจแล้ว');
       resetNews(); loadNews(); refreshBadges();
-    } catch (err) { m.style.color = 'var(--error)'; m.textContent = errText(err); }
+    } catch (err) { up?.undo(); m.style.color = 'var(--error)'; m.textContent = errText(err); }
     finally { busy(btn, false); }
   });
 }

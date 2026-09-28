@@ -11,6 +11,7 @@ const net = require('net');
 const ROOT = path.resolve(__dirname, '../..');
 const MOCK = fs.readFileSync(path.join(__dirname, 'mock_supabase.js'), 'utf8');
 const SHOTS = path.join(__dirname, 'shots');
+const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 fs.mkdirSync(SHOTS, { recursive: true });
 
@@ -120,16 +121,28 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= ผู้ดูแล ================= */
     p = await open('admin', '#/admin');
-    for (const tab of ['news', 'review', 'messages', 'visits', 'docs', 'feedback', 'settings/dose', 'settings/contacts', 'settings/staff', 'settings/audit']) {
+    for (const tab of ['news', 'messages', 'review', 'visits', 'docs', 'settings/feedback', 'settings/dose', 'settings/contacts', 'settings/staff', 'settings/audit']) {
       await go(p, '#/admin/' + tab); await p.waitForTimeout(250);
       const view = tab.split('/')[0];
       const shown = await p.$eval(`[data-admin-view="${view}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
       check(`ผู้ดูแล: เมนู ${tab} เปิดได้`, shown && (await text(p, '#adminViewTitle')));
     }
+    check('ข่าว (ผู้ดูแล): กล่องรอตรวจอยู่ใต้กล่องเขียนข่าว', await p.$eval('[data-admin-view="news"]', (v) => [...v.children].findIndex((c) => c.querySelector('#anForm')) < [...v.children].findIndex((c) => c.querySelector('#anQueue'))));
+    check('เมนูผู้ดูแล: ข้อความอยู่เหนือตรวจประเมิน + ข้อเสนอแนะย้ายไปอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,review,visits,docs,settings' && await count(p, '#afList .li') > 0);
+    await go(p, '#/admin/feedback'); await p.waitForTimeout(250);
+    check('ลิงก์เดิม #/admin/feedback ยังเปิดได้ (พาไปตั้งค่า)', (await p.evaluate(() => location.hash)) === '#/admin/settings/feedback');
     await go(p, '#/admin/news');
     await p.click('#anQueue [data-review]'); await p.waitForTimeout(200);
     await p.click('[data-decide="published"]'); await p.waitForTimeout(400);
     check('ผู้ดูแล: อนุมัติข่าวรอตรวจ → เผยแพร่', await p.evaluate(() => window.__db.news.every((n) => n.status !== 'pending')));
+    const pub0 = await count(p, '#anList [data-unpub]');
+    await p.click('#anList [data-unpub]'); await p.waitForTimeout(500);
+    check('ข่าว: หยุดเผยแพร่ → ไปอยู่ในถังข่าว', await count(p, '#anList [data-unpub]') === pub0 - 1 && await count(p, '#anTrash [data-restore]') === 1 && (await text(p, '#anTrash')).includes('ลบถาวรในอีก 30 วัน'));
+    await p.click('#anTrash [data-restore]'); await p.waitForTimeout(500);
+    check('ข่าว: เรียกคืนแล้วกลับมาเผยแพร่', await count(p, '#anList [data-unpub]') === pub0 && await count(p, '#anTrash [data-restore]') === 0);
+    await p.click('#anList [data-del]'); await p.waitForTimeout(500);
+    await p.click('#anTrash [data-purge]'); await p.waitForTimeout(500);
+    check('ข่าว: ลบลงถัง แล้วลบถาวรได้', await count(p, '#anList [data-unpub]') === pub0 - 1 && await count(p, '#anTrash [data-purge]') === 0 && (await calls(p, (c) => c.table === 'news' && c.op === 'delete')).length >= 1);
     await go(p, '#/admin/review');
     await p.click('#rvUnits [data-u="3"]'); await p.waitForTimeout(200);
     await p.click('#rvBody [data-open]'); await p.waitForTimeout(150);
@@ -142,10 +155,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/visits');
     await p.click('#avUnits [data-u="2"]'); await p.waitForTimeout(300);
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
-    await p.click('[data-act="edit-patient"]'); await p.fill('#pfHnU', 'HN-777'); await p.click('#ptForm [type=submit]'); await p.waitForTimeout(400);
+    await p.click('[data-act="edit-patient"]'); await p.fill('#pfPhone', '0899999999'); await p.click('#ptForm [type=submit]'); await p.waitForTimeout(400);
     await go(p, '#/admin/settings/audit'); await p.waitForTimeout(300);
     const auText = await text(p, '#auList');
-    check('ผู้ดูแล: ประวัติการเข้าถึงแสดงการเปิดดู + การแก้ไข พร้อมชื่อผู้ใช้', auText.includes('เปิดดูข้อมูลผู้ป่วย') && auText.includes('แก้ไขข้อมูลผู้ป่วย') && auText.includes('HN รพ.สต.') && await count(p, '#auList .audit-row') >= 3, auText.slice(0, 200));
+    check('ผู้ดูแล: ประวัติการเข้าถึงแสดงการเปิดดู + การแก้ไข พร้อมชื่อผู้ใช้', auText.includes('เปิดดูข้อมูลผู้ป่วย') && auText.includes('แก้ไขข้อมูลผู้ป่วย') && auText.includes('เบอร์โทร') && await count(p, '#auList .audit-row') >= 3, auText.slice(0, 200));
     await p.selectOption('#auAction', 'read'); await p.click('#auShow'); await p.waitForTimeout(300);
     check('ผู้ดูแล: กรองเฉพาะการเปิดดูได้', await p.$$eval('#auList .chip', (x) => x.length > 0 && x.every((c) => c.classList.contains('c-sub'))));
     const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 3000 }), p.click('#auCsv')]);
@@ -158,8 +171,101 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ผู้ดูแล: ขนาดยาผิดถูกเตือน', (await text(p, '#dfMsg')).length > 0);
     await p.close();
 
+    /* ================= งานจาก comment หน้าตัวอย่าง (ข่าว/แชท/เกณฑ์/ผู้ป่วย) ================= */
+    const img = { name: 'a.png', mimeType: 'image/png', buffer: PNG }, pdf = { name: 'คู่มือ.pdf', mimeType: 'application/pdf', buffer: PDF };
+    p = await open('staff', '#/staff/news');
+    check('ข่าว: ประเภทใหม่ ข่าว/ประชาสัมพันธ์/ความรู้', (await p.$$eval('#snTag option', (o) => o.map((x) => x.value).join(','))) === 'ข่าว,ประชาสัมพันธ์,ความรู้');
+    check('เมนูเจ้าหน้าที่: กล่องที่ซ้อนกันมีระยะห่าง', await p.$eval('[data-staff-view="news"]', (e) => getComputedStyle(e).rowGap) === '16px');
+    await p.setInputFiles('#snImage', img); await p.waitForTimeout(500);
+    check('ข่าว: เลือกรูปแล้วแสดงตัวอย่างทันที + ย่อไม่เกิน A4', await visible(p, '#snImagePreview img') && (await text(p, '#snImageNote')).includes('A4'));
+    await p.setInputFiles('#snFile', pdf); await p.fill('#snTitle', 'ข่าวมี PDF'); await p.fill('#snBody', 'x'); await p.selectOption('#snTag', 'ความรู้');
+    await p.click('#snSubmit'); await p.waitForTimeout(600);
+    const ins = (await calls(p, (c) => c.table === 'news' && c.op === 'insert'))[0]?.payload || {};
+    check('ข่าว: ส่งพร้อมรูป (WebP) + PDF แนบ', ins.tag === 'ความรู้' && ins.image_path?.endsWith('.webp') && ins.file_path?.endsWith('.pdf') && ins.file_name === 'คู่มือ.pdf', JSON.stringify(ins));
+    await go(p, '#/staff/criteria'); await p.waitForTimeout(300);
+    await p.click('[data-open="3"]'); await p.waitForTimeout(200);
+    await p.setInputFiles('#ev-files', [img, pdf]); await p.waitForTimeout(200);
+    check('หลักฐาน: เลือกไฟล์แล้วแสดงตัวอย่าง (รูป + PDF)', await count(p, '#ev-preview .fthumb') === 2 && await count(p, '#ev-preview img') === 1);
+    await p.click('[data-submit="3"]'); await p.waitForTimeout(600);
+    await p.click('[data-open="3"]'); await p.waitForTimeout(300);
+    check('หลักฐาน: ส่งแล้วขึ้น "รอตรวจ" + ภาพย่อไฟล์ที่ส่ง', await visible(p, '.wait-note') && await count(p, '.crit-editbox .fthumb[data-file]') === 2);
+    await p.click('[data-withdraw]'); await p.waitForTimeout(500);
+    check('หลักฐาน: กดยกเลิกการส่งได้', (await calls(p, (c) => c.rpc === 'withdraw_item_status')).length === 1 && await p.evaluate(() => window.__db.item_status.find((x) => x.item_id === 3 && x.unit_id === 2)?.status === 'none'));
+    await go(p, '#/staff/visits'); await p.click('#ptAddBtn'); await p.waitForTimeout(150);
+    check('ผู้ป่วย: มีช่องสังกัด รพ.สต. (ค่าเริ่มต้น = หน่วยตัวเอง) + ที่อยู่ + เบอร์โทร แทน HN รพ.สต.', !(await p.$('#pfHnU')) && (await p.$eval('#pfHome', (e) => e.value)) === '2' && !!(await p.$('#pfAddr')) && (await p.getAttribute('#pfDob', 'placeholder')).includes('12/5/1997'));
+    await p.fill('#pfFirst', 'ทดสอบ'); await p.fill('#pfLast', 'วันเกิด'); await p.fill('#pfDob', '12/5/2540'); await p.fill('#pfPhone', '081-111-2222'); await p.fill('#pfAddr', 'ม.1');
+    await p.click('#ptForm [type=submit]'); await p.waitForTimeout(500);
+    const pt = (await calls(p, (c) => c.table === 'patients' && c.op === 'insert'))[0]?.payload || {};
+    check('ผู้ป่วย: วันเกิด 12/5/2540 (พ.ศ.) → 1997-05-12 + บันทึกเบอร์/ที่อยู่', pt.birth_date === '1997-05-12' && pt.phone === '081-111-2222' && pt.home_unit_id === 2, JSON.stringify(pt));
+    await p.click('[data-act="add-visit"]'); await p.waitForTimeout(150);
+    check('เยี่ยมบ้าน: หน่วยยา เม็ด/ขวด/หลอด/(ไม่ระบุ)', (await p.$$eval('#vMeds .med-unit option', (o) => o.map((x) => x.value).join(','))) === 'เม็ด,ขวด,หลอด,(ไม่ระบุ)');
+    await p.fill('#vO', 'ผิวแห้ง ไม่บวม'); await p.fill('#vMeds .med-name', 'เมทฟอร์มิน'); await p.fill('#vMedNote', 'เก็บในตู้เย็น'); await p.check('#vNoDrp');
+    await p.setInputFiles('#vPhotos', [img, { ...img, name: 'b.png' }]); await p.waitForTimeout(500);
+    check('เยี่ยมบ้าน: เลือกรูปแล้วเห็นตัวอย่าง', await count(p, '#vPhotoList .fthumb img') === 2);
+    await p.click('#vForm [type=submit]'); await p.waitForTimeout(600);
+    const vi = (await calls(p, (c) => c.table === 'visits' && c.op === 'insert'))[0]?.payload || {};
+    check('เยี่ยมบ้าน: มีช่อง O — Objective data และบันทึกได้', vi.objective === 'ผิวแห้ง ไม่บวม');
+    check('เยี่ยมบ้าน: บันทึกหมายเหตุรายการยา + รูป 2 รูป (ส่วนตัว)', vi.med_note === 'เก็บในตู้เย็น' && vi.photo_paths?.length === 2 && (await calls(p, (c) => c.upload === 'visit-photos')).length === 2, JSON.stringify(vi));
+    check('เยี่ยมบ้าน: รูปแสดงในบันทึกการเยี่ยม', await count(p, '#ptPanel .visit-photos img') === 2);
+    await p.click('[data-edit-visit]'); await p.waitForTimeout(300);
+    await p.setInputFiles('#vPhotos', [img, img, img, img]); await p.waitForTimeout(700);
+    check('เยี่ยมบ้าน: จำกัดไม่เกิน 5 รูป', await count(p, '#vPhotoList .fthumb') === 5 && await p.$eval('#vPhotos', (e) => e.disabled));
+    await p.click('[data-act="cancel"]'); await p.waitForTimeout(200);
+    await go(p, '#/staff/messages'); await p.click('#staffInboxSlot [data-conv]'); await p.waitForTimeout(400);
+    await p.setInputFiles('#staffInboxSlot .ib-file', img); await p.waitForTimeout(400);
+    check('แชทเจ้าหน้าที่: เลือกรูปแล้วเห็นตัวอย่างก่อนส่ง', await visible(p, '#staffInboxSlot .chat-pick img'));
+    await p.click('#staffInboxSlot .ib-send'); await p.waitForTimeout(500);
+    check('แชทเจ้าหน้าที่: ส่งรูปได้ (ไม่ต้องพิมพ์ข้อความ) + แสดงในห้อง', (await calls(p, (c) => c.upload === 'chat-images')).length === 1 && await count(p, '#staffInboxSlot .bubble .chat-img img') === 1);
+    await p.screenshot({ path: path.join(SHOTS, 'staff-chat-image-1280.png') });
+    await p.close();
+
+    p = await open('citizen', '#/me');
+    await p.setInputFiles('#meFile', img); await p.waitForTimeout(400); await p.fill('#meInput', 'ยานี้กินตอนไหน'); await p.click('#meSend'); await p.waitForTimeout(500);
+    const mi = (await calls(p, (c) => c.table === 'messages' && c.op === 'insert'))[0]?.payload || {};
+    check('แชทประชาชน: ส่งรูปพร้อมข้อความได้', mi.body === 'ยานี้กินตอนไหน' && /^[0-9a-f-]{36}\/.+\.webp$/.test(mi.image_path || ''), JSON.stringify(mi));
+    check('แชทประชาชน: รูปแสดงในห้องแชท', await count(p, '#meLog .chat-img img') === 1);
+    await p.screenshot({ path: path.join(SHOTS, 'citizen-chat-image-390.png') });
+    await p.close();
+
+    p = await open('admin', '#/admin/review');
+    await p.click('#rvUnits [data-u="3"]'); await p.waitForTimeout(250);
+    await p.click('[data-open="3"]'); await p.waitForTimeout(150); await p.click('.crit-editbox [data-set="approved"]'); await p.waitForTimeout(400);
+    await p.click('#rv-3 [data-undo]'); await p.waitForTimeout(400);
+    check('ตรวจประเมิน: ย้อนกลับการให้ผ่านได้', await p.evaluate(() => window.__db.item_status.find((x) => x.item_id === 3 && x.unit_id === 3)?.status === 'submitted'));
+    await p.click('[data-open="4"]'); await p.waitForTimeout(150);
+    await p.fill('#rvComment', 'ดูตัวอย่างที่แนบ'); await p.setInputFiles('#rvFiles', pdf); await p.waitForTimeout(150);
+    check('ตรวจประเมิน: เลือกไฟล์แนบกลับแล้วเห็นตัวอย่าง', await count(p, '#rvPreview .fthumb') === 1);
+    await p.click('.crit-editbox [data-set="fix"]'); await p.waitForTimeout(500);
+    const rv = await p.evaluate(() => window.__db.item_status.find((x) => x.item_id === 4 && x.unit_id === 3));
+    check('ตรวจประเมิน: ขอแก้ไขพร้อมแนบไฟล์กลับ', rv.status === 'fix' && rv.review_files?.length === 1, JSON.stringify(rv));
+    await p.click('#rv-4 [data-undo]'); await p.waitForTimeout(400);
+    check('ตรวจประเมิน: ย้อนกลับการขอแก้ไขได้', await p.evaluate(() => window.__db.item_status.find((x) => x.item_id === 4 && x.unit_id === 3)?.status === 'submitted'));
+    await p.click('[data-hideyear="1"]'); await p.waitForTimeout(400);
+    check('ปีงบ: ซ่อนปีงบได้ (แสดง "ซ่อนอยู่")', (await text(p, '#rvYears')).includes('ซ่อนอยู่') && await visible(p, '[data-hideyear="0"]'));
+    await p.click('[data-hideyear="0"]'); await p.waitForTimeout(400);
+    check('ปีงบ: มีปุ่มลบปีงบ (ปีปัจจุบัน/ปีถัดไป)', await visible(p, '[data-delyear]'));
+    await p.click('#rvUnits [data-u="crit"]'); await p.waitForTimeout(300);
+    const t0 = await p.$eval('.topic-title', (e) => e.value);
+    await p.fill('.topic-title', t0 + ' (แก้)'); await p.click('#critSave'); await p.waitForTimeout(500);
+    check('แก้เกณฑ์: แก้ชื่อข้อใหญ่ได้', (await calls(p, (c) => c.table === 'criteria_items' && c.op === 'update' && c.payload?.topic_title)).length === 1);
+    await p.fill('.add-sub .new-sub', 'หัวข้อย่อยใหม่'); await p.fill('.add-sub .new-sub-item', 'ข้อใหม่'); await p.click('[data-addsub]'); await p.waitForTimeout(500);
+    await p.fill('#ntTitle', 'ข้อใหญ่ใหม่'); await p.fill('#ntItem', 'ข้อแรก'); await p.click('[data-addtopic]'); await p.waitForTimeout(500);
+    const ci = (await calls(p, (c) => c.table === 'criteria_items' && c.op === 'insert')).map((c) => c.payload);
+    check('แก้เกณฑ์: เพิ่มหัวข้อย่อย + เพิ่มข้อใหญ่ได้', ci.length === 2 && ci[1].topic_title.endsWith('ข้อใหญ่ใหม่') && ci[1].item_no.endsWith('.1.1'), JSON.stringify(ci));
+    await p.click('[data-delsub]'); await p.waitForTimeout(500);
+    check('แก้เกณฑ์: ลบหัวข้อย่อยได้', (await calls(p, (c) => c.table === 'criteria_items' && c.op === 'delete')).length === 1);
+    await p.setInputFiles('.sub-edit [data-addsample]', pdf); await p.waitForTimeout(600);
+    check('แก้เกณฑ์: แนบไฟล์ตัวอย่างหลักฐานได้', (await calls(p, (c) => c.upload === 'criteria-samples')).length === 1 && (await calls(p, (c) => c.table === 'criteria_items' && c.op === 'update' && c.payload?.evidence_samples)).length === 1 && await count(p, '.samples-edit .fthumb') >= 1);
+    await p.screenshot({ path: path.join(SHOTS, 'admin-criteria-editor-1280.png'), fullPage: true });
+    await go(p, '#/admin/news');
+    await p.fill('#anTitle', 'ข่าวผู้ดูแลมี PDF'); await p.fill('#anBody', 'x'); await p.setInputFiles('#anFile', pdf); await p.click('#anSubmit'); await p.waitForTimeout(600);
+    const nid = await p.evaluate(() => window.__db.news.find((n) => n.title === 'ข่าวผู้ดูแลมี PDF')?.id);
+    await go(p, '#/news/' + nid); await p.waitForTimeout(300);
+    check('อ่านข่าว: มีปุ่มดาวน์โหลด PDF แนบ', await visible(p, '#arFile .file-link') && (await text(p, '#arFile')).includes('คู่มือ.pdf'));
+    await p.close();
+
     /* ================= มือถือ / แท็บเล็ต ================= */
-    for (const [role, hash, name] of [[null, '', 'home'], ['citizen', '#/me', 'me'], ['staff', '#/staff/visits', 'staff-visits'], ['staff', '#/staff/messages', 'staff-messages'], ['admin', '#/admin/review', 'admin-review'], ['admin', '#/admin/settings/staff', 'admin-roster'], ['admin', '#/admin/settings/audit', 'admin-audit']]) {
+    for (const [role, hash, name] of [[null, '', 'home'], ['citizen', '#/me', 'me'], ['staff', '#/staff/visits', 'staff-visits'], ['staff', '#/staff/messages', 'staff-messages'], ['admin', '#/admin/review', 'admin-review'], ['admin', '#/admin/settings/staff', 'admin-roster'], ['admin', '#/admin/settings/audit', 'admin-audit'], ['staff', '#/staff/news', 'staff-news'], ['staff', '#/staff/criteria', 'staff-criteria']]) {
       for (const w of [390, 768]) {
         p = await open(role, hash, w, 900);
         const ov = await overflow(p);

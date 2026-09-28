@@ -62,6 +62,7 @@ export function errText(error) {
 
 /** ภาพประกอบ SVG เมื่อข่าว/ผลงานไม่มีรูป */
 export function art(kind) {
+  kind = { 'ความรู้': 'อบรม', 'ข่าว': 'รายงาน' }[kind] || kind;   // ประเภทข่าวใหม่ใช้ภาพเดิม
   let o = '<svg viewBox="0 0 640 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">';
   if (kind === 'อบรม') {
     o += '<rect class="a-bg2" width="640" height="400"/><rect class="a-sheet" x="170" y="78" width="300" height="190" rx="14"/>'

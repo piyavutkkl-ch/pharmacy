@@ -4,10 +4,10 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits } from '../data.js?v=4.4';
-import { targetName, loadMessages, sendMessage, renderLog, openRoom, markRead, refreshMsgBadge, onConversationChange } from './chat.js?v=4.4';
+import { targetName, loadMessages, sendMessage, renderLog, openRoom, markRead, refreshMsgBadge, onConversationChange, chatPicker } from './chat.js?v=4.4';
 
 const PHONE_RE = /^[0-9][0-9 -]{7,14}$/;
-let convs = [], target, msgs = [], closeRoom = null, bound = false, units = [];
+let convs = [], target, msgs = [], closeRoom = null, bound = false, units = [], pick = null;
 
 export async function showMe() {
   units = await loadUnits();
@@ -54,7 +54,7 @@ async function saveProfile(e) {
 function syncHint() {
   const ok = !!auth.profile.phone;
   $('#meChatHint').textContent = ok ? '' : 'กรอกชื่อและเบอร์โทรในข้อมูลส่วนตัวก่อน เพื่อให้เจ้าหน้าที่ติดต่อกลับได้';
-  $('#meInput').disabled = !ok; $('#meSend').disabled = !ok;
+  $('#meInput').disabled = !ok; $('#meSend').disabled = !ok; $('#meFile').disabled = !ok; $('#meAttach').classList.toggle('is-disabled', !ok);
   $('[data-view="me"] .citizen-split').classList.toggle('ready', ok);   // มือถือ: กรอกข้อมูลครบแล้ว ให้แชทขึ้นก่อน
 }
 
@@ -104,7 +104,8 @@ function listen(c) {
 async function send(e) {
   e.preventDefault();
   const inp = $('#meInput'), body = inp.value.trim();
-  if (!body) return;
+  const blob = await pick.ready();
+  if (!body && !blob) return;
   if (/\b\d[\s-]?\d{4}[\s-]?\d{5}[\s-]?\d{2}[\s-]?\d\b/.test(body) && !confirm('ข้อความนี้อาจมีเลขบัตรประชาชน — ไม่จำเป็นต้องส่งทางแชท ต้องการส่งต่อหรือไม่?')) return;
   const btn = $('#meSend'); busy(btn, true, '…');
   try {
@@ -117,8 +118,8 @@ async function send(e) {
       } else { c = ins.data; convs.unshift(c); }
       listen(c);
     }
-    const m = await sendMessage(c.id, body);
-    inp.value = '';
+    const m = await sendMessage(c.id, body, blob);
+    inp.value = ''; pick.reset();
     if (!msgs.some((x) => x.id === m.id)) msgs.push(m);
     renderLog($('#meLog'), msgs, 'citizen', '');
   } catch (err) { toast(errText(err), 'err'); }
@@ -128,6 +129,7 @@ async function send(e) {
 function bind() {
   $('#meForm').addEventListener('submit', saveProfile);
   $('#meChatForm').addEventListener('submit', send);
+  pick = chatPicker($('#meFile'), $('#mePick'), $('#mePickNote'));
   $('#meTargets').addEventListener('click', (e) => {
     const b = e.target.closest('[data-t]'); if (!b) return;
     const t = b.dataset.t === '' ? null : +b.dataset.t;

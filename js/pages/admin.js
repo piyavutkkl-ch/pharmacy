@@ -1,4 +1,4 @@
-// ผู้ดูแล: โครงหน้า + เมนู + ตัวเลขงานค้าง + ข้อเสนอแนะ
+// ผู้ดูแล: โครงหน้า + เมนู + ตัวเลขงานค้าง + ข้อเสนอแนะ (อยู่ใน ตั้งค่า › ข้อเสนอแนะ)
 // ข่าว → admin-news.js · ตรวจประเมิน → admin-review.js · ข้อความ → chat.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
 // ตั้งค่า → admin-settings.js (ยา, ช่องทางติดต่อ) + admin-staff.js (บัญชีเจ้าหน้าที่) + admin-audit.js (ประวัติการเข้าถึงข้อมูลผู้ป่วย)
 import { sb } from '../supabase.js?v=4.4';
@@ -15,11 +15,12 @@ import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
 import { mountInbox } from './chat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', review: 'ตรวจประเมินผลงาน', messages: 'ข้อความจากประชาชน', visits: 'เยี่ยมบ้าน', docs: 'จัดการเอกสาร', feedback: 'ข้อเสนอแนะ', settings: 'ตั้งค่า' };
-const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster, audit: initAudit };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความจากประชาชน', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
+const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster, audit: initAudit, feedback: () => initFeedback() };
 
 export async function showAdmin(tab, sub) {
   if (tab === 'staff') { location.replace('#/admin/settings/staff'); return; }   // ลิงก์เดิมจากขั้น 4.1
+  if (tab === 'feedback') { location.replace('#/admin/settings/feedback'); return; }   // ย้ายไปอยู่ในตั้งค่า
   if (!ADMIN_TABS[tab]) tab = 'news';
   $('#adminHello').textContent = 'สวัสดี ' + (auth.profile.full_name || '');
   $('#adminViewTitle').textContent = ADMIN_TABS[tab];
@@ -31,7 +32,6 @@ export async function showAdmin(tab, sub) {
   if (tab === 'messages') return showMessages();
   if (tab === 'visits') return showVisits();
   if (tab === 'docs') return initAdminDocs();
-  if (tab === 'feedback') return initFeedback();
   if (!SUBS[sub]) sub = 'dose';
   $$('#asTabs [data-sub]').forEach((a) => {
     if (a.dataset.sub !== sub) { a.removeAttribute('aria-current'); return; }

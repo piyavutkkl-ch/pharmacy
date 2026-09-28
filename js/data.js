@@ -2,7 +2,7 @@
 import { sb } from './supabase.js?v=4.4';
 import { fiscalYearOf } from './util.js?v=4.4';
 
-let units = null, years = null;
+let units = null, years = null, hiddenYears = new Set();
 
 /** รายชื่อ รพ.สต. [{id,name,phone,address,note,image_path}] */
 export async function loadUnits(force = false) {
@@ -24,12 +24,15 @@ export function sortItems(items) {
   return [...items].sort((a, b) => a.topic_no - b.topic_no || subPos.get(a.topic_no + '|' + a.sub_id) - subPos.get(b.topic_no + '|' + b.sub_id) || last(a.item_no) - last(b.item_no));
 }
 
-/** ปีงบประมาณที่มีเกณฑ์ในระบบ + ปีงบปัจจุบัน (เรียงเก่า → ใหม่) */
-export async function loadYears() {
-  if (years) return years;
-  const { data } = await sb.from('criteria_years').select('fiscal_year').order('fiscal_year');
-  const set = new Set((data || []).map((r) => r.fiscal_year));
-  set.add(fiscalYearOf());
-  years = [...set].sort((a, b) => a - b);
-  return years;
+/** ปีงบประมาณที่มีเกณฑ์ในระบบ + ปีงบปัจจุบัน (เรียงเก่า → ใหม่) · ปีที่ผู้ดูแลซ่อนไว้ไม่รวม เว้นแต่ includeHidden */
+export async function loadYears({ includeHidden = false } = {}) {
+  if (!years) {
+    const { data } = await sb.from('criteria_years').select('fiscal_year,hidden').order('fiscal_year');
+    hiddenYears = new Set((data || []).filter((r) => r.hidden).map((r) => r.fiscal_year));
+    const set = new Set((data || []).map((r) => r.fiscal_year));
+    set.add(fiscalYearOf());
+    years = [...set].sort((a, b) => a - b);
+  }
+  return includeHidden ? years : years.filter((y) => !hiddenYears.has(y));
 }
+export const isHiddenYear = (y) => hiddenYears.has(y);

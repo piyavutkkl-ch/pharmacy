@@ -1,10 +1,10 @@
 // เจ้าหน้าที่: ประเมินมาตรฐานด้านยา — ส่งรายละเอียด + ไฟล์หลักฐานรายข้อ ให้ผู้ดูแลตรวจ
 // ปีงบปัจจุบันส่ง/แก้ได้ · ปีที่ผ่านมาดูอย่างเดียว (ฐานข้อมูลบังคับด้วย trigger)
 import { sb } from '../supabase.js?v=4.4';
-import { $, esc, fiscalYearOf, toast, errText, busy } from '../util.js?v=4.4';
+import { $, esc, fiscalYearOf, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadYears, sortItems } from '../data.js?v=4.4';
-import { uploadEvidence, signedUrl, removeFiles } from '../upload.js?v=4.4';
+import { uploadEvidence, removeFiles, previewFiles, fileCard, hydrateSigned, openPrivateFile } from '../upload.js?v=4.4';
 import { refreshBadges } from './staff.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
@@ -16,7 +16,8 @@ const FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 
 export async function initCriteria() {
   const years = (await loadYears()).filter((y) => y <= CUR_FY);
-  if (year === null) year = years.includes(CUR_FY) ? CUR_FY : years[years.length - 1];
+  if (year === null || !years.includes(year)) year = years.includes(CUR_FY) ? CUR_FY : years[years.length - 1];
+  if (!years.length) { $('#scYears').innerHTML = ''; $('#scSummary').innerHTML = ''; $('#scList').innerHTML = '<p class="empty">ยังไม่เปิดให้ส่งหลักฐาน — ผู้ดูแลยังไม่ได้เปิดปีงบประมาณ</p>'; return; }
   $('#scYears').innerHTML = years.map((y) => `<button type="button" data-y="${y}" aria-current="${y === year}">ปีงบประมาณ ${y}${y === CUR_FY ? ' (ปัจจุบัน)' : ''}</button>`).join('');
   if (!bound) { bound = true; bind(); }
   await load();
@@ -25,8 +26,8 @@ export async function initCriteria() {
 async function load() {
   $('#scList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
   const [ci, st] = await Promise.all([
-    sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,sub_label,evidence,item_no,body,sort').eq('fiscal_year', year).order('sort'),
-    sb.from('item_status').select('id,item_id,status,detail,evidence_paths,review_comment,submitted_at').eq('unit_id', auth.profile.unit_id),
+    sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,sub_label,evidence,evidence_samples,item_no,body,sort').eq('fiscal_year', year).order('sort'),
+    sb.from('item_status').select('id,item_id,status,detail,evidence_paths,review_comment,review_files,submitted_at').eq('unit_id', auth.profile.unit_id),
   ]);
   if (ci.error) { $('#scList').innerHTML = `<p class="empty">${esc(errText(ci.error))}</p>`; return; }
   items = sortItems(ci.data);
@@ -69,7 +70,8 @@ function render() {
       if (it.sub_id !== lastSub) {
         lastSub = it.sub_id;
         head = (it.sub_label ? `<div class="crit-sub">${esc(it.sub_label)}</div>` : '')
-          + (it.evidence ? `<p class="small muted" style="margin:0 0 6px">หลักฐาน/เอกสารที่ต้องใช้: ${esc(it.evidence)}</p>` : '');
+          + (it.evidence ? `<p class="small muted" style="margin:0 0 6px">หลักฐาน/เอกสารที่ต้องใช้: ${esc(it.evidence)}</p>` : '')
+          + (it.evidence_samples?.length ? `<p class="small muted">ตัวอย่างหลักฐาน (กดเพื่อเปิด/ดาวน์โหลด)</p><div class="fthumbs samples">${it.evidence_samples.map((f) => fileCard('criteria-samples', f.path, f.name)).join('')}</div>` : '');
       }
       const s = stOf(it), [label, cls] = ST[s];
       return head + `<div class="crit-item" id="ci-${it.id}"><span class="ci-no">${esc(it.item_no)}</span><span class="ci-text">${esc(it.body)}</span>`
@@ -79,6 +81,7 @@ function render() {
     }).join('');
     return `<details id="topic-${no}"${open ? ' open' : ''}><summary><span>${esc(title)}</span><b class="num">${got}/${tItems.length}</b></summary><div class="crit-subs">${rows}</div></details>`;
   }).join('') || '<p class="empty">ยังไม่มีเกณฑ์ของปีงบนี้</p>';
+  hydrateSigned($('#scList'));
 }
 
 function box(it, editable) {
@@ -86,19 +89,22 @@ function box(it, editable) {
   const canEdit = editable && st !== 'approved';
   const files = (s?.evidence_paths || []).map((p, i) => {
     const gone = pendingRemove.has(p);
-    return `<div class="row-btns" style="align-items:center"><button type="button" class="btn btn-o btn-sm" data-file="${esc(p)}"${gone ? ' style="text-decoration:line-through;opacity:.6"' : ''}>เปิดไฟล์ ${i + 1} (${esc(p.split('.').pop().toUpperCase())})</button>`
+    return '<div class="fitem">' + fileCard('evidence', p, `ไฟล์ ${i + 1}${gone ? ' · จะลบเมื่อกดส่ง' : ''}`, gone ? 'gone' : '')
       + (canEdit ? `<button type="button" class="btn ${gone ? 'btn-o' : 'btn-no'} btn-sm" data-rmfile="${esc(p)}">${gone ? 'ยกเลิกการลบ' : 'ลบไฟล์'}</button>` : '')
-      + (gone ? '<span class="small muted">จะลบเมื่อกดส่ง</span>' : '') + '</div>';
+      + '</div>';
   }).join('');
   return '<div class="crit-editbox">'
     + `<h3>ข้อ ${esc(it.item_no)} — ${esc(it.body)}</h3>`
     + (st === 'fix' && s.review_comment ? `<p class="small" style="color:var(--warning)"><b>ความเห็นผู้ดูแล:</b> ${esc(s.review_comment)}</p>` : '')
+    + (s?.review_files?.length ? `<p class="small" style="font-weight:600">ไฟล์จากผู้ดูแล (กดเพื่อเปิด)</p><div class="fthumbs">${s.review_files.map((p, i) => fileCard('evidence', p, `ไฟล์ผู้ดูแล ${i + 1}`)).join('')}</div>` : '')
     + (st === 'approved' ? '<p class="small" style="color:var(--success)"><b>ผู้ดูแลอนุมัติข้อนี้แล้ว</b></p>' : '')
+    + (st === 'submitted' ? `<div class="wait-note"><span class="chip c-rev">ส่งแล้ว รอตรวจ</span><span class="small muted">ส่งเมื่อ ${esc(thaiDate(s.submitted_at))} · แก้แล้วกด "ส่งตรวจอีกครั้ง" ได้</span>`
+      + (editable ? `<button type="button" class="btn btn-o btn-sm" data-withdraw="${s.id}">ยกเลิกการส่ง</button>` : '') + '</div>' : '')
     + (canEdit
       ? `<label class="small" style="font-weight:600" for="ev-detail">รายละเอียดหลักฐาน</label><textarea id="ev-detail" rows="3" maxlength="4000" placeholder="อธิบายว่าหลักฐานคืออะไร เช่น เลขที่คำสั่ง วันที่ ไฟล์แนบ">${esc(s?.detail || '')}</textarea>`
-        + `<label class="small" style="font-weight:600" for="ev-files">แนบไฟล์เพิ่ม (PDF/รูป · เลือกได้หลายไฟล์)</label><input id="ev-files" class="input" type="file" accept="application/pdf,image/*" multiple>`
+        + `<label class="small" style="font-weight:600" for="ev-files">แนบไฟล์เพิ่ม (PDF/รูป · เลือกได้หลายไฟล์)</label><input id="ev-files" class="input" type="file" accept="application/pdf,image/*" multiple><div class="fthumbs" id="ev-preview" hidden></div>`
       : (s?.detail ? `<p class="small"><b>รายละเอียด:</b> ${esc(s.detail)}</p>` : '<p class="small muted">ยังไม่มีการส่งหลักฐาน</p>'))
-    + (files ? '<p class="small" style="font-weight:600">ไฟล์หลักฐาน</p>' + files : '')
+    + (files ? `<p class="small" style="font-weight:600">ไฟล์หลักฐานที่ส่งแล้ว (กดเพื่อเปิด)</p><div class="fthumbs">${files}</div>` : '')
     + '<div class="row-btns" style="align-items:center">'
     + (canEdit ? `<button type="button" class="btn btn-p btn-sm" data-submit="${it.id}">${st === 'none' ? 'ส่งให้ผู้ดูแลตรวจ' : 'ส่งตรวจอีกครั้ง'}</button>` : '')
     + '<button type="button" class="btn btn-o btn-sm" data-close="1">ปิด</button><span class="small" id="ev-msg" aria-live="polite"></span></div></div>';
@@ -122,7 +128,7 @@ function bind() {
     if (o) { const id = +o.dataset.open; openId = openId === id ? null : id; pendingRemove.clear(); render(); return; }
     if (e.target.closest('[data-close]')) { openId = null; pendingRemove.clear(); render(); return; }
     const f = e.target.closest('[data-file]');
-    if (f) { try { window.open(await signedUrl('evidence', f.dataset.file), '_blank', 'noopener'); } catch (err) { toast(errText(err), 'err'); } return; }
+    if (f) { try { await openPrivateFile(f); } catch (err) { toast(errText(err), 'err'); } return; }
     const rm = e.target.closest('[data-rmfile]');
     if (rm) {
       const path = rm.dataset.rmfile, detail = $('#ev-detail')?.value;
@@ -130,9 +136,22 @@ function bind() {
       render(); if (detail != null && $('#ev-detail')) $('#ev-detail').value = detail;
       return;
     }
+    const wd = e.target.closest('[data-withdraw]');
+    if (wd) { withdraw(+wd.dataset.withdraw, wd); return; }
     const sub = e.target.closest('[data-submit]');
     if (sub) submit(+sub.dataset.submit, sub);
   });
+  $('#scList').addEventListener('change', (e) => { if (e.target.id === 'ev-files') previewFiles(e.target.files, $('#ev-preview')); });
+}
+
+/** ยกเลิกการส่ง (ยังรอตรวจ) → กลับเป็น "ยังไม่ส่ง" หรือ "ต้องแก้ไข" · รายละเอียด/ไฟล์ยังอยู่ */
+async function withdraw(statusId, btn) {
+  if (!confirm('ยกเลิกการส่งข้อนี้?\nรายละเอียดและไฟล์ยังอยู่ แก้ไขแล้วส่งใหม่ได้')) return;
+  busy(btn, true, 'กำลังยกเลิก…');
+  const { error } = await sb.rpc('withdraw_item_status', { p_id: statusId });
+  if (error) { busy(btn, false); toast(errText(error), 'err'); return; }
+  toast('ยกเลิกการส่งแล้ว');
+  await load(); refreshBadges();
 }
 
 async function submit(itemId, btn) {

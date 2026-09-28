@@ -2,6 +2,7 @@
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, art, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
+import { fileLink } from './news-form.js?v=4.4';
 
 let news = null;          // cache ข่าวที่เผยแพร่แล้ว
 let loading = null;
@@ -78,10 +79,10 @@ const viewed = new Set();
 export async function showArticle(id) {
   current = null;
   $('#arTitle').textContent = 'กำลังโหลด…';
-  $('#arTag').textContent = ''; $('#arDate').textContent = ''; $('#arBody').innerHTML = ''; $('#arCover').innerHTML = '';
+  $('#arTag').textContent = ''; $('#arDate').textContent = ''; $('#arBody').innerHTML = ''; $('#arCover').innerHTML = ''; $('#arFile').hidden = true;
   $('#arComments').innerHTML = ''; $('#arCommentMsg').textContent = ''; $('#arShareMsg').textContent = '';
   const { data: n, error } = await sb.from('news')
-    .select('id,title,tag,body,image_path,published_at,comments_closed,view_count').eq('id', id).maybeSingle();
+    .select('id,title,tag,body,image_path,file_path,file_name,published_at,comments_closed,view_count').eq('id', id).maybeSingle();
   if (error || !n) { $('#arTitle').textContent = 'ไม่พบข่าวนี้'; $('#arBody').innerHTML = '<p class="muted">ข่าวอาจถูกลบหรือยังไม่เผยแพร่</p>'; return; }
   current = n;
   document.title = n.title + ' · Primary Care Pharmacy Services';
@@ -90,6 +91,7 @@ export async function showArticle(id) {
   $('#arDate').textContent = thaiDate(n.published_at);
   $('#arCover').innerHTML = cover(n);
   $('#arBody').innerHTML = String(n.body || '').split(/\n{1,}/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
+  $('#arFile').innerHTML = n.file_path ? fileLink(n) : ''; $('#arFile').hidden = !n.file_path;
   if (!viewed.has(n.id)) { viewed.add(n.id); sb.rpc('bump_news_view', { p_news: n.id }).then(() => {}); n.view_count += 1; }
   $('#arViewCount').textContent = n.view_count.toLocaleString('th-TH') + ' ผู้เข้าชม';
   renderCommentState();
