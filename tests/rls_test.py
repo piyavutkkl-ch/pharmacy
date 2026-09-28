@@ -397,5 +397,18 @@ check("negative stats rejected", "admin", "update delivery_stats set deliveries=
 check("citizen cannot edit info text", "c1", "update site_texts set body='x' returning key", rows(0))
 check("anon cannot edit stats", "anon", "update delivery_stats set patients=0", "deny")
 
+print("== step 22: health rider ==")
+check("anon reads rider info text", "anon", "select count(*) from site_texts where key='rider_info'", eq(1))
+check("staff saves own unit rider stats", "s2", "insert into rider_stats(fiscal_year,unit_id,trips,clients) values (2570,2,30,12) returning trips", eq(30))
+check("staff updates own unit rider stats again", "s2", "insert into rider_stats(fiscal_year,unit_id,trips,clients) values (2570,2,40,15) on conflict (fiscal_year,unit_id) do update set trips=excluded.trips returning trips", eq(40))
+check("staff cannot save other unit rider stats", "s2", "insert into rider_stats(fiscal_year,unit_id,trips) values (2570,1,5)", "deny")
+check("other unit staff cannot change unit-2 stats", "s1", "update rider_stats set trips=0 where unit_id=2 returning trips", rows(0))
+check("admin saves any unit rider stats", "admin", "insert into rider_stats(fiscal_year,unit_id,trips) values (2570,1,5) returning trips", eq(5))
+check("anon reads rider stats", "anon", "select sum(trips) from rider_stats", eq(45))
+check("negative rider stats rejected", "admin", "update rider_stats set clients=-1", "deny")
+check("staff cannot edit rider info text", "s2", "update site_texts set body='x' where key='rider_info' returning key", rows(0))
+check("citizen cannot edit rider stats", "c1", "update rider_stats set trips=0 returning trips", rows(0))
+check("anon cannot insert rider stats", "anon", "insert into rider_stats(fiscal_year,unit_id) values (2570,3)", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

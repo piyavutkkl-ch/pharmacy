@@ -66,6 +66,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('[data-panel-link="delivery"]'); await p.waitForTimeout(400);
     check('บริการจัดส่งยาถึงบ้าน: ช่องใต้ผลการดำเนินงาน + ข้อความแนะนำ + สถิติการจัดส่ง', await visible(p, '[data-panel="delivery"]') && (await text(p, '#dlInfo')).includes('จัดส่งยาถึงบ้าน') && (await text(p, '#dlFigs')).includes('105') && await count(p, '#dlBars .bar-row') === 3
       && await p.evaluate(() => { const l = [...document.querySelectorAll('.menu-icons [data-panel-link]')].map((a) => a.dataset.panelLink); return l.indexOf('delivery') === l.indexOf('tracking') + 1; }));
+    await p.click('[data-panel-link="rider"]'); await p.waitForTimeout(400);
+    check('Health Rider: หน้าแสดงผลงาน (ข้อความแนะนำ + ตัวเลขรวม + ราย รพ.สต.) ถัดจากส่งยาถึงบ้าน', await visible(p, '[data-panel="rider"]') && (await text(p, '#hrInfo')).includes('Health Rider') && (await text(p, '#hrFigs')).includes('48') && await count(p, '#hrBars .bar-row') === 2
+      && await p.evaluate(() => { const l = [...document.querySelectorAll('.menu-icons [data-panel-link]')].map((a) => a.dataset.panelLink); return l.indexOf('rider') === l.indexOf('delivery') + 1; }));
     await go(p, '#/achievements');
     check('ผลงาน รพ.สต.: การ์ดผลงานแสดง', await count(p, '#achGrid .news-card') >= 2);
     await go(p, '#/contact');
@@ -108,7 +111,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= เจ้าหน้าที่ รพ.สต. ================= */
     p = await open('staff', '#/staff');
-    for (const tab of ['news', 'criteria', 'visits', 'messages', 'achievements', 'docs', 'feedback']) {
+    for (const tab of ['news', 'criteria', 'visits', 'messages', 'rider', 'achievements', 'docs', 'feedback']) {
       await go(p, '#/staff/' + tab); await p.waitForTimeout(250);
       const shown = await p.$eval(`[data-staff-view="${tab}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
       check(`เจ้าหน้าที่: เมนู ${tab} เปิดได้`, shown && (await text(p, '#staffViewTitle')));
@@ -134,6 +137,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#sdQ', ''); await p.selectOption('#sdSort', 'title_asc'); await p.waitForTimeout(150);
     const titles = await p.$$eval('#sdList .li b', (b) => b.map((x) => x.textContent));
     check('เอกสาร: เรียงตามชื่อได้', titles.join('|') === [...titles].sort((a, b) => a.localeCompare(b, 'th')).join('|') && titles.length === 2);
+    await go(p, '#/staff/rider'); await p.waitForTimeout(300);
+    check('เจ้าหน้าที่: Health Rider กรอกได้เฉพาะหน่วยตัวเอง (ไม่มีข้อความแนะนำของผู้ดูแล)', await count(p, '#hrStats .da-stat') === 1 && !(await p.$('#hrInfoEdit')) && (await p.inputValue('#hrStats [data-k="trips"]')) === '30');
+    await p.fill('#hrStats [data-k="clients"]', '15'); await p.click('#hrStatSave'); await p.waitForTimeout(300);
+    check('เจ้าหน้าที่: บันทึกผลงาน Health Rider ของหน่วยตัวเอง', (await calls(p, (c) => c.table === 'rider_stats' && c.op === 'upsert'))[0]?.payload?.every((r) => r.unit_id === 2 && r.clients === 15 && r.trips === 30));
     await go(p, '#/staff/messages');
     await p.click('#staffInboxSlot [data-conv]'); await p.waitForTimeout(400);
     await p.fill('#staffInboxSlot .ib-input', 'ตอบกลับจากเจ้าหน้าที่'); await p.click('#staffInboxSlot .ib-form button'); await p.waitForTimeout(400);
@@ -142,7 +149,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= ผู้ดูแล ================= */
     p = await open('admin', '#/admin');
-    for (const tab of ['news', 'messages', 'review', 'visits', 'docs', 'settings/feedback', 'settings/dose', 'settings/contacts', 'settings/staff', 'settings/audit']) {
+    for (const tab of ['news', 'messages', 'review', 'visits', 'rider', 'docs', 'settings/feedback', 'settings/dose', 'settings/contacts', 'settings/staff', 'settings/audit']) {
       await go(p, '#/admin/' + tab); await p.waitForTimeout(250);
       const view = tab.split('/')[0];
       const shown = await p.$eval(`[data-admin-view="${view}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
@@ -150,7 +157,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     }
     check('ข่าว (ผู้ดูแล): กล่องรอตรวจอยู่ใต้กล่องเขียนข่าว', await p.$eval('[data-admin-view="news"]', (v) => [...v.children].findIndex((c) => c.querySelector('#anForm')) < [...v.children].findIndex((c) => c.querySelector('#anQueue'))));
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));
-    check('เมนูผู้ดูแล: ข้อความอยู่เหนือตรวจประเมิน + ข้อเสนอแนะย้ายไปอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,review,visits,docs,settings' && await count(p, '#afList .li') > 0);
+    check('เมนูผู้ดูแล: ข้อความอยู่เหนือตรวจประเมิน + ข้อเสนอแนะย้ายไปอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,review,visits,rider,docs,settings' && await count(p, '#afList .li') > 0);
     await go(p, '#/admin/feedback'); await p.waitForTimeout(250);
     check('ลิงก์เดิม #/admin/feedback ยังเปิดได้ (พาไปตั้งค่า)', (await p.evaluate(() => location.hash)) === '#/admin/settings/feedback');
     await go(p, '#/admin/news');
@@ -201,6 +208,19 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/delivery'); await p.waitForTimeout(500);
     check('หน้าหลัก: โปสเตอร์แสดง + ข้อความใหม่ + สถิติอัปเดต', await count(p, '#dlPosters .poster img') === 1 && (await text(p, '#dlInfo')).includes('บริการใหม่') && (await text(p, '#dlFigs')).includes('117'));
     await p.screenshot({ path: path.join(SHOTS, 'home-delivery-1280.png'), fullPage: true });
+    await go(p, '#/admin/rider'); await p.waitForTimeout(400);
+    check('ผู้ดูแล: Health Rider กรอกได้ทุก รพ.สต. + ข้อความแนะนำ', await count(p, '#hrStats .da-stat') === 7 && (await p.inputValue('#hrInfoEdit')).includes('Health Rider'));
+    await p.click('.hr-import summary');
+    await p.fill('#hrPaste', 'รพ.สต.\tครั้ง\tคน\nรพ.สต.ควนบ่อทอง\t10\t4\nกระทูน\t1,200\t300\nไม่มีชื่อนี้\t1\t1'); await p.click('#hrPasteUse'); await p.waitForTimeout(150);
+    check('ผู้ดูแล: วางตารางจาก Excel → เติมตัวเลขให้ + แจ้งชื่อที่ไม่พบ', (await p.inputValue('#hrStats [data-u="3"][data-k="trips"]')) === '10' && (await p.inputValue('#hrStats [data-u="1"][data-k="trips"]')) === '1200' && (await text(p, '#hrImportMsg')).includes('ไม่มีชื่อนี้'));
+    await p.setInputFiles('#hrFile', { name: 'rider.csv', mimeType: 'text/csv', buffer: Buffer.from('\ufeffรพ.สต.,ครั้ง,คน\nเหนือคลอง,"2,000",90\n') }); await p.waitForTimeout(300);
+    check('ผู้ดูแล: นำเข้าไฟล์ .csv ได้', (await p.inputValue('#hrStats [data-u="6"][data-k="trips"]')) === '2000' && (await p.inputValue('#hrStats [data-u="6"][data-k="clients"]')) === '90');
+    await p.click('#hrStatSave'); await p.waitForTimeout(300);
+    await p.fill('#hrInfoEdit', 'ไรเดอร์สุขภาพ ส่งยาถึงบ้าน'); await p.click('#hrInfoSave'); await p.waitForTimeout(300);
+    check('ผู้ดูแล: บันทึกผลงาน Health Rider หลาย รพ.สต. พร้อมกัน', (await calls(p, (c) => c.table === 'rider_stats' && c.op === 'upsert'))[0]?.payload?.length === 5);
+    await go(p, '#/rider'); await p.waitForTimeout(500);
+    check('หน้าหลัก Health Rider: ข้อความใหม่ + ผลงานอัปเดต', (await text(p, '#hrInfo')).includes('ไรเดอร์สุขภาพ') && (await text(p, '#hrFigs')).includes('3,258') && await count(p, '#hrBars .bar-row') === 5);
+    await p.screenshot({ path: path.join(SHOTS, 'home-rider-1280.png'), fullPage: true });
     await go(p, '#/admin/settings/dose');
     await p.fill('#dfName', 'ยาทดสอบ'); await p.fill('#dfInds .i-name', 'ลดไข้'); await p.fill('#dfInds .i-min', '10'); await p.fill('#dfInds .i-max', '5'); await p.click('#dfSubmit'); await p.waitForTimeout(150);
     check('ผู้ดูแล: ขนาดยาผิดถูกเตือน', (await text(p, '#dfMsg')).length > 0);

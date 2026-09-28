@@ -1,5 +1,5 @@
 // เจ้าหน้าที่ รพ.สต.: โครงหน้า + ข่าว (ส่งตรวจ) + ผลงาน (เผยแพร่ทันที) + ข้อเสนอแนะ
-// มาตรฐาน → criteria.js · เยี่ยมบ้าน → visits.js · ข้อความ → chat.js · เอกสาร → docs.js
+// มาตรฐาน → criteria.js · เยี่ยมบ้าน → visits.js · ข้อความ → chat.js · เอกสาร → docs.js · Health Rider → rider.js
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, $$, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
@@ -9,6 +9,7 @@ import { initCriteria } from './criteria.js?v=4.4';
 import { initVisits } from './visits.js?v=4.4';
 import { initStaffDocs } from './docs.js?v=4.4';
 import { mountInbox } from './chat.js?v=4.4';
+import { mountRiderEditor } from './rider.js?v=4.4';
 import { setCurrent } from '../nav.js?v=4.4';
 
 export const STAFF_TABS = {
@@ -17,6 +18,7 @@ export const STAFF_TABS = {
   criteria: 'ประเมินมาตรฐานด้านยา รพ.สต.',
   visits: 'เยี่ยมบ้าน',
   messages: 'ข้อความจากประชาชน',
+  rider: 'Health Rider',
   docs: 'เอกสารดาวน์โหลด',
   feedback: 'ข้อเสนอแนะถึงทีมพัฒนา',
 };
@@ -31,7 +33,7 @@ export function showStaff(tab) {
   setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindAch(); bindFeedback(); }
-  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: initVisits, messages: () => mountInbox($('#staffInboxSlot'), auth.profile.unit_id), docs: initStaffDocs, feedback: loadFeedback })[tab]();
+  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: initVisits, messages: () => mountInbox($('#staffInboxSlot'), auth.profile.unit_id), rider: () => mountRiderEditor($('#staffRiderSlot'), auth.profile.unit_id), docs: initStaffDocs, feedback: loadFeedback })[tab]();
   refreshBadges();
 }
 

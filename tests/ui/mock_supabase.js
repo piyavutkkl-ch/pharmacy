@@ -169,7 +169,7 @@ function run(st) {
     if (!ME) return err('new row violates row-level security policy', '42501');
     const list = (Array.isArray(st.payload) ? st.payload : [st.payload]).map((p) => ({ ...structuredClone(p) }));
     for (const r of list) { const e = beforeInsert(table, r); if (e) return err(e, /duplicate/.test(e) ? '23505' : '42501'); }
-    const PK = { site_texts: ['key'], delivery_stats: ['fiscal_year', 'unit_id'] }[table];
+    const PK = { site_texts: ['key'], delivery_stats: ['fiscal_year', 'unit_id'], rider_stats: ['fiscal_year', 'unit_id'], rider_units: ['unit_id'] }[table];
     if (st.op === 'upsert' && PK) for (const r of list) { const i = rows.findIndex((x) => PK.every((k) => x[k] === r[k])); if (i >= 0) rows.splice(i, 1); }
     rows.push(...list);
     list.forEach((r) => audit('insert', table, r));

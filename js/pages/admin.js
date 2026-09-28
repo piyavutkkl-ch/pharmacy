@@ -14,9 +14,10 @@ import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
+import { mountRiderEditor } from './rider.js?v=4.4';
 import { mountInbox } from './chat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความจากประชาชน', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความจากประชาชน', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', rider: 'Health Rider', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
 const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster, delivery: initDeliveryAdmin, audit: initAudit, feedback: () => initFeedback() };
 
 export async function showAdmin(tab, sub) {
@@ -32,6 +33,7 @@ export async function showAdmin(tab, sub) {
   if (tab === 'review') return initReview();
   if (tab === 'messages') return showMessages();
   if (tab === 'visits') return showVisits();
+  if (tab === 'rider') return mountRiderEditor($('#adminRiderSlot'));
   if (tab === 'docs') return initAdminDocs();
   if (!SUBS[sub]) sub = 'dose';
   $$('#asTabs [data-sub]').forEach((a) => {

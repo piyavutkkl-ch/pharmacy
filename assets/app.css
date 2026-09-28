@@ -556,6 +556,9 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .poster-nav:hover{border-color:var(--primary);color:var(--primary)}
 @media (max-width:560px){.poster-nav{display:none}}
 .dl-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:12px 0}
+.hr-import{margin:12px 0;border:1px dashed var(--line);border-radius:12px;padding:10px 14px}
+.hr-import summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}
+.hr-import[open]{display:flex;flex-direction:column;gap:10px}
 .da-poster{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
 .da-poster:first-child{border-top:0}
 .da-poster img{width:56px;aspect-ratio:1/1.414;object-fit:cover;border-radius:8px;border:1px solid var(--line)}

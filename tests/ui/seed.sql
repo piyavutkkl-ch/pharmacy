@@ -79,3 +79,6 @@ insert into public.staff_requests(user_id, email, full_name, unit_id, position, 
 -- บริการจัดส่งยาถึงบ้าน (ขั้น 21): สถิติตัวอย่าง
 insert into public.delivery_stats(fiscal_year, unit_id, deliveries, patients) values
   (2569, 2, 48, 20), (2569, 3, 35, 14), (2569, 4, 22, 9);
+-- Health Rider (ขั้น 22): ผลงานตัวอย่าง
+insert into public.rider_stats(fiscal_year, unit_id, trips, clients) values
+  (2569, 2, 30, 12), (2569, 5, 18, 7);

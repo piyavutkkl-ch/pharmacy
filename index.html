@@ -48,6 +48,10 @@
           <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg></span>
           <span class="mi-label">บริการจัดส่งยาถึงบ้าน</span>
         </a>
+        <a class="menu-icon-btn" href="#/rider" data-panel-link="rider" aria-expanded="false">
+          <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg></span>
+          <span class="mi-label">Health Rider</span>
+        </a>
       </div>
     </div>
 
@@ -126,6 +130,16 @@
       <div class="unit-tabs" id="dlYears" aria-label="เลือกปีงบประมาณ"></div>
       <div class="track-figs dl-figs" id="dlFigs" aria-live="polite"></div>
       <div class="bars" id="dlBars"></div>
+    </div>
+  </div>
+
+  <div class="sec reveal" data-panel="rider" hidden>
+    <div class="sec-head"><h2>ผลงาน Health Rider</h2></div>
+    <div class="panel"><div class="article-body dl-info" id="hrInfo"></div></div>
+    <div class="panel">
+      <div class="unit-tabs" id="hrYears" aria-label="เลือกปีงบประมาณ"></div>
+      <div class="track-figs dl-figs" id="hrFigs" aria-live="polite"></div>
+      <div class="bars" id="hrBars"></div>
     </div>
   </div>
 
@@ -254,6 +268,7 @@
       <a href="#/staff/visits" data-staff-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
       <a href="#/staff/messages" data-staff-tab="messages" title="ข้อความ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">ข้อความ</span><span id="stfMsgBadge" class="badge num"></span></a>
       <div class="more-group" id="staffMore">
+        <a href="#/staff/rider" data-staff-tab="rider" title="Health Rider"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg><span class="lbl">Health Rider</span></a>
         <a href="#/staff/achievements" data-staff-tab="achievements" title="ผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">ผลงาน</span></a>
         <a href="#/staff/docs" data-staff-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
         <a href="#/staff/feedback" data-staff-tab="feedback" title="ข้อเสนอแนะ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><span class="lbl">ข้อเสนอแนะ</span></a>
@@ -313,6 +328,9 @@
       <!-- ข้อความจากประชาชนถึง รพ.สต. นี้ (real-time) -->
       <div data-staff-view="messages" hidden><div id="staffInboxSlot"></div></div>
 
+      <!-- Health Rider: กรอก/นำเข้าตัวเลขผลงานของหน่วยตัวเอง (rider.js) -->
+      <div data-staff-view="rider" hidden><div id="staffRiderSlot" data-rider-slot></div></div>
+
       <div data-staff-view="docs" hidden>
         <div class="panel">
           <div class="doc-tools"><div class="field doc-q"><label for="sdQ">ค้นหาชื่อเอกสาร</label><input id="sdQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อเอกสาร"></div><div class="field"><label for="sdSort">เรียงตาม</label><select id="sdSort" class="input"><option value="updated_desc">อัปเดตล่าสุดก่อน</option><option value="updated_asc">อัปเดตเก่าสุดก่อน</option><option value="title_asc">ชื่อ ก → ฮ</option><option value="title_desc">ชื่อ ฮ → ก</option><option value="dl_desc">ดาวน์โหลดมาก → น้อย</option><option value="dl_asc">ดาวน์โหลดน้อย → มาก</option></select></div></div>
@@ -347,6 +365,7 @@
       <a href="#/admin/review" data-admin-tab="review" title="ตรวจประเมิน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">ตรวจประเมิน</span><span id="admReviewBadge" class="badge num"></span></a>
       <a href="#/admin/visits" data-admin-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
       <div class="more-group" id="adminMore">
+        <a href="#/admin/rider" data-admin-tab="rider" title="Health Rider"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg><span class="lbl">Health Rider</span></a>
         <a href="#/admin/docs" data-admin-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
         <a href="#/admin/settings" data-admin-tab="settings" title="ตั้งค่า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">ตั้งค่า</span><span id="admSetBadge" class="badge num"></span></a>
       </div>
@@ -395,6 +414,9 @@
         <div class="unit-tabs" id="avUnits" aria-label="เลือก รพ.สต."></div>
         <div id="adminVisitsSlot"></div>
       </div>
+
+      <!-- Health Rider: กรอก/นำเข้าตัวเลขผลงานทุก รพ.สต. + ข้อความแนะนำ (rider.js) -->
+      <div data-admin-view="rider" hidden><div id="adminRiderSlot" data-rider-slot></div></div>
 
       <!-- เอกสาร: อัปโหลด/แก้/แทนที่/ลบ -->
       <div data-admin-view="docs" hidden>

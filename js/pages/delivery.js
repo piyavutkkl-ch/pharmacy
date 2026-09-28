@@ -7,8 +7,24 @@ import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { A4, imagePicker, uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
-const paras = (t) => String(t || '').split(/\n+/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
+
+/* ---------- แถวโปสเตอร์ (ใช้ร่วมกับ Health Rider) ---------- */
+/** ปุ่ม ‹ › ข้างแถวโปสเตอร์ (อยู่ใน .poster-wrap เดียวกัน) */
+export function bindPosterNav(row) {
+  row.parentNode.querySelectorAll('[data-poster-nav]').forEach((b) => b.addEventListener('click', () => {
+    row.scrollBy({ left: (b.dataset.posterNav === 'next' ? 1 : -1) * row.clientWidth * 0.8, behavior: 'smooth' });
+  }));
+}
+/** โปสเตอร์ [{title,image_path,tag?}] → แถวเลื่อนซ้าย-ขวา · กดเปิดภาพเต็ม */
+export function renderPosterRow(row, list, alt) {
+  row.innerHTML = list.length ? list.map((x) => `<a class="poster" href="${esc(publicImageUrl(x.image_path))}" target="_blank" rel="noopener">`
+    + `<img src="${esc(publicImageUrl(x.image_path))}" alt="${esc(x.title || alt)}" loading="lazy">`
+    + (x.title || x.tag ? `<span>${esc(x.title || '')}${x.tag ? `<em class="small muted"> ${esc(x.tag)}</em>` : ''}</span>` : '') + '</a>').join('')
+    : '<p class="empty">ยังไม่มีโปสเตอร์</p>';
+  row.parentNode.querySelectorAll('[data-poster-nav]').forEach((b) => { b.hidden = list.length < 2; });
+}
+export const paras = (t) => String(t || '').split(/\n+/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
 
 /* ======================= หน้าหลัก ======================= */
 let dlYear = CUR_FY, dlBound = false, stats = [];
@@ -18,9 +34,7 @@ export async function initDelivery() {
   if (!dlBound) {
     dlBound = true;
     $('#dlYears').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (b) { dlYear = +b.dataset.y; renderStats(units, years); } });
-    document.querySelectorAll('[data-poster-nav]').forEach((b) => b.addEventListener('click', () => {
-      const row = $('#dlPosters'); row.scrollBy({ left: (b.dataset.posterNav === 'next' ? 1 : -1) * row.clientWidth * 0.8, behavior: 'smooth' });
-    }));
+    bindPosterNav($('#dlPosters'));
   }
   $('#dlPosters').innerHTML = '<div class="skeleton poster-skel"></div>';
   const [p, t, s] = await Promise.all([
@@ -28,11 +42,7 @@ export async function initDelivery() {
     sb.from('site_texts').select('body').eq('key', 'delivery_info').maybeSingle(),
     sb.from('delivery_stats').select('fiscal_year,unit_id,deliveries,patients'),
   ]);
-  const posters = p.data || [];
-  $('#dlPosters').innerHTML = posters.length ? posters.map((x) => `<a class="poster" href="${esc(publicImageUrl(x.image_path))}" target="_blank" rel="noopener">`
-    + `<img src="${esc(publicImageUrl(x.image_path))}" alt="${esc(x.title || 'โปสเตอร์บริการจัดส่งยาถึงบ้าน')}" loading="lazy">${x.title ? `<span>${esc(x.title)}</span>` : ''}</a>`).join('')
-    : '<p class="empty">ยังไม่มีโปสเตอร์</p>';
-  document.querySelectorAll('[data-poster-nav]').forEach((b) => { b.hidden = posters.length < 2; });
+  renderPosterRow($('#dlPosters'), p.data || [], 'โปสเตอร์บริการจัดส่งยาถึงบ้าน');
   $('#dlInfo').innerHTML = paras(t.data?.body) || '<p class="muted">ยังไม่มีข้อมูลบริการ</p>';
   stats = s.data || [];
   renderStats(units, years);

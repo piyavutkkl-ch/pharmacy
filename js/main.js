@@ -1,11 +1,11 @@
 // จุดเริ่มต้นของแอป: เส้นทางหน้า (hash router), แถบเมนูด้านบน, ฟอร์มท้ายเว็บ
 //
 // เส้นทาง (URL หลัง #):
-//   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
+//   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/delivery | #/rider | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
 //   #/me[/request]     ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่ + ขอสิทธิ์เจ้าหน้าที่ (/request = เปิดฟอร์มคำขอ)
-//   #/staff[/news|criteria|visits|messages|achievements|docs|feedback]                 เจ้าหน้าที่ รพ.สต.
-//   #/admin[/news|review|messages|visits|docs|feedback|settings[/dose|contacts|staff]]  ผู้ดูแล (โรงพยาบาล)
+//   #/staff[/news|criteria|visits|messages|rider|achievements|docs|feedback]               เจ้าหน้าที่ รพ.สต.
+//   #/admin[/news|messages|review|visits|rider|docs|settings[/dose|contacts|staff|delivery|audit|feedback]]  ผู้ดูแล (โรงพยาบาล)
 import { sb } from './supabase.js?v=4.4';
 import { $, $$, esc, toast, errText, busy } from './util.js?v=4.4';
 import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.4';
@@ -15,11 +15,12 @@ import { initTracking, initAchievements, initContacts } from './pages/stats.js?v
 import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
 import { initDelivery } from './pages/delivery.js?v=4.4';
+import { initRider } from './pages/rider.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
 import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4.4';
 import { showStaff } from './pages/staff.js?v=4.4';
 
-const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'achievements', 'contact'];
+const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'rider', 'achievements', 'contact'];
 
 function showView(name) {
   $$('[data-view]').forEach((v) => { v.hidden = v.dataset.view !== name; });
@@ -43,7 +44,7 @@ function openPanel(id) {
   });
   $$('[data-panel-link]').forEach((a) => a.setAttribute('aria-expanded', a.dataset.panelLink === id ? 'true' : 'false'));
   if (!id) return;
-  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: initDelivery,
+  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: initDelivery, rider: initRider,
     achievements: initAchievements, contact: initContacts })[id]?.();
   const el = document.querySelector(`[data-panel="${id}"]`);
   requestAnimationFrame(() => el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
