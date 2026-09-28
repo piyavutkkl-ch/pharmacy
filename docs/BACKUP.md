@@ -49,6 +49,7 @@ Project Settings → **API Keys** → Secret keys → สร้างหรื�
    - กด **Exchange authorization code for tokens** → คัดลอก **Refresh token**
 
 ### 5. ใส่ค่าทั้ง 6 ตัวใน GitHub
+(ชุดเดียวกันนี้ใช้ในการอัปเดตฐานข้อมูลอัตโนมัติด้วย — ระบบสำรองฐานข้อมูลก่อนแก้ทุกครั้ง)
 repo → **Settings → Secrets and variables → Actions → New repository secret** ใส่ทีละตัว ชื่อต้องตรงตามนี้:
 `SUPABASE_DB_URL`, `SUPABASE_SECRET_KEY`, `BACKUP_PASSPHRASE`, `GDRIVE_CLIENT_ID`, `GDRIVE_CLIENT_SECRET`, `GDRIVE_REFRESH_TOKEN`
 

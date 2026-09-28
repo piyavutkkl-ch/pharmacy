@@ -397,7 +397,7 @@ body.has-bottomnav .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 .chip.c-off{background:var(--sunken);color:var(--muted)}
 .chip.c-role{background:var(--primary-soft);color:var(--primary)}
 .nav .who-chip{font-size:13px;color:var(--muted);padding-inline:6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:520px){.nav .who-chip{display:none}}
+@media (max-width:900px){.nav .who-chip{display:none}}  /* ชื่อแสดงที่หัวหน้าอยู่แล้ว — กันเมนูล้นจอแท็บเล็ต */
 .roster-row .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .roster-row .actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:560px){.roster-row{flex-wrap:wrap}.roster-row .actions{width:100%;justify-content:flex-start;padding-left:50px}}

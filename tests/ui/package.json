@@ -1,0 +1,8 @@
+{
+  "name": "pharmacy-ui-tests",
+  "private": true,
+  "description": "Playwright สำหรับ tests/ui/smoke.js (ติดตั้งเฉพาะตอนทดสอบ ไม่ขึ้นเว็บ)",
+  "devDependencies": {
+    "playwright": "1.56.0"
+  }
+}

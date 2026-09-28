@@ -1,6 +1,7 @@
-import subprocess, sys, re
+import os, subprocess, sys, re
 
-PSQL = ["psql", "-h", "/var/tmp/pgtest", "-p", "5433", "-U", "postgres", "-d", "t", "-tA", "-v", "ON_ERROR_STOP=1", "-q"]
+# ฐานข้อมูลทดสอบ: ตั้ง TEST_DB_URL (tests/db/run.sh ตั้งให้เอง)
+PSQL = ["psql", os.environ.get("TEST_DB_URL", "postgresql:///t?host=/var/tmp/pgtest&port=5433&user=postgres"), "-X", "-tA", "-v", "ON_ERROR_STOP=1", "-q"]
 U = {
     "admin": "00000000-0000-0000-0000-00000000000a",
     "s2":    "00000000-0000-0000-0000-0000000000b2",

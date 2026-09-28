@@ -2,16 +2,31 @@
 
 Primary Care Pharmacy Services — เว็บงานเภสัชกรรมปฐมภูมิ โรงพยาบาลควนกาหลง จ.สตูล และ รพ.สต. 7 แห่ง
 ผู้ใช้งาน 3 กลุ่ม: ประชาชนทั่วไป · เจ้าหน้าที่ รพ.สต. · ผู้ดูแล (โรงพยาบาล) · เนื้อหาหน้าเว็บเป็นภาษาไทยทั้งหมด
+เจ้าของเว็บสั่งงานผ่าน Claude เป็นหลัก (ไม่ใช่นักพัฒนา) — ตอบเป็นภาษาไทย สั้น ชัด บอกเฉพาะสิ่งที่เขาต้องทำจริง ๆ
+
+## วิธีทำงาน (ทุกคำขอ)
+1. อ่านไฟล์นี้ + โค้ดส่วนที่เกี่ยวข้องก่อนแก้ · ถ้าคำขอกำกวมจนทำผิดทางได้ ให้ถามสั้น ๆ 1 คำถาม
+2. แก้โค้ด (ตามแนวทางด้านล่าง) · ฟีเจอร์ใหม่ต้องเพิ่มการทดสอบใน `tests/ui/smoke.js` (และ `tests/rls_test.py` ถ้าแตะสิทธิ์ฐานข้อมูล)
+3. รัน `bash tests/run_all.sh` จนผ่าน · เปลี่ยนหน้าตา → เปิดดูภาพใน `tests/ui/shots/` (390/768/1280 px) ก่อนส่ง
+4. commit ข้อความภาษาไทยสั้น ๆ แล้ว push ไป branch ที่ขึ้นต้นด้วย `claude/` (หรือ `main`) — branch ชื่ออื่นระบบจะไม่ทำต่อให้
+5. GitHub Actions `ci-deploy.yml` ทำต่อเองทั้งหมด: ทดสอบซ้ำ → รวมเข้า main → อัปเดตฐานข้อมูล (ถ้ามี SQL ใหม่ · สำรองก่อน) → ขึ้นเว็บ → ตรวจว่าเว็บจริงเป็นรุ่นใหม่
+6. ตรวจผลรอบ Actions แล้วสรุปให้เจ้าของเว็บ: เปลี่ยนอะไร · ขึ้นเว็บแล้วหรือยัง · มีอะไรที่เขาต้องทำเองไหม (ปกติไม่มี)
+   ถ้า Actions ไม่ผ่าน → อ่าน log แก้แล้ว push ใหม่เอง ไม่ต้องให้เจ้าของเว็บทำอะไร
+- สิ่งที่ Claude ทำแทนไม่ได้ (บอกเจ้าของเว็บเป็นขั้นตอนสั้น ๆ): ตั้งค่าใน Supabase Dashboard (Auth/Providers/URL), Google Cloud Console, GitHub Settings/Secrets
+- ย้อนเว็บกลับรุ่นก่อน: `git revert <commit>` แล้ว push (ฐานข้อมูลย้อนเองไม่ได้ — ใช้ไฟล์ SQL ใหม่แก้ หรือ restore ตาม docs/BACKUP.md)
 
 ## ข้อบังคับ (ห้ามฝ่า)
 - **ต้องฟรี 100%**: GitHub Pages (repo public) + Supabase Free + Google OAuth · ห้ามเพิ่มบริการที่ต้องจ่ายเงินหรือใส่บัตรเครดิต
-- **ไม่มีขั้นตอน build**: HTML + CSS + ES modules ตรง ๆ, ไลบรารีโหลดจาก CDN (jsDelivr) · push ขึ้น `main` = ขึ้นเว็บ
+- **ไม่มีขั้นตอน build**: HTML + CSS + ES modules ตรง ๆ, ไลบรารีโหลดจาก CDN (jsDelivr) · ขึ้นเว็บผ่าน `ci-deploy.yml` เท่านั้น (ต้องผ่านการทดสอบ)
 - **ความลับห้ามอยู่ใน repo** (repo เป็น public): มีได้แค่ Supabase URL + publishable key ใน `js/config.js`
   ห้ามมี service_role / secret key / รหัสฐานข้อมูล / Google client secret
 - **ความปลอดภัยอยู่ที่ฐานข้อมูล (RLS)** ไม่ใช่การซ่อนปุ่ม — ทุกตารางใหม่ต้อง `enable row level security` + policy + grant
 - **ข้อมูลอ่อนไหว (PDPA)**: ข้อมูลผู้ป่วย/เยี่ยมบ้านเห็นได้เฉพาะเจ้าหน้าที่ รพ.สต. นั้น + ผู้ดูแล · หน้าสาธารณะแสดงได้แค่ตัวเลขสรุป
 - **XSS**: ข้อความจากผู้ใช้/ฐานข้อมูลต้องผ่าน `esc()` (js/util.js) ก่อนใส่ `innerHTML` ทุกครั้ง
 - **login ด้วย Google เท่านั้น** (trigger `handle_new_user` ปฏิเสธ provider อื่น)
+- **คำสั่งที่ลบข้อมูลจริง** (drop table/column, truncate, delete from ใน SQL ใหม่) ต้องถามเจ้าของเว็บในแชทก่อนเสมอ
+  เมื่อเขายืนยันแล้วจึงใส่บรรทัด `-- confirmed-destructive: <เหตุผล>` ในไฟล์ SQL (ไม่มีบรรทัดนี้ ระบบจะไม่ยอมรัน)
+- ห้ามขอ/รับค่าลับทางแชท ถ้าเจ้าของเว็บเผลอส่งมา ให้เตือนให้เปลี่ยนค่านั้นใหม่ และห้ามนำไปใส่ในไฟล์ใด ๆ
 
 ## โครงสร้าง
 ```
@@ -40,12 +55,14 @@ js/pages/staff.js     เจ้าหน้าที่: โครงหน้�
 js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence)
 js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP, รายการยา, DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP ในเครื่องก่อน, ลิงก์ชั่วคราวไฟล์ส่วนตัว
-supabase/*.sql        migration เรียงเลข รันใน Supabase SQL Editor ตามลำดับ (ไฟล์ใหม่ = เลขถัดไป)
-tests/rls_test.py     ทดสอบสิทธิ์ฐานข้อมูลกับ Postgres ในเครื่อง (ดูหัวข้อทดสอบ)
-.github/workflows/    keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์ → Google Drive, เข้ารหัส) · restore (กู้ข้อมูล)
+supabase/NN_*.sql     migration เรียงเลข · ไฟล์ใหม่ = เลขถัดไป → ระบบรันบน Supabase ให้เองหลังทดสอบผ่าน (tools/db/migrate.sh)
+.github/workflows/    ci-deploy (ทดสอบ→รวม→ฐานข้อมูล→ขึ้นเว็บ) · keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์) · restore (กู้)
+tools/db/migrate.sh   รัน SQL ใหม่บน Supabase (จดไว้ใน ops.schema_migrations · สำรองก่อน · กันคำสั่งลบข้อมูลที่ไม่ได้ยืนยัน)
 tools/backup/         สคริปต์สำรอง/กู้ข้อมูล (bash + Python มาตรฐาน) — วิธีตั้งค่าอยู่ใน docs/BACKUP.md
-tests/backup/run.sh   ทดสอบสำรอง → ทดลองกู้ → กู้จริง ครบวงจรในเครื่อง (จำลอง Google Drive/Storage)
-tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS (รันก่อน commit ทุกครั้ง)
+tools/bump_version.py ติด ?v= กันแคช — ระบบ deploy เรียกให้เองกับสำเนาที่ขึ้นเว็บ (ไม่ต้องรันเอง)
+tests/run_all.sh      ทดสอบทั้งหมด (คำสั่งเดียว) · static_checks.py · db/ (RLS) · ui/ (หน้าเว็บ) · backup/ (สำรอง/กู้)
+tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำลอง) + seed.sql → fixtures.json (ข้อมูลตัวอย่าง)
+.claude/settings.json ตอนเริ่ม session ติดตั้ง Postgres/Playwright ให้ (tests/setup_env.sh)
 ```
 
 ## ฐานข้อมูล (Supabase, region Singapore)
@@ -59,12 +76,15 @@ tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS
 - ไฟล์: bucket `public-images` (≤1 MB, สาธารณะ), `documents` (≤5 MB), `evidence` (≤2 MB, path `ปีงบ/unit/…`) รวมฟรี 1 GB
 
 ## แนวทางเขียนโค้ด
-- **ทุกครั้งที่แก้ .js/.css ต้องรัน `python3 tools/bump_version.py <เวอร์ชันใหม่>` ก่อน commit** (ติด ?v= ให้ทุกไฟล์ กันเบราว์เซอร์ใช้ไฟล์เก่า — GitHub Pages ให้ cache 10 นาที) · import ไฟล์ในโปรเจกต์ต้องมี ?v= เหมือนกันทุกไฟล์ ไม่งั้นโมดูลจะถูกโหลดซ้ำเป็นคนละตัว
+- import ไฟล์ในโปรเจกต์ต้องมี `?v=` เหมือนกันทุกไฟล์ (ตอนนี้ `?v=4.4` — ไฟล์ใหม่ให้ใช้ค่าเดียวกัน) ไม่งั้นโมดูลถูกโหลดซ้ำเป็นคนละตัว
+  ตอน deploy ระบบเปลี่ยนเป็นเลขรุ่นจริงให้เอง (วันที่-commit) จึงไม่ต้อง bump เอง · static_checks.py ตรวจให้
 - ES modules, ไม่มี framework · ฟังก์ชันหน้าใหม่ใส่ `js/pages/<ชื่อ>.js` แล้วต่อเส้นทางใน `route()` ของ main.js
 - สไตล์ใช้ class/token ใน app.css — หลีกเลี่ยง inline style ใหม่
 - ทุกหน้าต้องมีสถานะ: กำลังโหลด (`.skeleton`), ว่าง (`.empty`), ผิดพลาด (`toast(…,'err')`), ปุ่มระหว่างรอ (`busy()`)
 - มือถือ: ตรวจที่ 390px ห้ามมี scroll แนวนอน · ปุ่มกดสูง ≥ 44px
 - ข้อความ UI ภาษาไทย สุภาพ สั้น
+- SQL ใหม่: เพิ่มได้อย่างเดียวเป็นหลัก (add column/table/policy) ให้หน้าเว็บรุ่นเก่ายังทำงานได้ระหว่าง deploy · เขียนให้รันซ้ำได้ (`if not exists`, `create or replace`, `drop … if exists` ก่อนสร้าง policy/trigger)
+  ตารางใหม่ต้องมี RLS + policy + grant + ทดสอบใน rls_test.py · แก้โครงสร้างแล้วต้องอัปเดต tests/ui/seed.sql ถ้า seed พัง
 
 - ดึงชื่อผู้ใช้แบบ embed ต้องระบุชื่อ foreign key เสมอ เช่น `author:profiles!news_author_id_fkey(full_name)` — news↔profiles มีหลายเส้นทาง (news_likes, news_comments) ถ้าไม่ระบุ Supabase จะ error PGRST201
 - แชท: ผู้ดูแลเปิดกล่องของ รพ.สต. ได้ แต่ห้ามเรียก mark_conversation_read (จะล้างตัวเลขยังไม่อ่านของหน่วยนั้น) · ปิด channel ทุกครั้งที่ออกจากหน้า (route() เรียก leaveMe/unmountInbox)
@@ -72,10 +92,10 @@ tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS
 - id ใน index.html ใช้ร่วมทั้งหน้า ต้องไม่ซ้ำ — ตั้งคำนำหน้าตามส่วน (ar=หน้าอ่านข่าว, an=ผู้ดูแลข่าว, rv=ตรวจประเมิน, ad=เอกสารผู้ดูแล, sd=เอกสารเจ้าหน้าที่, df=ยา, ct=ติดต่อ, rf=บัญชี)
 
 ## การทดสอบ
-- ฐานข้อมูล: ติดตั้ง Postgres 16 → สร้าง DB → รัน `tests/stub_new_default.sql`, `supabase/01…` แล้ว `03…` ขึ้นไปตามลำดับ → `python3 tests/rls_test.py` (ต้องผ่านทั้งหมด)
-  (แก้ค่าเชื่อมต่อบรรทัด PSQL ในไฟล์ทดสอบให้ตรงกับเครื่อง)
-- สำรองข้อมูล: `bash tests/backup/run.sh` (หลังรัน rls_test แล้ว) ต้องขึ้น PASS 2 บรรทัด
-- หน้าเว็บ: `python3 -m http.server` ในโฟลเดอร์ repo แล้วเปิด http://localhost:8000 (login จริงต้องเพิ่ม URL นี้ใน Supabase → URL Configuration → Redirect URLs)
+- `bash tests/run_all.sh` = ทุกอย่าง (ต้องผ่านก่อน push) · ในเครื่องที่ไม่มี Postgres/Playwright จะข้ามขั้นนั้นพร้อมเตือน แต่บน Actions ห้ามข้าม
+- ย่อย: `python3 tests/static_checks.py` · `bash tests/db/run.sh` · `bash tests/ui/make_fixtures.sh && node tests/ui/smoke.js` · `bash tests/backup/run.sh`
+- ผู้ใช้จำลองในการทดสอบหน้าเว็บ: `?mockrole=admin|staff|staff3|citizen|citizen2` (ดูหัว mock_supabase.js)
+- ทดสอบกับ Supabase จริงไม่ได้จากเครื่อง Claude — ใช้ mock + Postgres ในเครื่อง ส่วนของจริงตรวจหลังขึ้นเว็บ
 
 ## สถานะ (อัปเดตทุกครั้งที่ทำขั้นใหม่เสร็จ)
 - [x] 1 ฐานข้อมูล + RLS · [x] 2 Google login · [x] 3 GitHub Pages
@@ -84,4 +104,10 @@ tools/bump_version.py ติดเลขเวอร์ชันให้ CSS/JS
 - [x] 4.3 ผู้ดูแล: ตรวจข่าว/ผลงาน, ความคืบหน้า, ยา, ช่องทางติดต่อ, ปีงบใหม่, เอกสาร, ข้อเสนอแนะ
 - [x] 4.4 ประชาชน: ข้อมูลส่วนตัว + แชท real-time (เมนู "ข้อความ" ของเจ้าหน้าที่/ผู้ดูแล)
 - [x] 5 GitHub Actions: กัน Supabase หยุดโปรเจกต์ + สำรองข้อมูลรายสัปดาห์ไป Google Drive กลาง (docs/BACKUP.md)
+- [x] 6 ระบบอัตโนมัติ: Claude แก้ → ทดสอบ → push → Actions ทดสอบ/รวม/อัปเดตฐานข้อมูล/ขึ้นเว็บเอง
+
+## งานค้าง (ทำแล้วลบบรรทัดออก)
+- ลบไฟล์ซ้ำที่หลุดมาอยู่ root ของ repo (เกิดจากอัปโหลดผ่านเว็บ ไม่ได้ใช้งาน · ของจริงอยู่ใน js/ assets/ supabase/ tools/ tests/ docs/):
+  `*.sql` `*.js` `*.py` `*.sh` `*.yml` `BACKUP.md` `app.css` ที่อยู่ระดับ root — เก็บไว้เฉพาะ index.html privacy.html terms.html README.md CLAUDE.md .gitignore
+- เมนู Health Rider ยังไม่ได้กำหนดขอบเขต (ซ่อนไว้) — รอเจ้าของเว็บบอกความต้องการ
 - ต้นแบบ UI เดิม (ใช้อ้างอิงหน้าตา/ฟีเจอร์ที่ยังไม่ย้าย): Claude Artifact "Primary Care Pharmacy Services" ของเจ้าของโปรเจกต์

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """ติดเลขเวอร์ชันให้ไฟล์ CSS/JS ทุกไฟล์ (กันเบราว์เซอร์ใช้ไฟล์เก่าที่จำไว้หลังอัปเดตเว็บ)
 
-ใช้:  python3 tools/bump_version.py 4.3
-- แก้ index.html (<link> CSS, <script> main.js) และทุก import ใน js/ ให้ลงท้าย ?v=<เวอร์ชัน>
-- ต้องรันทุกครั้งที่แก้ไฟล์ .js หรือ .css ก่อน commit
+ใช้:  python3 tools/bump_version.py <เวอร์ชัน> [โฟลเดอร์เว็บ]
+- แก้ index.html (<link> CSS, <script> main.js, meta app-version) และทุก import ใน js/ ให้ลงท้าย ?v=<เวอร์ชัน>
+- ระบบ deploy (.github/workflows/ci-deploy.yml) เรียกให้เองทุกครั้งกับสำเนาที่จะขึ้นเว็บ (เวอร์ชัน = วันที่-commit)
+  จึงไม่ต้องรันเองก่อน commit อีกแล้ว
 """
 import re, sys, pathlib
 
-root = pathlib.Path(__file__).resolve().parent.parent
-if len(sys.argv) != 2 or not re.fullmatch(r"[0-9A-Za-z.\-]+", sys.argv[1]):
-    sys.exit("usage: python3 tools/bump_version.py <version>")
+if len(sys.argv) not in (2, 3) or not re.fullmatch(r"[0-9A-Za-z.\-]+", sys.argv[1]):
+    sys.exit("usage: python3 tools/bump_version.py <version> [site_dir]")
+root = pathlib.Path(sys.argv[2]).resolve() if len(sys.argv) == 3 else pathlib.Path(__file__).resolve().parent.parent
 v = sys.argv[1]
 
 def tag(path_str):
