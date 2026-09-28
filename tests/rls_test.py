@@ -367,5 +367,24 @@ check("existing drugs got a dosage form", "anon", "select count(*) from dose_dru
 check("unknown dosage form rejected", "admin", "update dose_drugs set form='ผง' where id=1", "deny")
 check("staff cannot edit indications", "s2", "update dose_drugs set indications='[]' returning id", rows(0))
 
+print("== step 20: staff access requests ==")
+check("citizen requests staff access (email filled from account)", "c2", "insert into staff_requests(full_name,unit_id,position,phone) values ('ประชาชน สอง',3,'จพ.เภสัชกรรม','0811112222') returning email||':'||status", eq("c2@gmail.com:pending"))
+check("only one pending request per person", "c2", "insert into staff_requests(full_name,unit_id) values ('x',3)", "deny")
+check("cannot fake email/status on request", "c1", "insert into staff_requests(full_name,unit_id,email,status) values ('x',3,'boss@x.com','approved')", "deny")
+check("staff cannot request (already staff)", "s2", "insert into staff_requests(full_name,unit_id) values ('x',2)", "deny")
+check("citizen sees only own request", "c1", "select count(*) from staff_requests", eq(0))
+check("admin sees requests", "admin", "select count(*) from staff_requests where status='pending'", eq(1))
+rq = run("select id from staff_requests where status='pending' limit 1")[1]
+check("citizen cannot approve", "c2", f"select approve_staff_request({rq})", "deny")
+check("admin approves → staff of unit 3", "admin", f"select approve_staff_request({rq}); select role||':'||unit_id from profiles where email='c2@gmail.com'", eq("staff:3"))
+check("roster row created", None, "select role||':'||unit_id from staff_roster where email='c2@gmail.com'", eq("staff:3"))
+check("cannot approve twice", "admin", f"select approve_staff_request({rq})", "deny")
+check("rejected request keeps note", None, "select 1", "ok")
+run("update staff_roster set active=false where email='c2@gmail.com'")
+check("citizen can request again after rejection flow", "c2", "insert into staff_requests(full_name,unit_id) values ('ประชาชน สอง',4) returning status", eq("pending"))
+rq2 = run("select id from staff_requests where status='pending' limit 1")[1]
+check("admin rejects with note", "admin", f"select reject_staff_request({rq2}, 'ไม่พบชื่อในทะเบียน'); select status||':'||review_note from staff_requests where id={rq2}", eq("rejected:ไม่พบชื่อในทะเบียน"))
+check("anon cannot read requests", "anon", "select * from staff_requests", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

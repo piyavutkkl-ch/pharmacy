@@ -44,12 +44,14 @@ export async function showAdmin(tab, sub) {
 
 /** ตัวเลขงานค้างบนเมนู */
 export async function refreshAdminBadges() {
-  const [n, r] = await Promise.all([
+  const [n, r, q] = await Promise.all([
     sb.from('news').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     sb.from('item_status').select('id', { count: 'exact', head: true }).eq('status', 'submitted'),
+    sb.from('staff_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
   ]);
   $('#admNewsBadge').textContent = n.count ? String(n.count) : '';
   $('#admReviewBadge').textContent = r.count ? String(r.count) : '';
+  $('#admSetBadge').textContent = $('#admReqBadge').textContent = q.count ? String(q.count) : '';   // คำร้องขอสิทธิ์เจ้าหน้าที่
 }
 
 /* ---------- ข้อความ: ห้องยา รพ. (ค่าเริ่มต้น) หรือดูกล่องของ รพ.สต. ---------- */

@@ -12,7 +12,7 @@ window.__calls = [];
 window.__channels = [];
 const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
-const NUMERIC_ID = new Set(['feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
+const NUMERIC_ID = new Set(['staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
 /* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
 db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
@@ -36,6 +36,7 @@ function visible(t, r) {
     case 'patients': case 'visits': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'item_status': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'feedback': return isAdmin() || (ME && r.author_id === ME.id);
+    case 'staff_requests': return isAdmin() || (ME && r.user_id === ME.id);
     case 'staff_roster': return isAdmin() || (ME && r.email === ME.email);
     case 'profiles': return isAdmin() || (ME && r.id === ME.id) || (isStaff() && db.conversations.some((c) => c.citizen_id === r.id && c.target_unit === ME.unit_id));
     case 'dose_drugs': return r.active || isAdmin();
@@ -86,6 +87,10 @@ function beforeInsert(table, row) {
     case 'item_status': row.submitted_by = ME.id; row.submitted_at = now(); if (isStaff()) row.status = 'submitted'; row.evidence_paths ??= []; break;
     case 'feedback': row.author_id = ME?.id; row.source = isStaff() ? 'staff' : 'public'; row.unit_id = isStaff() ? ME.unit_id : null; break;
     case 'news_comments': row.author_id = ME.id; row.author_name = ME.full_name; break;
+    case 'staff_requests':
+      if (ME.role !== 'citizen') return 'new row violates row-level security policy for table "staff_requests"';
+      if (rows.some((r) => r.user_id === ME.id && r.status === 'pending')) return 'duplicate key value violates unique constraint "staff_requests_one_pending"';
+      Object.assign(row, { user_id: ME.id, email: ME.email, status: 'pending', review_note: null }); break;
     case 'news_likes': row.user_id = ME.id; if (rows.some((l) => l.news_id === row.news_id && l.user_id === ME.id)) return 'duplicate key value violates unique constraint'; break;
     case 'documents': row.created_by = ME.id; row.version ??= 1; break;
     case 'patients': row.created_by = ME.id; break;
@@ -227,6 +232,15 @@ function rpc(name, a = {}) {
       const st = (db.document_stats ||= []), r = st.find((x) => x.doc_id === a.p_doc);
       if (r) r.downloads++; else st.push({ doc_id: a.p_doc, downloads: 1 });
       return { data: (r || st[st.length - 1]).downloads, error: null };
+    }
+    case 'approve_staff_request': case 'reject_staff_request': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = db.staff_requests.find((x) => x.id === a.p_id && x.status === 'pending');
+      if (!r) return err('ไม่พบคำขอที่รออนุมัติ', 'P0001');
+      if (name === 'reject_staff_request') { Object.assign(r, { status: 'rejected', review_note: a.p_note || null }); return { data: null, error: null }; }
+      Object.assign(r, { status: 'approved', unit_id: a.p_unit ?? r.unit_id });
+      db.staff_roster.push({ email: r.email, full_name: r.full_name, role: 'staff', unit_id: r.unit_id, phone: r.phone, active: true, created_at: now(), updated_at: now() });
+      return { data: null, error: null };
     }
     case 'withdraw_item_status': {
       const s = db.item_status.find((x) => x.id === a.p_id);

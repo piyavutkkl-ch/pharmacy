@@ -4,12 +4,13 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits } from '../data.js?v=4.4';
+import { initStaffRequest } from './staff-request.js?v=4.4';
 import { targetName, loadMessages, sendMessage, renderLog, openRoom, markRead, refreshMsgBadge, onConversationChange, chatPicker } from './chat.js?v=4.4';
 
 const PHONE_RE = /^[0-9][0-9 -]{7,14}$/;
 let convs = [], target, msgs = [], closeRoom = null, bound = false, units = [], pick = null;
 
-export async function showMe() {
+export async function showMe(openRequest = false) {
   units = await loadUnits();
   const p = auth.profile;
   $('#meHello').textContent = 'สวัสดี ' + (p.full_name || '');
@@ -19,6 +20,7 @@ export async function showMe() {
   if (target === undefined) target = convs[0]?.target_unit ?? p.home_unit_id ?? null;   // ห้องล่าสุด → หน่วยใกล้บ้าน → ห้องยา รพ.
   renderTargets();
   openTarget(target);
+  initStaffRequest(openRequest);
 }
 
 /** ออกจากหน้า → ปิดการฟังข้อความ */

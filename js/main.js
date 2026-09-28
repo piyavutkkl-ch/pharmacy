@@ -3,7 +3,7 @@
 // เส้นทาง (URL หลัง #):
 //   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
-//   #/me               ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่
+//   #/me[/request]     ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่ + ขอสิทธิ์เจ้าหน้าที่ (/request = เปิดฟอร์มคำขอ)
 //   #/staff[/news|criteria|visits|messages|achievements|docs|feedback]                 เจ้าหน้าที่ รพ.สต.
 //   #/admin[/news|review|messages|visits|docs|feedback|settings[/dose|contacts|staff]]  ผู้ดูแล (โรงพยาบาล)
 import { sb } from './supabase.js?v=4.4';
@@ -83,7 +83,7 @@ async function route() {
   if (a === 'me') {
     if (requireRole(['citizen', 'staff', 'admin'])) {
       if (auth.profile.role !== 'citizen') { location.replace(ROLE_HOME[auth.profile.role]); return; }   // เจ้าหน้าที่ใช้เมนู "ข้อความ" ในหน้างานแทน
-      showView('me'); showMe();
+      showView('me'); showMe(b === 'request');
     }
     return;
   }
@@ -152,6 +152,12 @@ async function boot() {
   $('#googleBtn').addEventListener('click', async () => {
     const btn = $('#googleBtn'); busy(btn, true, 'กำลังไปที่ Google…');
     const { error } = await signIn();
+    if (error) { busy(btn, false); $('#loginMsg').textContent = errText(error); }
+  });
+  $('#srLoginBtn').addEventListener('click', async () => {   // ขอสิทธิ์เจ้าหน้าที่: login ก่อน แล้วไปกรอกคำขอที่หน้า "ของฉัน"
+    if (auth.profile) { location.hash = auth.profile.role === 'citizen' ? '#/me/request' : ROLE_HOME[auth.profile.role]; return; }
+    const btn = $('#srLoginBtn'); busy(btn, true, 'กำลังไปที่ Google…');
+    const { error } = await signIn('#/me/request');
     if (error) { busy(btn, false); $('#loginMsg').textContent = errText(error); }
   });
   window.addEventListener('hashchange', route);

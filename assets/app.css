@@ -533,3 +533,14 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .visits-stack{display:flex;flex-direction:column;gap:16px}
 .visits-stack #ptList{max-height:360px;overflow-y:auto}
 .visits-stack #ptPanel{scroll-margin-top:84px}
+/* ขอสิทธิ์เจ้าหน้าที่ */
+.login-staff{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:6px;padding:14px;border:1px dashed var(--line);border-radius:14px;text-align:left}
+.app-head ~ .sr-panel{margin-top:16px}
+.sr-status{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.sr-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.sr-row:first-child{border-top:0}
+.sr-row .l{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 260px}
+.sr-actions{display:flex;flex-direction:column;gap:8px;flex:1 1 240px;max-width:360px}
+.sr-actions label{display:flex;flex-direction:column;gap:4px;font-weight:600}
+.tab-link .badge{position:static;margin-left:4px}
+.tab-link .badge:empty{display:none}

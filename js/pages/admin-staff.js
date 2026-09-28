@@ -4,13 +4,15 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, initials, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits, unitName } from '../data.js?v=4.4';
+import { initRequestsAdmin } from './staff-request.js?v=4.4';
+import { refreshAdminBadges } from './admin.js?v=4.4';
 
 let roster = [], loggedIn = new Set(), editing = null, filter = 'all', bound = false;
 
 export async function initRoster() {
   const units = await loadUnits();
   if (!bound) { bound = true; bind(units); }
-  await reload();
+  await Promise.all([reload(), initRequestsAdmin(() => { reload(); refreshAdminBadges(); })]);
 }
 
 function bind(units) {

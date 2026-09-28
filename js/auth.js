@@ -36,8 +36,9 @@ export async function initAuth() {
   });
 }
 
-export function signIn() {
-  sessionStorage.setItem('pcps_after_login', '1');
+/** after = หน้าที่จะพาไปหลังกลับจาก Google (เฉพาะประชาชน · ไม่ระบุ = หน้าตามสิทธิ์) */
+export function signIn(after = '1') {
+  sessionStorage.setItem('pcps_after_login', after);
   return sb.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } },
@@ -51,8 +52,10 @@ export async function signOut() {
 
 /** ใช้หลังกลับจากหน้า Google: พาไปหน้าตามสิทธิ์ครั้งเดียว */
 export function takePostLoginRedirect() {
-  if (!sessionStorage.getItem('pcps_after_login') || !auth.profile) return null;
+  const after = sessionStorage.getItem('pcps_after_login');
+  if (!after || !auth.profile) return null;
   sessionStorage.removeItem('pcps_after_login');
+  if (after.startsWith('#/me') && auth.profile.role === 'citizen') return after;
   return ROLE_HOME[auth.profile.role] || '#/';
 }
 

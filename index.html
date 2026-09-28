@@ -172,6 +172,11 @@
       เข้าสู่ระบบด้วย Google
     </button>
     <p class="small" id="loginMsg" aria-live="polite"></p>
+    <div class="login-staff">
+      <b>เป็นเจ้าหน้าที่ รพ.สต.?</b>
+      <span class="small muted">เข้าสู่ระบบด้วย Google แล้วกรอกคำขอสิทธิ์เจ้าหน้าที่ · ผู้ดูแลอนุมัติแล้วใช้เมนูเจ้าหน้าที่ได้ทันที</span>
+      <button class="btn btn-o btn-sm" type="button" id="srLoginBtn">ขอสิทธิ์เจ้าหน้าที่</button>
+    </div>
     <p class="small muted">การเข้าสู่ระบบถือว่ายอมรับ <a href="privacy.html">นโยบายความเป็นส่วนตัว</a> และ <a href="terms.html">ข้อตกลงการใช้งาน</a></p>
   </div>
 </section>
@@ -203,6 +208,19 @@
       <p class="small" id="meChatHint" style="color:var(--warning)"></p>
       <p class="small muted">เจ้าหน้าที่ตอบในเวลาราชการ · กรณีฉุกเฉิน โทร 1669 · ส่งรูปฉลากยา/ใบนัดได้ · ไม่ต้องส่งเลขหรือรูปบัตรประชาชนทางแชท</p>
     </div>
+  </div>
+  <div class="panel sr-panel" id="srPanel">
+    <div class="panel-head"><h2>ขอสิทธิ์เจ้าหน้าที่ รพ.สต.</h2><button type="button" class="btn btn-o btn-sm" id="srOpen">กรอกคำขอ</button></div>
+    <p class="small muted">สำหรับเจ้าหน้าที่ รพ.สต. ที่ยังไม่มีบัญชี · ผู้ดูแลตรวจสอบแล้วอนุมัติ บัญชี Google นี้จะใช้เมนูเจ้าหน้าที่ได้</p>
+    <div id="srState"></div>
+    <form id="srForm" class="form-grid" novalidate hidden>
+      <div class="field"><label for="srName">ชื่อ-นามสกุล <span class="req">*</span></label><input id="srName" class="input" maxlength="120" autocomplete="name"></div>
+      <div class="field"><label for="srPos">ตำแหน่ง</label><input id="srPos" class="input" maxlength="120" placeholder="เช่น จพ.เภสัชกรรม, พยาบาลวิชาชีพ"></div>
+      <div class="field"><label for="srUnit">รพ.สต. ที่ประจำ <span class="req">*</span></label><select id="srUnit" class="input"></select></div>
+      <div class="field"><label for="srPhone">เบอร์โทร <span class="req">*</span></label><input id="srPhone" class="input" type="tel" inputmode="tel" maxlength="20"></div>
+      <div class="field full"><label for="srNote">หมายเหตุถึงผู้ดูแล</label><input id="srNote" class="input" maxlength="500" placeholder="เช่น ย้ายมาประจำเมื่อ ต.ค. 2569"></div>
+      <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="srSubmit">ส่งคำขอ</button><button class="btn btn-o btn-sm" type="button" id="srCancelForm">ยกเลิก</button><span class="small" id="srMsg" aria-live="polite"></span></div>
+    </form>
   </div>
 </section>
 
@@ -310,7 +328,7 @@
       <a href="#/admin/visits" data-admin-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
       <div class="more-group" id="adminMore">
         <a href="#/admin/docs" data-admin-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
-        <a href="#/admin/settings" data-admin-tab="settings" title="ตั้งค่า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">ตั้งค่า</span></a>
+        <a href="#/admin/settings" data-admin-tab="settings" title="ตั้งค่า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">ตั้งค่า</span><span id="admSetBadge" class="badge num"></span></a>
       </div>
       <button type="button" class="more-btn" aria-expanded="false" aria-controls="adminMore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span class="lbl">เพิ่มเติม</span><span class="dot" aria-hidden="true"></span></button>
     </nav>
@@ -381,7 +399,7 @@
         <div class="unit-tabs" id="asTabs" aria-label="เมนูตั้งค่า">
           <a class="tab-link" href="#/admin/settings/dose" data-sub="dose">คำนวณโดสยา</a>
           <a class="tab-link" href="#/admin/settings/contacts" data-sub="contacts">ช่องทางติดต่อ รพ.สต.</a>
-          <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่</a>
+          <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่ <span class="badge num" id="admReqBadge"></span></a>
           <a class="tab-link" href="#/admin/settings/audit" data-sub="audit">ประวัติการเข้าถึง</a>
           <a class="tab-link" href="#/admin/settings/feedback" data-sub="feedback">ข้อเสนอแนะ</a>
         </div>
@@ -427,6 +445,7 @@
         </div>
 
         <div data-admin-sub="staff" hidden>
+          <div class="panel"><h2>คำร้องขอสมัครบัญชีเจ้าหน้าที่ <span class="num muted" id="srCount"></span></h2><div class="list" id="srList"></div></div>
           <div class="panel">
             <h2 id="rosterFormTitle">เพิ่มบัญชีเจ้าหน้าที่</h2>
             <p class="small muted">ใส่อีเมล Google (Gmail) ที่เจ้าหน้าที่ใช้เข้าสู่ระบบ เมื่อเขาเข้าสู่ระบบด้วยอีเมลนี้ จะได้สิทธิ์ตามที่ตั้งไว้ทันที</p>
