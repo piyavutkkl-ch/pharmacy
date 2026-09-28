@@ -1,6 +1,6 @@
 // ผู้ดูแล: โครงหน้า + เมนู + ตัวเลขงานค้าง + ข้อเสนอแนะ
 // ข่าว → admin-news.js · ตรวจประเมิน → admin-review.js · ข้อความ → chat.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
-// ตั้งค่า → admin-settings.js (ยา, ช่องทางติดต่อ) + admin-staff.js (บัญชีเจ้าหน้าที่)
+// ตั้งค่า → admin-settings.js (ยา, ช่องทางติดต่อ) + admin-staff.js (บัญชีเจ้าหน้าที่) + admin-audit.js (ประวัติการเข้าถึงข้อมูลผู้ป่วย)
 import { sb } from '../supabase.js?v=4.4';
 import { $, $$, esc, thaiDate, toast, errText } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
@@ -12,10 +12,11 @@ import { mountVisits } from './visits.js?v=4.4';
 import { initAdminDocs } from './docs.js?v=4.4';
 import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
+import { initAudit } from './admin-audit.js?v=4.4';
 import { mountInbox } from './chat.js?v=4.4';
 
 export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', review: 'ตรวจประเมินผลงาน', messages: 'ข้อความจากประชาชน', visits: 'เยี่ยมบ้าน', docs: 'จัดการเอกสาร', feedback: 'ข้อเสนอแนะ', settings: 'ตั้งค่า' };
-const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster };
+const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster, audit: initAudit };
 
 export async function showAdmin(tab, sub) {
   if (tab === 'staff') { location.replace('#/admin/settings/staff'); return; }   // ลิงก์เดิมจากขั้น 4.1
@@ -32,7 +33,11 @@ export async function showAdmin(tab, sub) {
   if (tab === 'docs') return initAdminDocs();
   if (tab === 'feedback') return initFeedback();
   if (!SUBS[sub]) sub = 'dose';
-  $$('#asTabs [data-sub]').forEach((a) => { if (a.dataset.sub === sub) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  $$('#asTabs [data-sub]').forEach((a) => {
+    if (a.dataset.sub !== sub) { a.removeAttribute('aria-current'); return; }
+    a.setAttribute('aria-current', 'page');
+    a.parentNode.scrollLeft = a.offsetLeft - a.parentNode.offsetLeft - 16;   // มือถือ: แท็บที่เลือกต้องมองเห็น
+  });
   $$('[data-admin-sub]').forEach((v) => { v.hidden = v.dataset.adminSub !== sub; });
   return SUBS[sub]();
 }

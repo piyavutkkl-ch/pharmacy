@@ -48,6 +48,7 @@ js/pages/admin-news.js     ผู้ดูแล › ข่าว: ตรวจ�
 js/pages/admin-review.js   ผู้ดูแล › ตรวจประเมิน: ตรวจหลักฐานราย รพ.สต., ความคืบหน้า, แก้เกณฑ์, เริ่มปีงบใหม่
 js/pages/admin-settings.js ผู้ดูแล › ตั้งค่า: รายการยาเครื่องคำนวณโดส + ช่องทางติดต่อ รพ.สต.
 js/pages/admin-staff.js    ผู้ดูแล › ตั้งค่า › บัญชีเจ้าหน้าที่ (staff_roster)
+js/pages/admin-audit.js    ผู้ดูแล › ตั้งค่า › ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA · admin_audit_log() + ดาวน์โหลด CSV)
 js/pages/chat.js      แชท real-time: mountInbox() กล่องข้อความเจ้าหน้าที่/ผู้ดูแล, startChatWatch() ตัวเลขข้อความใหม่บนเมนู
 js/pages/me.js        ประชาชน (#/me): ข้อมูลส่วนตัว + แชทถาม รพ.สต./ห้องยา รพ. (ต้องมีเบอร์โทรก่อน)
 js/pages/docs.js      เอกสารดาวน์โหลด: ผู้ดูแลอัปโหลด/แก้/แทนที่ไฟล์/ลบ, เจ้าหน้าที่ดาวน์โหลด (bucket documents)
@@ -70,6 +71,8 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - ฟังก์ชันตรวจสิทธิ์ใน policy: `is_admin()`, `is_staff_of(unit)`, `my_role()`, `my_unit()`
 - ปีงบประมาณ = พ.ศ. นับจาก 1 ต.ค. → `fiscal_year_of(date)` (SQL) และ `fiscalYearOf()` (JS) ต้องตรงกันเสมอ
 - เกณฑ์มาตรฐานแยกชุดต่อปีงบ (`criteria_items.fiscal_year`) · ขึ้นปีใหม่ด้วย `start_fiscal_year(ปี)` · ห้ามแก้เกณฑ์ปีเก่า
+- PDPA audit: `audit_log` เพิ่ม/แก้/ลบ patients/visits บันทึกด้วย trigger `write_audit()` (เก็บชื่อช่องที่แก้ ไม่เก็บค่า) · การเปิดดูบันทึกด้วย `log_patient_access(unit, patient)` ที่ visits.js เรียก · ไม่มีใครแก้/ลบ/เพิ่มเองได้ · ผู้ดูแลอ่านผ่าน `admin_audit_log()`
+  หน้าใหม่ที่แสดงข้อมูลผู้ป่วยรายคนต้องเรียก `log_patient_access` ด้วย
 - trigger guard: เจ้าหน้าที่ส่งข่าว/ผลงานได้แค่สถานะ pending/submitted, ผู้ดูแลลดสิทธิ์ตัวเองไม่ได้, ต้องมีผู้ดูแล ≥ 1
 - Supabase โปรเจกต์ใหม่ **ไม่ grant ตารางให้อัตโนมัติ** → ตารางใหม่ต้อง `grant ... to authenticated/anon` เอง (ดู 03_grants.sql)
 - เส้นทางไฟล์: รูปข่าว `news/<user id>/…`, รูปผลงาน `achievements/<unit>/…`, หลักฐาน `<ปีงบ>/<unit>/<ข้อ>/…`
@@ -105,10 +108,8 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - [x] 4.4 ประชาชน: ข้อมูลส่วนตัว + แชท real-time (เมนู "ข้อความ" ของเจ้าหน้าที่/ผู้ดูแล)
 - [x] 5 GitHub Actions: กัน Supabase หยุดโปรเจกต์ + สำรองข้อมูลรายสัปดาห์ไป Google Drive กลาง (docs/BACKUP.md)
 - [x] 6 ระบบอัตโนมัติ: Claude แก้ → ทดสอบ → push → Actions ทดสอบ/รวม/อัปเดตฐานข้อมูล/ขึ้นเว็บเอง
+- [x] 7 PDPA: บันทึกการเปิดดู/เพิ่ม/แก้/ลบข้อมูลผู้ป่วย + หน้าผู้ดูแลค้นย้อนหลัง/ดาวน์โหลด CSV (08_audit_access.sql)
 
 ## งานค้าง (ทำแล้วลบบรรทัดออก)
-- ไฟล์ซ้ำที่ root: ลบตัวที่ตรงกับของจริงทุกไบต์แล้ว 42 ไฟล์ · เหลือ 6 ไฟล์ที่เป็น**รุ่นเก่ากว่า**ของจริง (ไม่ได้ใช้งาน) รอเจ้าของเว็บยืนยันก่อนลบ:
-  `app.css`(→assets/) `BACKUP.md`(→docs/) `bump_version.py`(→tools/) `rls_test.py`(→tests/) `run.sh`(→tests/backup/) — ของจริงใหม่กว่าทุกตัว ไม่มีอะไรต้องย้ายกลับ
-  สุดท้าย root ควรเหลือเฉพาะ index.html privacy.html terms.html README.md CLAUDE.md .gitignore
 - เมนู Health Rider ยังไม่ได้กำหนดขอบเขต (ซ่อนไว้) — รอเจ้าของเว็บบอกความต้องการ
 - ต้นแบบ UI เดิม (ใช้อ้างอิงหน้าตา/ฟีเจอร์ที่ยังไม่ย้าย): Claude Artifact "Primary Care Pharmacy Services" ของเจ้าของโปรเจกต์

@@ -106,6 +106,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('เจ้าหน้าที่: ส่งข่าวเข้าคิวตรวจ', (await calls(p, (c) => c.table === 'news' && c.op === 'insert')).length === 1);
     await go(p, '#/staff/visits');
     check('เจ้าหน้าที่: เห็นเฉพาะผู้ป่วยของหน่วยตัวเอง', await count(p, '#ptList [data-pt]') === 1);
+    await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
+    const logs = await calls(p, (c) => c.rpc === 'log_patient_access');
+    check('เจ้าหน้าที่: เปิดรายชื่อ + เปิดดูผู้ป่วย ถูกบันทึก (PDPA)', logs.some((c) => c.args.p_unit === 2 && !c.args.p_patient) && logs.some((c) => c.args.p_patient));
+    check('เจ้าหน้าที่: มีข้อความแจ้งว่าการเข้าถึงถูกบันทึก', (await text(p, '.pdpa-note')).includes('PDPA'));
     await go(p, '#/staff/docs');
     check('เจ้าหน้าที่: เอกสารเห็นเฉพาะทุกหน่วย + หน่วยตัวเอง', await count(p, '#sdList .li') === 2, String(await count(p, '#sdList .li')));
     await go(p, '#/staff/messages');
@@ -116,7 +120,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= ผู้ดูแล ================= */
     p = await open('admin', '#/admin');
-    for (const tab of ['news', 'review', 'messages', 'visits', 'docs', 'feedback', 'settings/dose', 'settings/contacts', 'settings/staff']) {
+    for (const tab of ['news', 'review', 'messages', 'visits', 'docs', 'feedback', 'settings/dose', 'settings/contacts', 'settings/staff', 'settings/audit']) {
       await go(p, '#/admin/' + tab); await p.waitForTimeout(250);
       const view = tab.split('/')[0];
       const shown = await p.$eval(`[data-admin-view="${view}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
@@ -135,13 +139,27 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#rfEmail', 'New.Staff@Gmail.com'); await p.fill('#rfName', 'เจ้าหน้าที่ใหม่'); await p.selectOption('#rfUnit', '4');
     await p.click('#rfSubmit'); await p.waitForTimeout(400);
     check('ผู้ดูแล: เพิ่มบัญชีเจ้าหน้าที่ (อีเมลเป็นตัวเล็ก)', await p.evaluate(() => window.__db.staff_roster.some((r) => r.email === 'new.staff@gmail.com')));
+    await go(p, '#/admin/visits');
+    await p.click('#avUnits [data-u="2"]'); await p.waitForTimeout(300);
+    await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
+    await p.click('[data-act="edit-patient"]'); await p.fill('#pfHnU', 'HN-777'); await p.click('#ptForm [type=submit]'); await p.waitForTimeout(400);
+    await go(p, '#/admin/settings/audit'); await p.waitForTimeout(300);
+    const auText = await text(p, '#auList');
+    check('ผู้ดูแล: ประวัติการเข้าถึงแสดงการเปิดดู + การแก้ไข พร้อมชื่อผู้ใช้', auText.includes('เปิดดูข้อมูลผู้ป่วย') && auText.includes('แก้ไขข้อมูลผู้ป่วย') && auText.includes('HN รพ.สต.') && await count(p, '#auList .audit-row') >= 3, auText.slice(0, 200));
+    await p.selectOption('#auAction', 'read'); await p.click('#auShow'); await p.waitForTimeout(300);
+    check('ผู้ดูแล: กรองเฉพาะการเปิดดูได้', await p.$$eval('#auList .chip', (x) => x.length > 0 && x.every((c) => c.classList.contains('c-sub'))));
+    const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 3000 }), p.click('#auCsv')]);
+    const csv = fs.readFileSync(await dl.path(), 'utf8');
+    check('ผู้ดูแล: ดาวน์โหลด CSV ประวัติการเข้าถึง (เปิดใน Excel ภาษาไทยได้)', dl.suggestedFilename().endsWith('.csv') && csv.startsWith('\ufeff"วันเวลา"') && csv.includes('เปิดดูข้อมูลผู้ป่วย'), dl.suggestedFilename() + ' ' + JSON.stringify(csv.slice(0, 160)));
+    await p.fill('#auSearch', 'ไม่มีชื่อนี้แน่นอน'); await p.click('#auShow'); await p.waitForTimeout(300);
+    check('ผู้ดูแล: ค้นไม่พบ → แสดงสถานะว่าง', await count(p, '#auList .empty') === 1);
     await go(p, '#/admin/settings/dose');
     await p.fill('#dfName', 'ยาทดสอบ'); await p.fill('#dfMin', '10'); await p.fill('#dfMax', '5'); await p.click('#dfSubmit'); await p.waitForTimeout(150);
     check('ผู้ดูแล: ขนาดยาผิดถูกเตือน', (await text(p, '#dfMsg')).length > 0);
     await p.close();
 
     /* ================= มือถือ / แท็บเล็ต ================= */
-    for (const [role, hash, name] of [[null, '', 'home'], ['citizen', '#/me', 'me'], ['staff', '#/staff/visits', 'staff-visits'], ['staff', '#/staff/messages', 'staff-messages'], ['admin', '#/admin/review', 'admin-review'], ['admin', '#/admin/settings/staff', 'admin-roster']]) {
+    for (const [role, hash, name] of [[null, '', 'home'], ['citizen', '#/me', 'me'], ['staff', '#/staff/visits', 'staff-visits'], ['staff', '#/staff/messages', 'staff-messages'], ['admin', '#/admin/review', 'admin-review'], ['admin', '#/admin/settings/staff', 'admin-roster'], ['admin', '#/admin/settings/audit', 'admin-audit']]) {
       for (const w of [390, 768]) {
         p = await open(role, hash, w, 900);
         const ov = await overflow(p);
@@ -152,6 +170,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     }
     p = await open('admin', '#/admin/news', 1280, 900);
     await p.screenshot({ path: path.join(SHOTS, 'admin-news-1280.png'), fullPage: true });
+    await p.close();
+    p = await open('admin', '#/admin/settings/audit', 1280, 900);
+    await p.screenshot({ path: path.join(SHOTS, 'admin-audit-1280.png'), fullPage: true });
     await p.close();
   } catch (e) {
     check('สคริปต์ทดสอบทำงานจนจบ', false, e.message.split('\n')[0]);

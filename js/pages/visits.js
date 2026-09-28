@@ -1,5 +1,6 @@
 // เจ้าหน้าที่: เยี่ยมบ้าน — ผู้ป่วยของ รพ.สต. ตัวเอง + บันทึกการเยี่ยม (SOAP, รายการยา, DRPs)
-// ข้อมูลอ่อนไหว: RLS ให้เห็นเฉพาะ รพ.สต. เดียวกัน + ผู้ดูแล · ทุกการเพิ่ม/แก้/ลบถูกบันทึกใน audit_log
+// ข้อมูลอ่อนไหว: RLS ให้เห็นเฉพาะ รพ.สต. เดียวกัน + ผู้ดูแล · ทุกการเพิ่ม/แก้/ลบถูกบันทึกใน audit_log (trigger)
+// และการเปิดดูบันทึกผ่าน log_patient_access() — ผู้ดูแลดูย้อนหลังที่ ตั้งค่า › ประวัติการเข้าถึง (admin-audit.js)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, initials, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
@@ -23,6 +24,7 @@ const WS_HTML = `<div class="split">
     <label for="ptSearch" class="sr-only">ค้นหาผู้ป่วย</label>
     <input id="ptSearch" class="input" type="search" placeholder="ค้นหาชื่อ / HN / เลข 13 หลัก">
     <div class="list" id="ptList"></div>
+    <p class="small muted pdpa-note">การเปิดดู เพิ่ม แก้ไข และลบข้อมูลผู้ป่วยถูกบันทึกไว้ตาม PDPA</p>
   </div>
   <div class="panel" id="ptPanel"></div>
 </div>`;
@@ -41,6 +43,7 @@ async function loadPatients() {
   const { data, error } = await sb.from('patients').select('*').eq('unit_id', unit).order('first_name');
   if (error) { $('#ptList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   patients = data;
+  logAccess();
   if (selected) selected = patients.find((p) => p.id === selected.id) || null;
   renderList(); renderPanel();
 }
@@ -55,8 +58,15 @@ function renderList() {
     : `<p class="empty">${patients.length ? 'ไม่พบผู้ป่วยที่ค้นหา' : 'ยังไม่มีผู้ป่วย · กด "เพิ่มผู้ป่วย" เพื่อเริ่ม'}</p>`;
 }
 
+/** บันทึกการเปิดดู (ไม่รอผล · ไม่ขวางการใช้งานถ้าบันทึกไม่สำเร็จ) */
+function logAccess(patientId = null) {
+  if (!unit) return;   // ผู้ดูแลยังไม่ได้เลือก รพ.สต.
+  sb.rpc('log_patient_access', { p_unit: unit, p_patient: patientId }).then(({ error }) => { if (error) console.warn('audit', error.message); }, () => {});
+}
+
 async function select(id) {
   selected = patients.find((p) => p.id === id) || null; mode = 'view'; editVisit = null;
+  logAccess(id);
   renderList(); $('#ptPanel').innerHTML = '<div class="skeleton"></div>';
   const { data } = await sb.from('visits').select('*').eq('patient_id', id).order('visit_date', { ascending: false });
   visits = data || [];

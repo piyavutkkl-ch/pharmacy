@@ -19,6 +19,13 @@ export function thaiDate(iso) {
   catch { return ''; }
 }
 
+/** วันที่ + เวลาแบบไทย เช่น 26 ก.ย. 2569 14:05 */
+export function thaiDateTime(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  catch { return ''; }
+}
+
 export function initials(name) {
   const p = String(name || '').trim().split(/\s+/);
   return ((p[0] || '')[0] || '') + ((p[1] || '')[0] || '');

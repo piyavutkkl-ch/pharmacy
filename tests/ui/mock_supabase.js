@@ -14,6 +14,13 @@ const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
 const NUMERIC_ID = new Set(['feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
+/* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
+db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
+function audit(action, table, r, detail = null) {
+  if (!['patients', 'visits'].includes(table)) return;
+  const pid = table === 'patients' ? r.id : r.patient_id;
+  db.audit_log.push({ id: newId('audit_log'), at: now(), actor_id: ME?.id, action, table_name: table, row_id: r.id ?? null, unit_id: r.unit_id, patient_id: pid, detail });
+}
 const fiscalYear = (d) => { const x = new Date(d); return x.getFullYear() + 543 + (x.getMonth() >= 9 ? 1 : 0); };
 
 /* ---------- RLS แบบย่อ (ให้หน้าเว็บเห็นข้อมูลใกล้เคียงของจริง) ---------- */
@@ -151,15 +158,17 @@ function run(st) {
     const list = (Array.isArray(st.payload) ? st.payload : [st.payload]).map((p) => ({ ...structuredClone(p) }));
     for (const r of list) { const e = beforeInsert(table, r); if (e) return err(e, /duplicate/.test(e) ? '23505' : '42501'); }
     rows.push(...list);
+    list.forEach((r) => audit('insert', table, r));
     return finish(st, st.ret ? withEmbeds(table, list, st.retCols) : []);
   }
   if (st.op === 'update') {
     const hit = rows.filter((r) => match(r) && visible(table, r));
-    for (const r of hit) { const e = beforeUpdate(table, r, structuredClone(st.payload)); if (e) return err(e, 'P0001'); }
+    for (const r of hit) { const e = beforeUpdate(table, r, structuredClone(st.payload)); if (e) return err(e, 'P0001'); audit('update', table, r, Object.keys(st.payload).sort().join(',')); }
     return finish(st, st.ret ? withEmbeds(table, hit, st.retCols) : []);
   }
   if (st.op === 'delete') {
     if (table === 'staff_roster' && rows.some((r) => match(r) && r.email === ME?.email)) return err('ไม่สามารถลบบัญชีของตัวเองได้', 'P0001');
+    rows.filter((r) => match(r) && visible(table, r)).forEach((r) => audit('delete', table, r, table === 'patients' ? `ชื่อ ${r.first_name} ${r.last_name}` : null));
     db[table] = rows.filter((r) => !(match(r) && visible(table, r)));
     return { data: null, error: null };
   }
@@ -212,6 +221,26 @@ function rpc(name, a = {}) {
       if (!convOk(c)) return err('ไม่มีสิทธิ์', 'P0001');
       if (c.citizen_id === ME.id) c.unread_citizen = 0; else c.unread_staff = 0;
       return { data: null, error: null };
+    }
+    case 'log_patient_access': {
+      const u = a.p_patient ? db.patients.find((x) => x.id === a.p_patient)?.unit_id : a.p_unit;
+      if (!(isAdmin() || (isStaff() && u === ME.unit_id))) return err('ไม่มีสิทธิ์', '42501');
+      audit(a.p_patient ? 'view' : 'list', 'patients', { id: a.p_patient ?? null, unit_id: u });
+      return { data: null, error: null };
+    }
+    case 'admin_audit_log': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const q = (a.p_q || '').trim().toLowerCase();
+      const out = db.audit_log.map((r) => {
+        const pt = db.patients.find((x) => x.id === r.patient_id), pr = db.profiles.find((x) => x.id === r.actor_id);
+        return { ...r, unit_name: db.units.find((x) => x.id === r.unit_id)?.name ?? null, patient_name: pt ? `${pt.first_name} ${pt.last_name}` : null,
+          actor_name: pr?.full_name ?? null, actor_email: pr?.email ?? null, actor_role: pr?.role ?? null };
+      }).filter((r) => (!a.p_unit || r.unit_id === a.p_unit)
+        && (!a.p_action || r.action === a.p_action || (a.p_action === 'read' && ['list', 'view'].includes(r.action)))
+        && (!a.p_from || r.at.slice(0, 10) >= a.p_from) && (!a.p_to || r.at.slice(0, 10) <= a.p_to)
+        && (!q || `${r.patient_name} ${r.actor_name} ${r.actor_email} ${r.detail}`.toLowerCase().includes(q)))
+        .sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : y.id - x.id));
+      return { data: out.slice(a.p_offset || 0, (a.p_offset || 0) + (a.p_limit || 200)).map((r) => ({ ...r, total: out.length })), error: null };
     }
     default: return err(`function ${name} not found in mock`, 'PGRST202');
   }

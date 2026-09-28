@@ -433,3 +433,13 @@ body.has-bottomnav .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 .ib-list .li-btn .badge{margin-left:auto}
 .app-head + .citizen-split{margin-top:4px}
 @media (max-width:819px){.citizen-split.ready .chat-panel{order:-1}}
+
+/* ผู้ดูแล › ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA) */
+.chip.c-del{background:var(--error-soft);color:var(--error)}
+.audit-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.audit-row:first-child{border-top:0}
+.audit-row .l{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+.audit-row .meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+@media (max-width:560px){.audit-row{flex-direction:column;gap:6px}.audit-row .meta{flex-direction:row;align-items:center;flex-wrap:wrap}}
+.audit-more{margin-top:12px}
+.pdpa-note{margin:10px 0 0}

@@ -380,6 +380,7 @@
           <a class="tab-link" href="#/admin/settings/dose" data-sub="dose">คำนวณโดสยา</a>
           <a class="tab-link" href="#/admin/settings/contacts" data-sub="contacts">ช่องทางติดต่อ รพ.สต.</a>
           <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่</a>
+          <a class="tab-link" href="#/admin/settings/audit" data-sub="audit">ประวัติการเข้าถึง</a>
         </div>
 
         <div data-admin-sub="dose" hidden>
@@ -441,6 +442,27 @@
             <div class="panel-head"><h2>รายชื่อทั้งหมด <span class="num muted" id="rosterCount"></span></h2></div>
             <div class="unit-tabs" id="rosterFilter" aria-label="กรองตามหน่วย"></div>
             <div class="list" id="rosterList"></div>
+          </div>
+        </div>
+
+        <div data-admin-sub="audit" hidden>
+          <div class="panel">
+            <h2>ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA)</h2>
+            <p class="small muted">ระบบบันทึกเองทุกครั้งที่มีการเปิดดู เพิ่ม แก้ไข หรือลบข้อมูลผู้ป่วยและบันทึกเยี่ยมบ้าน ว่าใครทำ เมื่อไร · ไม่มีใครแก้หรือลบบันทึกนี้ได้ ใช้เป็นหลักฐานเมื่อมีการตรวจสอบ</p>
+            <form id="auForm" class="form-grid" novalidate>
+              <div class="field"><label for="auFrom">ตั้งแต่วันที่</label><input id="auFrom" class="input" type="date"></div>
+              <div class="field"><label for="auTo">ถึงวันที่</label><input id="auTo" class="input" type="date"></div>
+              <div class="field"><label for="auUnit">รพ.สต.</label><select id="auUnit" class="input"></select></div>
+              <div class="field"><label for="auAction">การกระทำ</label><select id="auAction" class="input"><option value="">ทั้งหมด</option><option value="read">เปิดดู</option><option value="insert">เพิ่ม</option><option value="update">แก้ไข</option><option value="delete">ลบ</option></select></div>
+              <div class="field full"><label for="auSearch">ค้นหาชื่อผู้ป่วย / HN / ชื่อหรืออีเมลผู้ใช้</label><input id="auSearch" class="input" type="search" maxlength="80"></div>
+              <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="auShow">แสดงรายการ</button><button class="btn btn-o btn-sm" type="button" id="auCsv">ดาวน์โหลด CSV</button></div>
+            </form>
+            <p class="small muted">ไฟล์ CSV มีชื่อผู้ป่วย — เก็บไว้ในที่ปลอดภัย และส่งให้เฉพาะผู้ตรวจสอบที่มีสิทธิ์</p>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>รายการ <span class="num muted" id="auCount"></span></h2></div>
+            <div class="list" id="auList"></div>
+            <button type="button" class="btn btn-o btn-sm audit-more" id="auMore" hidden>แสดงเพิ่ม</button>
           </div>
         </div>
       </div>
