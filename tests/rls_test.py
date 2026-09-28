@@ -363,6 +363,8 @@ print("== step 19: dose indications ==")
 check("existing drugs got their dose as first indication", "anon", "select bool_and(jsonb_array_length(indications) = 1 and (indications->0->>'min')::numeric = mg_per_kg_min) from dose_drugs", eq("t"))
 check("admin saves a drug with 2 indications", "admin", """update dose_drugs set indications='[{"name":"ลดไข้","per":"dose","min":10,"max":15},{"name":"ปวด","per":"dose","min":15,"max":20}]' where id=1 returning jsonb_array_length(indications)""", eq(2))
 check("anon reads indications (public calculator)", "anon", "select jsonb_array_length(indications) from dose_drugs where id=1", eq(2))
+check("existing drugs got a dosage form", "anon", "select count(*) from dose_drugs where form in ('ยาน้ำ','ยาเม็ด','ครีม','อื่น ๆ')", lambda o: int(o.splitlines()[-1]) >= 1)
+check("unknown dosage form rejected", "admin", "update dose_drugs set form='ผง' where id=1", "deny")
 check("staff cannot edit indications", "s2", "update dose_drugs set indications='[]' returning id", rows(0))
 
 print(f"\n{passed} passed, {failed} failed")

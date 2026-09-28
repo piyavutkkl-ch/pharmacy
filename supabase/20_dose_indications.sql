@@ -16,4 +16,14 @@ update public.dose_drugs
          'times', dose_freq_per_day, 'cap', max_mg_per_dose, 'freq', freq, 'renal', renal_note)))
  where indications = '[]'::jsonb;
 
+-- รูปแบบยา (ใช้กรองรายการยา): ยาเก่าเดาจากความแรงที่มี
+alter table public.dose_drugs add column if not exists form text not null default 'อื่น ๆ';
+alter table public.dose_drugs drop constraint if exists dose_drugs_form_check;
+alter table public.dose_drugs add constraint dose_drugs_form_check check (form in ('ยาน้ำ', 'ยาเม็ด', 'ครีม', 'อื่น ๆ'));
+update public.dose_drugs set form = case
+    when concs @> '[{}]' and exists (select 1 from jsonb_array_elements(concs) c where c ? 'mgPerTab') then 'ยาเม็ด'
+    when exists (select 1 from jsonb_array_elements(concs) c where c ? 'mgPer5ml' or c ? 'mgPerMl') then 'ยาน้ำ'
+    else 'อื่น ๆ' end
+ where form = 'อื่น ๆ';
+
 select 'ok' as step_19_dose_indications;

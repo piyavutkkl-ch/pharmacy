@@ -396,7 +396,8 @@
             <h2 id="dfTitle">เพิ่มรายการยา</h2>
             <p class="small muted">รายการนี้ใช้ในเครื่องคำนวณโดสยาหน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
             <form id="dfForm" class="form-grid" novalidate>
-              <div class="field full"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>
+              <div class="field"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>
+              <div class="field"><label for="dfForm2">รูปแบบยา</label><select id="dfForm2" class="input"><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
               <div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา <span class="req">*</span></span><span class="small muted">แต่ละข้อบ่งใช้ใส่ขนาดยาต่างกันได้ · กดที่หัวข้อเพื่อย่อ/ขยาย</span><div id="dfInds" class="ind-list"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddInd">+ เพิ่มข้อบ่งใช้</button></div></div>
               <div class="field full"><label>ความแรงของยา</label><div id="dfConcs" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddConc">+ เพิ่มความแรง</button></div></div>
               <div class="field"><label for="dfSort">ลำดับแสดง</label><input id="dfSort" class="input" type="number" inputmode="numeric" value="0"></div>
@@ -404,7 +405,11 @@
               <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dfSubmit">เพิ่มยา</button><button class="btn btn-o btn-sm" type="button" id="dfCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="dfMsg" aria-live="polite"></span></div>
             </form>
           </div>
-          <div class="panel"><h2>รายการยาในเครื่องคำนวณ</h2><div class="list" id="dfList"></div></div>
+          <div class="panel"><h2>รายการยาในเครื่องคำนวณ <span class="num muted" id="dfCount"></span></h2>
+            <div class="doc-tools"><div class="field doc-q"><label for="dfQ">ค้นหาชื่อยา</label><input id="dfQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อยาหรือข้อบ่งใช้"></div>
+            <div class="field"><label for="dfFForm">รูปแบบยา</label><select id="dfFForm" class="input"><option value="all">ทุกรูปแบบ</option><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
+            <div class="field"><label for="dfSortBy">เรียงตาม</label><select id="dfSortBy" class="input"><option value="order">ลำดับที่ตั้งไว้</option><option value="asc">ชื่อ ก → ฮ / A → Z</option><option value="desc">ชื่อ ฮ → ก / Z → A</option></select></div></div>
+            <div class="list" id="dfList"></div></div>
         </div>
 
         <div data-admin-sub="contacts" hidden>

@@ -71,6 +71,7 @@ export async function initDoseAdmin() {
     $('#dfCancel').addEventListener('click', resetDrugForm);
     $('#dfForm').addEventListener('submit', saveDrug);
     $('#dfList').addEventListener('click', onDrugList);
+    ['#dfQ', '#dfFForm', '#dfSortBy'].forEach((s) => $(s).addEventListener(s === '#dfQ' ? 'input' : 'change', renderDrugs));
     resetDrugForm();
   }
   await reloadDrugs();
@@ -102,15 +103,24 @@ async function reloadDrugs() {
   const { data, error } = await sb.from('dose_drugs').select('*').order('sort').order('name');
   if (error) { $('#dfList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   drugs = data;
-  $('#dfList').innerHTML = drugs.length ? drugs.map((d) => `<div class="li"><div class="l"><b>${esc(d.name)}</b>`
+  renderDrugs();
+  if (!editDrug && !$('#dfName').value) $('#dfSort').value = nextSort();
+}
+
+/** ค้นหาชื่อ/ข้อบ่งใช้ · กรองรูปแบบยา · เรียงตามลำดับที่ตั้งไว้ หรือตามตัวอักษร */
+function renderDrugs() {
+  const q = $('#dfQ').value.trim().toLowerCase(), f = $('#dfFForm').value, sort = $('#dfSortBy').value;
+  const list = drugs.filter((d) => (f === 'all' || (d.form || 'อื่น ๆ') === f)
+    && (!q || `${d.name} ${indsOf(d).map((i) => i.name || '').join(' ')}`.toLowerCase().includes(q)));
+  if (sort !== 'order') list.sort((a, b) => a.name.localeCompare(b.name, 'th') * (sort === 'asc' ? 1 : -1));
+  $('#dfCount').textContent = list.length === drugs.length ? `(${drugs.length})` : `(${list.length} จาก ${drugs.length})`;
+  $('#dfList').innerHTML = !drugs.length ? '<p class="empty">ยังไม่มีรายการยา</p>' : !list.length ? '<p class="empty">ไม่พบยาที่ค้นหา</p>' : list.map((d) => `<div class="li"><div class="l"><b>${esc(d.name)} <span class="chip c-off">${esc(d.form || 'อื่น ๆ')}</span></b>`
     + indsOf(d).map((i) => `<span class="small muted">${esc(i.name || 'ข้อบ่งใช้')}: ${esc(perText(i))}</span>`).join('')
     + `<span class="small muted">${indsOf(d).length} ข้อบ่งใช้ · ${(d.concs || []).length} ความแรง · ลำดับ ${d.sort}</span>`
     + `<div class="meta"><span class="chip ${d.active ? 'c-on' : 'c-off'}">${d.active ? 'แสดงอยู่' : 'ซ่อน'}</span></div></div>`
     + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">แก้ไข</button>`
     + `<button type="button" class="btn btn-o btn-sm" data-toggle="${d.id}">${d.active ? 'ซ่อน' : 'แสดง'}</button>`
-    + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button></div></div>`).join('')
-    : '<p class="empty">ยังไม่มีรายการยา</p>';
-  if (!editDrug && !$('#dfName').value) $('#dfSort').value = nextSort();
+    + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button></div></div>`).join('');
 }
 const nextSort = () => (drugs.length ? Math.max(...drugs.map((d) => d.sort)) + 1 : 0);
 
@@ -128,7 +138,7 @@ function resetDrugForm() {
 
 function startEditDrug(d) {
   editDrug = d;
-  $('#dfName').value = d.name;
+  $('#dfName').value = d.name; $('#dfForm2').value = d.form || 'อื่น ๆ';
   const inds = indsOf(d);
   $('#dfInds').innerHTML = inds.map((i) => indBox(i, inds.length <= 3)).join(''); syncIndBoxes();
   $('#dfSort').value = d.sort; $('#dfActive').checked = d.active;
@@ -149,7 +159,7 @@ async function saveDrug(e) {
   try { inds = readInds(); concs = readConcs(); } catch (err) { say(m, err.message); return; }
   const f = inds[0];   // ช่องเดิม = ข้อบ่งใช้แรก (หน้าเว็บรุ่นเก่ายังใช้ได้)
   const row = {
-    name, indications: inds, indication: f.name, per: f.per, mg_per_kg_min: f.min, mg_per_kg_max: f.max,
+    name, form: $('#dfForm2').value, indications: inds, indication: f.name, per: f.per, mg_per_kg_min: f.min, mg_per_kg_max: f.max,
     dose_freq_per_day: f.times ?? null, max_mg_per_dose: f.cap ?? null, freq: f.freq ?? null, renal_note: f.renal ?? null,
     concs, sort: num($('#dfSort').value) ?? 0, active: $('#dfActive').checked,
   };
