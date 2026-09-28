@@ -164,6 +164,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#staffInboxSlot [data-conv]'); await p.waitForTimeout(400);
     await p.fill('#staffInboxSlot .ib-input', 'ตอบกลับจากเจ้าหน้าที่'); await p.click('#staffInboxSlot .ib-form button'); await p.waitForTimeout(400);
     check('เจ้าหน้าที่: ตอบแชทประชาชนได้', (await calls(p, (c) => c.table === 'messages' && c.op === 'insert')).length === 1);
+    await go(p, '#/staff/messages/admin'); await p.waitForTimeout(400);
+    check('เจ้าหน้าที่: แท็บ "คุยกับผู้ดูแล" เปิดห้องของหน่วยตัวเอง (ซ่อนกล่องประชาชน)', await visible(p, '#staffUnitChatSlot .uc-form') && !(await visible(p, '#staffInboxSlot')) && (await text(p, '#staffUnitChatSlot .uc-log')).includes('ยังไม่มีข้อความ'));
+    await p.fill('#staffUnitChatSlot .uc-input', 'ขอยาพาราเพิ่ม 2 กล่องครับ'); await p.click('#staffUnitChatSlot .uc-send'); await p.waitForTimeout(400);
+    check('เจ้าหน้าที่: ส่งข้อความถึงผู้ดูแลได้', (await calls(p, (c) => c.table === 'unit_messages' && c.op === 'insert'))[0]?.payload?.unit_id === 2 && await count(p, '#staffUnitChatSlot .bubble.me') === 1);
+    await p.evaluate(() => window.__emit('unit_messages', { id: 900, unit_id: 2, sender_id: 'x', sender_role: 'admin', sender_name: 'ภก.ผู้ดูแล ระบบ', body: 'รับทราบครับ พรุ่งนี้ส่งให้', created_at: new Date().toISOString() }));
+    await p.waitForTimeout(400);
+    check('เจ้าหน้าที่: คำตอบผู้ดูแลเข้ามาแบบ real-time + ล้างตัวเลขยังไม่อ่าน', (await text(p, '#staffUnitChatSlot .uc-log')).includes('พรุ่งนี้ส่งให้') && (await text(p, '#staffUnitChatSlot .uc-log')).includes('(ผู้ดูแล)')
+      && (await calls(p, (c) => c.rpc === 'mark_unit_chat_read')).filter((c) => c.args.p_unit === 2).length >= 2);
+    await go(p, '#/staff/messages'); await p.waitForTimeout(300);
+    check('เจ้าหน้าที่: กลับไปกล่องข้อความประชาชนได้ + ปิดห้องผู้ดูแล', await visible(p, '#staffInboxSlot') && (await calls(p, (c) => c.unsubscribe === 'unitchat-2')).length >= 1);
     await p.close();
 
     /* ================= ผู้ดูแล ================= */
@@ -174,6 +184,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const shown = await p.$eval(`[data-admin-view="${view}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
       check(`ผู้ดูแล: เมนู ${tab} เปิดได้`, shown && (await text(p, '#adminViewTitle')));
     }
+    await go(p, '#/admin/messages'); await p.waitForTimeout(400);
+    check('ผู้ดูแล: เมนูข้อความมีแท็บ "คุยกับ รพ.สต." + ตัวเลขยังไม่อ่าน', (await text(p, '#ucAdminSwitch [data-uc="admin"] [data-uc-badge]')).trim() === '1');
+    await go(p, '#/admin/messages/units'); await p.waitForTimeout(400);
+    check('ผู้ดูแล: รายชื่อ รพ.สต. ครบ 7 · ที่คุยล่าสุดอยู่บน', await count(p, '#adminUnitChatSlot [data-unit]') === 7 && (await p.$eval('#adminUnitChatSlot [data-unit]', (b) => b.dataset.unit)) === '3' && !(await visible(p, '#amCitizen')));
+    await p.click('#adminUnitChatSlot [data-unit="3"]'); await p.waitForTimeout(400);
+    check('ผู้ดูแล: เปิดห้อง รพ.สต. เห็นข้อความ + ชื่อผู้ส่ง + ล้างตัวเลขฝั่งผู้ดูแล', (await text(p, '#adminUnitChatSlot .uc-log')).includes('แบบฟอร์มรายงานยาเหลือใช้') && (await calls(p, (c) => c.rpc === 'mark_unit_chat_read' && c.args.p_unit === 3)).length >= 1);
+    await p.fill('#adminUnitChatSlot .uc-input', 'อัปโหลดไว้ในเมนูเอกสารแล้วครับ'); await p.click('#adminUnitChatSlot .uc-send'); await p.waitForTimeout(400);
+    check('ผู้ดูแล: ตอบ รพ.สต. ได้', (await calls(p, (c) => c.table === 'unit_messages' && c.op === 'insert'))[0]?.payload?.unit_id === 3 && await count(p, '#adminUnitChatSlot .bubble.me') === 1);
+    await p.screenshot({ path: path.join(SHOTS, 'admin-unitchat-1280.png'), fullPage: true });
     check('ข่าว (ผู้ดูแล): กล่องรอตรวจอยู่ใต้กล่องเขียนข่าว', await p.$eval('[data-admin-view="news"]', (v) => [...v.children].findIndex((c) => c.querySelector('#anForm')) < [...v.children].findIndex((c) => c.querySelector('#anQueue'))));
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));
     check('เมนูผู้ดูแล: ข้อความอยู่เหนือตรวจประเมิน + ข้อเสนอแนะย้ายไปอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,review,visits,rider,docs,settings' && await count(p, '#afList .li') > 0);

@@ -82,3 +82,8 @@ insert into public.delivery_stats(fiscal_year, unit_id, deliveries, patients) va
 -- Health Rider (ขั้น 22): ผลงานตัวอย่าง
 insert into public.rider_stats(fiscal_year, unit_id, trips, clients) values
   (2569, 2, 30, 12), (2569, 5, 18, 7);
+-- แชท เจ้าหน้าที่ ⇄ ผู้ดูแล (ขั้น 24): รพ.สต. 3 ถามผู้ดูแล (ผู้ดูแลยังไม่อ่าน)
+begin;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000b3', true);
+insert into public.unit_messages(unit_id, body) values (3, 'ขอแบบฟอร์มรายงานยาเหลือใช้ฉบับใหม่ครับ');
+commit;

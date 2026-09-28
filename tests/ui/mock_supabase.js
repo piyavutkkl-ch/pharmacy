@@ -12,7 +12,7 @@ window.__calls = [];
 window.__channels = [];
 const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
-const NUMERIC_ID = new Set(['visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
+const NUMERIC_ID = new Set(['unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
 /* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
 db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
@@ -32,6 +32,7 @@ function visible(t, r) {
     case 'news': return r.status === 'published' || isAdmin() || (ME && r.author_id === ME.id);
     case 'documents': return isAdmin() || (isStaff() && (r.for_unit == null || r.for_unit === ME.unit_id));
     case 'conversations': return convOk(r);
+    case 'unit_chats': case 'unit_messages': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'messages': return convOk(db.conversations.find((c) => c.id === r.conversation_id));
     case 'patients': case 'visits': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'item_status': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
@@ -73,6 +74,13 @@ function newId(table) {
   if (NUMERIC_ID.has(table)) return (db[table] || []).reduce((m, r) => Math.max(m, +r.id || 0), 0) + 1;
   return crypto.randomUUID();
 }
+function bumpUnitChat(m) {
+  const cs = db.unit_chats || (db.unit_chats = []);
+  let c = cs.find((x) => x.unit_id === m.unit_id);
+  if (!c) { c = { unit_id: m.unit_id, unread_unit: 0, unread_admin: 0 }; cs.push(c); }
+  Object.assign(c, { last_message_at: m.created_at, last_message_preview: String(m.body).slice(0, 120) });
+  if (m.sender_role === 'admin') c.unread_unit++; else c.unread_admin++;
+}
 function beforeInsert(table, row) {
   const rows = db[table] || (db[table] = []);
   if (!['news_likes', 'site_stats', 'staff_roster', 'criteria_years'].includes(table) && row.id == null) row.id = newId(table);
@@ -105,6 +113,13 @@ function beforeInsert(table, row) {
       row.citizen_id = ME.id; row.unread_staff = 0; row.unread_citizen = 0; row.last_message_at = null;
       if (rows.some((c) => c.citizen_id === ME.id && (c.target_unit ?? null) === (row.target_unit ?? null))) return 'duplicate key value violates unique constraint';
       break;
+    case 'unit_messages': {   // แทน trigger before/after_unit_message
+      if (!(isAdmin() || (isStaff() && row.unit_id === ME.unit_id))) return 'new row violates row-level security policy for table "unit_messages"';
+      if (!String(row.body || '').trim()) return 'new row for relation "unit_messages" violates check constraint';
+      Object.assign(row, { sender_id: ME.id, sender_role: isAdmin() ? 'admin' : 'staff', sender_name: ME.full_name });
+      bumpUnitChat(row);
+      break;
+    }
     case 'messages': {
       const c = db.conversations.find((x) => x.id === row.conversation_id);
       if (!convOk(c)) return 'new row violates row-level security policy for table "messages"';
@@ -257,6 +272,12 @@ function rpc(name, a = {}) {
       if (c.citizen_id === ME.id) c.unread_citizen = 0; else c.unread_staff = 0;
       return { data: null, error: null };
     }
+    case 'mark_unit_chat_read': {
+      const c = (db.unit_chats || []).find((x) => x.unit_id === a.p_unit);
+      if (!(isAdmin() || (isStaff() && a.p_unit === ME.unit_id))) return err('ไม่มีสิทธิ์', 'P0001');
+      if (c) { if (isAdmin()) c.unread_admin = 0; else c.unread_unit = 0; }
+      return { data: null, error: null };
+    }
     case 'log_patient_access': {
       const u = a.p_patient ? db.patients.find((x) => x.id === a.p_patient)?.unit_id : a.p_unit;
       if (!(isAdmin() || (isStaff() && u === ME.unit_id))) return err('ไม่มีสิทธิ์', '42501');
@@ -288,9 +309,11 @@ window.__emit = (table, row) => {
     const c = db.conversations.find((x) => x.id === row.conversation_id);
     if (c) { c.last_message_at = row.created_at; c.last_message_preview = row.body; if (row.sender_role === 'citizen') c.unread_staff++; else c.unread_citizen++; }
   }
+  if (table === 'unit_messages') { db.unit_messages.push(row); bumpUnitChat(row); }
   for (const ch of window.__channels) for (const [flt, cb] of ch.hs) {
-    if (flt.table === table && (!flt.filter || flt.filter === `conversation_id=eq.${row.conversation_id}`)) cb({ new: row, eventType: 'INSERT' });
+    if (flt.table === table && (!flt.filter || flt.filter === `conversation_id=eq.${row.conversation_id}` || flt.filter === `unit_id=eq.${row.unit_id}`)) cb({ new: row, eventType: 'INSERT' });
     if (flt.table === 'conversations' && table === 'messages') cb({ new: {}, eventType: 'UPDATE' });
+    if (flt.table === 'unit_chats' && table === 'unit_messages') cb({ new: {}, eventType: 'UPDATE' });
   }
 };
 

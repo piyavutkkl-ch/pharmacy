@@ -16,9 +16,10 @@ import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
 import { mountRiderEditor } from './rider.js?v=4.4';
 import { mountSummaries } from './summaries.js?v=4.4';
-import { mountInbox } from './chat.js?v=4.4';
+import { mountInbox, unmountInbox } from './chat.js?v=4.4';
+import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความจากประชาชน', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', rider: 'Health Rider', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', rider: 'Health Rider', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
 const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster, delivery: initDeliveryAdmin, audit: initAudit, feedback: () => initFeedback() };
 
 export async function showAdmin(tab, sub) {
@@ -32,7 +33,7 @@ export async function showAdmin(tab, sub) {
   refreshAdminBadges();
   if (tab === 'news') return initAdminNews();
   if (tab === 'review') return initReview();
-  if (tab === 'messages') return showMessages();
+  if (tab === 'messages') return showMessages(sub);
   if (tab === 'visits') return showVisits();
   if (tab === 'rider') return mountRiderEditor($('#adminRiderSlot'));
   if (tab === 'docs') return initAdminDocs();
@@ -60,7 +61,12 @@ export async function refreshAdminBadges() {
 
 /* ---------- ข้อความ: ห้องยา รพ. (ค่าเริ่มต้น) หรือดูกล่องของ รพ.สต. ---------- */
 let msgTarget = null;
-async function showMessages() {
+async function showMessages(sub) {
+  const toUnits = sub === 'units';   // #/admin/messages/units = คุยกับ รพ.สต.
+  $$('#ucAdminSwitch [data-uc]').forEach((a) => { if ((a.dataset.uc === 'admin') === toUnits) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  $('#amCitizen').hidden = toUnits; $('#adminUnitChatSlot').hidden = !toUnits;
+  if (toUnits) { unmountInbox(); return mountUnitChat($('#adminUnitChatSlot')); }
+  unmountUnitChat();
   const units = await loadUnits();
   const { data } = await sb.from('conversations').select('target_unit,unread_staff');
   const unread = (t) => (data || []).filter((c) => (c.target_unit ?? null) === t).reduce((s, c) => s + c.unread_staff, 0);

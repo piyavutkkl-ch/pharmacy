@@ -347,7 +347,14 @@
 
       <!-- เอกสารดาวน์โหลด -->
       <!-- ข้อความจากประชาชนถึง รพ.สต. นี้ (real-time) -->
-      <div data-staff-view="messages" hidden><div id="staffInboxSlot"></div></div>
+      <div data-staff-view="messages" hidden>
+        <div class="unit-tabs uc-switch" id="ucStaffSwitch" aria-label="เลือกห้องข้อความ">
+          <a class="tab-link" href="#/staff/messages" data-uc="citizen">จากประชาชน <span class="badge num" data-citizen-badge></span></a>
+          <a class="tab-link" href="#/staff/messages/admin" data-uc="admin">คุยกับผู้ดูแล <span class="badge num" data-uc-badge></span></a>
+        </div>
+        <div id="staffInboxSlot"></div>
+        <div id="staffUnitChatSlot" hidden></div>
+      </div>
 
       <!-- Health Rider: กรอก/นำเข้าตัวเลขผลงานของหน่วยตัวเอง (rider.js) -->
       <div data-staff-view="rider" hidden><div id="staffRiderSlot" data-rider-slot></div></div>
@@ -426,8 +433,15 @@
 
       <!-- ข้อความ: ห้องยา รพ. (ตอบเอง) + ดูกล่องของ รพ.สต. ได้ -->
       <div data-admin-view="messages" hidden>
-        <div class="unit-tabs" id="amTargets" aria-label="เลือกกล่องข้อความ" style="margin-bottom:12px"></div>
-        <div id="adminInboxSlot"></div>
+        <div class="unit-tabs uc-switch" id="ucAdminSwitch" aria-label="เลือกห้องข้อความ">
+          <a class="tab-link" href="#/admin/messages" data-uc="citizen">ข้อความจากประชาชน <span class="badge num" data-citizen-badge></span></a>
+          <a class="tab-link" href="#/admin/messages/units" data-uc="admin">คุยกับ รพ.สต. <span class="badge num" data-uc-badge></span></a>
+        </div>
+        <div id="amCitizen">
+          <div class="unit-tabs" id="amTargets" aria-label="เลือกกล่องข้อความ" style="margin-bottom:12px"></div>
+          <div id="adminInboxSlot"></div>
+        </div>
+        <div id="adminUnitChatSlot" hidden></div>
       </div>
 
       <!-- เยี่ยมบ้าน: ดูแทน รพ.สต. ใดก็ได้ -->

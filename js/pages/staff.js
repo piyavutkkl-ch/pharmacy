@@ -9,7 +9,8 @@ import { initCriteria } from './criteria.js?v=4.4';
 import { initVisits } from './visits.js?v=4.4';
 import { mountSummaries } from './summaries.js?v=4.4';
 import { initStaffDocs } from './docs.js?v=4.4';
-import { mountInbox } from './chat.js?v=4.4';
+import { mountInbox, unmountInbox } from './chat.js?v=4.4';
+import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 import { mountRiderEditor } from './rider.js?v=4.4';
 import { setCurrent } from '../nav.js?v=4.4';
 
@@ -18,14 +19,14 @@ export const STAFF_TABS = {
   achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.',
   criteria: 'ประเมินมาตรฐานด้านยา รพ.สต.',
   visits: 'เยี่ยมบ้าน',
-  messages: 'ข้อความจากประชาชน',
+  messages: 'ข้อความ',
   rider: 'Health Rider',
   docs: 'เอกสารดาวน์โหลด',
   feedback: 'ข้อเสนอแนะถึงทีมพัฒนา',
 };
 let bound = false;
 
-export function showStaff(tab) {
+export function showStaff(tab, sub) {
   if (!STAFF_TABS[tab]) tab = 'news';
   const p = auth.profile;
   $('#staffHello').textContent = 'สวัสดี ' + (p.full_name || '');
@@ -34,8 +35,17 @@ export function showStaff(tab) {
   setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindAch(); bindFeedback(); }
-  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: () => { initVisits(); mountSummaries($('#staffSumSlot'), auth.profile.unit_id); }, messages: () => mountInbox($('#staffInboxSlot'), auth.profile.unit_id), rider: () => mountRiderEditor($('#staffRiderSlot'), auth.profile.unit_id), docs: initStaffDocs, feedback: loadFeedback })[tab]();
+  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: () => { initVisits(); mountSummaries($('#staffSumSlot'), auth.profile.unit_id); }, messages: () => showMessages(sub), rider: () => mountRiderEditor($('#staffRiderSlot'), auth.profile.unit_id), docs: initStaffDocs, feedback: loadFeedback })[tab]();
   refreshBadges();
+}
+
+/** ข้อความ: จากประชาชน (#/staff/messages) หรือ คุยกับผู้ดูแล (#/staff/messages/admin) */
+function showMessages(sub) {
+  const admin = sub === 'admin';
+  $$('#ucStaffSwitch [data-uc]').forEach((a) => { if ((a.dataset.uc === 'admin') === admin) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  $('#staffInboxSlot').hidden = admin; $('#staffUnitChatSlot').hidden = !admin;
+  if (admin) { unmountInbox(); mountUnitChat($('#staffUnitChatSlot'), auth.profile.unit_id); }
+  else { unmountUnitChat(); mountInbox($('#staffInboxSlot'), auth.profile.unit_id); }
 }
 
 /** ตัวเลขบนเมนู: ข่าว/หลักฐานที่ผู้ดูแลขอให้แก้ */

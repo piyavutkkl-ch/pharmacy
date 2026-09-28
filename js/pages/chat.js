@@ -82,21 +82,26 @@ export async function refreshMsgBadge() {
   if (p.role === 'citizen') { q = sb.from('conversations').select('unread_citizen').eq('citizen_id', p.id); col = 'unread_citizen'; el = $('#navMsgBadge'); }
   else if (p.role === 'staff') { q = sb.from('conversations').select('unread_staff').eq('target_unit', p.unit_id); col = 'unread_staff'; el = $('#stfMsgBadge'); }
   else { q = sb.from('conversations').select('unread_staff').is('target_unit', null); col = 'unread_staff'; el = $('#admMsgBadge'); }
-  const { data } = await q;
-  const total = (data || []).reduce((s, r) => s + (r[col] || 0), 0);
+  // แชทกับผู้ดูแล (unit_chats): เจ้าหน้าที่ = unread_unit ของหน่วยตัวเอง · ผู้ดูแล = unread_admin ทุกหน่วย
+  const uq = p.role === 'staff' ? sb.from('unit_chats').select('unread_unit').eq('unit_id', p.unit_id) : p.role === 'admin' ? sb.from('unit_chats').select('unread_admin') : null;
+  const [{ data }, u] = await Promise.all([q, uq || Promise.resolve({ data: [] })]);
+  const ucol = p.role === 'staff' ? 'unread_unit' : 'unread_admin';
+  const unitUnread = (u.data || []).reduce((s, r) => s + (r[ucol] || 0), 0);
+  const citizen = (data || []).reduce((s, r) => s + (r[col] || 0), 0), total = citizen + unitUnread;
   if (el) el.textContent = total ? String(total) : '';
+  document.querySelectorAll('[data-uc-badge]').forEach((b) => { b.textContent = unitUnread ? String(unitUnread) : ''; });
+  document.querySelectorAll('[data-citizen-badge]').forEach((b) => { b.textContent = citizen ? String(citizen) : ''; });
   if (lastTotal !== null && total > lastTotal && !location.hash.includes('messages') && !location.hash.startsWith('#/me')) toast('มีข้อความใหม่ — เปิดเมนู "ข้อความ" เพื่ออ่าน');
   lastTotal = total;
 }
 
 let timer = null;
+const changed = () => { clearTimeout(timer); timer = setTimeout(() => { refreshMsgBadge(); listeners.forEach((fn) => fn()); }, 300); };
 export function startChatWatch() {
   if (watching || !auth.profile) return;
   watching = sb.channel('conversations-' + auth.profile.id)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => { refreshMsgBadge(); listeners.forEach((fn) => fn()); }, 300);
-    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, changed)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'unit_chats' }, changed)   // แชทกับผู้ดูแล
     .subscribe();
   refreshMsgBadge();
 }

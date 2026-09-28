@@ -556,6 +556,9 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .poster-nav:hover{border-color:var(--primary);color:var(--primary)}
 @media (max-width:560px){.poster-nav{display:none}}
 .dl-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:12px 0}
+.uc-switch{margin-bottom:12px}
+.uc-switch .badge{position:static;margin-left:6px}
+.uc-one .chat-panel{max-width:760px}
 .sm-cover{margin:16px 0}
 .sm-cover img{display:block;width:100%;max-width:640px;margin:0 auto;border-radius:14px;border:1px solid var(--line);box-shadow:0 4px 14px rgba(22,34,43,.08)}
 .vs-panel{margin-top:16px}

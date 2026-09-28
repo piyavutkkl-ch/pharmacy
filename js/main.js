@@ -5,8 +5,8 @@
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
 //   #/summary/<id>     สรุปผลงานเยี่ยมบ้าน (ภาพ A4)
 //   #/me[/request]     ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่ + ขอสิทธิ์เจ้าหน้าที่ (/request = เปิดฟอร์มคำขอ)
-//   #/staff[/news|criteria|visits|messages|rider|achievements|docs|feedback]               เจ้าหน้าที่ รพ.สต.
-//   #/admin[/news|messages|review|visits|rider|docs|settings[/dose|contacts|staff|delivery|audit|feedback]]  ผู้ดูแล (โรงพยาบาล)
+//   #/staff[/news|criteria|visits|messages[/admin]|rider|achievements|docs|feedback]               เจ้าหน้าที่ รพ.สต.
+//   #/admin[/news|messages[/units]|review|visits|rider|docs|settings[/dose|contacts|staff|delivery|audit|feedback]]  ผู้ดูแล (โรงพยาบาล)
 import { sb } from './supabase.js?v=4.4';
 import { $, $$, esc, toast, errText, busy } from './util.js?v=4.4';
 import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.4';
@@ -20,6 +20,7 @@ import { initRider } from './pages/rider.js?v=4.4';
 import { showSummary } from './pages/summaries.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
 import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4.4';
+import { unmountUnitChat } from './pages/unitchat.js?v=4.4';
 import { showStaff } from './pages/staff.js?v=4.4';
 
 const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'rider', 'achievements', 'contact'];
@@ -69,7 +70,7 @@ async function route() {
   document.title = 'Primary Care Pharmacy Services · โรงพยาบาลควนกาหลง';
   setNavCurrent(a || 'home');
   if (a !== 'me') leaveMe();                                 // ปิดห้องแชทที่เปิดค้างเมื่อออกจากหน้า
-  if (b !== 'messages') unmountInbox();
+  if (b !== 'messages') { unmountInbox(); unmountUnitChat(); }
 
   if (!a || HOME_PANELS.includes(a) && !b) {
     showView('home');
@@ -92,7 +93,7 @@ async function route() {
     }
     return;
   }
-  if (a === 'staff') { if (requireRole(['staff'])) { showView('staff'); showStaff(b); } return; }
+  if (a === 'staff') { if (requireRole(['staff'])) { showView('staff'); showStaff(b, parts[2]); } return; }
   if (a === 'admin') { if (requireRole(['admin'])) { showView('admin'); showAdmin(b, parts[2]); } return; }
   message('ไม่พบหน้านี้', 'ลิงก์อาจไม่ถูกต้อง');
 }
