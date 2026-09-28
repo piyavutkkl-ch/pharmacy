@@ -22,6 +22,7 @@ const HOME_PANELS = ['news', 'dose', 'tracking', 'achievements', 'contact'];
 
 function showView(name) {
   $$('[data-view]').forEach((v) => { v.hidden = v.dataset.view !== name; });
+  $('.footer-cards').hidden = name !== 'home';   // ลิงก์ผลงาน/ช่องทางติดต่อ แสดงเฉพาะหน้าหลัก
   document.body.classList.toggle('has-bottomnav', ['staff', 'admin'].includes(name));   // มือถือ: เมนูล่างจอ
   if (name === 'home') startAuto(); else stopAuto();
 }

@@ -529,3 +529,7 @@ button.fthumb:hover{border-color:var(--primary)}
 .ind-result h4,.ind-result > summary{font-size:14px;font-weight:700;color:var(--primary)}
 details.ind-result > summary{cursor:pointer;min-height:32px}
 @media (prefers-reduced-motion:reduce){.ind-box > summary::before{transition:none}}
+/* เยี่ยมบ้าน: รายชื่อผู้ป่วยอยู่บน · บันทึกการเยี่ยมอยู่ล่าง (เต็มความกว้าง) */
+.visits-stack{display:flex;flex-direction:column;gap:16px}
+.visits-stack #ptList{max-height:360px;overflow-y:auto}
+.visits-stack #ptPanel{scroll-margin-top:84px}

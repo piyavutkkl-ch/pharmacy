@@ -32,7 +32,7 @@ const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000
 const maskId = (id) => (id ? `x-xxxx-xxxxx-${id.slice(10, 12)}-${id.slice(12)}` : '–');
 const age = (dob) => { if (!dob) return ''; const d = new Date(dob), n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n < new Date(n.getFullYear(), d.getMonth(), d.getDate())) a--; return a; };
 
-const WS_HTML = `<div class="split">
+const WS_HTML = `<div class="visits-stack">
   <div class="panel">
     <div class="panel-head"><h2>ผู้ป่วยในความดูแล <span class="num muted" id="ptCount"></span></h2><button type="button" class="btn btn-p btn-sm" id="ptAddBtn">+ เพิ่มผู้ป่วย</button></div>
     <label for="ptSearch" class="sr-only">ค้นหาผู้ป่วย</label>
@@ -86,7 +86,7 @@ async function select(id) {
   const { data } = await sb.from('visits').select('*').eq('patient_id', id).order('visit_date', { ascending: false });
   visits = data || [];
   renderPanel();
-  if (matchMedia('(max-width:819px)').matches) $('#ptPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('#ptPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });   // รายชื่ออยู่บน บันทึกอยู่ล่าง → เลื่อนลงให้เห็น
 }
 
 /* ---------- แผงขวา ---------- */
