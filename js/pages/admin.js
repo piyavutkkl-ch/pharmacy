@@ -15,6 +15,7 @@ import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
 import { mountRiderEditor } from './rider.js?v=4.4';
+import { mountSummaries } from './summaries.js?v=4.4';
 import { mountInbox } from './chat.js?v=4.4';
 
 export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความจากประชาชน', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', rider: 'Health Rider', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
@@ -78,6 +79,7 @@ async function showVisits() {
   $('#avUnits').innerHTML = units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === visitUnit}">${esc(u.name)}</button>`).join('');
   $('#avUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; visitUnit = +b.dataset.u; showVisits(); };
   mountVisits($('#adminVisitsSlot'), visitUnit);
+  mountSummaries($('#adminSumSlot'), visitUnit);
 }
 
 /* ---------- ข้อเสนอแนะ ---------- */

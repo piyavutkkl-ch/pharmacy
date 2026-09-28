@@ -3,6 +3,7 @@
 // เส้นทาง (URL หลัง #):
 //   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/delivery | #/rider | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
+//   #/summary/<id>     สรุปผลงานเยี่ยมบ้าน (ภาพ A4)
 //   #/me[/request]     ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่ + ขอสิทธิ์เจ้าหน้าที่ (/request = เปิดฟอร์มคำขอ)
 //   #/staff[/news|criteria|visits|messages|rider|achievements|docs|feedback]               เจ้าหน้าที่ รพ.สต.
 //   #/admin[/news|messages|review|visits|rider|docs|settings[/dose|contacts|staff|delivery|audit|feedback]]  ผู้ดูแล (โรงพยาบาล)
@@ -16,6 +17,7 @@ import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
 import { initDelivery } from './pages/delivery.js?v=4.4';
 import { initRider } from './pages/rider.js?v=4.4';
+import { showSummary } from './pages/summaries.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
 import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4.4';
 import { showStaff } from './pages/staff.js?v=4.4';
@@ -77,6 +79,7 @@ async function route() {
   }
   window.scrollTo(0, 0);
   if (a === 'news' && b) { showView('article'); showArticle(b); return; }
+  if (a === 'summary' && b) { showView('summary'); showSummary(b); return; }
   if (a === 'login') {
     if (auth.session && auth.profile) { location.replace(ROLE_HOME[auth.profile.role] || '#/'); return; }
     showView('login'); return;

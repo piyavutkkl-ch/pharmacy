@@ -63,6 +63,7 @@ js/pages/staff.js     เจ้าหน้าที่: โครงหน้�
 js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence)
 js/pages/delivery.js  บริการจัดส่งยาถึงบ้าน (#/delivery): โปสเตอร์/ข้อความ/สถิติ + ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน
 js/pages/rider.js     Health Rider (#/rider) หน้าแสดงผลงาน + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot, unit) — เจ้าหน้าที่เฉพาะหน่วยตัวเอง, ผู้ดูแลทุกหน่วย
+js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน ภาพ A4 ราย รพ.สต.×ปีงบ: แถวใต้ผลการดำเนินงาน, หน้าอ่าน #/summary/<id>, ฟอร์มในหน้าเยี่ยมบ้าน mountSummaries(slot, unit)
 js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP, รายการยา, DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP (imagePicker แสดงตัวอย่างทันที), ภาพย่อไฟล์ fileCard/hydrateSigned, ลิงก์ชั่วคราวไฟล์ส่วนตัว
 supabase/NN_*.sql     migration เรียงเลข · ไฟล์ใหม่ = เลขถัดไป → ระบบรันบน Supabase ให้เองหลังทดสอบผ่าน (tools/db/migrate.sh)
@@ -85,7 +86,7 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
   หน้าใหม่ที่แสดงข้อมูลผู้ป่วยรายคนต้องเรียก `log_patient_access` ด้วย
 - trigger guard: เจ้าหน้าที่ส่งข่าว/ผลงานได้แค่สถานะ pending/submitted, ผู้ดูแลลดสิทธิ์ตัวเองไม่ได้, ต้องมีผู้ดูแล ≥ 1
 - Supabase โปรเจกต์ใหม่ **ไม่ grant ตารางให้อัตโนมัติ** → ตารางใหม่ต้อง `grant ... to authenticated/anon` เอง (ดู 03_grants.sql)
-- เส้นทางไฟล์: รูปข่าว `news/<user id>/…`, รูปผลงาน `achievements/<unit>/…`, โปสเตอร์ `delivery/…`, หลักฐาน `<ปีงบ>/<unit>/<ข้อ>/…`
+- เส้นทางไฟล์: รูปข่าว `news/<user id>/…`, รูปผลงาน `achievements/<unit>/…`, โปสเตอร์ `delivery/…`, สรุปเยี่ยมบ้าน `summaries/<unit>/…`, หลักฐาน `<ปีงบ>/<unit>/<ข้อ>/…`
 - ไฟล์: bucket `public-images` (≤1 MB, สาธารณะ), `documents` (≤5 MB), `evidence` (≤2 MB, path `ปีงบ/unit/…`), `news-files` (PDF ≤5 MB สาธารณะ, `<uid>/…`),
   `chat-images` (≤1 MB ส่วนตัว, `<conversation id>/…`), `criteria-samples` (≤5 MB ส่วนตัว, ผู้ดูแลอัปโหลด), `visit-photos` (≤1 MB ส่วนตัว PDPA, `<unit>/<patient>/…`) รวมฟรี 1 GB
 - ข่าว: สถานะ pending/fix/rejected/published/unpublished/deleted · ถังข่าว (unpublished/deleted/rejected) มี trashed_at — หน้าผู้ดูแลลบถาวรเมื่อครบ 30 วัน
@@ -104,7 +105,7 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - ดึงชื่อผู้ใช้แบบ embed ต้องระบุชื่อ foreign key เสมอ เช่น `author:profiles!news_author_id_fkey(full_name)` — news↔profiles มีหลายเส้นทาง (news_likes, news_comments) ถ้าไม่ระบุ Supabase จะ error PGRST201
 - แชท: ผู้ดูแลเปิดกล่องของ รพ.สต. ได้ แต่ห้ามเรียก mark_conversation_read (จะล้างตัวเลขยังไม่อ่านของหน่วยนั้น) · ปิด channel ทุกครั้งที่ออกจากหน้า (route() เรียก leaveMe/unmountInbox)
 - GitHub Actions: repo สาธารณะ ใครก็อ่าน log ได้ — ห้าม echo ข้อมูลจริง/ค่าลับ ห้าม upload artifact ที่มีข้อมูล ค่าลับอยู่ใน GitHub Secrets เท่านั้น
-- id ใน index.html ใช้ร่วมทั้งหน้า ต้องไม่ซ้ำ — ตั้งคำนำหน้าตามส่วน (ar=หน้าอ่านข่าว, an=ผู้ดูแลข่าว, rv=ตรวจประเมิน, ad=เอกสารผู้ดูแล, sd=เอกสารเจ้าหน้าที่, df=ยา, ct=ติดต่อ, rf=บัญชี, dl/da=จัดส่งยาถึงบ้าน, hr=Health Rider)
+- id ใน index.html ใช้ร่วมทั้งหน้า ต้องไม่ซ้ำ — ตั้งคำนำหน้าตามส่วน (ar=หน้าอ่านข่าว, an=ผู้ดูแลข่าว, rv=ตรวจประเมิน, ad=เอกสารผู้ดูแล, sd=เอกสารเจ้าหน้าที่, df=ยา, ct=ติดต่อ, rf=บัญชี, dl/da=จัดส่งยาถึงบ้าน, hr=Health Rider, vs/sm=สรุปเยี่ยมบ้าน)
 
 ## การทดสอบ
 - `bash tests/run_all.sh` = ทุกอย่าง (ต้องผ่านก่อน push) · ในเครื่องที่ไม่มี Postgres/Playwright จะข้ามขั้นนั้นพร้อมเตือน แต่บน Actions ห้ามข้าม

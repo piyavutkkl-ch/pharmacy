@@ -2,6 +2,7 @@
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, art, thaiDate, fiscalYearOf } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
+import { renderSummaryRow } from './summaries.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 
@@ -24,6 +25,7 @@ async function renderTracking(units, years) {
     .concat(units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${trkUnit === u.id}">${esc(u.name)}</button>`)).join('');
   $('#trkYearTabs').innerHTML = years.map((y) => `<button type="button" data-y="${y}" aria-current="${trkYear === y}">ปีงบประมาณ ${y}${y === CUR_FY ? ' (ปัจจุบัน)' : ''}</button>`).join('');
   ['#trkVisits', '#trkDrps', '#trkMedExcess'].forEach((s) => { $(s).textContent = '…'; });
+  renderSummaryRow(trkUnit, trkYear);
   const { data, error } = await sb.rpc('public_tracking_stats', { p_year: trkYear, p_unit: trkUnit === 'all' ? null : trkUnit });
   const r = (!error && data && data[0]) || { visits: 0, drps_found: 0, drps_resolved: 0, excess_resolved: 0 };
   $('#trkVisits').textContent = r.visits.toLocaleString('th-TH');

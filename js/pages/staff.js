@@ -7,6 +7,7 @@ import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { newsForm, removeNewsFiles } from './news-form.js?v=4.4';
 import { initCriteria } from './criteria.js?v=4.4';
 import { initVisits } from './visits.js?v=4.4';
+import { mountSummaries } from './summaries.js?v=4.4';
 import { initStaffDocs } from './docs.js?v=4.4';
 import { mountInbox } from './chat.js?v=4.4';
 import { mountRiderEditor } from './rider.js?v=4.4';
@@ -33,7 +34,7 @@ export function showStaff(tab) {
   setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindAch(); bindFeedback(); }
-  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: initVisits, messages: () => mountInbox($('#staffInboxSlot'), auth.profile.unit_id), rider: () => mountRiderEditor($('#staffRiderSlot'), auth.profile.unit_id), docs: initStaffDocs, feedback: loadFeedback })[tab]();
+  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: () => { initVisits(); mountSummaries($('#staffSumSlot'), auth.profile.unit_id); }, messages: () => mountInbox($('#staffInboxSlot'), auth.profile.unit_id), rider: () => mountRiderEditor($('#staffRiderSlot'), auth.profile.unit_id), docs: initStaffDocs, feedback: loadFeedback })[tab]();
   refreshBadges();
 }
 

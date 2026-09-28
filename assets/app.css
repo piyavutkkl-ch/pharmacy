@@ -556,6 +556,10 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .poster-nav:hover{border-color:var(--primary);color:var(--primary)}
 @media (max-width:560px){.poster-nav{display:none}}
 .dl-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:12px 0}
+.sm-cover{margin:16px 0}
+.sm-cover img{display:block;width:100%;max-width:640px;margin:0 auto;border-radius:14px;border:1px solid var(--line);box-shadow:0 4px 14px rgba(22,34,43,.08)}
+.vs-panel{margin-top:16px}
+.vs-list-h{margin:18px 0 4px;font-size:16px}
 .hr-import{margin:12px 0;border:1px dashed var(--line);border-radius:12px;padding:10px 14px}
 .hr-import summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}
 .hr-import[open]{display:flex;flex-direction:column;gap:10px}
