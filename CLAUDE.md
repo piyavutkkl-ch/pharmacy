@@ -13,6 +13,10 @@ Primary Care Pharmacy Services — เว็บงานเภสัชกรร
 6. ตรวจผลรอบ Actions แล้วสรุปให้เจ้าของเว็บ: เปลี่ยนอะไร · ขึ้นเว็บแล้วหรือยัง · มีอะไรที่เขาต้องทำเองไหม (ปกติไม่มี)
    ถ้า Actions ไม่ผ่าน → อ่าน log แก้แล้ว push ใหม่เอง ไม่ต้องให้เจ้าของเว็บทำอะไร
    ถ้าแก้ไฟล์ใน `.github/workflows/` → GitHub ไม่ให้ Actions รวมเข้า main เอง (รอบ branch ขึ้นคำเตือน) → หลังรอบ branch ผ่าน ให้ Claude `git push origin HEAD:main` เอง
+- **หน้าตัวอย่างให้เจ้าของเว็บ comment** (Claude Artifact ส่วนตัว https://claude.ai/artifact/CrNmmT6iY7Mf23APtw4WTp · ข้อมูลสมมติ + ชื่อสมมติ):
+  `python3 tools/preview/build.py` → publish `_preview/index.html` ด้วย `url` เดิม, `root: _preview`, `files` = ทุกไฟล์ใน _preview ยกเว้น index.html/local.html
+  อ่าน comment ด้วย ArtifactComments (url เดิม) → แก้โค้ดจริง + ทดสอบ → publish หน้าตัวอย่างใหม่ → ตอบ/resolve thread · ขึ้นเว็บจริง (push) เมื่อเจ้าของเว็บบอกเท่านั้น
+  ข้อจำกัดหน้าตัวอย่าง: confirm() ยืนยันเอง, ดาวน์โหลดไฟล์ไม่ได้, ลิงก์ตรงไปหน้าย่อยไม่ได้ (ใช้แถบเลือกบทบาทบนสุด)
 - สิ่งที่ Claude ทำแทนไม่ได้ (บอกเจ้าของเว็บเป็นขั้นตอนสั้น ๆ): ตั้งค่าใน Supabase Dashboard (Auth/Providers/URL), Google Cloud Console, GitHub Settings/Secrets
 - ย้อนเว็บกลับรุ่นก่อน: `git revert <commit>` แล้ว push (ฐานข้อมูลย้อนเองไม่ได้ — ใช้ไฟล์ SQL ใหม่แก้ หรือ restore ตาม docs/BACKUP.md)
 
@@ -61,6 +65,7 @@ supabase/NN_*.sql     migration เรียงเลข · ไฟล์ให�
 .github/workflows/    ci-deploy (ทดสอบ→รวม→ฐานข้อมูล→ขึ้นเว็บ) · keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์) · restore (กู้)
 tools/db/migrate.sh   รัน SQL ใหม่บน Supabase (จดไว้ใน ops.schema_migrations · สำรองก่อน · กันคำสั่งลบข้อมูลที่ไม่ได้ยืนยัน)
 tools/backup/         สคริปต์สำรอง/กู้ข้อมูล (bash + Python มาตรฐาน) — วิธีตั้งค่าอยู่ใน docs/BACKUP.md
+tools/preview/build.py สร้างหน้าตัวอย่าง (_preview/ · Supabase จำลอง + ชื่อสมมติ · ตรวจว่าไม่มีชื่อจริงหลุด)
 tools/bump_version.py ติด ?v= กันแคช — ระบบ deploy เรียกให้เองกับสำเนาที่ขึ้นเว็บ (ไม่ต้องรันเอง)
 tests/run_all.sh      ทดสอบทั้งหมด (คำสั่งเดียว) · static_checks.py · db/ (RLS) · ui/ (หน้าเว็บ) · backup/ (สำรอง/กู้)
 tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำลอง) + seed.sql → fixtures.json (ข้อมูลตัวอย่าง)

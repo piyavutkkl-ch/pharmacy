@@ -26,7 +26,7 @@ def tracked():
         extra = subprocess.run(["git", "ls-files", "--others", "--exclude-standard"], cwd=ROOT, capture_output=True, text=True).stdout.split()
         return [f for f in files + [ROOT / f for f in extra] if f.is_file()]
     except Exception:
-        return [p for p in ROOT.rglob("*") if p.is_file() and ".git" not in p.parts and "node_modules" not in p.parts]
+        return [p for p in ROOT.rglob("*") if p.is_file() and ".git" not in p.parts and "node_modules" not in p.parts and "_preview" not in p.parts]
 
 
 FILES = [f for f in tracked() if not {"shots", "__pycache__", "node_modules"} & set(f.parts)]
