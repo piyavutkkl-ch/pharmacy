@@ -54,6 +54,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     let p = await open(null);
     check('หน้าแรก: สไลด์ข่าวแสดง', await count(p, '#slides .slide') > 0);
     check('หน้าแรก: เมนูมีปุ่มเข้าสู่ระบบ', (await text(p, '#topNav')).includes('เข้าสู่ระบบ'));
+    {
+      const before = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      const wasDark = await p.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches);
+      await p.click('#themeBtn'); await p.waitForTimeout(150);
+      const after = await p.evaluate(() => ({ t: document.documentElement.dataset.theme, bg: getComputedStyle(document.body).backgroundColor, saved: localStorage.getItem('pcps_theme') }));
+      check('โหมดมืด/สว่าง: ปุ่มขวาบนสลับสีทั้งหน้า + จำค่าไว้', after.t === (wasDark ? 'light' : 'dark') && after.saved === after.t && after.bg !== before, JSON.stringify(after));
+      await p.reload(); await p.waitForTimeout(300);
+      check('โหมดมืด/สว่าง: เปิดหน้าใหม่ยังเป็นโหมดที่เลือก', (await p.evaluate(() => document.documentElement.dataset.theme)) === after.t && (await p.getAttribute('#themeBtn', 'aria-label')).includes(after.t === 'dark' ? 'สว่าง' : 'มืด'));
+      await p.click('#themeBtn'); await p.waitForTimeout(100);
+    }
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ เป็นกล่องมีไอคอน (หน้าหลัก)', await count(p, '.footer-card .fc-ic svg') === 2 && await visible(p, '.footer-cards'));
     check('ท้ายเว็บ: นโยบาย/ข้อตกลง อยู่ใต้ช่องส่งความคิดเห็น', await p.$eval('.footer-legal', (e) => !!e.closest('.footer-col')?.querySelector('#fbForm') && e.querySelectorAll('a[href="privacy.html"],a[href="terms.html"]').length === 2));
     await p.click('[data-panel-link="news"]'); await p.waitForTimeout(300);
@@ -186,6 +196,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     }
     await go(p, '#/admin/messages'); await p.waitForTimeout(400);
     check('ผู้ดูแล: เมนูข้อความมีแท็บ "คุยกับ รพ.สต." + ตัวเลขยังไม่อ่าน', (await text(p, '#ucAdminSwitch [data-uc="admin"] [data-uc-badge]')).trim() === '1');
+    await p.click('#adminInboxSlot [data-conv]'); await p.waitForTimeout(400);
+    await p.click('#adminInboxSlot [data-trash]'); await p.waitForTimeout(400);
+    check('แชท: ลบห้องสนทนาลงถังขยะได้ (ออกจากรายชื่อ + ถังขยะนับ 1)', (await calls(p, (c) => c.rpc === 'trash_conversation' && c.args.p_trash === true)).length === 1
+      && await count(p, '#adminInboxSlot .ib-list [data-conv]') === 0 && (await text(p, '#adminInboxSlot .ib-trash-btn')).includes('(1)'));
+    await p.click('#adminInboxSlot .ib-trash-btn'); await p.waitForTimeout(300);
+    check('แชท: ถังขยะแสดงห้องที่ลบ + วันที่เหลือก่อนลบถาวร', (await text(p, '#adminInboxSlot .ib-list')).includes('ลบถาวรในอีก 30 วัน'));
+    await p.click('#adminInboxSlot [data-conv]'); await p.waitForTimeout(400);
+    check('แชท: ห้องในถังอ่านได้อย่างเดียว + มีปุ่มกู้คืน/ลบถาวร', await p.$eval('#adminInboxSlot .ib-input', (e) => e.disabled) && await visible(p, '#adminInboxSlot [data-restore]') && await visible(p, '#adminInboxSlot [data-purge]'));
+    await p.click('#adminInboxSlot [data-restore]'); await p.waitForTimeout(400);
+    await p.click('#adminInboxSlot .ib-trash-btn'); await p.waitForTimeout(300);
+    check('แชท: กู้คืนแล้วกลับเข้ากล่องข้อความ', (await calls(p, (c) => c.rpc === 'trash_conversation' && c.args.p_trash === false)).length === 1 && await count(p, '#adminInboxSlot .ib-list [data-conv]') === 1);
+    await p.evaluate(() => { const c = window.__db.conversations.find((x) => x.target_unit == null); c.trashed_at = new Date(Date.now() - 31 * 86400000).toISOString(); });
+    await go(p, '#/admin/news'); await go(p, '#/admin/messages'); await p.waitForTimeout(500);
+    check('แชท: ห้องในถังเกิน 30 วัน ผู้ดูแลเปิดหน้าแล้วลบถาวรให้เอง', (await calls(p, (c) => c.table === 'conversations' && c.op === 'delete')).length === 1 && !(await p.evaluate(() => window.__db.conversations.some((x) => x.target_unit == null))));
     await go(p, '#/admin/messages/units'); await p.waitForTimeout(400);
     check('ผู้ดูแล: รายชื่อ รพ.สต. ครบ 7 · ที่คุยล่าสุดอยู่บน', await count(p, '#adminUnitChatSlot [data-unit]') === 7 && (await p.$eval('#adminUnitChatSlot [data-unit]', (b) => b.dataset.unit)) === '3' && !(await visible(p, '#amCitizen')));
     await p.click('#adminUnitChatSlot [data-unit="3"]'); await p.waitForTimeout(400);

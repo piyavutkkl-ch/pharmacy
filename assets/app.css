@@ -57,6 +57,16 @@ a{color:var(--primary)}
 .mark i{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--primary);color:var(--on-primary);font-style:normal;font-size:16px;line-height:1}
 .mark span{color:var(--primary)}
 .nav{display:flex;align-items:center;gap:6px}
+.top-end{display:flex;align-items:center;gap:6px;min-width:0}
+.theme-btn{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer;transition:color .15s,border-color .15s}
+.theme-btn:hover{color:var(--ink);border-color:var(--primary)}
+.theme-btn svg{width:20px;height:20px}
+.theme-btn .i-sun{display:none}
+:root[data-theme="dark"] .theme-btn .i-sun{display:block}
+:root[data-theme="dark"] .theme-btn .i-moon{display:none}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .theme-btn .i-sun{display:block}:root:not([data-theme="light"]) .theme-btn .i-moon{display:none}}
+@media (max-width:560px){.nav a[data-route="home"]{display:none}}   /* มือถือ: กดโลโก้กลับหน้าหลักแทน — เหลือที่ให้ปุ่มโหมดมืด */
+@media (max-width:420px){.nav{gap:2px}.nav a{padding:8px 10px}.top-end{gap:4px}}
 .nav a{font-size:14px;font-weight:600;text-decoration:none;padding:8px 14px;border-radius:999px;color:var(--muted);white-space:nowrap;transition:background-color .15s,color .15s}
 .nav a:hover{color:var(--ink);background:var(--sunken)}
 .nav a[aria-current="page"]{color:var(--ink);background:var(--sunken)}
@@ -557,6 +567,8 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 @media (max-width:560px){.poster-nav{display:none}}
 .dl-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:12px 0}
 .uc-switch{margin-bottom:12px}
+.ib-head:has(.ib-acts){display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.ib-trash-btn{margin-left:auto}
 .uc-switch .badge{position:static;margin-left:6px}
 .uc-one .chat-panel{max-width:760px}
 .sm-cover{margin:16px 0}

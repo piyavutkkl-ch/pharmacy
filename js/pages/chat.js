@@ -5,11 +5,12 @@
 //
 //   mountInbox(slot, target)   กล่องข้อความฝั่งเจ้าหน้าที่/ผู้ดูแล (ใช้ทั้ง staff.js และ admin.js)
 //   startChatWatch()           ฟังการเปลี่ยนแปลงห้องแชทแบบ real-time → อัปเดตตัวเลขบนเมนู
+//   ถังขยะ: เจ้าหน้าที่/ผู้ดูแลลบห้องลงถัง (trash_conversation) กู้คืนได้ 30 วัน · ครบแล้วหน้าผู้ดูแลลบถาวรให้เอง
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, toast, errText, busy, initials } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits, unitName } from '../data.js?v=4.4';
-import { imagePicker, uploadChatImage, hydrateSigned, openPrivateFile } from '../upload.js?v=4.4';
+import { imagePicker, uploadChatImage, hydrateSigned, openPrivateFile, removeFiles } from '../upload.js?v=4.4';
 
 export const targetName = (t) => (t == null ? 'ห้องยา โรงพยาบาลควนกาหลง' : 'รพ.สต. ' + unitName(t));
 const time = (iso) => new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
@@ -109,7 +110,7 @@ export function stopChatWatch() { if (watching) sb.removeChannel(watching); watc
 
 /* ================= กล่องข้อความ (เจ้าหน้าที่ / ผู้ดูแล) ================= */
 const INBOX_HTML = `<div class="inbox">
-  <div class="panel"><div class="panel-head"><h2>ผู้ที่ทักเข้ามา</h2><span class="small muted ib-count"></span></div><div class="list ib-list"></div></div>
+  <div class="panel"><div class="panel-head"><h2 class="ib-title">ผู้ที่ทักเข้ามา</h2><span class="small muted ib-count"></span><button type="button" class="btn btn-o btn-sm ib-trash-btn">ถังขยะ</button></div><div class="list ib-list"></div></div>
   <div class="panel chat-panel">
     <div class="ib-head"><p class="small muted">เลือกรายชื่อทางซ้ายเพื่ออ่านและตอบกลับ</p></div>
     <div class="chat-log ib-log" role="log" aria-live="polite"></div>
@@ -121,6 +122,8 @@ const INBOX_HTML = `<div class="inbox">
 </div>`;
 
 let ib = null;   // สถานะกล่องข้อความที่เปิดอยู่ (มีได้ทีละกล่อง)
+const KEEP_DAYS = 30, DAY = 86_400_000;
+const daysLeft = (c) => Math.max(0, Math.ceil(KEEP_DAYS - (Date.now() - new Date(c.trashed_at)) / DAY));
 
 /** target: หมายเลข รพ.สต. หรือ null = ห้องยา รพ. */
 export async function mountInbox(slot, target) {
@@ -128,7 +131,8 @@ export async function mountInbox(slot, target) {
   ib?.close?.(); ib?.off?.();
   if (!slot.querySelector('.inbox')) slot.innerHTML = INBOX_HTML;
   const el = (c) => slot.querySelector(c);
-  ib = { slot, target, convs: [], sel: null, msgs: [], close: null, off: null };
+  ib = { slot, target, convs: [], sel: null, msgs: [], close: null, off: null, trash: false };
+  const isAdmin = auth.profile.role === 'admin';
   const me = ib;
   if (!slot.__pick) slot.__pick = chatPicker(el('.ib-file'), el('.chat-pick'), el('.chat-pick-note'));
   const pick = slot.__pick; pick.reset();
@@ -137,19 +141,25 @@ export async function mountInbox(slot, target) {
   const mayMarkRead = auth.profile.role === 'staff' || target == null;
 
   async function loadList() {
-    let q = sb.from('conversations').select('id,target_unit,last_message_at,last_message_preview,unread_staff,citizen:profiles!conversations_citizen_id_fkey(full_name,email,phone,address,home_unit_id)');
+    let q = sb.from('conversations').select('id,target_unit,last_message_at,last_message_preview,unread_staff,trashed_at,citizen:profiles!conversations_citizen_id_fkey(full_name,email,phone,address,home_unit_id)');
     q = target == null ? q.is('target_unit', null) : q.eq('target_unit', target);
     const { data, error } = await q.order('last_message_at', { ascending: false, nullsFirst: false }).limit(200);
     if (me !== ib) return;
     if (error) { el('.ib-list').innerHTML = `<p class="empty">โหลดไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
-    me.convs = data.filter((c) => c.last_message_at);
+    let all = data.filter((c) => c.last_message_at);
+    const expired = all.filter((c) => c.trashed_at && daysLeft(c) === 0);
+    if (isAdmin && expired.length) { await purge(expired); all = all.filter((c) => !expired.includes(c)); }   // ครบ 30 วัน → ลบถาวร
+    const trashed = all.filter((c) => c.trashed_at);
+    me.convs = me.trash ? trashed : all.filter((c) => !c.trashed_at);
+    el('.ib-title').textContent = me.trash ? 'ห้องที่ลบแล้ว (กู้คืนได้ 30 วัน)' : 'ผู้ที่ทักเข้ามา';
+    el('.ib-trash-btn').textContent = me.trash ? '← กลับกล่องข้อความ' : `ถังขยะ${trashed.length ? ` (${trashed.length})` : ''}`;
     el('.ib-count').textContent = me.convs.length ? `${me.convs.length} คน` : '';
     el('.ib-list').innerHTML = me.convs.length ? me.convs.map((c) => {
       const n = c.citizen?.full_name || c.citizen?.email || 'ไม่ระบุชื่อ';
       return `<button type="button" class="li-btn${c.id === me.sel?.id ? ' sel' : ''}" data-conv="${c.id}"><span class="avatar" style="width:34px;height:34px;font-size:12px">${esc(initials(n))}</span>`
-        + `<span class="l" style="min-width:0;flex:1"><b>${esc(n)}</b><span class="small muted conv-last">${esc(c.last_message_preview || '')}</span><span class="small muted">${esc(thaiDate(c.last_message_at))} ${time(c.last_message_at)}</span></span>`
+        + `<span class="l" style="min-width:0;flex:1"><b>${esc(n)}</b><span class="small muted conv-last">${esc(c.last_message_preview || '')}</span><span class="small muted">${me.trash ? `ลบถาวรในอีก ${daysLeft(c)} วัน` : `${esc(thaiDate(c.last_message_at))} ${time(c.last_message_at)}`}</span></span>`
         + (c.unread_staff ? `<span class="badge num" style="position:static">${c.unread_staff}</span>` : '') + '</button>';
-    }).join('') : `<p class="empty">ยังไม่มีผู้ทักเข้ามาที่${esc(targetName(target))}</p>`;
+    }).join('') : `<p class="empty">${me.trash ? 'ไม่มีห้องที่ลบไว้' : `ยังไม่มีผู้ทักเข้ามาที่${esc(targetName(target))}`}</p>`;
   }
 
   async function select(id) {
@@ -160,12 +170,15 @@ export async function mountInbox(slot, target) {
     const p = c.citizen || {};
     el('.ib-head').innerHTML = `<div class="chat-who"><b>${esc(p.full_name || p.email || 'ไม่ระบุชื่อ')}</b>`
       + `<span class="small muted">${p.phone ? `โทร <a href="tel:${esc(p.phone.replace(/[^0-9]/g, ''))}">${esc(p.phone)}</a>` : 'ไม่มีเบอร์โทร'}`
-      + `${p.home_unit_id != null ? ' · ใกล้ รพ.สต. ' + esc(unitName(p.home_unit_id)) : ''}${p.address ? ' · ' + esc(p.address) : ''}</span></div>`;
+      + `${p.home_unit_id != null ? ' · ใกล้ รพ.สต. ' + esc(unitName(p.home_unit_id)) : ''}${p.address ? ' · ' + esc(p.address) : ''}</span></div>`
+      + `<div class="row-btns ib-acts">${me.trash ? `<button type="button" class="btn btn-p btn-sm" data-restore>กู้คืน</button>${isAdmin ? '<button type="button" class="btn btn-no btn-sm" data-purge>ลบถาวร</button>' : ''}`
+        : '<button type="button" class="btn btn-o btn-sm" data-trash title="ย้ายลงถังขยะ กู้คืนได้ภายใน 30 วัน">ลบห้องนี้</button>'}</div>`;
     el('.ib-log').innerHTML = '<div class="skeleton"></div>';
     try { me.msgs = await loadMessages(id); } catch (e) { el('.ib-log').innerHTML = `<p class="chat-empty">${esc(errText(e))}</p>`; return; }
     if (me !== ib || me.sel?.id !== id) return;
     renderLog(el('.ib-log'), me.msgs, 'staff', 'ยังไม่มีข้อความ');
-    enable(true);
+    enable(!me.trash);   // ห้องในถัง: อ่านได้อย่างเดียว (กู้คืนก่อนจึงตอบได้)
+    if (me.trash) return;
     if (window.matchMedia('(max-width: 819px)').matches) el('.chat-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     else el('.ib-input').focus({ preventScroll: true });
     if (mayMarkRead && c.unread_staff) { await markRead(id); c.unread_staff = 0; loadList(); refreshMsgBadge(); }
@@ -176,6 +189,41 @@ export async function mountInbox(slot, target) {
     });
   }
 
+  /** ลบถาวร (ผู้ดูแล): รูปในแชทก่อน แล้วลบห้อง (ข้อความลบตามอัตโนมัติ) */
+  async function purge(list) {
+    const ids = list.map((c) => c.id);
+    const { data: imgs } = await sb.from('messages').select('image_path').in('conversation_id', ids);
+    const { error } = await sb.from('conversations').delete().in('id', ids);
+    if (error) { toast(errText(error), 'err'); return false; }
+    const paths = (imgs || []).map((m) => m.image_path).filter(Boolean);
+    if (paths.length) removeFiles('chat-images', paths);
+    return true;
+  }
+  function clearSel() {
+    me.close?.(); me.close = null; me.sel = null; me.msgs = [];
+    el('.ib-head').innerHTML = '<p class="small muted">เลือกรายชื่อทางซ้ายเพื่ออ่านและตอบกลับ</p>';
+    el('.ib-log').innerHTML = '<p class="chat-empty">ยังไม่ได้เลือกห้องสนทนา</p>';
+    enable(false);
+  }
+  el('.ib-head').onclick = async (e) => {
+    const c = me.sel; if (!c) return;
+    const who = c.citizen?.full_name || c.citizen?.email || 'ผู้ใช้';
+    const act = e.target.closest('[data-trash],[data-restore],[data-purge]'); if (!act) return;
+    if (act.hasAttribute('data-purge')) {
+      if (!confirm(`ลบห้องสนทนากับ ${who} ถาวร?\nข้อความและรูปทั้งหมดจะหายทั้งสองฝั่ง กู้คืนไม่ได้`)) return;
+      busy(act, true, '…'); const ok = await purge([c]); busy(act, false);
+      if (ok) { toast('ลบถาวรแล้ว'); clearSel(); loadList(); }
+      return;
+    }
+    const trash = act.hasAttribute('data-trash');
+    if (trash && !confirm(`ลบห้องสนทนากับ ${who}?\nย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน (ผู้ถามยังเห็นข้อความของตัวเอง · ถ้าเขาส่งข้อความใหม่ ห้องจะกลับมาเอง)`)) return;
+    busy(act, true, '…');
+    const { error } = await sb.rpc('trash_conversation', { p_conv: c.id, p_trash: trash });
+    busy(act, false);
+    if (error) { toast(errText(error), 'err'); return; }
+    toast(trash ? 'ย้ายลงถังขยะแล้ว · กู้คืนได้ภายใน 30 วัน' : 'กู้คืนแล้ว'); clearSel(); loadList(); refreshMsgBadge();
+  };
+  el('.ib-trash-btn').onclick = () => { me.trash = !me.trash; clearSel(); loadList(); };
   el('.ib-list').onclick = (e) => { const b = e.target.closest('[data-conv]'); if (b) select(b.dataset.conv); };
   el('.ib-form').onsubmit = async (e) => {
     e.preventDefault();

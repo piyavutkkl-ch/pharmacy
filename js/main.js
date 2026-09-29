@@ -15,6 +15,7 @@ import { initDose } from './pages/dose.js?v=4.4';
 import { initTracking, initAchievements, initContacts } from './pages/stats.js?v=4.4';
 import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
+import { bindTheme } from './theme.js?v=4.4';
 import { initDelivery } from './pages/delivery.js?v=4.4';
 import { initRider } from './pages/rider.js?v=4.4';
 import { showSummary } from './pages/summaries.js?v=4.4';
@@ -154,7 +155,7 @@ function checkVersion() {
 async function boot() {
   checkVersion();
   showAuthErrorFromUrl();
-  bindSlider(); bindArticle(); bindFooter(); bindMoreSheets();
+  bindSlider(); bindArticle(); bindFooter(); bindMoreSheets(); bindTheme();
   $('#googleBtn').addEventListener('click', async () => {
     const btn = $('#googleBtn'); busy(btn, true, 'กำลังไปที่ Google…');
     const { error } = await signIn();

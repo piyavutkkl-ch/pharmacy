@@ -43,6 +43,7 @@ js/supabase.js        client + publicImageUrl()
 js/auth.js            session/profile/role, signIn(), signOut(), ROLE_HOME
 js/data.js            ข้อมูลอ้างอิงที่ cache: units, ปีงบ, sortItems() เรียงข้อเกณฑ์
 js/nav.js             เมนูข้าง/เมนูล่างจอ (มือถือ) + ปุ่ม "เพิ่มเติม", setCurrent()
+js/theme.js           ปุ่มโหมดมืด/สว่าง ขวาบน (จำใน localStorage 'pcps_theme' · ค่าเริ่ม = ตามเครื่อง · <head> ใส่ data-theme ก่อนวาดหน้า)
 js/util.js            esc, fiscalYearOf, thaiDate, toast, busy, errText, art()
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
 js/pages/news.js      สไลด์ข่าว, รายการข่าว, หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น)
@@ -55,7 +56,7 @@ js/pages/admin-review.js   ผู้ดูแล › ตรวจประเม
 js/pages/admin-settings.js ผู้ดูแล › ตั้งค่า: รายการยาเครื่องคำนวณโดส + ช่องทางติดต่อ รพ.สต.
 js/pages/admin-staff.js    ผู้ดูแล › ตั้งค่า › บัญชีเจ้าหน้าที่ (staff_roster)
 js/pages/admin-audit.js    ผู้ดูแล › ตั้งค่า › ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA · admin_audit_log() + ดาวน์โหลด CSV)
-js/pages/chat.js      แชท real-time: mountInbox() กล่องข้อความเจ้าหน้าที่/ผู้ดูแล, startChatWatch() ตัวเลขข้อความใหม่บนเมนู
+js/pages/chat.js      แชท real-time: mountInbox() กล่องข้อความเจ้าหน้าที่/ผู้ดูแล (ลบห้องลงถัง กู้คืน 30 วัน · ผู้ดูแลลบถาวรเมื่อครบ), startChatWatch() ตัวเลขข้อความใหม่บนเมนู
 js/pages/unitchat.js  แชท เจ้าหน้าที่ รพ.สต. ⇄ ผู้ดูแล (1 รพ.สต. = 1 ห้อง): #/staff/messages/admin, #/admin/messages/units · mountUnitChat(slot, unit)
 js/pages/me.js        ประชาชน (#/me): ข้อมูลส่วนตัว + แชทถาม รพ.สต./ห้องยา รพ. (ต้องมีเบอร์โทรก่อน)
 js/pages/staff-request.js  ขอสิทธิ์เจ้าหน้าที่: ประชาชนส่งคำขอ (#/me/request) → ผู้ดูแลอนุมัติใน ตั้งค่า › บัญชีเจ้าหน้าที่ (approve_staff_request เพิ่ม staff_roster)

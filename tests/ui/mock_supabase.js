@@ -127,7 +127,7 @@ function beforeInsert(table, row) {
       row.body ??= ''; row.image_path ??= null;
       if (!String(row.body).trim() && !row.image_path) return 'new row for relation "messages" violates check constraint "messages_body_check"';
       Object.assign(c, { last_message_at: row.created_at, last_message_preview: String(row.body).trim() ? String(row.body).slice(0, 120) : 'ส่งรูปภาพ' });
-      if (row.sender_role === 'citizen') c.unread_staff++; else c.unread_citizen++;
+      if (row.sender_role === 'citizen') { c.unread_staff++; c.trashed_at = null; } else c.unread_citizen++;
       break;
     }
   }
@@ -271,6 +271,12 @@ function rpc(name, a = {}) {
       if (!convOk(c)) return err('ไม่มีสิทธิ์', 'P0001');
       if (c.citizen_id === ME.id) c.unread_citizen = 0; else c.unread_staff = 0;
       return { data: null, error: null };
+    }
+    case 'trash_conversation': {
+      const c = db.conversations.find((x) => x.id === a.p_conv);
+      if (!convOk(c) || c.citizen_id === ME.id || !(isAdmin() || isStaff())) return err('ไม่มีสิทธิ์', 'P0001');
+      c.trashed_at = a.p_trash ? now() : null; if (a.p_trash) c.unread_staff = 0;
+      return { data: c.trashed_at, error: null };
     }
     case 'mark_unit_chat_read': {
       const c = (db.unit_chats || []).find((x) => x.unit_id === a.p_unit);
