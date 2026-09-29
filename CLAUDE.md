@@ -47,7 +47,7 @@ js/theme.js           ปุ่มโหมดมืด/สว่าง ขว�
 js/util.js            esc, fiscalYearOf, thaiDate, toast, busy, errText, art()
 js/lightbox.js        smartCover() รูปหน้าอ่านข่าว/สรุปผลงาน: ใกล้ A4 (แนวตั้ง–แนวนอน) ไม่ครอบตัด · ยาว/กว้างกว่า A4 มากครอบตัด · openLightbox() ภาพเต็มจอ/ขนาดจริง
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
-js/pages/news.js      สไลด์ข่าว, รายการข่าว, หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น)
+js/pages/news.js      สไลด์ข่าว, รายการข่าว, หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น — ไม่ login ก็ได้: ถูกใจผ่าน like_news_anon, ความเห็น ≤15 ตัวอักษรผ่าน comment_news_anon · รหัสเครื่อง localStorage 'pcps_device' · ผู้ดูแลลบความเห็นได้)
 js/pages/dose.js      เครื่องคำนวณโดสยา (ตาราง dose_drugs)
 js/pages/stats.js     ผลการดำเนินงาน, ผลงาน รพ.สต. + อันดับ, ช่องทางติดต่อ
 js/pages/admin.js     ผู้ดูแล: โครงหน้า/เมนู (#/admin/<tab>[/<sub>]) + ตัวเลขงานค้าง + ข้อเสนอแนะ (ตั้งค่า › ข้อเสนอแนะ)

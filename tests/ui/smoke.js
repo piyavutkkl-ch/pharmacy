@@ -96,7 +96,21 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ช่องทางติดต่อ: ครบ 7 รพ.สต.', await count(p, '#contactGrid .center') === 7);
     const newsId = await p.evaluate(() => window.__db.news.find((n) => n.status === 'published' && !n.comments_closed).id);
     await go(p, '#/news/' + newsId);
-    check('อ่านข่าว: หัวข้อ + ปุ่มถูกใจ + ชวน login ก่อนแสดงความคิดเห็น', (await text(p, '#arTitle')) && await visible(p, '#arLikeBtn') && await visible(p, '#arCommentLogin'));
+    check('อ่านข่าว: หัวข้อ + ปุ่มถูกใจ + ช่องความคิดเห็น (ไม่ login แจ้งว่าพิมพ์ได้ 15 ตัวอักษร)', (await text(p, '#arTitle')) && await visible(p, '#arLikeBtn') && await visible(p, '#arCommentForm') && (await text(p, '#arCommentLogin')).includes('15 ตัวอักษร'));
+    {
+      const before = +(await text(p, '#arLikeCount'));
+      await p.click('#arLikeBtn'); await p.waitForTimeout(300);
+      const lk = (await calls(p, (c) => c.rpc === 'like_news_anon'))[0]?.args;
+      check('ถูกใจ: กดได้โดยไม่ต้องเข้าสู่ระบบ (ยอด +1 + ปุ่มเป็นถูกใจแล้ว)', lk?.p_on === true && /^[0-9a-f-]{36}$/.test(lk?.p_token) && +(await text(p, '#arLikeCount')) === before + 1 && (await p.getAttribute('#arLikeBtn', 'aria-pressed')) === 'true');
+      await p.click('#arLikeBtn'); await p.waitForTimeout(300);
+      check('ถูกใจ: กดอีกครั้งยกเลิกได้ (เครื่องเดิม)', (await calls(p, (c) => c.rpc === 'like_news_anon')).some((c) => c.args.p_on === false && c.args.p_token === lk?.p_token) && +(await text(p, '#arLikeCount')) === before);
+      await p.fill('#arCommentText', 'ข้อความนี้ยาวเกินสิบห้าตัวอักษรแน่นอน'); await p.waitForTimeout(100);
+      check('ความคิดเห็น (ไม่ login): พิมพ์เกิน 15 ตัวอักษร → เตือนให้เข้าสู่ระบบ', (await text(p, '#arCommentMsg')).includes('กรุณาเข้าสู่ระบบเพื่อเขียนแสดงความเห็นมากขึ้น'));
+      await p.click('#arCommentForm button'); await p.waitForTimeout(200);
+      check('ความคิดเห็น (ไม่ login): ยาวเกินส่งไม่ได้', (await calls(p, (c) => c.rpc === 'comment_news_anon')).length === 0 && (await text(p, '#arCommentMsg')).includes('เข้าสู่ระบบ'));
+      await p.fill('#arCommentText', 'ดีมากครับ'); await p.click('#arCommentForm button'); await p.waitForTimeout(400);
+      check('ความคิดเห็น (ไม่ login): ไม่เกิน 15 ตัวอักษรส่งได้ แสดงชื่อ "ผู้เยี่ยมชม"', (await calls(p, (c) => c.rpc === 'comment_news_anon')).length === 1 && (await text(p, '#arComments')).includes('ผู้เยี่ยมชม') && (await text(p, '#arComments')).includes('ดีมากครับ'));
+    }
     await p.route(/img\.test\/.*(a4p|a4l|tall)/, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: SIZED[r.request().url().match(/(a4p|a4l|tall)/)[1]] }));
     for (const [kind, want] of [['a4p', 'fit'], ['a4l', 'fit'], ['tall', 'crop-tall']]) {
       await p.evaluate(([id, k]) => { window.__db.news.find((n) => n.id === id).image_path = `news/x/${k}.png`; }, [newsId, kind]);
@@ -218,6 +232,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const view = tab.split('/')[0];
       const shown = await p.$eval(`[data-admin-view="${view}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
       check(`ผู้ดูแล: เมนู ${tab} เปิดได้`, shown && (await text(p, '#adminViewTitle')));
+    }
+    {
+      const cn = await p.evaluate(() => { const c = window.__db.news_comments.find((x) => window.__db.news.some((n) => n.id === x.news_id && n.status === 'published')); return c && c.news_id; });
+      await go(p, '#/news/' + cn); await p.waitForTimeout(400);
+      const n0 = await count(p, '#arComments [data-del-comment]');
+      await p.click('#arComments [data-del-comment]'); await p.waitForTimeout(400);
+      check('ผู้ดูแล: ลบความคิดเห็นไม่เหมาะสมในหน้าอ่านข่าวได้', n0 >= 1 && (await calls(p, (c) => c.table === 'news_comments' && c.op === 'delete')).length === 1 && await count(p, '#arComments [data-del-comment]') === n0 - 1);
     }
     await go(p, '#/admin/messages'); await p.waitForTimeout(400);
     check('ผู้ดูแล: เมนูข้อความมีแท็บ "คุยกับ รพ.สต." + ตัวเลขยังไม่อ่าน', (await text(p, '#ucAdminSwitch [data-uc="admin"] [data-uc-badge]')).trim() === '1');

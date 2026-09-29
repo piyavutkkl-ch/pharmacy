@@ -272,6 +272,28 @@ function rpc(name, a = {}) {
       if (c.citizen_id === ME.id) c.unread_citizen = 0; else c.unread_staff = 0;
       return { data: null, error: null };
     }
+    case 'news_like_state': {   // แทน news_like_state(): ถูกใจของผู้ login + ของเครื่องที่ไม่ login
+      const anon = (db.news_anon_likes || []).filter((x) => x.news_id === a.p_news && x.liked);
+      const logged = (db.news_likes || []).filter((x) => x.news_id === a.p_news);
+      return { data: [{ total: anon.length + logged.length, mine: logged.some((x) => x.user_id === ME?.id) || anon.some((x) => x.token === a.p_token) }], error: null };
+    }
+    case 'like_news_anon': {
+      const n = db.news.find((x) => x.id === a.p_news && x.status === 'published');
+      if (!n || !a.p_token) return err('ไม่พบข่าวนี้', 'P0001');
+      const L = db.news_anon_likes || (db.news_anon_likes = []);
+      const r = L.find((x) => x.news_id === a.p_news && x.token === a.p_token);
+      if (r) r.liked = a.p_on; else L.push({ news_id: a.p_news, token: a.p_token, liked: a.p_on });
+      return { data: L.filter((x) => x.news_id === a.p_news && x.liked).length + (db.news_likes || []).filter((x) => x.news_id === a.p_news).length, error: null };
+    }
+    case 'comment_news_anon': {
+      const b = String(a.p_body || '').trim(), n = db.news.find((x) => x.id === a.p_news && x.status === 'published' && !x.comments_closed);
+      if (!b) return err('กรุณาพิมพ์ความคิดเห็น', 'P0001');
+      if ([...b].length > 15) return err('กรุณาเข้าสู่ระบบเพื่อเขียนแสดงความเห็นมากขึ้น (ไม่ได้เข้าสู่ระบบ พิมพ์ได้ไม่เกิน 15 ตัวอักษร)', 'P0001');
+      if (!n) return err('ข่าวนี้ปิดรับความคิดเห็นแล้ว', 'P0001');
+      const row = { id: newId('news_comments'), news_id: a.p_news, author_id: null, author_name: 'ผู้เยี่ยมชม', body: b, created_at: now() };
+      db.news_comments.push(row);
+      return { data: row.id, error: null };
+    }
     case 'trash_conversation': {
       const c = db.conversations.find((x) => x.id === a.p_conv);
       if (!convOk(c) || c.citizen_id === ME.id || !(isAdmin() || isStaff())) return err('ไม่มีสิทธิ์', 'P0001');

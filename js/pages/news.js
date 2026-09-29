@@ -6,6 +6,18 @@ import { fileLink } from './news-form.js?v=4.4';
 import { smartCover } from '../lightbox.js?v=4.4';
 
 let news = null;          // cache ข่าวที่เผยแพร่แล้ว
+const ANON_MAX = 15;      // ไม่ได้ login: ความคิดเห็นยาวได้ไม่เกิน 15 ตัวอักษร (ตรงกับ comment_news_anon ในฐานข้อมูล)
+const chars = (t) => [...t].length;   // นับแบบเดียวกับ char_length ของ Postgres
+
+/** รหัสสุ่มประจำเครื่อง (ใช้กดถูกใจ/แสดงความคิดเห็นโดยไม่ต้อง login) */
+let memToken = null;
+function deviceToken() {
+  try {
+    let t = localStorage.getItem('pcps_device');
+    if (!t) { t = crypto.randomUUID(); localStorage.setItem('pcps_device', t); }
+    return t;
+  } catch { return (memToken ||= crypto.randomUUID()); }
+}
 let loading = null;
 
 export function loadNews(force = false) {
@@ -105,21 +117,18 @@ export function renderCommentState() {
   if (!current) return;
   const signedIn = !!auth.session;
   $('#arCommentsClosed').hidden = !current.comments_closed;
-  $('#arCommentLogin').hidden = current.comments_closed || signedIn;
-  $('#arCommentForm').hidden = current.comments_closed || !signedIn;
+  $('#arCommentLogin').hidden = current.comments_closed || signedIn;   // ไม่ login: แจ้งว่าพิมพ์ได้ 15 ตัวอักษร
+  $('#arCommentForm').hidden = current.comments_closed;
 }
 
 async function loadLikes() {
   if (!current) return;
   const id = current.id;
-  const { count } = await sb.from('news_likes').select('news_id', { count: 'exact', head: true }).eq('news_id', id);
-  let mine = false;
-  if (auth.session) {
-    const { data } = await sb.from('news_likes').select('news_id').eq('news_id', id).eq('user_id', auth.session.user.id).maybeSingle();
-    mine = !!data;
-  }
+  const { data } = await sb.rpc('news_like_state', { p_news: id, p_token: auth.session ? null : deviceToken() });
+  const st = (Array.isArray(data) ? data[0] : data) || { total: 0, mine: false };
+  const mine = !!st.mine;
   if (current?.id !== id) return;
-  $('#arLikeCount').textContent = count || 0;
+  $('#arLikeCount').textContent = st.total || 0;
   $('#arLikeBtn').classList.toggle('liked', mine);
   $('#arLikeBtn').setAttribute('aria-pressed', mine ? 'true' : 'false');
 }
@@ -132,23 +141,38 @@ async function loadComments() {
   const list = error ? [] : data;
   $('#arCommentCount').textContent = list.length;
   $('#arComments').innerHTML = list.length
-    ? list.map((c) => `<div class="li"><div class="l"><b>${esc(c.author_name || 'ผู้ใช้')}</b><span class="small">${esc(c.body)}</span><span class="small muted">${esc(thaiDate(c.created_at))}</span></div></div>`).join('')
+    ? list.map((c) => `<div class="li"><div class="l"><b>${esc(c.author_name || 'ผู้ใช้')}</b><span class="small">${esc(c.body)}</span><span class="small muted">${esc(thaiDate(c.created_at))}</span></div>`
+      + (auth.profile?.role === 'admin' ? `<button type="button" class="btn btn-no btn-sm" data-del-comment="${c.id}">ลบ</button>` : '') + '</div>').join('')
     : '<p class="small muted">ยังไม่มีความคิดเห็น</p>';
 }
 
 export function bindArticle() {
   $('#arLikeBtn').addEventListener('click', async () => {
     if (!current) return;
-    if (!auth.session) { toast('เข้าสู่ระบบด้วย Google เพื่อกดถูกใจ'); location.hash = '#/login'; return; }
     const btn = $('#arLikeBtn'); const liked = btn.classList.contains('liked');
     btn.disabled = true;
-    const q = liked
+    const q = !auth.session ? sb.rpc('like_news_anon', { p_news: current.id, p_token: deviceToken(), p_on: !liked })   // ไม่ต้อง login
+      : liked
       ? sb.from('news_likes').delete().eq('news_id', current.id).eq('user_id', auth.session.user.id)
       : sb.from('news_likes').insert({ news_id: current.id });
     const { error } = await q;
     btn.disabled = false;
     if (error) toast(errText(error), 'err');
     loadLikes();
+  });
+  $('#arComments').addEventListener('click', async (e) => {   // ผู้ดูแลลบความคิดเห็นไม่เหมาะสม
+    const b = e.target.closest('[data-del-comment]'); if (!b || !confirm('ลบความคิดเห็นนี้?')) return;
+    busy(b, true, '…');
+    const { error } = await sb.from('news_comments').delete().eq('id', +b.dataset.delComment);
+    busy(b, false);
+    if (error) { toast(errText(error), 'err'); return; }
+    toast('ลบความคิดเห็นแล้ว'); loadComments();
+  });
+  $('#arCommentText').addEventListener('input', () => {   // ไม่ login: นับตัวอักษร + เตือนเมื่อเกิน 15
+    if (auth.session) return;
+    const n = chars($('#arCommentText').value.trim()), m = $('#arCommentMsg');
+    m.classList.toggle('err-text', n > ANON_MAX);
+    m.innerHTML = n > ANON_MAX ? `เกิน ${ANON_MAX} ตัวอักษร — กรุณา<a href="#/login">เข้าสู่ระบบ</a>เพื่อเขียนแสดงความเห็นมากขึ้น` : (n ? `${n}/${ANON_MAX} ตัวอักษร` : '');
   });
   $('#arShareBtn').addEventListener('click', () => {
     const url = location.href;
@@ -158,13 +182,20 @@ export function bindArticle() {
   });
   $('#arCommentForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const inp = $('#arCommentText'), text = inp.value.trim();
+    const inp = $('#arCommentText'), text = inp.value.trim(), msg = $('#arCommentMsg');
     if (!text || !current) return;
+    if (!auth.session && chars(text) > ANON_MAX) {
+      msg.innerHTML = `กรุณา<a href="#/login">เข้าสู่ระบบ</a>เพื่อเขียนแสดงความเห็นมากขึ้น (ตอนนี้ ${chars(text)} ตัวอักษร · ไม่ได้เข้าสู่ระบบ พิมพ์ได้ไม่เกิน ${ANON_MAX})`;
+      msg.classList.add('err-text'); return;
+    }
+    msg.classList.remove('err-text');
     const btn = e.target.querySelector('button');
     busy(btn, true, 'กำลังส่ง…');
-    const { error } = await sb.from('news_comments').insert({ news_id: current.id, body: text });
+    const { error } = auth.session
+      ? await sb.from('news_comments').insert({ news_id: current.id, body: text })
+      : await sb.rpc('comment_news_anon', { p_news: current.id, p_body: text, p_token: deviceToken() });
     busy(btn, false);
-    if (error) { $('#arCommentMsg').textContent = errText(error); return; }
+    if (error) { msg.textContent = errText(error); msg.classList.add('err-text'); return; }
     inp.value = ''; $('#arCommentMsg').textContent = '';
     loadComments();
   });
