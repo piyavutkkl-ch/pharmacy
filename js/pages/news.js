@@ -3,6 +3,7 @@ import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, art, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { fileLink } from './news-form.js?v=4.4';
+import { smartCover } from '../lightbox.js?v=4.4';
 
 let news = null;          // cache ข่าวที่เผยแพร่แล้ว
 let loading = null;
@@ -79,7 +80,7 @@ const viewed = new Set();
 export async function showArticle(id) {
   current = null;
   $('#arTitle').textContent = 'กำลังโหลด…';
-  $('#arTag').textContent = ''; $('#arDate').textContent = ''; $('#arBody').innerHTML = ''; $('#arCover').innerHTML = ''; $('#arFile').hidden = true;
+  $('#arTag').textContent = ''; $('#arDate').textContent = ''; $('#arBody').innerHTML = ''; $('#arCover').innerHTML = ''; $('#arCover').className = 'cover'; $('#arCover').style.removeProperty('--ar'); $('#arFile').hidden = true;
   $('#arComments').innerHTML = ''; $('#arCommentMsg').textContent = ''; $('#arShareMsg').textContent = '';
   const { data: n, error } = await sb.from('news')
     .select('id,title,tag,body,image_path,file_path,file_name,published_at,comments_closed,view_count').eq('id', id).maybeSingle();
@@ -89,7 +90,8 @@ export async function showArticle(id) {
   $('#arTag').textContent = n.tag;
   $('#arTitle').textContent = n.title;
   $('#arDate').textContent = thaiDate(n.published_at);
-  $('#arCover').innerHTML = cover(n);
+  if (n.image_path) smartCover($('#arCover'), publicImageUrl(n.image_path), n.title);   // ใกล้เคียง A4 = ไม่ครอบตัด · กดขยายได้
+  else $('#arCover').innerHTML = cover(n);
   $('#arBody').innerHTML = String(n.body || '').split(/\n{1,}/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
   $('#arFile').innerHTML = n.file_path ? fileLink(n) : ''; $('#arFile').hidden = !n.file_path;
   if (!viewed.has(n.id)) { viewed.add(n.id); sb.rpc('bump_news_view', { p_news: n.id }).then(() => {}); n.view_count += 1; }

@@ -12,6 +12,17 @@ const ROOT = path.resolve(__dirname, '../..');
 const MOCK = fs.readFileSync(path.join(__dirname, 'mock_supabase.js'), 'utf8');
 const SHOTS = path.join(__dirname, 'shots');
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
+/** PNG สีพื้นขนาด w×h (ทดสอบการแสดงรูปตามสัดส่วน) */
+function makePng(w, h) {
+  const crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(w * 3, 200)]);
+  const raw = Buffer.concat(Array.from({ length: h }, () => row));
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', require('zlib').deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+const SIZED = { a4p: makePng(620, 877), a4l: makePng(877, 620), tall: makePng(300, 1500) };
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 fs.mkdirSync(SHOTS, { recursive: true });
 
@@ -86,6 +97,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     const newsId = await p.evaluate(() => window.__db.news.find((n) => n.status === 'published' && !n.comments_closed).id);
     await go(p, '#/news/' + newsId);
     check('อ่านข่าว: หัวข้อ + ปุ่มถูกใจ + ชวน login ก่อนแสดงความคิดเห็น', (await text(p, '#arTitle')) && await visible(p, '#arLikeBtn') && await visible(p, '#arCommentLogin'));
+    await p.route(/img\.test\/.*(a4p|a4l|tall)/, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: SIZED[r.request().url().match(/(a4p|a4l|tall)/)[1]] }));
+    for (const [kind, want] of [['a4p', 'fit'], ['a4l', 'fit'], ['tall', 'crop-tall']]) {
+      await p.evaluate(([id, k]) => { window.__db.news.find((n) => n.id === id).image_path = `news/x/${k}.png`; }, [newsId, kind]);
+      await go(p, '#/'); await go(p, '#/news/' + newsId); await p.waitForTimeout(300);
+      const st = await p.$eval('#arCover', (b) => { const r = b.getBoundingClientRect(), i = b.querySelector('img'); return { cls: b.className, ar: r.width / r.height, fit: getComputedStyle(i).objectFit }; });
+      check(`อ่านข่าว: รูป ${kind} → ${want === 'fit' ? 'แสดงทั้งภาพไม่ครอบตัด' : 'ครอบตัดเป็นกรอบ A4'}`, st.cls.includes(want) && (want === 'fit' ? st.fit === 'contain' && Math.abs(st.ar - (kind === 'a4p' ? 620 / 877 : 877 / 620)) < 0.03 : st.fit === 'cover' && Math.abs(st.ar - 1 / Math.SQRT2) < 0.03), JSON.stringify(st));
+    }
+    await p.click('#arCover .zoom-btn'); await p.waitForTimeout(200);
+    check('อ่านข่าว: ปุ่ม "ขยายภาพ" เปิดภาพเต็มจอ', await p.$eval('dialog.lightbox', (d) => d.open && d.querySelector('img').src.includes('tall')));
+    await p.click('dialog.lightbox .lb-body img'); await p.waitForTimeout(100);
+    check('ภาพเต็มจอ: กดที่ภาพสลับเป็นขนาดจริง (ภาพยาวไม่ถูกตัด)', await p.$eval('dialog.lightbox img', (i) => i.classList.length >= 0 && i.getBoundingClientRect().height >= 1400));
+    await p.screenshot({ path: path.join(SHOTS, 'lightbox-1280.png') });
+    await p.keyboard.press('Escape'); await p.waitForTimeout(150);
+    check('ภาพเต็มจอ: กด Esc ปิดได้', !(await p.$eval('dialog.lightbox', (d) => d.open)));
     await go(p, '#/admin');
     check('ยังไม่ login เข้าหน้าผู้ดูแล → ไปหน้าเข้าสู่ระบบ', await visible(p, '[data-view="login"]'));
     await p.click('#googleBtn'); await p.waitForTimeout(200);

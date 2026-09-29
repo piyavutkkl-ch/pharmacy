@@ -9,6 +9,7 @@ import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { A4, imagePicker, uploadPublicImage, uploadNewsFile, removeFiles, extOf } from '../upload.js?v=4.4';
 import { bindPosterNav, paras } from './delivery.js?v=4.4';
 import { fileLink } from './news-form.js?v=4.4';
+import { smartCover } from '../lightbox.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 const COLS = 'id,unit_id,fiscal_year,title,body,image_path,file_path,file_name,created_at,updated_at';
@@ -39,7 +40,7 @@ export async function renderSummaryRow(unit, year) {
 /* ======================= หน้าอ่าน #/summary/<id> ======================= */
 export async function showSummary(id) {
   $('#smTitle').textContent = 'กำลังโหลด…';
-  $('#smTag').textContent = ''; $('#smDate').textContent = ''; $('#smBody').innerHTML = ''; $('#smCover').innerHTML = ''; $('#smFile').hidden = true;
+  $('#smTag').textContent = ''; $('#smDate').textContent = ''; $('#smBody').innerHTML = ''; $('#smCover').innerHTML = ''; $('#smCover').className = 'cover'; $('#smFile').hidden = true;
   await loadUnits();
   const { data: s, error } = await sb.from('visit_summaries').select(COLS).eq('id', +id || 0).maybeSingle();
   if (error || !s) { $('#smTitle').textContent = 'ไม่พบสรุปผลงานนี้'; $('#smBody').innerHTML = '<p class="muted">อาจถูกลบไปแล้ว</p>'; return; }
@@ -48,7 +49,7 @@ export async function showSummary(id) {
   $('#smTitle').textContent = s.title;
   $('#smDate').textContent = thaiDate(s.created_at);
   const url = publicImageUrl(s.image_path);
-  $('#smCover').innerHTML = `<a href="${esc(url)}" target="_blank" rel="noopener" title="เปิดภาพขนาดเต็ม"><img src="${esc(url)}" alt="${esc(s.title)}"></a>`;
+  smartCover($('#smCover'), url, s.title);
   $('#smBody').innerHTML = paras(s.body);
   $('#smFile').innerHTML = s.file_path ? fileLink(s) : ''; $('#smFile').hidden = !s.file_path;
 }
