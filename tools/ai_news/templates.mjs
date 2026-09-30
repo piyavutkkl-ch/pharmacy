@@ -11,7 +11,7 @@ const BASE = `*{box-sizing:border-box;margin:0;padding:0}html,body{width:100%;he
 body{font-family:'IBM Plex Sans Thai','Noto Sans Thai','Tlwg Typist',sans-serif;color:#16313f;-webkit-font-smoothing:antialiased}
 .brand{font-size:22px;font-weight:600;letter-spacing:.02em;opacity:.85}`;
 const page = (css, body) => `<!doctype html><html lang="th"><head><meta charset="utf-8">${FONT}<style>${BASE}${css}</style></head><body>${body}</body></html>`;
-const BRAND = 'งานเภสัชกรรมปฐมภูมิ · โรงพยาบาลควนกาหลง';
+const BRAND = process.env.AI_NEWS_BRAND || 'งานเภสัชกรรมปฐมภูมิ · โรงพยาบาลควนกาหลง';   // หน้าตัวอย่างใช้ชื่อสมมติ (tools/preview/build.py)
 
 /** ภาพที่ 1: อินโฟกราฟิก (Slate Blue & Teal + Coral) */
 export function infographic(d, art = '') {

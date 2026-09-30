@@ -11,9 +11,11 @@
 - เปลี่ยนชื่อโรงพยาบาล อำเภอ จังหวัด รพ.สต. และเบอร์โทรจริงเป็นชื่อสมมติ แล้วตรวจซ้ำว่าไม่หลุด
 """
 import json
+import os
 import pathlib
 import re
 import shutil
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -84,6 +86,27 @@ def rename(text):
     return re.sub(r"\?v=[0-9A-Za-z.\-]+", "", text)   # หน้าตัวอย่างไม่ต้องกันแคช
 
 
+def ai_samples(mock):
+    """ภาพตัวอย่างข่าวจากช่อง AI: วาดจาก tests/ai_news/fixtures แบบออฟไลน์ (ชื่อโรงพยาบาลสมมติ) → sample/ai/*.jpg
+    แล้วให้ Supabase จำลองชี้รูป ai/…/<ชนิด>.jpg มาที่ไฟล์นี้ · ไม่มี Node/Playwright = ข้าม (รูปข่าว AI ในหน้าตัวอย่างจะว่าง)"""
+    tmp = OUT / "_aifx"
+    try:
+        shutil.copytree(ROOT / "tests/ai_news/fixtures", tmp)
+        (tmp / "gemini-image.json").write_text('{"candidates":[]}', encoding="utf-8")   # ใช้อีโมจิแทนภาพวาด AI
+        env = {**os.environ, "AI_NEWS_BRAND": rename("งานเภสัชกรรมปฐมภูมิ · โรงพยาบาลควนกาหลง")}
+        if not env.get("NODE_PATH"):
+            env["NODE_PATH"] = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True).stdout.strip()
+        subprocess.run(["node", str(ROOT / "tools/ai_news/run.mjs"), "--offline", str(tmp), str(OUT / "sample/ai")], check=True, env=env, capture_output=True, timeout=180)
+        (OUT / "sample/ai/news.json").unlink()
+        return must_sub(mock, "`https://img.test/${bucket}/${p}`",
+                        "(/^ai\\/.*(infographic|comic|clinical)\\.jpg$/.test(p) ? `sample/ai/${p.match(/(infographic|comic|clinical)\\.jpg$/)[1]}.jpg` : `https://img.test/${bucket}/${p}`)", "mock_supabase.js")
+    except Exception as e:  # noqa: BLE001
+        print("preview: ข้ามภาพตัวอย่างช่อง AI —", str(e)[:120])
+        return mock
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     if OUT.exists():
         shutil.rmtree(OUT)
@@ -117,6 +140,7 @@ def main():
     mock = (ROOT / "tests/ui/mock_supabase.js").read_text(encoding="utf-8")
     mock = must_sub(mock, "fetch('/tests/ui/fixtures.json')", "fetch('fixtures.json')", "mock_supabase.js")
     mock = must_sub(mock, "new URLSearchParams(location.search).get('mockrole')", "window.__previewRole()", "mock_supabase.js")
+    mock = ai_samples(mock)
     (OUT / "js/mock-supabase.js").write_text(mock, encoding="utf-8")
 
     # หน้าหลัก: ตัด <html>/<head>/<body> ออก (Artifact ครอบให้เอง) + แถบเลือกบทบาทไว้บนสุด
@@ -129,8 +153,9 @@ def main():
     (OUT / "index.html").write_text(page, encoding="utf-8")
     (OUT / "local.html").write_text('<!doctype html>\n<html lang="th">\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n' + page + "</html>\n", encoding="utf-8")
 
-    leaks = [str(p.relative_to(OUT)) for p in OUT.rglob("*") if p.is_file() and FORBIDDEN.search(p.read_text(encoding="utf-8"))]
-    leaks += [u["name"] for u in units if u["id"] and any(u["name"] in p.read_text(encoding="utf-8") for p in OUT.rglob("*") if p.is_file())]
+    texts = [p for p in OUT.rglob("*") if p.is_file() and p.suffix != ".jpg"]   # ภาพตัวอย่างช่อง AI วาดด้วยชื่อสมมติอยู่แล้ว
+    leaks = [str(p.relative_to(OUT)) for p in texts if FORBIDDEN.search(p.read_text(encoding="utf-8"))]
+    leaks += [u["name"] for u in units if u["id"] and any(u["name"] in p.read_text(encoding="utf-8") for p in texts)]
     if leaks:
         sys.exit(f"preview: ยังมีชื่อจริงหลุด: {leaks}")
     print(f"preview: {sum(1 for p in OUT.rglob('*') if p.is_file())} ไฟล์ → {OUT}")
