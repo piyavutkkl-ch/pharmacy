@@ -1,0 +1,47 @@
+# ช่อง AI: สร้างข่าวจากบทความวิชาการ CCPE วันละ 1 ข่าว (ฟรี 100%: GitHub Actions + Gemini free tier)
+#   ทุกชั่วโมงเช็กเร็ว ๆ (~20 วินาที) ว่าต้องทำไหม: ยังไม่ได้ทำของวันนี้หลัง 06:00 น. หรือผู้ดูแลกด "สร้างข่าวตอนนี้" ในหน้าเว็บ
+#   ต้องทำ → ติดตั้ง Chromium (วาดภาพประกอบ) → tools/ai_news/run.mjs → ข่าวรอตรวจ/เผยแพร่ตามค่าตั้งในหน้าผู้ดูแล › ข่าว › ช่อง AI
+#   ค่าลับ: SUPABASE_SECRET_KEY (มีอยู่แล้ว) + GEMINI_API_KEY (เจ้าของเว็บสร้างเองที่ aistudio.google.com) — ห้าม echo
+name: ai-news
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'สร้างข่าวทันที (ไม่สนว่าวันนี้ทำแล้วหรือยัง)'
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: ai-news
+  cancel-in-progress: false
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: ตรวจว่าต้องทำข่าวไหม
+        id: check
+        env:
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ inputs.force }}" = true ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "สั่งทำทันที"; exit 0; fi
+          node tools/ai_news/run.mjs --check
+      - name: ติดตั้ง Chromium (วาดภาพประกอบ)
+        if: steps.check.outputs.run == 'true'
+        run: |
+          cd tests/ui && npm install --no-audit --no-fund --loglevel=error
+          npx playwright install --with-deps chromium >/dev/null
+          sudo apt-get install -y -qq fonts-noto-color-emoji fonts-thai-tlwg >/dev/null 2>&1 || true
+      - name: สร้างข่าวจากบทความ
+        if: steps.check.outputs.run == 'true'
+        env:
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node tools/ai_news/run.mjs

@@ -4,6 +4,7 @@
 #   2) db      : สร้างฐานข้อมูลจาก supabase/*.sql แล้วทดสอบสิทธิ์ (RLS) ~130 ข้อ
 #   3) ui      : เปิดทุกหน้าทุกบทบาทด้วย Chromium + Supabase จำลอง, ทดสอบงานหลัก, จอมือถือ/แท็บเล็ต
 #   4) backup  : สำรอง → ทดลองกู้ → กู้จริง ครบวงจร (ข้ามได้ด้วย SKIP_BACKUP_TEST=1)
+#   + ai-news : ช่อง AI สร้างข่าว (tools/ai_news) แบบไม่ใช้เน็ต/คีย์จริง
 # ตั้ง PG_ADMIN_URL เพื่อใช้ Postgres ที่มีอยู่ (ไม่ตั้ง = เปิด Postgres ชั่วคราวในเครื่องให้เอง)
 # ในเครื่องที่ไม่มี Postgres/Playwright จะข้ามขั้นนั้นพร้อมเตือน (บน GitHub Actions ห้ามข้าม — ต้องผ่านทุกขั้น)
 set -euo pipefail
@@ -25,6 +26,7 @@ else
   step "3/4 ui"
 fi
 if have_pw; then node tests/ui/smoke.js | grep -v '^PASS'; else skip "ไม่มี Playwright ในเครื่อง (ขั้น ui)"; fi
+if have_pw; then step "ai-news (offline)"; bash tests/ai_news/run.sh | grep -v '^PASS'; test "${PIPESTATUS[0]}" = 0; fi
 if [ -z "${SKIP_BACKUP_TEST:-}" ] && have_pg; then
   step "4/4 backup"; bash tests/backup/run.sh 2>&1 | grep -E '^(PASS|FAIL|ERROR)'; test "${PIPESTATUS[0]}" = 0
 fi

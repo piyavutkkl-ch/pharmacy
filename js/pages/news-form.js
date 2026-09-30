@@ -50,6 +50,7 @@ export function newsForm(p) {
 /** ลบรูป/PDF ของข่าว n — ส่ง fields เพื่อลบเฉพาะไฟล์เดิมที่ถูกแทนที่ (ไม่ส่ง = ลบทั้งหมด เช่น ลบข่าว) */
 export function removeNewsFiles(n, fields = null) {
   if (n?.image_path && (!fields || fields.image_path)) removeFiles('public-images', [n.image_path]);
+  if (!fields && n?.gallery?.length) removeFiles('public-images', n.gallery);   // ภาพประกอบเพิ่มเติม (ข่าวจากช่อง AI)
   if (n?.file_path && (!fields || fields.file_path)) removeFiles('news-files', [n.file_path]);
 }
 

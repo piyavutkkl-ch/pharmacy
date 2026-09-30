@@ -34,6 +34,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for wf in keepalive.yml backup.yml; do
+          for wf in keepalive.yml backup.yml ai-news.yml; do
             gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$wf/enable" >/dev/null && echo "enabled $wf" || echo "skip $wf"
           done

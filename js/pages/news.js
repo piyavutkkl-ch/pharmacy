@@ -93,9 +93,10 @@ export async function showArticle(id) {
   current = null;
   $('#arTitle').textContent = 'กำลังโหลด…';
   $('#arTag').textContent = ''; $('#arDate').textContent = ''; $('#arBody').innerHTML = ''; $('#arCover').innerHTML = ''; $('#arCover').className = 'cover'; $('#arCover').style.removeProperty('--ar'); $('#arFile').hidden = true;
+  $('#arGallery').innerHTML = ''; $('#arGallery').hidden = true; $('#arSource').hidden = true; $('#arAi').hidden = true;
   $('#arComments').innerHTML = ''; $('#arCommentMsg').textContent = ''; $('#arShareMsg').textContent = '';
   const { data: n, error } = await sb.from('news')
-    .select('id,title,tag,body,image_path,file_path,file_name,published_at,comments_closed,view_count').eq('id', id).maybeSingle();
+    .select('id,title,tag,body,image_path,file_path,file_name,published_at,comments_closed,view_count,ai_generated,source_url,source_title,gallery').eq('id', id).maybeSingle();
   if (error || !n) { $('#arTitle').textContent = 'ไม่พบข่าวนี้'; $('#arBody').innerHTML = '<p class="muted">ข่าวอาจถูกลบหรือยังไม่เผยแพร่</p>'; return; }
   current = n;
   document.title = n.title + ' · Primary Care Pharmacy Services';
@@ -106,6 +107,17 @@ export async function showArticle(id) {
   else $('#arCover').innerHTML = cover(n);
   $('#arBody').innerHTML = String(n.body || '').split(/\n{1,}/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
   $('#arFile').innerHTML = n.file_path ? fileLink(n) : ''; $('#arFile').hidden = !n.file_path;
+  const gal = (n.gallery || []).filter(Boolean);   // ภาพประกอบเพิ่มเติม (ข่าวจากช่อง AI: การ์ตูน + แผนภูมิ)
+  if (gal.length) {
+    $('#arGallery').innerHTML = gal.map(() => '<div class="cover"></div>').join(''); $('#arGallery').hidden = false;
+    $('#arGallery').querySelectorAll('.cover').forEach((box, i) => smartCover(box, publicImageUrl(gal[i]), `${n.title} — ภาพที่ ${i + 2}`));
+  }
+  $('#arAi').hidden = !n.ai_generated;
+  if (n.source_url) {
+    $('#arSource').innerHTML = `อ้างอิง: <a href="${esc(n.source_url)}" target="_blank" rel="noopener">${esc(n.source_title || 'บทความต้นฉบับ')}</a>`
+      + (n.ai_generated ? ' · ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม' : '');
+    $('#arSource').hidden = false;
+  }
   if (!viewed.has(n.id)) { viewed.add(n.id); sb.rpc('bump_news_view', { p_news: n.id }).then(() => {}); n.view_count += 1; }
   $('#arViewCount').textContent = n.view_count.toLocaleString('th-TH') + ' ผู้เข้าชม';
   renderCommentState();

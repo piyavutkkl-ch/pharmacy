@@ -6,6 +6,8 @@ import { loadUnits, unitName } from '../data.js?v=4.4';
 import { newsForm, removeNewsFiles, fileLink } from './news-form.js?v=4.4';
 import { loadNews, renderSlides } from './news.js?v=4.4';
 import { refreshAdminBadges } from './admin.js?v=4.4';
+import { initAiPanel } from './admin-ai.js?v=4.4';
+import { smartCover } from '../lightbox.js?v=4.4';
 
 let queue = [], published = [], trash = [], reviewing = null, editing = null, bound = false;
 const TRASH = ['unpublished', 'deleted', 'rejected'], KEEP_DAYS = 30, DAY = 86_400_000;
@@ -14,42 +16,50 @@ const TRASH_LABEL = { unpublished: ['หยุดเผยแพร่', 'c-off'
 export async function initAdminNews() {
   await loadUnits();
   if (!bound) { bound = true; bind(); }
-  await Promise.all([loadQueue(), loadPublished(), loadTrash()]);
+  await Promise.all([loadQueue(), loadPublished(), loadTrash(), initAiPanel()]);
 }
 
 async function loadQueue() {
-  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,file_path,file_name,unit_id,created_at,author:profiles!news_author_id_fkey(full_name)').eq('status', 'pending').order('created_at');
+  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,file_path,file_name,unit_id,created_at,comments_closed,ai_generated,source_url,source_title,gallery,author:profiles!news_author_id_fkey(full_name)').eq('status', 'pending').order('created_at');
   if (error) { $('#anQueue').innerHTML = `<p class="empty">โหลดข่าวรอตรวจไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
   queue = data;
   $('#anQueueCount').textContent = queue.length ? `(${queue.length})` : '';
   $('#anQueue').innerHTML = queue.length ? queue.map((n) => `<div class="li"><div class="l"><b>${esc(n.title)}</b>`
-    + `<span class="small muted">${esc(n.author?.full_name || '-')} · รพ.สต. ${esc(unitName(n.unit_id))} · ${esc(n.tag)} · ${esc(thaiDate(n.created_at))}</span></div>`
+    + `<span class="small muted">${from(n)} · ${esc(n.tag)} · ${esc(thaiDate(n.created_at))}</span></div>`
+    + (n.ai_generated ? '<span class="chip c-sub">AI</span>' : '')
     + `<button type="button" class="btn btn-p btn-sm" data-review="${n.id}">ตรวจ</button></div>`).join('')
     : '<p class="empty">ไม่มีข่าวรอตรวจ</p>';
   if (reviewing && !queue.some((n) => n.id === reviewing.id)) closeReview();
 }
+
+const from = (n) => (n.ai_generated ? 'ช่อง AI · บทความวิชาการ CCPE' : `${esc(n.author?.full_name || '-')} · รพ.สต. ${esc(unitName(n.unit_id))}`);
 
 function openReview(id) {
   reviewing = queue.find((n) => n.id === id); if (!reviewing) return;
   const n = reviewing, el = $('#anReview');
   el.hidden = false;
   el.innerHTML = `<div class="panel-head"><h2>${esc(n.title)}</h2><span class="tag">${esc(n.tag)}</span></div>`
-    + `<p class="small muted">ส่งโดย ${esc(n.author?.full_name || '-')} · รพ.สต. ${esc(unitName(n.unit_id))}</p>`
-    + (n.image_path ? `<div class="cover" style="max-width:480px"><img src="${esc(publicImageUrl(n.image_path))}" alt="" style="width:100%;height:100%;object-fit:cover"></div>` : '')
+    + `<p class="small muted">ส่งโดย ${from(n)}</p>`
+    + (n.ai_generated ? '<p class="small ai-warn">ข่าวนี้เขียนโดย AI — ตรวจตัวเลข ชื่อยา และขนาดยาเทียบกับบทความต้นฉบับก่อนเผยแพร่</p>' : '')
+    + ([n.image_path, ...(n.gallery || [])].filter(Boolean).length ? `<div class="rv-imgs">${[n.image_path, ...(n.gallery || [])].filter(Boolean).map(() => '<div class="cover"></div>').join('')}</div>` : '')
     + `<div class="article-body" style="font-size:15px">${String(n.body).split(/\n+/).map((p) => `<p>${esc(p)}</p>`).join('')}</div>`
     + (n.file_path ? `<div>${fileLink(n)}</div>` : '')
+    + (n.source_url ? `<p class="small">อ้างอิง: <a href="${esc(n.source_url)}" target="_blank" rel="noopener">${esc(n.source_title || n.source_url)}</a></p>` : '')
     + '<label for="anComment" class="small" style="font-weight:600">ความเห็นถึงผู้ส่ง (จำเป็นเมื่อขอแก้ไขหรือไม่ผ่าน)</label><textarea id="anComment" rows="2" maxlength="1000"></textarea>'
     + '<div class="row-btns" style="align-items:center"><button type="button" class="btn btn-ok" data-decide="published">อนุมัติ &amp; เผยแพร่</button>'
-    + '<button type="button" class="btn btn-warn" data-decide="fix">ขอแก้ไข</button><button type="button" class="btn btn-no" data-decide="rejected">ไม่ผ่าน</button>'
+    + (n.ai_generated ? '<button type="button" class="btn btn-o" data-decide="edit">แก้ไขข้อความ</button><button type="button" class="btn btn-no" data-decide="rejected">ไม่ใช้ข่าวนี้</button>'
+      : '<button type="button" class="btn btn-warn" data-decide="fix">ขอแก้ไข</button><button type="button" class="btn btn-no" data-decide="rejected">ไม่ผ่าน</button>')
     + '<button type="button" class="btn btn-o btn-sm" data-decide="close">ปิด</button><span class="small" id="anDecideMsg" aria-live="polite"></span></div>';
+  el.querySelectorAll('.rv-imgs .cover').forEach((box, i) => smartCover(box, publicImageUrl([n.image_path, ...(n.gallery || [])].filter(Boolean)[i]), n.title));
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function closeReview() { reviewing = null; $('#anReview').hidden = true; $('#anReview').innerHTML = ''; }
 
 async function decide(status, btn) {
   if (status === 'close') return closeReview();
+  if (status === 'edit') return editNews(reviewing);   // ข่าว AI: แก้ข้อความในฟอร์มด้านบน แล้วกลับมาอนุมัติ
   const comment = $('#anComment').value.trim();
-  if (status !== 'published' && !comment) { $('#anDecideMsg').style.color = 'var(--error)'; $('#anDecideMsg').textContent = 'กรุณาใส่ความเห็นให้ผู้ส่งทราบว่าต้องแก้อะไร'; $('#anComment').focus(); return; }
+  if (status === 'fix' && !comment || status === 'rejected' && !comment && !reviewing.ai_generated) { $('#anDecideMsg').style.color = 'var(--error)'; $('#anDecideMsg').textContent = 'กรุณาใส่ความเห็นให้ผู้ส่งทราบว่าต้องแก้อะไร'; $('#anComment').focus(); return; }
   busy(btn, true, 'กำลังบันทึก…');
   const { error } = await sb.from('news').update({ status, review_comment: comment || null }).eq('id', reviewing.id);
   busy(btn, false);
@@ -74,12 +84,12 @@ async function loadPublished() {
 /* ---------- ข่าวที่หยุดเผยแพร่ (ถังข่าว): หยุดเผยแพร่ / ลบ / ไม่ผ่าน → เรียกคืนได้ 30 วัน ---------- */
 async function loadTrash() {
   const cut = new Date(Date.now() - KEEP_DAYS * DAY).toISOString();
-  const old = await sb.from('news').select('id,image_path,file_path').in('status', TRASH).lt('trashed_at', cut);
+  const old = await sb.from('news').select('id,image_path,file_path,gallery').in('status', TRASH).lt('trashed_at', cut);
   if (old.data?.length) {   // ครบ 30 วัน → ลบถาวร
     const { error } = await sb.from('news').delete().in('id', old.data.map((n) => n.id));
     if (!error) old.data.forEach((n) => removeNewsFiles(n));
   }
-  const { data, error } = await sb.from('news').select('id,title,tag,status,prev_status,trashed_at,updated_at,image_path,file_path,unit_id').in('status', TRASH).order('trashed_at', { ascending: false });
+  const { data, error } = await sb.from('news').select('id,title,tag,status,prev_status,trashed_at,updated_at,image_path,file_path,gallery,unit_id').in('status', TRASH).order('trashed_at', { ascending: false });
   if (error) { $('#anTrash').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   trash = data;
   $('#anTrashCount').textContent = `(${trash.length})`;
@@ -107,6 +117,13 @@ function resetForm() {
 }
 function refreshHome() { loadNews(true).then(renderSlides).catch(() => {}); }
 
+function editNews(n) {
+  editing = n; $('#anTitle').value = n.title; $('#anBody').value = n.body; $('#anClosed').checked = !!n.comments_closed; anKit.edit(n);
+  $('#anFormTitle').textContent = queue.some((q) => q.id === n.id) ? 'แก้ไขข่าวรอตรวจ (บันทึกแล้วกลับไปกดอนุมัติ)' : 'แก้ไขข่าว';
+  $('#anSubmit').textContent = 'บันทึกการแก้ไข'; $('#anCancel').hidden = false;
+  $('#anForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 let anKit = null;
 function bind() {
   anKit = newsForm('an');
@@ -133,9 +150,7 @@ function bind() {
     const ed = e.target.closest('[data-edit]');
     if (ed) {
       const n = published.find((x) => x.id === ed.dataset.edit); if (!n) return;
-      editing = n; $('#anTitle').value = n.title; $('#anBody').value = n.body; $('#anClosed').checked = n.comments_closed; anKit.edit(n);
-      $('#anFormTitle').textContent = 'แก้ไขข่าว'; $('#anSubmit').textContent = 'บันทึกการแก้ไข'; $('#anCancel').hidden = false;
-      $('#anForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); return;
+      editNews(n); return;
     }
     const up = e.target.closest('[data-unpub]');
     if (up) { const n = published.find((x) => x.id === up.dataset.unpub); if (n && confirm(`หยุดเผยแพร่ข่าว "${n.title}"?\nข่าวจะไปอยู่ใน "ข่าวที่หยุดเผยแพร่" เรียกคืนได้ภายใน 30 วัน`)) setNewsStatus(n.id, 'unpublished', 'หยุดเผยแพร่แล้ว'); return; }
@@ -161,7 +176,9 @@ function bind() {
       if (res.error) throw res.error;
       if (editing) removeNewsFiles(editing, up.fields);
       toast(editing ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่ข่าวแล้ว');
+      const wasPending = editing && queue.some((q) => q.id === editing.id), id = editing?.id;
       resetForm(); loadPublished(); refreshHome();
+      if (wasPending) { await loadQueue(); openReview(id); }   // ข่าวรอตรวจ: กลับไปที่กล่องตรวจเพื่อกดอนุมัติ
     } catch (err) { up?.undo(); m.style.color = 'var(--error)'; m.textContent = errText(err); }
     finally { busy(btn, false); }
   });

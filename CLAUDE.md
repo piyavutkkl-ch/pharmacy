@@ -52,6 +52,7 @@ js/pages/dose.js      เครื่องคำนวณโดสยา (ต�
 js/pages/stats.js     ผลการดำเนินงาน, ผลงาน รพ.สต. + อันดับ, ช่องทางติดต่อ
 js/pages/admin.js     ผู้ดูแล: โครงหน้า/เมนู (#/admin/<tab>[/<sub>]) + ตัวเลขงานค้าง + ข้อเสนอแนะ (ตั้งค่า › ข้อเสนอแนะ)
 js/pages/admin-news.js     ผู้ดูแล › ข่าว: เขียน/แก้ข่าว + ตรวจข่าวจาก รพ.สต. + ข่าวที่หยุดเผยแพร่ (หยุดเผยแพร่/ลบ/ไม่ผ่าน เรียกคืนได้ 30 วัน)
+js/pages/admin-ai.js       ผู้ดูแล › ข่าว › ช่อง AI: สถานะ/ประวัติ (ai_news_log), สวิตช์เผยแพร่ทันที (site_texts ai_news_auto), ปุ่มสร้างข่าวตอนนี้ (ai_news_request)
 js/pages/news-form.js      ฟอร์มข่าวใช้ร่วม (sn/an): ประเภท ข่าว/ประชาสัมพันธ์/ความรู้, รูปย่อ ≤ A4 + ตัวอย่าง, PDF แนบ (bucket news-files)
 js/pages/admin-review.js   ผู้ดูแล › ตรวจประเมิน: ตรวจหลักฐาน (ย้อนกลับผลตรวจ, แนบไฟล์กลับ), แก้เกณฑ์ (ข้อใหญ่/หัวข้อย่อย/ไฟล์ตัวอย่าง), ปีงบ (เริ่ม/ซ่อน/ลบปีว่าง)
 js/pages/admin-settings.js ผู้ดูแล › ตั้งค่า: รายการยาเครื่องคำนวณโดส + ช่องทางติดต่อ รพ.สต.
@@ -70,12 +71,13 @@ js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน 
 js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP, รายการยา, DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP (imagePicker แสดงตัวอย่างทันที), ภาพย่อไฟล์ fileCard/hydrateSigned, ลิงก์ชั่วคราวไฟล์ส่วนตัว
 supabase/NN_*.sql     migration เรียงเลข · ไฟล์ใหม่ = เลขถัดไป → ระบบรันบน Supabase ให้เองหลังทดสอบผ่าน (tools/db/migrate.sh)
-.github/workflows/    ci-deploy (ทดสอบ→รวม→ฐานข้อมูล→ขึ้นเว็บ) · keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์) · restore (กู้)
+.github/workflows/    ci-deploy (ทดสอบ→รวม→ฐานข้อมูล→ขึ้นเว็บ) · keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์) · restore (กู้) · ai-news (ช่อง AI เช็กทุกชั่วโมง ทำวันละ 1 ข่าว)
+tools/ai_news/        run.mjs ข่าวจากบทความ CCPE: เลือกบทความ → PDF → Gemini (ฟรี) เขียนข่าว → templates.mjs วาดภาพ 3 แบบด้วย Chromium → บันทึกข่าว (ai_generated, gallery, source_url) · --check / --offline
 tools/db/migrate.sh   รัน SQL ใหม่บน Supabase (จดไว้ใน ops.schema_migrations · สำรองก่อน · กันคำสั่งลบข้อมูลที่ไม่ได้ยืนยัน)
 tools/backup/         สคริปต์สำรอง/กู้ข้อมูล (bash + Python มาตรฐาน) — วิธีตั้งค่าอยู่ใน docs/BACKUP.md
 tools/preview/build.py สร้างหน้าตัวอย่าง (_preview/ · Supabase จำลอง + ชื่อสมมติ · ตรวจว่าไม่มีชื่อจริงหลุด)
 tools/bump_version.py ติด ?v= กันแคช — ระบบ deploy เรียกให้เองกับสำเนาที่ขึ้นเว็บ (ไม่ต้องรันเอง)
-tests/run_all.sh      ทดสอบทั้งหมด (คำสั่งเดียว) · static_checks.py · db/ (RLS) · ui/ (หน้าเว็บ) · backup/ (สำรอง/กู้)
+tests/run_all.sh      ทดสอบทั้งหมด (คำสั่งเดียว) · static_checks.py · db/ (RLS) · ui/ (หน้าเว็บ) · ai_news/ (ช่อง AI แบบไม่ใช้เน็ต) · backup/ (สำรอง/กู้)
 tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำลอง) + seed.sql → fixtures.json (ข้อมูลตัวอย่าง)
 .claude/settings.json ตอนเริ่ม session ติดตั้ง Postgres/Playwright ให้ (tests/setup_env.sh)
 ```
@@ -92,6 +94,8 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - เส้นทางไฟล์: รูปข่าว `news/<user id>/…`, รูปผลงาน `achievements/<unit>/…`, โปสเตอร์ `delivery/…`, สรุปเยี่ยมบ้าน `summaries/<unit>/…`, หลักฐาน `<ปีงบ>/<unit>/<ข้อ>/…`
 - ไฟล์: bucket `public-images` (≤1 MB, สาธารณะ), `documents` (≤5 MB), `evidence` (≤2 MB, path `ปีงบ/unit/…`), `news-files` (PDF ≤5 MB สาธารณะ, `<uid>/…`),
   `chat-images` (≤1 MB ส่วนตัว, `<conversation id>/…`), `criteria-samples` (≤5 MB ส่วนตัว, ผู้ดูแลอัปโหลด), `visit-photos` (≤1 MB ส่วนตัว PDPA, `<unit>/<patient>/…`) รวมฟรี 1 GB
+- ช่อง AI: ข่าวจาก AI = news.ai_generated + gallery (ภาพเพิ่ม ≤6) + source_url/source_title (อ้างอิง ไม่แนบ PDF) · ค่าเริ่มต้นเข้าคิวรอตรวจ · ai_news_log เขียนได้เฉพาะ secret key
+  ค่าลับ GitHub Secrets: GEMINI_API_KEY (เจ้าของเว็บสร้างเองที่ aistudio.google.com — ฟรี ไม่ใส่บัตร) + SUPABASE_SECRET_KEY · Gemini free tier อาจใช้ข้อมูลที่ส่งไปพัฒนาโมเดล → ส่งได้แค่บทความสาธารณะ ห้ามส่งข้อมูลผู้ป่วย
 - ข่าว: สถานะ pending/fix/rejected/published/unpublished/deleted · ถังข่าว (unpublished/deleted/rejected) มี trashed_at — หน้าผู้ดูแลลบถาวรเมื่อครบ 30 วัน
 
 ## แนวทางเขียนโค้ด
@@ -126,6 +130,7 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - [x] 5 GitHub Actions: กัน Supabase หยุดโปรเจกต์ + สำรองข้อมูลรายสัปดาห์ไป Google Drive กลาง (docs/BACKUP.md)
 - [x] 6 ระบบอัตโนมัติ: Claude แก้ → ทดสอบ → push → Actions ทดสอบ/รวม/อัปเดตฐานข้อมูล/ขึ้นเว็บเอง
 - [x] 7 PDPA: บันทึกการเปิดดู/เพิ่ม/แก้/ลบข้อมูลผู้ป่วย + หน้าผู้ดูแลค้นย้อนหลัง/ดาวน์โหลด CSV (08_audit_access.sql)
+- [ ] 8 ช่อง AI ข่าวจากบทความ CCPE (28_ai_news.sql + ai-news.yml) — โค้ดพร้อม · รอเจ้าของเว็บตั้ง GEMINI_API_KEY แล้วดูผลรอบแรก
 
 ## งานค้าง (ทำแล้วลบบรรทัดออก)
 - ต้นแบบ UI เดิม (ใช้อ้างอิงหน้าตา/ฟีเจอร์ที่ยังไม่ย้าย): Claude Artifact "Primary Care Pharmacy Services" ของเจ้าของโปรเจกต์

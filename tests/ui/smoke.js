@@ -263,6 +263,30 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#adminUnitChatSlot .uc-input', 'อัปโหลดไว้ในเมนูเอกสารแล้วครับ'); await p.click('#adminUnitChatSlot .uc-send'); await p.waitForTimeout(400);
     check('ผู้ดูแล: ตอบ รพ.สต. ได้', (await calls(p, (c) => c.table === 'unit_messages' && c.op === 'insert'))[0]?.payload?.unit_id === 3 && await count(p, '#adminUnitChatSlot .bubble.me') === 1);
     await p.screenshot({ path: path.join(SHOTS, 'admin-unitchat-1280.png'), fullPage: true });
+    {
+      await go(p, '#/admin/news'); await p.waitForTimeout(500);
+      const AI = '00000000-0000-0000-0000-0000000a1001';
+      check('ช่อง AI: แสดงสถานะล่าสุด + ประวัติ (สำเร็จ/ไม่สำเร็จพร้อมสาเหตุ)', (await text(p, '#aiStatus')).includes('สร้างข่าวแล้ว') && await count(p, '#aiLog .li') === 2 && (await text(p, '#aiLog')).includes('quota') && (await text(p, '#aiLog')).includes('รอตรวจ'));
+      await p.click('#aiAuto'); await p.waitForTimeout(300);
+      check('ช่อง AI: เปิด "เผยแพร่ทันที" ได้ (ถามยืนยันก่อน)', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert'))[0]?.payload?.key === 'ai_news_auto' && (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert'))[0]?.payload?.body === 'on');
+      await p.click('#aiAuto'); await p.waitForTimeout(300);
+      await p.click('#aiNow'); await p.waitForTimeout(500);
+      check('ช่อง AI: กด "สร้างข่าวตอนนี้" → ส่งคำสั่ง + แจ้งว่าจะได้ภายใน 1 ชั่วโมง', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert')).some((c) => c.payload.key === 'ai_news_request') && (await text(p, '#aiStatus')).includes('ภายใน 1 ชั่วโมง'));
+      check('ช่อง AI: ข่าวจาก AI เข้าคิวรอตรวจพร้อมป้าย AI', (await text(p, '#anQueue')).includes('ช่อง AI') && await count(p, '#anQueue .chip') >= 1);
+      await p.click(`#anQueue [data-review="${AI}"]`); await p.waitForTimeout(500);
+      check('ช่อง AI: กล่องตรวจแสดงภาพ 3 ภาพ + อ้างอิงบทความ + เตือนให้ตรวจตัวเลข + ปุ่มแก้ไข', await count(p, '#anReview .rv-imgs .cover') === 3 && (await p.getAttribute('#anReview a[href*="ccpe"]', 'href') || '').includes('id=1876')
+        && (await text(p, '#anReview')).includes('ตรวจตัวเลข') && await visible(p, '#anReview [data-decide="edit"]') && !(await p.$('#anReview [data-decide="fix"]')));
+      await p.click('#anReview [data-decide="edit"]'); await p.waitForTimeout(200);
+      check('ช่อง AI: แก้ไขข้อความ → ข้อมูลขึ้นในฟอร์มด้านบน', (await p.inputValue('#anTitle')).includes('สแตติน') && (await text(p, '#anFormTitle')).includes('รอตรวจ'));
+      await p.fill('#anBody', 'แก้โดยเภสัชกรแล้ว'); await p.click('#anSubmit'); await p.waitForTimeout(600);
+      check('ช่อง AI: บันทึกแล้วยังรอตรวจ + กลับไปที่กล่องตรวจ', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.body === 'แก้โดยเภสัชกรแล้ว' && !('status' in c.payload)) && await visible(p, '#anReview [data-decide="published"]'));
+      await p.click('#anReview [data-decide="published"]'); await p.waitForTimeout(500);
+      check('ช่อง AI: อนุมัติแล้วเผยแพร่', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.status === 'published'));
+      await go(p, '#/news/' + AI); await p.waitForTimeout(500);
+      check('หน้าอ่านข่าว AI: ป้าย "สรุปโดย AI" + ภาพเพิ่ม 2 ภาพ + อ้างอิงบทความต้นฉบับ (ไม่แนบ PDF)', await visible(p, '#arAi') && await count(p, '#arGallery .cover') === 2 && (await p.getAttribute('#arSource a', 'href')).includes('ccpe.pharmacycouncil.org') && !(await visible(p, '#arFile')));
+      await p.screenshot({ path: path.join(SHOTS, 'ai-news-article-1280.png'), fullPage: true });
+      await go(p, '#/admin/news'); await p.waitForTimeout(300);
+    }
     check('ข่าว (ผู้ดูแล): กล่องรอตรวจอยู่ใต้กล่องเขียนข่าว', await p.$eval('[data-admin-view="news"]', (v) => [...v.children].findIndex((c) => c.querySelector('#anForm')) < [...v.children].findIndex((c) => c.querySelector('#anQueue'))));
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));
     check('เมนูผู้ดูแล: ข้อความอยู่เหนือตรวจประเมิน + ข้อเสนอแนะย้ายไปอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,review,visits,rider,docs,settings' && await count(p, '#afList .li') > 0);
@@ -312,7 +336,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ผู้ดูแล: เพิ่มโปสเตอร์ส่งยาถึงบ้าน (ย่อ ≤ A4)', await count(p, '#daList .da-poster') === 1 && (await calls(p, (c) => c.upload === 'public-images' && c.path.startsWith('delivery/'))).length === 1);
     await p.fill('#daInfo', 'บริการใหม่\nโทรนัดได้ที่ รพ.สต.'); await p.click('#daInfoSave'); await p.waitForTimeout(300);
     await p.fill('#daStats [data-u="2"][data-k="deliveries"]', '60'); await p.click('#daStatSave'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: บันทึกข้อความแนะนำ + สถิติการจัดส่ง', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert')).length === 1 && (await calls(p, (c) => c.table === 'delivery_stats' && c.op === 'upsert'))[0]?.payload?.some((r) => r.unit_id === 2 && r.deliveries === 60));
+    check('ผู้ดูแล: บันทึกข้อความแนะนำ + สถิติการจัดส่ง', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert' && c.payload.key === 'delivery_info')).length === 1 && (await calls(p, (c) => c.table === 'delivery_stats' && c.op === 'upsert'))[0]?.payload?.some((r) => r.unit_id === 2 && r.deliveries === 60));
     await go(p, '#/delivery'); await p.waitForTimeout(500);
     check('หน้าหลัก: โปสเตอร์แสดง + ข้อความใหม่ + สถิติอัปเดต', await count(p, '#dlPosters .poster img') === 1 && (await text(p, '#dlInfo')).includes('บริการใหม่') && (await text(p, '#dlFigs')).includes('117'));
     await p.screenshot({ path: path.join(SHOTS, 'home-delivery-1280.png'), fullPage: true });

@@ -194,12 +194,14 @@
 <section data-view="article" class="article" hidden>
   <a class="back" href="#/news"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>ข่าวประชาสัมพันธ์</a>
   <div class="article-head">
-    <span class="tag" id="arTag"></span>
+    <div class="row-btns"><span class="tag" id="arTag"></span><span class="chip c-sub" id="arAi" hidden>สรุปโดย AI</span></div>
     <h1 id="arTitle"></h1>
     <span class="d num" id="arDate"></span>
   </div>
   <div class="cover" id="arCover"></div>
+  <div class="ar-gallery" id="arGallery" hidden></div>
   <div class="article-body" id="arBody"></div>
+  <p class="ar-source small" id="arSource" hidden></p>
   <div id="arFile" hidden></div>
   <div class="row-btns" style="align-items:center">
     <button type="button" class="btn btn-o btn-sm" id="arLikeBtn" aria-pressed="false">
@@ -411,6 +413,14 @@
 
       <!-- ข่าว: ตรวจข่าวจากเจ้าหน้าที่ + เขียน/จัดการข่าว -->
       <div data-admin-view="news" hidden>
+        <!-- ช่อง AI: ข่าวจากบทความ CCPE วันละ 1 ข่าว (admin-ai.js · งานจริงใน GitHub Actions ai-news.yml) -->
+        <div class="panel ai-panel">
+          <div class="panel-head"><h2>ช่อง AI · ข่าวจากบทความวิชาการ</h2><span class="chip c-sub">วันละ 1 ข่าว</span></div>
+          <p class="small muted">ทุกวันหลัง 06:00 น. ระบบเลือกบทความใหม่ 1 เรื่องจาก <a href="https://ccpe.pharmacycouncil.org/index.php?option=article&amp;subpage=article" target="_blank" rel="noopener">ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม</a> → AI อ่านบทความแล้วเขียนข่าวสั้นอ่านง่าย พร้อมภาพประกอบ 3 แบบ (อินโฟกราฟิก · การ์ตูน 3 ช่อง · แผนภูมิสำหรับบุคลากร) และอ้างอิงบทความต้นฉบับ</p>
+          <label class="small ai-auto"><input type="checkbox" id="aiAuto"> เผยแพร่ทันทีโดยไม่ต้องตรวจ (ไม่แนะนำ · ปิดไว้ = ข่าวเข้าคิว "รอตรวจ" ด้านล่าง)</label>
+          <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="aiNow">สร้างข่าวตอนนี้</button><span class="small" id="aiStatus" aria-live="polite"></span></div>
+          <div class="list" id="aiLog"></div>
+        </div>
         <div class="panel">
           <h2 id="anFormTitle">เขียนข่าว (เผยแพร่ทันที)</h2>
           <form id="anForm" class="form-grid" novalidate>
@@ -423,7 +433,7 @@
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="anSubmit">เผยแพร่ข่าว</button><button class="btn btn-o btn-sm" type="button" id="anCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="anMsg" aria-live="polite"></span></div>
           </form>
         </div>
-        <div class="panel"><h2>ข่าวจากเจ้าหน้าที่ รอตรวจ <span class="num muted" id="anQueueCount"></span></h2><div class="list" id="anQueue"></div></div>
+        <div class="panel"><h2>ข่าวรอตรวจ (จาก รพ.สต. และช่อง AI) <span class="num muted" id="anQueueCount"></span></h2><div class="list" id="anQueue"></div></div>
         <div class="panel" id="anReview" hidden></div>
         <div class="panel"><h2>ข่าวที่เผยแพร่แล้ว <span class="num muted" id="anCount"></span></h2><div class="list" id="anList"></div></div>
         <div class="panel"><h2>ข่าวที่หยุดเผยแพร่ <span class="num muted" id="anTrashCount"></span></h2><p class="small muted">ข่าวที่หยุดเผยแพร่ ถูกลบ หรือไม่ผ่าน · เรียกคืนได้ภายใน 30 วัน หลังจากนั้นระบบลบถาวรให้เอง</p><div class="list" id="anTrash"></div></div>
