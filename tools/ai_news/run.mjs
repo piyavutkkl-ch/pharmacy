@@ -172,15 +172,19 @@ async function render(browser, kind, html) {
     throw new Error(`ภาพ ${kind} ใหญ่เกิน 1 MB`);
   } finally { await p.close(); }
 }
+let artOff = false;
 /** ภาพวาดจาก AI (ถ้าโควตาฟรีรองรับ) → data URL · ไม่ได้ = null แล้วใช้อีโมจิแทน */
 async function artImage(model, prompt) {
-  if (!model?.length || !prompt) return null;
+  if (!model?.length || !prompt || artOff) return null;
   try {
     const j = await gemini(model, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }, { waits: [15_000] });
     const part = (j.candidates?.[0]?.content?.parts || []).find((x) => (x.inlineData || x.inline_data)?.data);
     const d = part && (part.inlineData || part.inline_data);
     return d ? `data:${d.mimeType || d.mime_type || 'image/png'};base64,${d.data}` : null;
-  } catch (e) { log('ข้ามภาพวาด AI:', e.message.slice(0, 160)); return null; }
+  } catch (e) {
+    if (/HTTP (429|403|404)/.test(e.message)) artOff = true;   // โควตาฟรีไม่รวมการวาดภาพ → ไม่ลองซ้ำทุกช่อง (ใช้อีโมจิทั้งรอบ)
+    log('ข้ามภาพวาด AI:', e.message.slice(0, 160)); return null;
+  }
 }
 
 /* ---------------- ประกอบข่าว ---------------- */
