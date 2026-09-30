@@ -77,27 +77,41 @@ export function parseDetail(html, id) {
 }
 
 /* ---------------- Gemini (ฟรี: aistudio.google.com) ---------------- */
-async function gemini(model, body) {
-  if (OFFLINE) return JSON.parse(fs.readFileSync(path.join(OFFLINE.dir, model.includes('image') ? 'gemini-image.json' : 'gemini.json'), 'utf8'));
-  const r = await fetch(`${GEMINI}/models/${model}:generateContent`, {
-    method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY }, body: JSON.stringify(body),
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Gemini ${model} HTTP ${r.status}: ${(j.error?.message || '').slice(0, 200)}`);
-  return j;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** เรียก Gemini: ลองทีละรุ่นตามลำดับ · รุ่นไหนคนใช้เยอะ/โควตาเต็ม (429/5xx) รอแล้วลองใหม่ ก่อนเปลี่ยนไปรุ่นถัดไป */
+async function gemini(models, body, { waits = [20_000, 60_000] } = {}) {
+  const list = [].concat(models).filter(Boolean);
+  if (OFFLINE) return JSON.parse(fs.readFileSync(path.join(OFFLINE.dir, String(list[0]).includes('image') ? 'gemini-image.json' : 'gemini.json'), 'utf8'));
+  let last = new Error('Gemini: ไม่มีรุ่นให้ใช้');
+  for (const model of list) {
+    for (let i = 0; i <= waits.length; i++) {
+      const r = await fetch(`${GEMINI}/models/${model}:generateContent`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY }, body: JSON.stringify(body),
+      }).catch((e) => ({ ok: false, status: 0, json: async () => ({ error: { message: e.message } }) }));
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) return j;
+      last = new Error(`Gemini ${model} HTTP ${r.status}: ${(j.error?.message || '').slice(0, 160)}`);
+      if (![0, 429, 500, 502, 503, 504].includes(r.status) || i === waits.length) break;   // 4xx อื่น = รุ่นนี้ใช้ไม่ได้ → รุ่นถัดไป
+      log(`${model} ไม่ว่าง (HTTP ${r.status}) รอ ${waits[i] / 1000} วินาทีแล้วลองใหม่`);
+      await sleep(waits[i]);
+    }
+    log('เปลี่ยนรุ่น:', last.message.slice(0, 120));
+  }
+  throw last;
 }
 /** เลือกรุ่นที่ใช้ได้จริงกับคีย์นี้ (ชื่อรุ่นเปลี่ยนบ่อย จึงไม่ตายตัว) */
 async function pickModels() {
-  if (OFFLINE) return { text: 'offline-flash', image: 'offline-image' };
+  if (OFFLINE) return { text: ['offline-flash'], image: ['offline-image'] };
   const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY } });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`Gemini: คีย์ใช้ไม่ได้ (HTTP ${r.status}) ${(j.error?.message || '').slice(0, 150)}`);
   const ok = (j.models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent')).map((m) => m.name.replace('models/', ''));
   const rank = (n) => (/pro/.test(n) ? 1 : 0) + (/lite/.test(n) ? 2 : 0) + (/preview|exp/.test(n) ? 1 : 0);
-  const text = ok.filter((n) => /^gemini-[\d.]+-flash/.test(n) && !/image|tts|audio|live|thinking/.test(n)).sort((a, b) => rank(a) - rank(b) || b.localeCompare(a))[0]
-    || ok.find((n) => /flash-latest/.test(n)) || ok.find((n) => /^gemini/.test(n));
-  const image = ok.filter((n) => /^gemini.*image/.test(n)).sort((a, b) => rank(a) - rank(b) || b.localeCompare(a))[0] || null;
-  if (!text) throw new Error('Gemini: ไม่พบรุ่นที่ใช้สร้างข้อความได้');
+  const sorted = (xs) => xs.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a));
+  // ข้อความ: รุ่น flash ใหม่สุดก่อน แล้วสำรองรุ่นอื่น (รุ่นใหม่มักคนใช้เยอะจนไม่ว่าง) · ภาพ: รุ่น image (ไม่มี/โควตาไม่พอ = ใช้อีโมจิ)
+  const text = [...new Set([...sorted(ok.filter((n) => /^gemini-[\d.]+-flash/.test(n) && !/image|tts|audio|live|thinking/.test(n))), ...ok.filter((n) => /flash-latest/.test(n))])].slice(0, 4);
+  const image = sorted(ok.filter((n) => /^gemini.*image/.test(n))).slice(0, 2);
+  if (!text.length) throw new Error('Gemini: ไม่พบรุ่นที่ใช้สร้างข้อความได้');
   return { text, image };
 }
 const textOf = (j) => (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
@@ -156,9 +170,9 @@ async function render(browser, kind, html) {
 }
 /** ภาพวาดจาก AI (ถ้าโควตาฟรีรองรับ) → data URL · ไม่ได้ = null แล้วใช้อีโมจิแทน */
 async function artImage(model, prompt) {
-  if (!model || !prompt) return null;
+  if (!model?.length || !prompt) return null;
   try {
-    const j = await gemini(model, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } });
+    const j = await gemini(model, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }, { waits: [15_000] });
     const part = (j.candidates?.[0]?.content?.parts || []).find((x) => (x.inlineData || x.inline_data)?.data);
     const d = part && (part.inlineData || part.inline_data);
     return d ? `data:${d.mimeType || d.mime_type || 'image/png'};base64,${d.data}` : null;
@@ -186,11 +200,13 @@ async function main() {
     : await db.get('ai_news_log?select=article_id,status,created_at&order=created_at.desc&limit=500');
   const last = logs[0]?.created_at || '';
   const requested = !!settings.request && !isNaN(Date.parse(settings.request)) && (!last || Date.parse(settings.request) > Date.parse(last));
-  const doneToday = logs.some((l) => thaiDay(new Date(new Date(l.created_at).getTime() + 7 * 3600_000)) === thaiDay());
-  const due = requested || (!doneToday && thaiNow().getUTCHours() >= START_HOUR);
+  // วันละ 1 ข่าว: ทำแล้ว/ไม่มีบทความใหม่ = พอสำหรับวันนี้ · ไม่สำเร็จ (เช่น AI ไม่ว่าง) = ลองใหม่รอบชั่วโมงถัดไป ไม่เกินวันละ 3 ครั้ง
+  const today = logs.filter((l) => thaiDay(new Date(new Date(l.created_at).getTime() + 7 * 3600_000)) === thaiDay());
+  const finishedToday = today.some((l) => l.status !== 'error'), errorsToday = today.filter((l) => l.status === 'error').length;
+  const due = requested || (!finishedToday && errorsToday < 3 && thaiNow().getUTCHours() >= START_HOUR);
 
   if (args[0] === '--check') {
-    log(requested ? 'มีคำสั่ง "สร้างข่าวตอนนี้"' : due ? 'ถึงเวลาทำข่าวของวันนี้' : 'วันนี้ทำแล้ว/ยังไม่ถึงเวลา');
+    log(requested ? 'มีคำสั่ง "สร้างข่าวตอนนี้"' : due ? `ถึงเวลาทำข่าวของวันนี้${errorsToday ? ` (ลองใหม่ครั้งที่ ${errorsToday + 1})` : ''}` : 'วันนี้ทำแล้ว/ยังไม่ถึงเวลา');
     if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `run=${due}\n`);
     return;
   }
@@ -207,7 +223,7 @@ async function main() {
   if (!arts.length) throw new Error('อ่านหน้ารายละเอียดบทความไม่ได้ (หน้าเว็บ CCPE อาจเปลี่ยนรูปแบบ)');
 
   const models = await pickModels();
-  log('รุ่น AI:', models.text, '· ภาพ:', models.image || '(ไม่มี ใช้อีโมจิ)');
+  log('รุ่น AI:', models.text.join(', '), '· ภาพ:', models.image.join(', ') || '(ไม่มี ใช้อีโมจิ)');
   let art = arts[0];
   if (arts.length > 1) {
     try {
