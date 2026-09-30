@@ -79,7 +79,7 @@ export function parseDetail(html, id) {
 /* ---------------- Gemini (ฟรี: aistudio.google.com) ---------------- */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** เรียก Gemini: ลองทีละรุ่นตามลำดับ · รุ่นไหนคนใช้เยอะ/โควตาเต็ม (429/5xx) รอแล้วลองใหม่ ก่อนเปลี่ยนไปรุ่นถัดไป */
-async function gemini(models, body, { waits = [20_000, 60_000] } = {}) {
+async function gemini(models, body, { waits = [15_000, 45_000] } = {}) {
   const list = [].concat(models).filter(Boolean);
   if (OFFLINE) return JSON.parse(fs.readFileSync(path.join(OFFLINE.dir, String(list[0]).includes('image') ? 'gemini-image.json' : 'gemini.json'), 'utf8'));
   let last = new Error('Gemini: ไม่มีรุ่นให้ใช้');
@@ -109,7 +109,11 @@ async function pickModels() {
   const rank = (n) => (/pro/.test(n) ? 1 : 0) + (/lite/.test(n) ? 2 : 0) + (/preview|exp/.test(n) ? 1 : 0);
   const sorted = (xs) => xs.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a));
   // ข้อความ: รุ่น flash ใหม่สุดก่อน แล้วสำรองรุ่นอื่น (รุ่นใหม่มักคนใช้เยอะจนไม่ว่าง) · ภาพ: รุ่น image (ไม่มี/โควตาไม่พอ = ใช้อีโมจิ)
-  const text = [...new Set([...sorted(ok.filter((n) => /^gemini-[\d.]+-flash/.test(n) && !/image|tts|audio|live|thinking/.test(n))), ...ok.filter((n) => /flash-latest/.test(n))])].slice(0, 4);
+  //   รุ่นใหม่สุด 2 รุ่น → รุ่นเสถียรเก่ากว่า (2.x มักว่างกว่า) → รุ่น lite → flash-latest · รวมไม่เกิน 6 รุ่น
+  const flash = ok.filter((n) => /^gemini-[\d.]+-flash/.test(n) && !/image|tts|audio|live|thinking/.test(n));
+  const full = sorted(flash.filter((n) => !/lite/.test(n))), lite = sorted(flash.filter((n) => /lite/.test(n)));
+  const older = full.filter((n) => n.split('-')[1]?.[0] !== full[0]?.split('-')[1]?.[0]);   // คนละรุ่นหลัก (เช่น 2.x เมื่อรุ่นใหม่สุดเป็น 3.x)
+  const text = [...new Set([...full.slice(0, 2), ...older.slice(0, 2), ...lite.slice(0, 1), ...ok.filter((n) => /flash-latest/.test(n)), ...full.slice(2)])].slice(0, 6);
   const image = sorted(ok.filter((n) => /^gemini.*image/.test(n))).slice(0, 2);
   if (!text.length) throw new Error('Gemini: ไม่พบรุ่นที่ใช้สร้างข้อความได้');
   return { text, image };
