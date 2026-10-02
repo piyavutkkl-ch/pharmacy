@@ -316,7 +316,7 @@
           <form id="snForm" class="form-grid" novalidate>
             <div class="field full"><label for="snTitle">หัวข้อข่าว <span class="req">*</span></label><input id="snTitle" class="input" maxlength="200"></div>
             <div class="field"><label for="snTag">ประเภท</label><select id="snTag" class="input"><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></div>
-            <div class="field"><label for="snImage">รูปประกอบ (ถ้ามี)</label><input id="snImage" class="input" type="file" accept="image/*"><span class="small muted" id="snImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-preview" id="snImagePreview" hidden><img alt="ตัวอย่างรูปประกอบข่าว"></div></div>
+            <div class="field"><label for="snImage">รูปประกอบ (ถ้ามี · เลือกได้หลายรูป)</label><input id="snImage" class="input" type="file" accept="image/*" multiple><span class="small muted" id="snImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-list" id="snImagePreview" hidden></div></div>
             <div class="field full"><label for="snFile">ไฟล์ PDF แนบ (ถ้ามี · ไม่เกิน 5 MB)</label><input id="snFile" class="input" type="file" accept="application/pdf,.pdf"><span class="small muted" id="snFileNote">ผู้อ่านข่าวดาวน์โหลดไฟล์นี้ได้</span></div>
             <div class="field full"><label for="snBody">เนื้อหาข่าว <span class="req">*</span></label><textarea id="snBody" maxlength="20000" rows="6"></textarea></div>
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="snSubmit">ส่งให้ผู้ดูแลตรวจ</button><button class="btn btn-o btn-sm" type="button" id="snCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="snMsg" aria-live="polite"></span></div>
@@ -426,7 +426,7 @@
           <form id="anForm" class="form-grid" novalidate>
             <div class="field full"><label for="anTitle">หัวข้อข่าว <span class="req">*</span></label><input id="anTitle" class="input" maxlength="200"></div>
             <div class="field"><label for="anTag">ประเภท</label><select id="anTag" class="input"><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></div>
-            <div class="field"><label for="anImage">รูปประกอบ (ถ้ามี)</label><input id="anImage" class="input" type="file" accept="image/*"><span class="small muted" id="anImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-preview" id="anImagePreview" hidden><img alt="ตัวอย่างรูปประกอบข่าว"></div></div>
+            <div class="field"><label for="anImage">รูปประกอบ (ถ้ามี · เลือกได้หลายรูป)</label><input id="anImage" class="input" type="file" accept="image/*" multiple><span class="small muted" id="anImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-list" id="anImagePreview" hidden></div></div>
             <div class="field full"><label for="anFile">ไฟล์ PDF แนบ (ถ้ามี · ไม่เกิน 5 MB)</label><input id="anFile" class="input" type="file" accept="application/pdf,.pdf"><span class="small muted" id="anFileNote">ผู้อ่านข่าวดาวน์โหลดไฟล์นี้ได้</span></div>
             <div class="field full"><label for="anBody">เนื้อหาข่าว <span class="req">*</span></label><textarea id="anBody" rows="6" maxlength="20000"></textarea></div>
             <label class="small full"><input type="checkbox" id="anClosed"> ปิดรับความคิดเห็น</label>

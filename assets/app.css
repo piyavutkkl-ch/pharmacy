@@ -481,6 +481,16 @@ body.has-bottomnav .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 .img-preview{margin-top:8px}
 .img-preview img{display:block;max-width:100%;max-height:360px;width:auto;height:auto;border-radius:10px;border:1px solid var(--line);background:var(--sunken)}
 .err-text{color:var(--error)}
+/* รูปประกอบข่าวหลายรูป: กด × ลบทีละรูป · รูปแรก = รูปหลัก */
+.img-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:8px}
+.img-item{position:relative;margin:0;border:1px solid var(--line);border-radius:12px;background:var(--sunken);overflow:hidden;display:flex;flex-direction:column}
+.img-item.main{border:2px solid var(--primary)}
+.img-item img{display:block;width:100%;height:150px;object-fit:contain;background:var(--sunken)}
+.img-item figcaption{display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 6px;font-size:13px;font-weight:600;color:var(--primary);background:var(--surface);border-top:1px solid var(--line)}
+.img-item figcaption button{min-height:44px;width:100%;border:0;background:none;color:var(--muted);font:inherit;font-weight:600;cursor:pointer}
+.img-item figcaption button:hover{color:var(--primary)}
+.img-x{position:absolute;top:4px;right:4px;width:44px;height:44px;border-radius:50%;border:2px solid #fff;background:rgba(20,28,36,.72);color:#fff;font-size:26px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.img-x:hover{background:var(--error)}
 /* ไฟล์ PDF แนบข่าว */
 .file-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-weight:600;text-decoration:none;max-width:100%;overflow-wrap:anywhere}
 .file-link svg{width:18px;height:18px;flex-shrink:0;color:var(--error)}

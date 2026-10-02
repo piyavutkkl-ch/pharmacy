@@ -71,7 +71,7 @@ async function decide(status, btn) {
 }
 
 async function loadPublished() {
-  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,file_path,file_name,comments_closed,view_count,published_at,unit_id').eq('status', 'published').order('published_at', { ascending: false });
+  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,gallery,file_path,file_name,comments_closed,view_count,published_at,unit_id').eq('status', 'published').order('published_at', { ascending: false });
   if (error) { $('#anList').innerHTML = `<p class="empty">โหลดข่าวไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
   published = data;
   $('#anCount').textContent = `(${published.length})`;

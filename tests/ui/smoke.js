@@ -281,7 +281,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         && (await text(p, '#anReview')).includes('ตรวจตัวเลข') && await visible(p, '#anReview [data-decide="edit"]') && !(await p.$('#anReview [data-decide="fix"]')));
       await p.click('#anReview [data-decide="edit"]'); await p.waitForTimeout(200);
       check('ช่อง AI: แก้ไขข้อความ → ข้อมูลขึ้นในฟอร์มด้านบน', (await p.inputValue('#anTitle')).includes('สแตติน') && (await text(p, '#anFormTitle')).includes('รอตรวจ'));
+      check('แก้ข่าว: รูปทั้ง 3 รูปขึ้นในฟอร์ม (รูปหลักมีกรอบ) + ปุ่ม × ทุกรูป', await count(p, '#anImagePreview .img-item') === 3 && await count(p, '#anImagePreview .img-x') === 3
+        && (await p.getAttribute('#anImagePreview .img-item.main img', 'src')).includes('infographic') && await p.$eval('#anImagePreview .img-x', (e) => e.getBoundingClientRect().height >= 44));
+      await (await p.$('#anImagePreview')).screenshot({ path: path.join(SHOTS, 'admin-news-images.png') });
+      await p.click('#anImagePreview [data-rmimg="1"]'); await p.waitForTimeout(150);
+      check('แก้ข่าว: กด × ลบรูปที่ 2 ได้', await count(p, '#anImagePreview .img-item') === 2 && !(await p.$('#anImagePreview img[src*="comic"]')));
+      await p.setInputFiles('#anImage', [{ name: 'n1.png', mimeType: 'image/png', buffer: PNG }, { name: 'n2.png', mimeType: 'image/png', buffer: PNG }]); await p.waitForTimeout(600);
+      check('แก้ข่าว: เลือกหลายรูปเพื่อเพิ่มได้ + แจ้งจำนวน', await count(p, '#anImagePreview .img-item') === 4 && (await text(p, '#anImageNote')).includes('4/7'));
+      await p.click('#anImagePreview [data-rmimg="3"]'); await p.waitForTimeout(150);
+      await p.click('#anImagePreview [data-mainimg="2"]'); await p.waitForTimeout(150);
+      check('แก้ข่าว: ตั้งรูปใหม่เป็นรูปหลักได้', (await p.getAttribute('#anImagePreview .img-item.main img', 'src')).startsWith('blob:'));
       await p.fill('#anBody', 'แก้โดยเภสัชกรแล้ว'); await p.click('#anSubmit'); await p.waitForTimeout(600);
+      const ue = (await calls(p, (c) => c.table === 'news' && c.op === 'update')).map((c) => c.payload).find((x) => x.body === 'แก้โดยเภสัชกรแล้ว') || {};
+      check('แก้ข่าว: บันทึกรูปหลักใหม่ + ภาพเพิ่มตามลำดับ + ลบไฟล์รูปที่เอาออก', /^news\/.+\.webp$/.test(ue.image_path || '') && JSON.stringify(ue.gallery) === JSON.stringify(['ai/1876/infographic.jpg', 'ai/1876/clinical.jpg'])
+        && (await calls(p, (c) => c.remove === 'public-images')).some((c) => c.paths.includes('ai/1876/comic.jpg') && !c.paths.includes('ai/1876/clinical.jpg')), JSON.stringify(ue));
       check('ช่อง AI: บันทึกแล้วยังรอตรวจ + กลับไปที่กล่องตรวจ', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.body === 'แก้โดยเภสัชกรแล้ว' && !('status' in c.payload)) && await visible(p, '#anReview [data-decide="published"]'));
       await p.click('#anReview [data-decide="published"]'); await p.waitForTimeout(500);
       check('ช่อง AI: อนุมัติแล้วเผยแพร่', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.status === 'published'));
@@ -387,7 +400,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ข่าว: ประเภทใหม่ ข่าว/ประชาสัมพันธ์/ความรู้', (await p.$$eval('#snTag option', (o) => o.map((x) => x.value).join(','))) === 'ข่าว,ประชาสัมพันธ์,ความรู้');
     check('เมนูเจ้าหน้าที่: กล่องที่ซ้อนกันมีระยะห่าง', await p.$eval('[data-staff-view="news"]', (e) => getComputedStyle(e).rowGap) === '16px');
     await p.setInputFiles('#snImage', img); await p.waitForTimeout(500);
-    check('ข่าว: เลือกรูปแล้วแสดงตัวอย่างทันที + ย่อไม่เกิน A4', await visible(p, '#snImagePreview img') && (await text(p, '#snImageNote')).includes('A4'));
+    await (await p.$('#snForm')).screenshot({ path: path.join(SHOTS, 'staff-news-images.png') });
+    check('ข่าว: เลือกรูปแล้วแสดงตัวอย่างทันที + ย่อไม่เกิน A4 + ปุ่ม × ลบรูป', await visible(p, '#snImagePreview img') && (await text(p, '#snImageNote')).includes('A4') && await visible(p, '#snImagePreview .img-x'));
     await p.setInputFiles('#snFile', pdf); await p.fill('#snTitle', 'ข่าวมี PDF'); await p.fill('#snBody', 'x'); await p.selectOption('#snTag', 'ความรู้');
     await p.click('#snSubmit'); await p.waitForTimeout(600);
     const ins = (await calls(p, (c) => c.table === 'news' && c.op === 'insert'))[0]?.payload || {};

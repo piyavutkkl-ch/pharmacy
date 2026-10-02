@@ -68,7 +68,7 @@ let myNews = [], editingNews = null;
 
 async function loadNews() {
   $('#snList').innerHTML = '<div class="skeleton"></div>';
-  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,file_path,file_name,status,review_comment,created_at,updated_at')
+  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,gallery,file_path,file_name,status,review_comment,created_at,updated_at')
     .eq('author_id', auth.profile.id).order('created_at', { ascending: false });
   if (error) { $('#snList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   myNews = data;
