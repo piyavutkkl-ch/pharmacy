@@ -544,5 +544,26 @@ check("guest rooms idle 7 days are deleted automatically", "anon", "select purge
 check("…with their messages", None, "select count(*) from conversations c where c.guest_key is not null and c.target_unit = 2", eq(0))
 check("normal citizen rooms are not purged", None, "select count(*) > 0 from conversations where citizen_id is not null", eq("t"))
 
+print("== step 30: admin <-> staff chat per person ==")
+U["s2b"] = "00000000-0000-0000-0000-0000000000b9"
+run("""insert into staff_roster(email, full_name, role, unit_id) values ('s2b@gmail.com','มานี มีสุข','staff',2);
+insert into auth.users(id,email,raw_user_meta_data,raw_app_meta_data) values ('%(s2b)s','s2b@gmail.com','{"full_name":"S2B"}','{"provider":"google"}')""" % U)
+check("old staff messages moved to sender's own room", None, f"select count(*) from unit_messages where unit_id=2 and sender_role='staff' and staff_id is distinct from sender_id", eq(0))
+check("staff thread backfilled for existing chat", None, f"select count(*) from staff_threads where staff_id='{U['s2']}'", eq(1))
+check("staff message goes to own room (staff_id = self)", "s2", "insert into unit_messages(unit_id,body) values (2,'ถามเรื่องยา') returning (staff_id = auth.uid())::text", eq("true"))
+check("staff cannot post into colleague's room", "s2", f"insert into unit_messages(unit_id,body,staff_id) values (2,'x','{U['s2b']}') returning (staff_id = auth.uid())::text", eq("true"))
+check("colleague in same unit cannot read s2's room", "s2b", f"select count(*) from unit_messages where staff_id='{U['s2']}'", eq(0))
+check("colleague still sees old messages to whole unit", "s2b", "select count(*) > 0 from unit_messages where staff_id is null", eq("t"))
+check("admin replies to s2 personally (unit filled from account)", "admin", f"insert into unit_messages(unit_id,body,staff_id) values (1,'ได้ครับ','{U['s2']}') returning unit_id||':'||sender_role", eq("2:admin"))
+check("admin cannot target a non-staff account", "admin", f"insert into unit_messages(unit_id,body,staff_id) values (2,'x','{U['c1']}')", "deny")
+check("per-person unread counters", None, f"select unread_admin||':'||unread_staff from staff_threads where staff_id='{U['s2']}'", lambda o: o.strip().endswith(':1'))
+check("s2 sees only own thread counters", "s2", "select count(*) from staff_threads", eq(1))
+check("colleague cannot see s2 thread counters", "s2b", f"select count(*) from staff_threads where staff_id='{U['s2']}'", eq(0))
+check("colleague cannot mark s2 thread read", "s2b", f"select mark_staff_thread_read('{U['s2']}')", "deny")
+check("s2 marks own thread read", "s2", f"select mark_staff_thread_read('{U['s2']}'); select unread_staff from staff_threads where staff_id='{U['s2']}'", eq(0))
+check("admin marks s2 thread read (staff side untouched)", "admin", f"select mark_staff_thread_read('{U['s2']}'); select unread_admin from staff_threads where staff_id='{U['s2']}'", eq(0))
+check("staff cannot edit thread counters", "s2", "update staff_threads set unread_admin=5", "deny")
+check("anon cannot read threads", "anon", "select count(*) from staff_threads", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

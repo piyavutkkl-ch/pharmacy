@@ -265,13 +265,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/staff/messages/admin'); await p.waitForTimeout(400);
     check('เจ้าหน้าที่: แท็บ "คุยกับผู้ดูแล" เปิดห้องของหน่วยตัวเอง (ซ่อนกล่องประชาชน)', await visible(p, '#staffUnitChatSlot .uc-form') && !(await visible(p, '#staffInboxSlot')) && (await text(p, '#staffUnitChatSlot .uc-log')).includes('ยังไม่มีข้อความ'));
     await p.fill('#staffUnitChatSlot .uc-input', 'ขอยาพาราเพิ่ม 2 กล่องครับ'); await p.click('#staffUnitChatSlot .uc-send'); await p.waitForTimeout(400);
-    check('เจ้าหน้าที่: ส่งข้อความถึงผู้ดูแลได้', (await calls(p, (c) => c.table === 'unit_messages' && c.op === 'insert'))[0]?.payload?.unit_id === 2 && await count(p, '#staffUnitChatSlot .bubble.me') === 1);
-    await p.evaluate(() => window.__emit('unit_messages', { id: 900, unit_id: 2, sender_id: 'x', sender_role: 'admin', sender_name: 'ภก.ผู้ดูแล ระบบ', body: 'รับทราบครับ พรุ่งนี้ส่งให้', created_at: new Date().toISOString() }));
+    const S2ID = await p.evaluate(() => window.__db.profiles.find((x) => x.email === 's2@gmail.com').id);
+    check('เจ้าหน้าที่: ส่งข้อความถึงผู้ดูแลได้ (ห้องส่วนตัวของตัวเอง)', (await calls(p, (c) => c.table === 'unit_messages' && c.op === 'insert'))[0]?.payload?.unit_id === 2 && await count(p, '#staffUnitChatSlot .bubble.me') === 1);
+    await p.evaluate(() => window.__emit('unit_messages', { id: 900, unit_id: 2, staff_id: window.__db.profiles.find((x) => x.email === 's2@gmail.com').id, sender_id: 'x', sender_role: 'admin', sender_name: 'ภก.ผู้ดูแล ระบบ', body: 'รับทราบครับ พรุ่งนี้ส่งให้', created_at: new Date().toISOString() }));
     await p.waitForTimeout(400);
     check('เจ้าหน้าที่: คำตอบผู้ดูแลเข้ามาแบบ real-time + ล้างตัวเลขยังไม่อ่าน', (await text(p, '#staffUnitChatSlot .uc-log')).includes('พรุ่งนี้ส่งให้') && (await text(p, '#staffUnitChatSlot .uc-log')).includes('(ผู้ดูแล)')
-      && (await calls(p, (c) => c.rpc === 'mark_unit_chat_read')).filter((c) => c.args.p_unit === 2).length >= 2);
+      && (await calls(p, (c) => c.rpc === 'mark_staff_thread_read')).filter((c) => c.args.p_staff === S2ID).length >= 2);
     await go(p, '#/staff/messages'); await p.waitForTimeout(300);
-    check('เจ้าหน้าที่: กลับไปกล่องข้อความประชาชนได้ + ปิดห้องผู้ดูแล', await visible(p, '#staffInboxSlot') && (await calls(p, (c) => c.unsubscribe === 'unitchat-2')).length >= 1);
+    check('เจ้าหน้าที่: กลับไปกล่องข้อความประชาชนได้ + ปิดห้องผู้ดูแล', await visible(p, '#staffInboxSlot') && (await calls(p, (c) => c.unsubscribe === 'unitchat-' + S2ID)).length >= 1);
     await p.close();
 
     /* ================= ผู้ดูแล ================= */
@@ -306,11 +307,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/news'); await go(p, '#/admin/messages'); await p.waitForTimeout(500);
     check('แชท: ห้องในถังเกิน 30 วัน ผู้ดูแลเปิดหน้าแล้วลบถาวรให้เอง', (await calls(p, (c) => c.table === 'conversations' && c.op === 'delete')).length === 1 && !(await p.evaluate(() => window.__db.conversations.some((x) => x.target_unit == null))));
     await go(p, '#/admin/messages/units'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: รายชื่อ รพ.สต. ครบ 7 · ที่คุยล่าสุดอยู่บน', await count(p, '#adminUnitChatSlot [data-unit]') === 7 && (await p.$eval('#adminUnitChatSlot [data-unit]', (b) => b.dataset.unit)) === '3' && !(await visible(p, '#amCitizen')));
-    await p.click('#adminUnitChatSlot [data-unit="3"]'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: เปิดห้อง รพ.สต. เห็นข้อความ + ชื่อผู้ส่ง + ล้างตัวเลขฝั่งผู้ดูแล', (await text(p, '#adminUnitChatSlot .uc-log')).includes('แบบฟอร์มรายงานยาเหลือใช้') && (await calls(p, (c) => c.rpc === 'mark_unit_chat_read' && c.args.p_unit === 3)).length >= 1);
+    const S3ID = await p.evaluate(() => window.__db.profiles.find((x) => x.email === 's3@gmail.com').id);
+    check('ผู้ดูแล: แถบเลือก รพ.สต. ครบ 7 ด้านบน · เปิดหน่วยที่มีข้อความค้างก่อน (ตัวเลข)', await count(p, '#adminUnitChatSlot .uc-units [data-unit]') === 7 && (await p.getAttribute('#adminUnitChatSlot .uc-units [data-unit="3"]', 'aria-current')) === 'true'
+      && (await text(p, '#adminUnitChatSlot .uc-units [data-unit="3"]')).includes('1') && !(await visible(p, '#amCitizen')));
+    check('ผู้ดูแล: ซ้ายเป็นรายชื่อเจ้าหน้าที่ของ รพ.สต. นั้น (แยกรายคน)', await count(p, '#adminUnitChatSlot .uc-list [data-staff]') === 1 && (await text(p, '#adminUnitChatSlot .uc-list')).includes('วิชัย ขยัน'));
+    await p.click('#adminUnitChatSlot .uc-units [data-unit="2"]'); await p.waitForTimeout(300);
+    check('ผู้ดูแล: เปลี่ยน รพ.สต. → รายชื่อเจ้าหน้าที่หน่วยนั้น', (await text(p, '#adminUnitChatSlot .uc-list')).includes('สมศรี ใจดี') && !(await text(p, '#adminUnitChatSlot .uc-list')).includes('วิชัย'));
+    await p.click('#adminUnitChatSlot .uc-units [data-unit="3"]'); await p.waitForTimeout(300);
+    await p.click(`#adminUnitChatSlot [data-staff="${S3ID}"]`); await p.waitForTimeout(400);
+    check('ผู้ดูแล: เปิดห้องเจ้าหน้าที่ เห็นข้อความ + ล้างตัวเลขฝั่งผู้ดูแล', (await text(p, '#adminUnitChatSlot .uc-log')).includes('แบบฟอร์มรายงานยาเหลือใช้') && (await text(p, '#adminUnitChatSlot .uc-head')).includes('วิชัย ขยัน') && (await calls(p, (c) => c.rpc === 'mark_staff_thread_read' && c.args.p_staff === S3ID)).length >= 1);
     await p.fill('#adminUnitChatSlot .uc-input', 'อัปโหลดไว้ในเมนูเอกสารแล้วครับ'); await p.click('#adminUnitChatSlot .uc-send'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: ตอบ รพ.สต. ได้', (await calls(p, (c) => c.table === 'unit_messages' && c.op === 'insert'))[0]?.payload?.unit_id === 3 && await count(p, '#adminUnitChatSlot .bubble.me') === 1);
+    check('ผู้ดูแล: ตอบเจ้าหน้าที่รายคนได้', (await calls(p, (c) => c.table === 'unit_messages' && c.op === 'insert'))[0]?.payload?.staff_id === S3ID && await count(p, '#adminUnitChatSlot .bubble.me') === 1);
     await p.screenshot({ path: path.join(SHOTS, 'admin-unitchat-1280.png'), fullPage: true });
     {
       await go(p, '#/admin/news'); await p.waitForTimeout(500);

@@ -32,7 +32,9 @@ function visible(t, r) {
     case 'news': return r.status === 'published' || isAdmin() || (ME && r.author_id === ME.id);
     case 'documents': return isAdmin() || (isStaff() && (r.for_unit == null || r.for_unit === ME.unit_id));
     case 'conversations': return convOk(r);
-    case 'unit_chats': case 'unit_messages': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
+    case 'unit_chats': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
+    case 'unit_messages': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id && (r.staff_id == null || r.staff_id === ME.id));
+    case 'staff_threads': return isAdmin() || (ME && r.staff_id === ME.id);
     case 'messages': return convOk(db.conversations.find((c) => c.id === r.conversation_id));
     case 'patients': case 'visits': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'item_status': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
@@ -80,6 +82,12 @@ function bumpUnitChat(m) {
   if (!c) { c = { unit_id: m.unit_id, unread_unit: 0, unread_admin: 0 }; cs.push(c); }
   Object.assign(c, { last_message_at: m.created_at, last_message_preview: String(m.body).slice(0, 120) });
   if (m.sender_role === 'admin') c.unread_unit++; else c.unread_admin++;
+  if (m.staff_id == null) return;   // ห้องรายคน (staff_threads) — แทน trigger after_unit_message
+  const ts = db.staff_threads || (db.staff_threads = []);
+  let t = ts.find((x) => x.staff_id === m.staff_id);
+  if (!t) { t = { staff_id: m.staff_id, unit_id: m.unit_id, unread_staff: 0, unread_admin: 0 }; ts.push(t); }
+  Object.assign(t, { unit_id: m.unit_id, last_message_at: m.created_at, last_message_preview: String(m.body).slice(0, 120) });
+  if (m.sender_role === 'admin') t.unread_staff++; else t.unread_admin++;
 }
 function beforeInsert(table, row) {
   const rows = db[table] || (db[table] = []);
@@ -117,6 +125,9 @@ function beforeInsert(table, row) {
       if (!(isAdmin() || (isStaff() && row.unit_id === ME.unit_id))) return 'new row violates row-level security policy for table "unit_messages"';
       if (!String(row.body || '').trim()) return 'new row for relation "unit_messages" violates check constraint';
       Object.assign(row, { sender_id: ME.id, sender_role: isAdmin() ? 'admin' : 'staff', sender_name: ME.full_name });
+      if (!isAdmin()) row.staff_id = ME.id;
+      else if (row.staff_id != null) { const sp = db.profiles.find((x) => x.id === row.staff_id && x.role === 'staff'); if (!sp) return 'ไม่พบเจ้าหน้าที่คนนี้'; row.unit_id = sp.unit_id; }
+      row.staff_id ??= null;
       bumpUnitChat(row);
       break;
     }
@@ -329,6 +340,12 @@ function rpc(name, a = {}) {
       c.trashed_at = a.p_trash ? now() : null; if (a.p_trash) c.unread_staff = 0;
       return { data: c.trashed_at, error: null };
     }
+    case 'mark_staff_thread_read': {
+      const t = (db.staff_threads || []).find((x) => x.staff_id === a.p_staff);
+      if (!(isAdmin() || (isStaff() && a.p_staff === ME.id))) return err('ไม่มีสิทธิ์', 'P0001');
+      if (t) { if (isAdmin()) t.unread_admin = 0; else t.unread_staff = 0; }
+      return { data: null, error: null };
+    }
     case 'mark_unit_chat_read': {
       const c = (db.unit_chats || []).find((x) => x.unit_id === a.p_unit);
       if (!(isAdmin() || (isStaff() && a.p_unit === ME.unit_id))) return err('ไม่มีสิทธิ์', 'P0001');
@@ -368,9 +385,9 @@ window.__emit = (table, row) => {
   }
   if (table === 'unit_messages') { db.unit_messages.push(row); bumpUnitChat(row); }
   for (const ch of window.__channels) for (const [flt, cb] of ch.hs) {
-    if (flt.table === table && (!flt.filter || flt.filter === `conversation_id=eq.${row.conversation_id}` || flt.filter === `unit_id=eq.${row.unit_id}`)) cb({ new: row, eventType: 'INSERT' });
+    if (flt.table === table && (!flt.filter || flt.filter === `conversation_id=eq.${row.conversation_id}` || flt.filter === `unit_id=eq.${row.unit_id}` || flt.filter === `staff_id=eq.${row.staff_id}`)) cb({ new: row, eventType: 'INSERT' });
     if (flt.table === 'conversations' && table === 'messages') cb({ new: {}, eventType: 'UPDATE' });
-    if (flt.table === 'unit_chats' && table === 'unit_messages') cb({ new: {}, eventType: 'UPDATE' });
+    if ((flt.table === 'unit_chats' || flt.table === 'staff_threads') && table === 'unit_messages') cb({ new: {}, eventType: 'UPDATE' });
   }
 };
 

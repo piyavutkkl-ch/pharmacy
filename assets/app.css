@@ -623,6 +623,8 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .ib-trash-btn{margin-left:auto}
 .uc-switch .badge{position:static;margin-left:6px}
 .uc-one .chat-panel{max-width:760px}
+.uc-units{margin-bottom:12px}
+.uc-units .badge{position:static;margin-left:4px}
 .vs-panel{margin-top:16px}
 .vs-list-h{margin:18px 0 4px;font-size:16px}
 .hr-import{margin:12px 0;border:1px dashed var(--line);border-radius:12px;padding:10px 14px}

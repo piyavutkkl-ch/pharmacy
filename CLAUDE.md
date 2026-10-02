@@ -60,7 +60,7 @@ js/pages/admin-settings.js ผู้ดูแล › ตั้งค่า: ร�
 js/pages/admin-staff.js    ผู้ดูแล › ตั้งค่า › บัญชีเจ้าหน้าที่ (staff_roster)
 js/pages/admin-audit.js    ผู้ดูแล › ตั้งค่า › ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA · admin_audit_log() + ดาวน์โหลด CSV)
 js/pages/chat.js      แชท real-time: mountInbox() กล่องข้อความเจ้าหน้าที่/ผู้ดูแล (ลบห้องลงถัง กู้คืน 30 วัน · ผู้ดูแลลบถาวรเมื่อครบ), startChatWatch() ตัวเลขข้อความใหม่บนเมนู
-js/pages/unitchat.js  แชท เจ้าหน้าที่ รพ.สต. ⇄ ผู้ดูแล (1 รพ.สต. = 1 ห้อง): #/staff/messages/admin, #/admin/messages/units · mountUnitChat(slot, unit)
+js/pages/unitchat.js  แชท ผู้ดูแล ⇄ เจ้าหน้าที่ รพ.สต. แยกห้องรายคน (unit_messages.staff_id + staff_threads · 31_staff_threads.sql): #/staff/messages/admin, #/admin/messages/units (แถบ รพ.สต. → รายชื่อเจ้าหน้าที่ → ห้อง) · mountUnitChat(slot, unit)
 js/pages/me.js        ประชาชน (#/me): ข้อมูลส่วนตัว + แชทถาม รพ.สต./ห้องยา รพ. (ต้องมีเบอร์โทรก่อน) · ปลายทาง = รายการเลือก รพ.สต. + ปุ่มห้องยา
                       ไม่ล็อกอินก็แชทได้ (guest_chat_* ใน 30_guest_chat.sql): ชื่อเล่น · ≤15 ตัวอักษร/ข้อความ · 20 ข้อความ/เครื่อง/วัน · ไม่มีรูป · ลบเองเมื่อเงียบ 7 วัน (purge_guest_chats ← กล่องข้อความ + keepalive)
 js/pages/staff-request.js  ขอสิทธิ์เจ้าหน้าที่: ประชาชนส่งคำขอ (#/me/request) → ผู้ดูแลอนุมัติใน ตั้งค่า › บัญชีเจ้าหน้าที่ (approve_staff_request เพิ่ม staff_roster)
@@ -113,7 +113,7 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 
 - ดึงชื่อผู้ใช้แบบ embed ต้องระบุชื่อ foreign key เสมอ เช่น `author:profiles!news_author_id_fkey(full_name)` — news↔profiles มีหลายเส้นทาง (news_likes, news_comments) ถ้าไม่ระบุ Supabase จะ error PGRST201
 - แชท: ผู้ดูแลเปิดกล่องของ รพ.สต. ได้ แต่ห้ามเรียก mark_conversation_read (จะล้างตัวเลขยังไม่อ่านของหน่วยนั้น) · ปิด channel ทุกครั้งที่ออกจากหน้า (route() เรียก leaveMe/unmountInbox/unmountUnitChat)
-  แชทเจ้าหน้าที่⇄ผู้ดูแล (unit_chats/unit_messages) ตัวนับแยกฝั่ง: mark_unit_chat_read ล้างเฉพาะฝั่งของคนที่เรียก
+  แชทเจ้าหน้าที่⇄ผู้ดูแล: 1 เจ้าหน้าที่ = 1 ห้อง (เพื่อนร่วมหน่วยไม่เห็น) · ตัวนับ staff_threads แยกฝั่ง ล้างด้วย mark_staff_thread_read · staff_id null = ข้อความเดิมถึงทุกคนในหน่วย
 - GitHub Actions: repo สาธารณะ ใครก็อ่าน log ได้ — ห้าม echo ข้อมูลจริง/ค่าลับ ห้าม upload artifact ที่มีข้อมูล ค่าลับอยู่ใน GitHub Secrets เท่านั้น
 - id ใน index.html ใช้ร่วมทั้งหน้า ต้องไม่ซ้ำ — ตั้งคำนำหน้าตามส่วน (ar=หน้าอ่านข่าว, an=ผู้ดูแลข่าว, rv=ตรวจประเมิน, ad=เอกสารผู้ดูแล, sd=เอกสารเจ้าหน้าที่, df=ยา, ct=ติดต่อ, rf=บัญชี, dl/da=จัดส่งยาถึงบ้าน, hr=Health Rider, vs/sm=สรุปเยี่ยมบ้าน)
 
