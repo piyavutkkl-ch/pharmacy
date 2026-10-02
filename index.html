@@ -422,10 +422,10 @@
         <!-- ช่อง AI: ข่าวจากบทความ CCPE วันละ 1 ข่าว (admin-ai.js · งานจริงใน GitHub Actions ai-news.yml) -->
         <div class="panel ai-panel">
           <div class="panel-head"><h2>ช่อง AI · ข่าวจากบทความวิชาการ</h2><span class="chip c-sub">วันละ 1 ข่าว</span></div>
-          <p class="small muted">ทุกวันหลัง 06:00 น. ระบบเลือกบทความใหม่ 1 เรื่องจาก <a href="https://ccpe.pharmacycouncil.org/index.php?option=article&amp;subpage=article" target="_blank" rel="noopener">ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม</a> → AI อ่านบทความแล้วเขียนข่าวสั้นอ่านง่าย พร้อมภาพประกอบ 3 แบบ (อินโฟกราฟิก · การ์ตูน 3 ช่อง · แผนภูมิสำหรับบุคลากร) และอ้างอิงบทความต้นฉบับ</p>
+          <p class="small muted">ทุกวันหลัง 06:00 น. ระบบเลือกบทความใหม่ 1 เรื่องจาก <a href="https://ccpe.pharmacycouncil.org/index.php?option=article&amp;subpage=article" target="_blank" rel="noopener">ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม</a> → AI อ่านไฟล์บทความแล้วเขียนข่าวสั้นอ่านง่าย พร้อมภาพที่ AI วาด 1 ภาพ 3 ส่วน (อินโฟกราฟิก · การ์ตูน 3 ช่อง · แผนภูมิสำหรับบุคลากร) อ้างอิงและลิงก์ดาวน์โหลดบทความต้นฉบับ</p>
           <label class="small ai-auto"><input type="checkbox" id="aiAuto"> เผยแพร่ทันทีโดยไม่ต้องตรวจ (ไม่แนะนำ · ปิดไว้ = ข่าวเข้าคิว "รอตรวจ" ด้านล่าง)</label>
           <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="aiNow">สร้างข่าวตอนนี้</button><span class="small" id="aiStatus" aria-live="polite"></span></div>
-          <div class="list" id="aiLog"></div>
+          <details class="ai-hist" id="aiHist"><summary>ประวัติการทำงาน <span class="num muted" id="aiLogCount"></span></summary><div class="list" id="aiLog"></div></details>
         </div>
         <div class="panel">
           <h2 id="anFormTitle">เขียนข่าว (เผยแพร่ทันที)</h2>
@@ -441,7 +441,16 @@
         </div>
         <div class="panel"><h2>ข่าวรอตรวจ (จาก รพ.สต. และช่อง AI) <span class="num muted" id="anQueueCount"></span></h2><div class="list" id="anQueue"></div></div>
         <div class="panel" id="anReview" hidden></div>
-        <div class="panel"><h2>ข่าวที่เผยแพร่แล้ว <span class="num muted" id="anCount"></span></h2><div class="list" id="anList"></div></div>
+        <div class="panel">
+          <div class="panel-head"><h2>ข่าวที่เผยแพร่แล้ว <span class="num muted" id="anCount"></span></h2><button type="button" class="btn btn-o btn-sm" id="anExpand" aria-expanded="false" aria-controls="anList" hidden>ดูทั้งหมด</button></div>
+          <div class="an-find" id="anFind" hidden>
+            <input id="anSearch" class="input" type="search" placeholder="พิมพ์ค้นหัวข้อข่าว…" aria-label="ค้นหัวข้อข่าว" maxlength="100">
+            <label class="small an-date">วันที่เผยแพร่ <input id="anDate" class="input" type="date"></label>
+            <button type="button" class="btn btn-o btn-sm" id="anFindClear">ล้าง</button>
+            <span class="small muted" id="anFound" aria-live="polite"></span>
+          </div>
+          <div class="list" id="anList"></div>
+        </div>
         <div class="panel"><h2>ข่าวที่หยุดเผยแพร่ <span class="num muted" id="anTrashCount"></span></h2><p class="small muted">ข่าวที่หยุดเผยแพร่ ถูกลบ หรือไม่ผ่าน · เรียกคืนได้ภายใน 30 วัน หลังจากนั้นระบบลบถาวรให้เอง</p><div class="list" id="anTrash"></div></div>
       </div>
 

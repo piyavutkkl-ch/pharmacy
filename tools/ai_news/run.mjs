@@ -1,10 +1,15 @@
 // ช่อง AI: สร้างข่าวจากบทความวิชาการ CCPE วันละ 1 ข่าว (รันใน GitHub Actions: .github/workflows/ai-news.yml)
 //
 //   node tools/ai_news/run.mjs --check     ตรวจว่าตอนนี้ต้องทำไหม (ยังไม่ได้ทำของวันนี้หลัง 06:00 น. หรือผู้ดูแลกด "สร้างข่าวตอนนี้") → พิมพ์ run=true|false
-//   node tools/ai_news/run.mjs             ทำข่าว 1 ข่าว: เลือกบทความใหม่ → อ่าน PDF → Gemini เขียนข่าว → ภาพ 3 แบบ → บันทึกข่าว (รอตรวจ หรือเผยแพร่ทันที ตามค่าตั้ง)
+//   node tools/ai_news/run.mjs             ทำข่าว 1 ข่าว: เลือกบทความใหม่ → ดาวน์โหลด PDF → Gemini อ่าน PDF เขียนข่าว + เติมคำสั่งวาดภาพ
+//                                          → AI วาดภาพ 1 ภาพ 3 ส่วน (อินโฟกราฟิก · การ์ตูน 3 ช่อง · แผนภูมิ/ตารางสำหรับบุคลากร — คำสั่งตามที่เจ้าของเว็บกำหนด IMAGE_PROMPT)
+//                                          → บันทึกข่าว (รอตรวจ หรือเผยแพร่ทันที ตามค่าตั้ง)
+//   ผู้วาดภาพ (ฟรีทั้งหมด ลองตามลำดับ): Gemini รุ่นวาดภาพ (ถ้าโควตาฟรีมี) → Cloudflare Workers AI (ถ้าตั้ง CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN)
+//     → Pollinations (ไม่ต้องใช้คีย์) → วาดไม่ได้ทุกที่ = ใช้ภาพแม่แบบ 3 ภาพ (templates.mjs) แทน
 //   node tools/ai_news/run.mjs --offline <fixtures> <out>   ทดสอบในเครื่องโดยไม่ใช้เน็ต/ฐานข้อมูลจริง (tests/ai_news/run.sh)
 //
-//   ค่าลับ (GitHub Secrets เท่านั้น): SUPABASE_SECRET_KEY, GEMINI_API_KEY · SUPABASE_URL อ่านจาก js/config.js
+//   ค่าลับ (GitHub Secrets เท่านั้น): SUPABASE_SECRET_KEY, GEMINI_API_KEY (+ ไม่บังคับ CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN) · SUPABASE_URL อ่านจาก js/config.js
+//   ส่งออกไปวาดภาพได้แค่เนื้อหาบทความสาธารณะ (ห้ามข้อมูลผู้ป่วย)
 //   repo เป็นสาธารณะ: ห้าม log ค่าลับ · log ได้แค่ชื่อ/รหัสบทความ (ข้อมูลสาธารณะอยู่แล้ว)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -146,8 +151,10 @@ const WRITE_PROMPT = (a) => `คุณเป็นเภสัชกรผู้
  "clinical": {"title": "หัวข้อสำหรับบุคลากร ไม่เกิน 60 ตัวอักษร",
    "flow": [{"step": "ขั้น/เงื่อนไข ไม่เกิน 50 ตัวอักษร", "detail": "สิ่งที่ควรทำ ไม่เกิน 90 ตัวอักษร"}] (3-6 ขั้น),
    "table": {"caption": "ชื่อตาราง", "columns": ["2-4 คอลัมน์"], "rows": [["ข้อมูลตามคอลัมน์ 3-7 แถว"]]}, "notes": ["หมายเหตุ 1-3 ข้อ"]},
- "art": {"infographic": "English prompt: modern flat vector medical illustration for the hero image, slate blue & teal with coral accents, NO text, NO letters",
-   "comic": ["English prompt per panel (3 items): 2D hand-drawn ink comic with warm watercolor, cute characters, NO text, NO speech bubbles, NO letters"]}
+ "image": {"_": "ข้อมูลสำหรับเติมคำสั่งวาดภาพ เขียนเป็นภาษาอังกฤษสั้น ๆ ทุกช่อง (โปรแกรมวาดภาพเขียนตัวอักษรอังกฤษได้ดีกว่าไทย) ใช้ข้อมูลจากบทความเท่านั้น",
+   "infographic": {"title": "หัวข้อหลัก ตัวพิมพ์ใหญ่ ไม่เกิน 6 คำ เช่น DIABETES MANAGEMENT PROTOCOL", "overview": "กลไก/ภาพรวมสั้น ๆ ไม่เกิน 20 คำ", "interventions": "วิธีการรักษา/ข้อดี 2-4 อย่าง คั่นด้วยจุลภาค", "outcomes": "ผลลัพธ์ที่คาดหวัง 2-3 อย่าง", "colors": "โทนสี 3 สี เช่น dark teal, navy blue, and soft white"},
+   "comic": {"character": "ตัวละครหลักน่ารักที่เกี่ยวกับเรื่อง เช่น A cute kidney character", "problem": "ปัญหา/สถานการณ์เดิม", "emotion": "อารมณ์ เช่น tired/stressed", "complaint": "คำพูดตลก ๆ หรือบ่น ไม่เกิน 8 คำ", "solution": "ทางแก้ปัญหา/ยา/แนวทางใหม่จากบทความ", "result": "ผลลัพธ์ที่ดีขึ้น"},
+   "clinical": {"title": "ชื่อแนวทางสำหรับบุคลากร ตัวพิมพ์ใหญ่ ไม่เกิน 6 คำ", "start": "จุดเริ่มต้น เช่น Patient Screening", "branch": "ทางแยกการตัดสินใจ เช่น BP > 140/90 vs BP < 140/90", "action": "การรักษา/ส่งต่อ เช่น Standard Care / Consult Doctor", "table": "ข้อมูลที่เปรียบเทียบในตาราง เช่น Drug classifications, dosages, side effects", "colors": "โทนสี เช่น Slate blue, dark grey, muted teal"}}
 }`;
 
 /* ---------------- ภาพ ---------------- */
@@ -172,19 +179,74 @@ async function render(browser, kind, html) {
     throw new Error(`ภาพ ${kind} ใหญ่เกิน 1 MB`);
   } finally { await p.close(); }
 }
-let artOff = false;
-/** ภาพวาดจาก AI (ถ้าโควตาฟรีรองรับ) → data URL · ไม่ได้ = null แล้วใช้อีโมจิแทน */
-async function artImage(model, prompt) {
-  if (!model?.length || !prompt || artOff) return null;
-  try {
-    const j = await gemini(model, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }, { waits: [15_000] });
-    const part = (j.candidates?.[0]?.content?.parts || []).find((x) => (x.inlineData || x.inline_data)?.data);
-    const d = part && (part.inlineData || part.inline_data);
-    return d ? `data:${d.mimeType || d.mime_type || 'image/png'};base64,${d.data}` : null;
-  } catch (e) {
-    if (/HTTP (429|403|404)/.test(e.message)) artOff = true;   // โควตาฟรีไม่รวมการวาดภาพ → ไม่ลองซ้ำทุกช่อง (ใช้อีโมจิทั้งรอบ)
-    log('ข้ามภาพวาด AI:', e.message.slice(0, 160)); return null;
+/* ---------------- ภาพ AI 1 ภาพ 3 ส่วน (คำสั่งตามที่เจ้าของเว็บกำหนด) ---------------- */
+const en = (v, d, n = 160) => clip(String(v ?? '').replace(/["'`]/g, ''), n) || d;
+/** คำสั่งวาดภาพ: "สร้างภาพ โดยสร้างออกมาแค่รูปเดียว แต่มี 3 ส่วน" + Universal Prompt 3 แบบ เติมข้อมูลจากบทความ (Gemini เติมให้ใน g.image) */
+export function imagePrompt(im = {}) {
+  const i = im.infographic || {}, c = im.comic || {}, k = im.clinical || {};
+  return [
+    'Create ONLY ONE single image: a tall portrait poster divided into 3 clearly separated sections stacked from top to bottom, with thin divider lines. Use short, correctly spelled English text only.',
+    `SECTION 1 (top): An informative medical infographic poster titled '${en(i.title, 'MEDICATION KNOWLEDGE', 60)}'. Flat modern vector graphic design, clean and minimalist layout. Features 3 main sections: 1. Core Mechanism/Overview: ${en(i.overview, 'how the treatment works')}. 2. Key Interventions: ${en(i.interventions, 'medication, lifestyle')}. 3. Target Outcomes: ${en(i.outcomes, 'better health')}. Professional medical color palette of ${en(i.colors, 'dark teal, navy blue, and soft white', 80)}. Clean typography, precise medical icons, organized visual hierarchy.`,
+    `SECTION 2 (middle): A funny 3-panel comic strip in 2D hand-drawn editorial cartoon style with speech bubbles. Panel 1: ${en(c.character, 'A cute pill character')} dealing with ${en(c.problem, 'a health problem')}, looking ${en(c.emotion, 'stressed', 40)} and saying '${en(c.complaint, 'Oh no!', 60)}'. Panel 2: The character discovers/transforms using ${en(c.solution, 'the right medication')} with energy sparks, caption 'NEW SOLUTION!'. Panel 3: The character happily performing ${en(c.result, 'well')}, with a patient looking surprised and happy. Comic book art, vibrant watercolors, expressive faces, humorous and lighthearted tone.`,
+    `SECTION 3 (bottom): A professional clinical flowchart and decision matrix poster for healthcare providers titled '${en(k.title, 'CLINICAL WORKFLOW', 60)}'. Clean, minimalist medical data visualization layout. Left side: A detailed clinical decision tree starting from ${en(k.start, 'Patient Assessment', 80)} -> ${en(k.branch, 'decision point', 100)} -> ${en(k.action, 'Treatment / Referral', 100)}. Right side: Structured comparison tables showing ${en(k.table, 'drug options and key points', 120)}. ${en(k.colors, 'Slate blue, dark grey, muted teal', 80)} color scheme with clear boxes, step-by-step arrows, color-coded sections, and crisp readable typography. No visual noise.`,
+  ].join('\n');
+}
+const dataUrl = (buf, type) => `data:${type || 'image/png'};base64,${Buffer.from(buf).toString('base64')}`;
+let geminiArtOff = false;
+/** ผู้วาดภาพแต่ละเจ้า → data URL หรือ null (ไม่ได้ = ลองเจ้าถัดไป) · log แค่สาเหตุ ไม่ log ค่าลับ */
+const PAINTERS = [
+  ['Gemini', async (prompt, models) => {
+    if (!models.image?.length || geminiArtOff) return null;
+    try {
+      const j = await gemini(models.image, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }, { waits: [15_000] });
+      const part = (j.candidates?.[0]?.content?.parts || []).find((x) => (x.inlineData || x.inline_data)?.data);
+      const d = part && (part.inlineData || part.inline_data);
+      return d ? `data:${d.mimeType || d.mime_type || 'image/png'};base64,${d.data}` : null;
+    } catch (e) { if (/HTTP (429|403|404)/.test(e.message)) geminiArtOff = true; throw e; }
+  }],
+  ['Cloudflare', async (prompt) => {
+    const acc = process.env.CLOUDFLARE_ACCOUNT_ID, tok = process.env.CLOUDFLARE_API_TOKEN;
+    if (OFFLINE || !acc || !tok) return null;
+    const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${acc}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
+      method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' }, body: JSON.stringify({ prompt: prompt.slice(0, 2048), steps: 8 }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.result?.image) throw new Error(`HTTP ${r.status} ${(j.errors?.[0]?.message || '').slice(0, 120)}`);
+    return `data:image/jpeg;base64,${j.result.image}`;
+  }],
+  ['Pollinations', async (prompt, _m, seed) => {
+    if (OFFLINE) return null;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 2400))}?width=1024&height=1536&model=flux&nologo=true&private=true&seed=${seed}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(180_000) });
+    const type = r.headers.get('content-type') || '';
+    if (!r.ok || !type.startsWith('image/')) throw new Error(`HTTP ${r.status} ${type}`);
+    return dataUrl(await r.arrayBuffer(), type);
+  }],
+];
+/** วาดภาพ 1 ภาพ 3 ส่วน → { src: data URL, by: ชื่อผู้วาด } หรือ null */
+async function paint(prompt, models, seed) {
+  for (const [name, fn] of PAINTERS) {
+    try { const src = await fn(prompt, models, seed); if (src) { log('วาดภาพด้วย', name); return { src, by: name }; } }
+    catch (e) { log(`วาดภาพด้วย ${name} ไม่ได้:`, String(e.message).slice(0, 160)); }
   }
+  return null;
+}
+/** ภาพจาก AI → JPEG ไม่เกิน 1 MB (ด้านยาวไม่เกิน 1754 = A4 · ไม่ขยายภาพเล็ก) */
+async function toJpeg(browser, src) {
+  const p = await browser.newPage({ viewport: { width: 800, height: 800 } });
+  try {
+    await p.setContent(`<html><body style="margin:0;background:#fff"><img id="i" src="${src}" style="display:block;width:100%;height:100%;object-fit:contain"></body></html>`, { waitUntil: 'load', timeout: 30000 });
+    const [nw, nh] = await p.$eval('#i', (i) => [i.naturalWidth, i.naturalHeight]);
+    if (!nw || !nh) throw new Error('เปิดภาพจาก AI ไม่ได้');
+    const k = Math.min(1, 1754 / Math.max(nw, nh));
+    await p.setViewportSize({ width: Math.round(nw * k), height: Math.round(nh * k) });
+    for (const q of [88, 78, 66, 54]) {
+      const buf = await p.screenshot({ type: 'jpeg', quality: q });
+      if (buf.length <= MAX_IMG) return buf;
+    }
+    throw new Error('ภาพจาก AI ใหญ่เกิน 1 MB');
+  } finally { await p.close(); }
 }
 
 /* ---------------- ประกอบข่าว ---------------- */
@@ -231,7 +293,7 @@ async function main() {
   if (!arts.length) throw new Error('อ่านหน้ารายละเอียดบทความไม่ได้ (หน้าเว็บ CCPE อาจเปลี่ยนรูปแบบ)');
 
   const models = await pickModels();
-  log('รุ่น AI:', models.text.join(', '), '· ภาพ:', models.image.join(', ') || '(ไม่มี ใช้อีโมจิ)');
+  log('รุ่น AI:', models.text.join(', '), '· ภาพ:', models.image.join(', ') || '(Gemini ไม่มีรุ่นวาดภาพ)');
   let art = arts[0];
   if (arts.length > 1) {
     try {
@@ -258,16 +320,19 @@ async function main() {
 
     const pw = loadPlaywright();
     const browser = await pw.chromium.launch(fs.existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {});
-    let imgs;
+    let imgs, painter = '';
     try {
-      const heroArt = await artImage(models.image, g.art?.infographic);
-      const comicArts = [];
-      for (const p of (g.art?.comic || []).slice(0, 3)) comicArts.push(await artImage(models.image, p));
-      imgs = {
-        infographic: await render(browser, 'infographic', infographic(g.infographic || {}, heroArt)),
-        comic: await render(browser, 'comic', comic(g.comic || {}, comicArts)),
-        clinical: await render(browser, 'clinical', clinical(g.clinical || {})),
-      };
+      // ภาพหลัก: AI วาด 1 ภาพ 3 ส่วน จากข้อมูลในไฟล์บทความ · วาดไม่ได้ทุกเจ้า = ภาพแม่แบบ 3 ภาพ (ตัวหนังสือไทยชัด)
+      const ai = await paint(imagePrompt(g.image), models, art.id);
+      if (ai) { imgs = { ai: await toJpeg(browser, ai.src) }; painter = ai.by; }
+      else {
+        log('วาดภาพ AI ไม่ได้ทุกเจ้า → ใช้ภาพแม่แบบ 3 ภาพ');
+        imgs = {
+          infographic: await render(browser, 'infographic', infographic(g.infographic || {})),
+          comic: await render(browser, 'comic', comic(g.comic || {})),
+          clinical: await render(browser, 'clinical', clinical(g.clinical || {})),
+        };
+      }
     } finally { await browser.close(); }
 
     const stamp = thaiDay().replace(/-/g, '');
@@ -278,12 +343,12 @@ async function main() {
     }
     row = {
       title: clip(g.title, 200), tag: 'ความรู้', body: buildBody(g), status: settings.auto === 'on' ? 'published' : 'pending',
-      image_path: paths.infographic, gallery: [paths.comic, paths.clinical], ai_generated: true,
+      image_path: paths.ai || paths.infographic, gallery: paths.ai ? [] : [paths.comic, paths.clinical], ai_generated: true,
       source_url: art.url, source_file_url: art.pdf, source_title: clip(`${art.title}${art.authors ? ' — ' + art.authors : ''}`, 300),
     };
-    if (OFFLINE) { fs.writeFileSync(path.join(OFFLINE.out, 'news.json'), JSON.stringify({ article: art, row }, null, 2)); log('offline: บันทึกที่', OFFLINE.out); return; }
+    if (OFFLINE) { fs.writeFileSync(path.join(OFFLINE.out, 'news.json'), JSON.stringify({ article: art, row, painter, prompt: imagePrompt(g.image) }, null, 2)); log('offline: บันทึกที่', OFFLINE.out); return; }
     const [news] = await db.insert('news', row);
-    await status(db, { article_id: art.id, title: clip(art.title, 300), news_id: news.id, status: 'done', note: row.status === 'published' ? 'เผยแพร่อัตโนมัติ' : 'รอผู้ดูแลตรวจ' });
+    await status(db, { article_id: art.id, title: clip(art.title, 300), news_id: news.id, status: 'done', note: `${row.status === 'published' ? 'เผยแพร่อัตโนมัติ' : 'รอผู้ดูแลตรวจ'} · ${painter ? 'ภาพวาดโดย AI (' + painter + ')' : 'ภาพแม่แบบ (AI วาดภาพไม่ได้)'}` });
     log('สร้างข่าวแล้ว:', news.id, row.status);
   } catch (e) {
     await status(db, { article_id: art.id, title: clip(art.title, 300), status: 'error', note: clip(e.message, 900) });

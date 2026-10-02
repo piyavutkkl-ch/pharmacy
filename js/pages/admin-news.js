@@ -74,11 +74,28 @@ async function loadPublished() {
   const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,gallery,file_path,file_name,comments_closed,view_count,published_at,unit_id').eq('status', 'published').order('published_at', { ascending: false });
   if (error) { $('#anList').innerHTML = `<p class="empty">โหลดข่าวไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
   published = data;
+  renderPublished();
+}
+
+/* รายการข่าวที่เผยแพร่: ย่อไว้ = 3 ข่าวล่าสุด · ดูทั้งหมด = เลื่อนดูได้ + ค้นหัวข้อ/เลือกวันที่เผยแพร่ */
+const SHOW_LATEST = 3;
+let pubOpen = false;
+const localDay = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+function renderPublished() {
+  const q = $('#anSearch').value.trim().toLowerCase(), day = $('#anDate').value;
+  const filtered = published.filter((n) => (!q || n.title.toLowerCase().includes(q)) && (!day || (n.published_at && localDay(n.published_at) === day)));
+  const rows = pubOpen ? filtered : published.slice(0, SHOW_LATEST);
   $('#anCount').textContent = `(${published.length})`;
-  $('#anList').innerHTML = published.length ? published.map((n) => `<div class="newsrow"><div class="thumb2">${n.image_path ? `<img src="${esc(publicImageUrl(n.image_path))}" alt="" loading="lazy">` : ''}</div>`
+  $('#anExpand').hidden = published.length <= SHOW_LATEST;
+  $('#anExpand').textContent = pubOpen ? 'ย่อ (แสดง 3 ข่าวล่าสุด)' : `ดูทั้งหมด (${published.length})`;
+  $('#anExpand').setAttribute('aria-expanded', String(pubOpen));
+  $('#anFind').hidden = !pubOpen;
+  $('#anList').classList.toggle('an-scroll', pubOpen);
+  $('#anFound').textContent = pubOpen && (q || day) ? `พบ ${filtered.length} ข่าว` : '';
+  $('#anList').innerHTML = rows.length ? rows.map((n) => `<div class="newsrow"><div class="thumb2">${n.image_path ? `<img src="${esc(publicImageUrl(n.image_path))}" alt="" loading="lazy">` : ''}</div>`
     + `<div class="l"><b>${esc(n.title)}</b><span class="small muted">${esc(n.tag)} · ${esc(thaiDate(n.published_at))} · ${n.view_count.toLocaleString('th-TH')} ผู้เข้าชม${n.unit_id != null ? ' · จาก รพ.สต. ' + esc(unitName(n.unit_id)) : ''}${n.comments_closed ? ' · ปิดความคิดเห็น' : ''}</span></div>`
     + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/news/${n.id}">ดู</a><button type="button" class="btn btn-o btn-sm" data-edit="${n.id}">แก้ไข</button><button type="button" class="btn btn-o btn-sm" data-unpub="${n.id}">หยุดเผยแพร่</button><button type="button" class="btn btn-no btn-sm" data-del="${n.id}">ลบ</button></div></div>`).join('')
-    : '<p class="empty">ยังไม่มีข่าวที่เผยแพร่</p>';
+    : `<p class="empty">${published.length ? 'ไม่พบข่าวที่ตรงกับคำค้น/วันที่' : 'ยังไม่มีข่าวที่เผยแพร่'}</p>`;
 }
 
 /* ---------- ข่าวที่หยุดเผยแพร่ (ถังข่าว): หยุดเผยแพร่ / ลบ / ไม่ผ่าน → เรียกคืนได้ 30 วัน ---------- */
@@ -146,6 +163,10 @@ function bind() {
       removeNewsFiles(n); toast('ลบถาวรแล้ว'); loadTrash();
     }
   });
+  $('#anExpand').addEventListener('click', () => { pubOpen = !pubOpen; renderPublished(); if (pubOpen) $('#anSearch').focus(); });
+  $('#anSearch').addEventListener('input', renderPublished);
+  $('#anDate').addEventListener('change', renderPublished);
+  $('#anFindClear').addEventListener('click', () => { $('#anSearch').value = ''; $('#anDate').value = ''; renderPublished(); });
   $('#anList').addEventListener('click', async (e) => {
     const ed = e.target.closest('[data-edit]');
     if (ed) {

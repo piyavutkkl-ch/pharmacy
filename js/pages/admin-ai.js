@@ -1,6 +1,6 @@
 // ผู้ดูแล › ข่าว › ช่อง AI: ข่าวจากบทความวิชาการ CCPE วันละ 1 ข่าว (งานจริงทำใน GitHub Actions: tools/ai_news/run.mjs)
 //   ตั้งค่า (site_texts): ai_news_auto = on|off (เผยแพร่ทันที / รอตรวจ) · ai_news_request = เวลาที่กด "สร้างข่าวตอนนี้" (ระบบเช็กทุกชั่วโมง)
-//   ประวัติ: ai_news_log (ผู้ดูแลอ่านได้อย่างเดียว) · ข่าวที่ได้เข้าคิว "รอตรวจ" ด้านล่างเหมือนข่าวจาก รพ.สต.
+//   ประวัติ: ai_news_log (ผู้ดูแลอ่านได้อย่างเดียว · 10 ครั้งล่าสุด · ย่อไว้เป็นค่าเริ่มต้น กดเปิดดูได้) · ข่าวที่ได้เข้าคิว "รอตรวจ" ด้านล่างเหมือนข่าวจาก รพ.สต.
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
 
@@ -32,6 +32,7 @@ export async function initAiPanel() {
   $('#aiStatus').textContent = waiting ? 'รับคำสั่งแล้ว · ระบบจะสร้างข่าวภายใน 1 ชั่วโมง'
     : !last ? 'ยังไม่เคยทำงาน · ระบบเริ่มทำทุกวันหลัง 06:00 น. (ต้องตั้งค่าคีย์ GEMINI_API_KEY ใน GitHub ก่อน)'
       : `ทำงานล่าสุด ${thaiDate(last.created_at)} ${time(last.created_at)} น. · ${STATUS[last.status]?.[0] || last.status}${last.status === 'error' && last.note ? ': ' + last.note : ''}`;
+  $('#aiLogCount').textContent = logs.length ? `(${logs.length} ครั้งล่าสุด)` : '';
   $('#aiLog').innerHTML = logs.length ? logs.map((x) => {
     const [label, cls] = STATUS[x.status] || [x.status, 'c-off'], nw = news.get(x.news_id);
     return `<div class="li"><div class="l"><b>${esc(nw?.title || x.title || 'ไม่มีบทความใหม่')}</b>`

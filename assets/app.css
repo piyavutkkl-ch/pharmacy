@@ -637,3 +637,15 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .da-stat > span{font-weight:600;padding-bottom:12px}
 .da-stat label{display:flex;flex-direction:column;gap:4px}
 @media (max-width:560px){.da-stat{grid-template-columns:1fr 1fr}.da-stat > span{grid-column:1/-1;padding:0}}
+/* ช่อง AI: ประวัติการทำงาน ย่อ/ขยายได้ (ค่าเริ่มต้นย่อ — สถานะล่าสุดแสดงด้านบนอยู่แล้ว) */
+.ai-hist{margin-top:8px;border-top:1px solid var(--line)}
+.ai-hist summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;font-weight:600;color:var(--primary);list-style:none}
+.ai-hist summary::-webkit-details-marker{display:none}
+.ai-hist summary::before{content:'▸';display:inline-block;transition:transform .15s}
+.ai-hist[open] summary::before{transform:rotate(90deg)}
+/* ผู้ดูแล › ข่าวที่เผยแพร่แล้ว: ย่อ 3 ข่าวล่าสุด / ดูทั้งหมด (เลื่อนดู + ค้นหัวข้อ + วันที่) */
+.an-find{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.an-find #anSearch{flex:1 1 220px;min-width:0}
+.an-date{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.an-date .input{width:auto}
+#anList.an-scroll{max-height:min(70vh,640px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px}

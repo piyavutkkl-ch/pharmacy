@@ -283,7 +283,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     {
       await go(p, '#/admin/news'); await p.waitForTimeout(500);
       const AI = '00000000-0000-0000-0000-0000000a1001';
-      check('ช่อง AI: แสดงสถานะล่าสุด + ประวัติ (สำเร็จ/ไม่สำเร็จพร้อมสาเหตุ)', (await text(p, '#aiStatus')).includes('สร้างข่าวแล้ว') && await count(p, '#aiLog .li') === 2 && (await text(p, '#aiLog')).includes('quota') && (await text(p, '#aiLog')).includes('รอตรวจ'));
+      const hist0 = await p.evaluate(() => ({ open: document.querySelector('#aiHist').open, n: document.querySelector('#aiLogCount').textContent }));
+      await (await p.$('.ai-panel')).screenshot({ path: path.join(SHOTS, 'admin-ai-panel.png') });
+      check('ช่อง AI: ประวัติย่อไว้เป็นค่าเริ่มต้น (บอกจำนวนครั้ง) กดเปิดได้', !hist0.open && hist0.n.includes('2'), JSON.stringify(hist0));
+      await p.click('#aiHist summary'); await p.waitForTimeout(150);
+      check('ช่อง AI: เปิดแล้วเห็นสถานะล่าสุด + ประวัติ (สำเร็จ/ไม่สำเร็จพร้อมสาเหตุ)', await visible(p, '#aiLog') && (await text(p, '#aiStatus')).includes('สร้างข่าวแล้ว') && await count(p, '#aiLog .li') === 2 && (await text(p, '#aiLog')).includes('quota') && (await text(p, '#aiLog')).includes('รอตรวจ'));
       await p.click('#aiAuto'); await p.waitForTimeout(300);
       check('ช่อง AI: เปิด "เผยแพร่ทันที" ได้ (ถามยืนยันก่อน)', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert'))[0]?.payload?.key === 'ai_news_auto' && (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert'))[0]?.payload?.body === 'on');
       await p.click('#aiAuto'); await p.waitForTimeout(300);
@@ -327,14 +331,29 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#anQueue [data-review]'); await p.waitForTimeout(200);
     await p.click('[data-decide="published"]'); await p.waitForTimeout(400);
     check('ผู้ดูแล: อนุมัติข่าวรอตรวจ → เผยแพร่', await p.evaluate(() => window.__db.news.every((n) => n.status !== 'pending')));
-    const pub0 = await count(p, '#anList [data-unpub]');
+    const pubN = async (pg) => +((await text(pg, '#anCount')).replace(/\D/g, '') || 0);   // จำนวนข่าวเผยแพร่ทั้งหมด (รายการย่อแสดงแค่ 3)
+    const pub0 = await pubN(p);
     await p.click('#anList [data-unpub]'); await p.waitForTimeout(500);
-    check('ข่าว: หยุดเผยแพร่ → ไปอยู่ในถังข่าว', await count(p, '#anList [data-unpub]') === pub0 - 1 && await count(p, '#anTrash [data-restore]') === 1 && (await text(p, '#anTrash')).includes('ลบถาวรในอีก 30 วัน'));
+    check('ข่าว: หยุดเผยแพร่ → ไปอยู่ในถังข่าว', await pubN(p) === pub0 - 1 && await count(p, '#anTrash [data-restore]') === 1 && (await text(p, '#anTrash')).includes('ลบถาวรในอีก 30 วัน'));
     await p.click('#anTrash [data-restore]'); await p.waitForTimeout(500);
-    check('ข่าว: เรียกคืนแล้วกลับมาเผยแพร่', await count(p, '#anList [data-unpub]') === pub0 && await count(p, '#anTrash [data-restore]') === 0);
+    check('ข่าว: เรียกคืนแล้วกลับมาเผยแพร่', await pubN(p) === pub0 && await count(p, '#anTrash [data-restore]') === 0);
     await p.click('#anList [data-del]'); await p.waitForTimeout(500);
     await p.click('#anTrash [data-purge]'); await p.waitForTimeout(500);
-    check('ข่าว: ลบลงถัง แล้วลบถาวรได้', await count(p, '#anList [data-unpub]') === pub0 - 1 && await count(p, '#anTrash [data-purge]') === 0 && (await calls(p, (c) => c.table === 'news' && c.op === 'delete')).length >= 1);
+    check('ข่าว: ลบลงถัง แล้วลบถาวรได้', await pubN(p) === pub0 - 1 && await count(p, '#anTrash [data-purge]') === 0 && (await calls(p, (c) => c.table === 'news' && c.op === 'delete')).length >= 1);
+    await p.evaluate(() => { for (let i = 1; i <= 5; i++) window.__db.news.push({ id: `00000000-0000-0000-0000-00000000f00${i}`, title: `ข่าวเก่าลำดับ ${i}`, tag: 'ข่าว', body: 'x', status: 'published', view_count: 0, comments_closed: false, gallery: [], published_at: new Date(Date.UTC(2026, 0, i, 3)).toISOString(), created_at: new Date(Date.UTC(2026, 0, i, 3)).toISOString() }); });
+    await go(p, '#/admin/messages'); await go(p, '#/admin/news'); await p.waitForTimeout(300);
+    const allN = await pubN(p);
+    check('ข่าวที่เผยแพร่: ย่อไว้แสดง 3 ข่าวล่าสุด + ปุ่มดูทั้งหมด (ช่องค้นซ่อน)', await count(p, '#anList .newsrow') === 3 && await visible(p, '#anExpand') && !(await visible(p, '#anFind')) && allN >= 8);
+    await p.click('#anExpand'); await p.waitForTimeout(150);
+    check('ข่าวที่เผยแพร่: ดูทั้งหมด → ครบทุกข่าว + เลื่อนดูได้ + ช่องค้นหัวข้อ/วันที่', await count(p, '#anList .newsrow') === allN && await visible(p, '#anSearch') && await visible(p, '#anDate') && await p.$eval('#anList', (e) => getComputedStyle(e).overflowY === 'auto'));
+    await p.fill('#anSearch', 'ข่าวเก่า'); await p.waitForTimeout(150);
+    check('ข่าวที่เผยแพร่: พิมพ์ค้นหัวข้อได้', await count(p, '#anList .newsrow') === 5 && (await text(p, '#anFound')).includes('5'));
+    await p.fill('#anDate', '2026-01-03'); await p.waitForTimeout(150);
+    check('ข่าวที่เผยแพร่: เลือกวันที่เผยแพร่ได้', await count(p, '#anList .newsrow') === 1 && (await text(p, '#anList')).includes('ข่าวเก่าลำดับ 3'));
+    await p.fill('#anSearch', 'ไม่มีข่าวนี้'); await p.waitForTimeout(150);
+    check('ข่าวที่เผยแพร่: ไม่พบ → แจ้งว่าไม่พบ', (await text(p, '#anList')).includes('ไม่พบ'));
+    await p.click('#anFindClear'); await p.click('#anExpand'); await p.waitForTimeout(150);
+    check('ข่าวที่เผยแพร่: กดย่อกลับเหลือ 3 ข่าว', await count(p, '#anList .newsrow') === 3 && !(await visible(p, '#anFind')));
     await go(p, '#/admin/review');
     await p.click('#rvUnits [data-u="3"]'); await p.waitForTimeout(200);
     await p.click('#rvBody [data-open]'); await p.waitForTimeout(150);

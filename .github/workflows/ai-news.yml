@@ -1,6 +1,6 @@
 # ช่อง AI: สร้างข่าวจากบทความวิชาการ CCPE วันละ 1 ข่าว (ฟรี 100%: GitHub Actions + Gemini free tier)
 #   ทุกชั่วโมงเช็กเร็ว ๆ (~20 วินาที) ว่าต้องทำไหม: ยังไม่ได้ทำของวันนี้หลัง 06:00 น. หรือผู้ดูแลกด "สร้างข่าวตอนนี้" ในหน้าเว็บ
-#   ต้องทำ → ติดตั้ง Chromium (วาดภาพประกอบ) → tools/ai_news/run.mjs → ข่าวรอตรวจ/เผยแพร่ตามค่าตั้งในหน้าผู้ดูแล › ข่าว › ช่อง AI
+#   ต้องทำ → ติดตั้ง Chromium (แปลงภาพ/ภาพแม่แบบ) → tools/ai_news/run.mjs (AI วาดภาพ 1 ภาพ 3 ส่วน: Gemini → Cloudflare → Pollinations · ไม่ได้ = ภาพแม่แบบ) → ข่าวรอตรวจ/เผยแพร่ตามค่าตั้งในหน้าผู้ดูแล › ข่าว › ช่อง AI
 #   ค่าลับ: SUPABASE_SECRET_KEY (มีอยู่แล้ว) + GEMINI_API_KEY (เจ้าของเว็บสร้างเองที่ aistudio.google.com) — ห้าม echo
 name: ai-news
 on:
@@ -44,4 +44,6 @@ jobs:
         env:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}   # ไม่บังคับ: ผู้วาดภาพสำรอง (Cloudflare Workers AI ฟรี)
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node tools/ai_news/run.mjs

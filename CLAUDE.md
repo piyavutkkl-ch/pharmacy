@@ -73,7 +73,7 @@ js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ย�
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP (imagePicker แสดงตัวอย่างทันที), ภาพย่อไฟล์ fileCard/hydrateSigned, ลิงก์ชั่วคราวไฟล์ส่วนตัว
 supabase/NN_*.sql     migration เรียงเลข · ไฟล์ใหม่ = เลขถัดไป → ระบบรันบน Supabase ให้เองหลังทดสอบผ่าน (tools/db/migrate.sh)
 .github/workflows/    ci-deploy (ทดสอบ→รวม→ฐานข้อมูล→ขึ้นเว็บ) · keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์) · restore (กู้) · ai-news (ช่อง AI เช็กทุกชั่วโมง ทำวันละ 1 ข่าว)
-tools/ai_news/        run.mjs ข่าวจากบทความ CCPE: เลือกบทความ → PDF → Gemini (ฟรี) เขียนข่าว → templates.mjs วาดภาพ 3 แบบด้วย Chromium → บันทึกข่าว (ai_generated, gallery, source_url) · --check / --offline
+tools/ai_news/        run.mjs ข่าวจากบทความ CCPE: เลือกบทความ → PDF → Gemini (ฟรี) เขียนข่าว + เติมคำสั่งวาดภาพ (imagePrompt = คำสั่ง 3 ส่วนของเจ้าของเว็บ) → AI วาด 1 ภาพ 3 ส่วน (Gemini → Cloudflare Workers AI ถ้าตั้งคีย์ → Pollinations ไม่ใช้คีย์) · วาดไม่ได้ = templates.mjs ภาพแม่แบบ 3 ภาพ → บันทึกข่าว · --check / --offline
 tools/db/migrate.sh   รัน SQL ใหม่บน Supabase (จดไว้ใน ops.schema_migrations · สำรองก่อน · กันคำสั่งลบข้อมูลที่ไม่ได้ยืนยัน)
 tools/backup/         สคริปต์สำรอง/กู้ข้อมูล (bash + Python มาตรฐาน) — วิธีตั้งค่าอยู่ใน docs/BACKUP.md
 tools/preview/build.py สร้างหน้าตัวอย่าง (_preview/ · Supabase จำลอง + ชื่อสมมติ · ตรวจว่าไม่มีชื่อจริงหลุด)
@@ -96,7 +96,7 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - ไฟล์: bucket `public-images` (≤1 MB, สาธารณะ), `documents` (≤5 MB), `evidence` (≤2 MB, path `ปีงบ/unit/…`), `news-files` (PDF ≤5 MB สาธารณะ, `<uid>/…`),
   `chat-images` (≤1 MB ส่วนตัว, `<conversation id>/…`), `criteria-samples` (≤5 MB ส่วนตัว, ผู้ดูแลอัปโหลด), `visit-photos` (≤1 MB ส่วนตัว PDPA, `<unit>/<patient>/…`) รวมฟรี 1 GB
 - ช่อง AI: ข่าวจาก AI = news.ai_generated + gallery (ภาพเพิ่ม ≤6) + source_url/source_title (อ้างอิง) + source_file_url (ลิงก์ดาวน์โหลด PDF ต้นฉบับ CCPE showfile.php · ไม่เก็บสำเนา · 29_ai_news_pdf.sql) · ค่าเริ่มต้นเข้าคิวรอตรวจ · ai_news_log เขียนได้เฉพาะ secret key
-  ค่าลับ GitHub Secrets: GEMINI_API_KEY (เจ้าของเว็บสร้างเองที่ aistudio.google.com — ฟรี ไม่ใส่บัตร) + SUPABASE_SECRET_KEY · Gemini free tier อาจใช้ข้อมูลที่ส่งไปพัฒนาโมเดล → ส่งได้แค่บทความสาธารณะ ห้ามส่งข้อมูลผู้ป่วย
+  ค่าลับ GitHub Secrets: GEMINI_API_KEY (เจ้าของเว็บสร้างเองที่ aistudio.google.com — ฟรี ไม่ใส่บัตร) + SUPABASE_SECRET_KEY (+ ไม่บังคับ CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN ผู้วาดภาพสำรอง ฟรี) · Gemini free tier อาจใช้ข้อมูลที่ส่งไปพัฒนาโมเดล → ส่งได้แค่บทความสาธารณะ ห้ามส่งข้อมูลผู้ป่วย
 - ข่าว: สถานะ pending/fix/rejected/published/unpublished/deleted · ถังข่าว (unpublished/deleted/rejected) มี trashed_at — หน้าผู้ดูแลลบถาวรเมื่อครบ 30 วัน
 
 ## แนวทางเขียนโค้ด
