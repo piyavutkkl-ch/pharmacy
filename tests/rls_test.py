@@ -204,7 +204,7 @@ check("staff resubmits item after fix (evidence paths kept)", "s2", "update item
 
 print("== step 4.3 ==")
 check("admin cannot edit a past fiscal year's criteria", "admin", "update criteria_items set body='x' where fiscal_year=2568", "deny")
-check("admin can edit current year's criteria", "admin", "update criteria_items set evidence='หลักฐานใหม่' where fiscal_year=2569 and item_no='1.1' returning id", rows(1))
+check("admin can edit current year's criteria", "admin", "update criteria_items set evidence='หลักฐานใหม่' where fiscal_year=fiscal_year_of(current_date) and item_no='1.1' returning id", rows(1))
 check("admin can add an item to current year", "admin", "insert into criteria_items(fiscal_year,topic_no,topic_title,sub_id,item_no,body,sort) values (2570,1,'t','1','1.9','ข้อใหม่',999) returning id", rows(1))
 check("admin sets item back to none", "admin", "update item_status set status='none' where unit_id=2 returning status", lambda o: 'none' in o)
 check("admin publishes own news directly", "admin", "insert into news(title,body,status) values ('ข่าวผู้ดูแล','x','published') returning status||':'||(published_at is not null)", eq("published:true"))
@@ -510,6 +510,8 @@ check("public cannot see AI draft before approval", "anon", f"select count(*) fr
 check("admin approves AI draft → published", "admin", f"update news set status='published' where id='{aid}' returning (published_at is not null)::text||':'||cardinality(gallery)", eq("true:2"))
 check("public sees source + gallery after publish", "anon", f"select source_title||':'||ai_generated::text from news where id='{aid}'", eq("บทความ:true"))
 check("source url must be https", "admin", f"update news set source_url='javascript:alert(1)' where id='{aid}'", "deny")
+check("AI news download link must be https", "admin", f"update news set source_file_url='javascript:alert(1)' where id='{aid}'", "deny")
+check("admin sets AI news download link", "admin", f"update news set source_file_url='https://ccpe.pharmacycouncil.org/showfile.php?file=1' where id='{aid}' returning source_file_url", eq("https://ccpe.pharmacycouncil.org/showfile.php?file=1"))
 check("gallery max 6 images", "admin", f"update news set gallery=array['1','2','3','4','5','6','7'] where id='{aid}'", "deny")
 check("anon reads AI settings", "anon", "select body from site_texts where key='ai_news_auto'", eq("off"))
 check("admin toggles auto publish", "admin", "update site_texts set body='on' where key='ai_news_auto' returning body", eq("on"))

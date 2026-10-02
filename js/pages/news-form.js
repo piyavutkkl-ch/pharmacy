@@ -56,4 +56,6 @@ export function removeNewsFiles(n, fields = null) {
 
 const PDF_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>';
 /** ลิงก์ดาวน์โหลด PDF แนบข่าว (ใช้ทั้งหน้าอ่านข่าวและหน้าตรวจข่าว) */
+/** ลิงก์ไฟล์ภายนอก (เช่น PDF บทความต้นฉบับของข่าว AI) — เปิดแท็บใหม่ */
+export const extFileLink = (url, label) => `<a class="file-link" href="${esc(url)}" target="_blank" rel="noopener">${PDF_SVG}<span>${esc(label)}</span></a>`;
 export const fileLink = (n) => `<a class="file-link" href="${esc(newsFileUrl(n.file_path))}" target="_blank" rel="noopener" download="${esc(n.file_name || 'ไฟล์แนบ.pdf')}">${PDF_SVG}<span>ดาวน์โหลด ${esc(n.file_name || 'ไฟล์แนบ (PDF)')}</span></a>`;

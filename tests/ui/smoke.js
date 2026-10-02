@@ -58,6 +58,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
   const count = (p, s) => p.$$eval(s, (x) => x.length).catch(() => 0);
   const visible = (p, s) => p.$eval(s, (e) => !e.hidden && e.offsetParent !== null).catch(() => false);
   const calls = (p, pred) => p.evaluate(() => window.__calls).then((c) => c.filter(pred));
+  // id ข้อเกณฑ์ของปีงบล่าสุด (seed ใส่สถานะไว้ที่ปีงบปัจจุบัน — ไม่ผูกกับปีที่รันทดสอบ)
+  const itemId = (p, no) => p.evaluate((n) => window.__db.criteria_items.filter((i) => i.item_no === n).sort((a, b) => b.fiscal_year - a.fiscal_year)[0].id, no);
   const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
   try {
@@ -274,7 +276,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ช่อง AI: กด "สร้างข่าวตอนนี้" → ส่งคำสั่ง + แจ้งว่าจะได้ภายใน 1 ชั่วโมง', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert')).some((c) => c.payload.key === 'ai_news_request') && (await text(p, '#aiStatus')).includes('ภายใน 1 ชั่วโมง'));
       check('ช่อง AI: ข่าวจาก AI เข้าคิวรอตรวจพร้อมป้าย AI', (await text(p, '#anQueue')).includes('ช่อง AI') && await count(p, '#anQueue .chip') >= 1);
       await p.click(`#anQueue [data-review="${AI}"]`); await p.waitForTimeout(500);
-      check('ช่อง AI: กล่องตรวจแสดงภาพ 3 ภาพ + อ้างอิงบทความ + เตือนให้ตรวจตัวเลข + ปุ่มแก้ไข', await count(p, '#anReview .rv-imgs .cover') === 3 && (await p.getAttribute('#anReview a[href*="ccpe"]', 'href') || '').includes('id=1876')
+      check('ช่อง AI: กล่องตรวจแสดงภาพ 3 ภาพ + อ้างอิงบทความ + ลิงก์ PDF ต้นฉบับ + เตือนให้ตรวจตัวเลข + ปุ่มแก้ไข', await count(p, '#anReview .rv-imgs .cover') === 3 && (await p.getAttribute('#anReview p.small a[href*="ccpe"]', 'href') || '').includes('id=1876')
+        && (await p.getAttribute('#anReview .file-link', 'href') || '').endsWith('showfile.php?file=1876')
         && (await text(p, '#anReview')).includes('ตรวจตัวเลข') && await visible(p, '#anReview [data-decide="edit"]') && !(await p.$('#anReview [data-decide="fix"]')));
       await p.click('#anReview [data-decide="edit"]'); await p.waitForTimeout(200);
       check('ช่อง AI: แก้ไขข้อความ → ข้อมูลขึ้นในฟอร์มด้านบน', (await p.inputValue('#anTitle')).includes('สแตติน') && (await text(p, '#anFormTitle')).includes('รอตรวจ'));
@@ -283,7 +286,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#anReview [data-decide="published"]'); await p.waitForTimeout(500);
       check('ช่อง AI: อนุมัติแล้วเผยแพร่', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.status === 'published'));
       await go(p, '#/news/' + AI); await p.waitForTimeout(500);
-      check('หน้าอ่านข่าว AI: ป้าย "สรุปโดย AI" + ภาพเพิ่ม 2 ภาพ + อ้างอิงบทความต้นฉบับ (ไม่แนบ PDF)', await visible(p, '#arAi') && await count(p, '#arGallery .cover') === 2 && (await p.getAttribute('#arSource a', 'href')).includes('ccpe.pharmacycouncil.org') && !(await visible(p, '#arFile')));
+      check('หน้าอ่านข่าว AI: ป้าย "สรุปโดย AI" + ภาพเพิ่ม 2 ภาพ + อ้างอิงบทความต้นฉบับ + ปุ่มดาวน์โหลด PDF ต้นฉบับ', await visible(p, '#arAi') && await count(p, '#arGallery .cover') === 2 && (await p.getAttribute('#arSource a', 'href')).includes('ccpe.pharmacycouncil.org') && await visible(p, '#arFile .file-link') && (await p.getAttribute('#arFile a', 'href')).endsWith('showfile.php?file=1876') && (await p.getAttribute('#arFile a', 'target')) === '_blank');
       await p.screenshot({ path: path.join(SHOTS, 'ai-news-article-1280.png'), fullPage: true });
       await go(p, '#/admin/news'); await p.waitForTimeout(300);
     }
@@ -390,14 +393,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     const ins = (await calls(p, (c) => c.table === 'news' && c.op === 'insert'))[0]?.payload || {};
     check('ข่าว: ส่งพร้อมรูป (WebP) + PDF แนบ', ins.tag === 'ความรู้' && ins.image_path?.endsWith('.webp') && ins.file_path?.endsWith('.pdf') && ins.file_name === 'คู่มือ.pdf', JSON.stringify(ins));
     await go(p, '#/staff/criteria'); await p.waitForTimeout(300);
-    await p.click('[data-open="3"]'); await p.waitForTimeout(200);
+    const i13 = await itemId(p, '1.3');
+    await p.click(`[data-open="${i13}"]`); await p.waitForTimeout(200);
     await p.setInputFiles('#ev-files', [img, pdf]); await p.waitForTimeout(200);
     check('หลักฐาน: เลือกไฟล์แล้วแสดงตัวอย่าง (รูป + PDF)', await count(p, '#ev-preview .fthumb') === 2 && await count(p, '#ev-preview img') === 1);
-    await p.click('[data-submit="3"]'); await p.waitForTimeout(600);
-    await p.click('[data-open="3"]'); await p.waitForTimeout(300);
+    await p.click(`[data-submit="${i13}"]`); await p.waitForTimeout(600);
+    await p.click(`[data-open="${i13}"]`); await p.waitForTimeout(300);
     check('หลักฐาน: ส่งแล้วขึ้น "รอตรวจ" + ภาพย่อไฟล์ที่ส่ง', await visible(p, '.wait-note') && await count(p, '.crit-editbox .fthumb[data-file]') === 2);
     await p.click('[data-withdraw]'); await p.waitForTimeout(500);
-    check('หลักฐาน: กดยกเลิกการส่งได้', (await calls(p, (c) => c.rpc === 'withdraw_item_status')).length === 1 && await p.evaluate(() => window.__db.item_status.find((x) => x.item_id === 3 && x.unit_id === 2)?.status === 'none'));
+    check('หลักฐาน: กดยกเลิกการส่งได้', (await calls(p, (c) => c.rpc === 'withdraw_item_status')).length === 1 && await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 2)?.status === 'none', i13));
     await go(p, '#/staff/visits'); await p.click('#ptAddBtn'); await p.waitForTimeout(150);
     check('ผู้ป่วย: มีช่องสังกัด รพ.สต. (ค่าเริ่มต้น = หน่วยตัวเอง) + ที่อยู่ + เบอร์โทร แทน HN รพ.สต.', !(await p.$('#pfHnU')) && (await p.$eval('#pfHome', (e) => e.value)) === '2' && !!(await p.$('#pfAddr')) && (await p.getAttribute('#pfDob', 'placeholder')).includes('12/5/1997'));
     await p.fill('#pfFirst', 'ทดสอบ'); await p.fill('#pfLast', 'วันเกิด'); await p.fill('#pfDob', '12/5/2540'); await p.fill('#pfPhone', '081-111-2222'); await p.fill('#pfAddr', 'ม.1');
@@ -436,17 +440,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     p = await open('admin', '#/admin/review');
     await p.click('#rvUnits [data-u="3"]'); await p.waitForTimeout(250);
-    await p.click('[data-open="3"]'); await p.waitForTimeout(150); await p.click('.crit-editbox [data-set="approved"]'); await p.waitForTimeout(400);
-    await p.click('#rv-3 [data-undo]'); await p.waitForTimeout(400);
-    check('ตรวจประเมิน: ย้อนกลับการให้ผ่านได้', await p.evaluate(() => window.__db.item_status.find((x) => x.item_id === 3 && x.unit_id === 3)?.status === 'submitted'));
-    await p.click('[data-open="4"]'); await p.waitForTimeout(150);
+    const [r3, r4] = [await itemId(p, '1.3'), await itemId(p, '2.1.1')];
+    await p.click(`[data-open="${r3}"]`); await p.waitForTimeout(150); await p.click('.crit-editbox [data-set="approved"]'); await p.waitForTimeout(400);
+    await p.click(`#rv-${r3} [data-undo]`); await p.waitForTimeout(400);
+    check('ตรวจประเมิน: ย้อนกลับการให้ผ่านได้', await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 3)?.status === 'submitted', r3));
+    await p.click(`[data-open="${r4}"]`); await p.waitForTimeout(150);
     await p.fill('#rvComment', 'ดูตัวอย่างที่แนบ'); await p.setInputFiles('#rvFiles', pdf); await p.waitForTimeout(150);
     check('ตรวจประเมิน: เลือกไฟล์แนบกลับแล้วเห็นตัวอย่าง', await count(p, '#rvPreview .fthumb') === 1);
     await p.click('.crit-editbox [data-set="fix"]'); await p.waitForTimeout(500);
-    const rv = await p.evaluate(() => window.__db.item_status.find((x) => x.item_id === 4 && x.unit_id === 3));
+    const rv = await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 3), r4);
     check('ตรวจประเมิน: ขอแก้ไขพร้อมแนบไฟล์กลับ', rv.status === 'fix' && rv.review_files?.length === 1, JSON.stringify(rv));
-    await p.click('#rv-4 [data-undo]'); await p.waitForTimeout(400);
-    check('ตรวจประเมิน: ย้อนกลับการขอแก้ไขได้', await p.evaluate(() => window.__db.item_status.find((x) => x.item_id === 4 && x.unit_id === 3)?.status === 'submitted'));
+    await p.click(`#rv-${r4} [data-undo]`); await p.waitForTimeout(400);
+    check('ตรวจประเมิน: ย้อนกลับการขอแก้ไขได้', await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 3)?.status === 'submitted', r4));
     await p.click('[data-hideyear="1"]'); await p.waitForTimeout(400);
     check('ปีงบ: ซ่อนปีงบได้ (แสดง "ซ่อนอยู่")', (await text(p, '#rvYears')).includes('ซ่อนอยู่') && await visible(p, '[data-hideyear="0"]'));
     await p.click('[data-hideyear="0"]'); await p.waitForTimeout(400);

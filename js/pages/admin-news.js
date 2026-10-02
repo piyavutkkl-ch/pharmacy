@@ -3,7 +3,7 @@ import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits, unitName } from '../data.js?v=4.4';
-import { newsForm, removeNewsFiles, fileLink } from './news-form.js?v=4.4';
+import { newsForm, removeNewsFiles, fileLink, extFileLink } from './news-form.js?v=4.4';
 import { loadNews, renderSlides } from './news.js?v=4.4';
 import { refreshAdminBadges } from './admin.js?v=4.4';
 import { initAiPanel } from './admin-ai.js?v=4.4';
@@ -20,7 +20,7 @@ export async function initAdminNews() {
 }
 
 async function loadQueue() {
-  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,file_path,file_name,unit_id,created_at,comments_closed,ai_generated,source_url,source_title,gallery,author:profiles!news_author_id_fkey(full_name)').eq('status', 'pending').order('created_at');
+  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,file_path,file_name,unit_id,created_at,comments_closed,ai_generated,source_url,source_title,source_file_url,gallery,author:profiles!news_author_id_fkey(full_name)').eq('status', 'pending').order('created_at');
   if (error) { $('#anQueue').innerHTML = `<p class="empty">โหลดข่าวรอตรวจไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
   queue = data;
   $('#anQueueCount').textContent = queue.length ? `(${queue.length})` : '';
@@ -43,7 +43,7 @@ function openReview(id) {
     + (n.ai_generated ? '<p class="small ai-warn">ข่าวนี้เขียนโดย AI — ตรวจตัวเลข ชื่อยา และขนาดยาเทียบกับบทความต้นฉบับก่อนเผยแพร่</p>' : '')
     + ([n.image_path, ...(n.gallery || [])].filter(Boolean).length ? `<div class="rv-imgs">${[n.image_path, ...(n.gallery || [])].filter(Boolean).map(() => '<div class="cover"></div>').join('')}</div>` : '')
     + `<div class="article-body" style="font-size:15px">${String(n.body).split(/\n+/).map((p) => `<p>${esc(p)}</p>`).join('')}</div>`
-    + (n.file_path ? `<div>${fileLink(n)}</div>` : '')
+    + (n.file_path ? `<div>${fileLink(n)}</div>` : n.source_file_url ? `<div>${extFileLink(n.source_file_url, 'ดาวน์โหลดบทความฉบับเต็ม (PDF)')}</div>` : '')
     + (n.source_url ? `<p class="small">อ้างอิง: <a href="${esc(n.source_url)}" target="_blank" rel="noopener">${esc(n.source_title || n.source_url)}</a></p>` : '')
     + '<label for="anComment" class="small" style="font-weight:600">ความเห็นถึงผู้ส่ง (จำเป็นเมื่อขอแก้ไขหรือไม่ผ่าน)</label><textarea id="anComment" rows="2" maxlength="1000"></textarea>'
     + '<div class="row-btns" style="align-items:center"><button type="button" class="btn btn-ok" data-decide="published">อนุมัติ &amp; เผยแพร่</button>'

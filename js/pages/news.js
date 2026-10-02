@@ -2,7 +2,7 @@
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, art, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
-import { fileLink } from './news-form.js?v=4.4';
+import { fileLink, extFileLink } from './news-form.js?v=4.4';
 import { smartCover } from '../lightbox.js?v=4.4';
 
 let news = null;          // cache ข่าวที่เผยแพร่แล้ว
@@ -96,7 +96,7 @@ export async function showArticle(id) {
   $('#arGallery').innerHTML = ''; $('#arGallery').hidden = true; $('#arSource').hidden = true; $('#arAi').hidden = true;
   $('#arComments').innerHTML = ''; $('#arCommentMsg').textContent = ''; $('#arShareMsg').textContent = '';
   const { data: n, error } = await sb.from('news')
-    .select('id,title,tag,body,image_path,file_path,file_name,published_at,comments_closed,view_count,ai_generated,source_url,source_title,gallery').eq('id', id).maybeSingle();
+    .select('id,title,tag,body,image_path,file_path,file_name,published_at,comments_closed,view_count,ai_generated,source_url,source_title,source_file_url,gallery').eq('id', id).maybeSingle();
   if (error || !n) { $('#arTitle').textContent = 'ไม่พบข่าวนี้'; $('#arBody').innerHTML = '<p class="muted">ข่าวอาจถูกลบหรือยังไม่เผยแพร่</p>'; return; }
   current = n;
   document.title = n.title + ' · Primary Care Pharmacy Services';
@@ -106,7 +106,7 @@ export async function showArticle(id) {
   if (n.image_path) smartCover($('#arCover'), publicImageUrl(n.image_path), n.title);   // ใกล้เคียง A4 = ไม่ครอบตัด · กดขยายได้
   else $('#arCover').innerHTML = cover(n);
   $('#arBody').innerHTML = String(n.body || '').split(/\n{1,}/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
-  $('#arFile').innerHTML = n.file_path ? fileLink(n) : ''; $('#arFile').hidden = !n.file_path;
+  $('#arFile').innerHTML = n.file_path ? fileLink(n) : n.source_file_url ? extFileLink(n.source_file_url, 'ดาวน์โหลดบทความฉบับเต็ม (PDF)') : ''; $('#arFile').hidden = !n.file_path && !n.source_file_url;
   const gal = (n.gallery || []).filter(Boolean);   // ภาพประกอบเพิ่มเติม (ข่าวจากช่อง AI: การ์ตูน + แผนภูมิ)
   if (gal.length) {
     $('#arGallery').innerHTML = gal.map(() => '<div class="cover"></div>').join(''); $('#arGallery').hidden = false;

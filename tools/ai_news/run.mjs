@@ -279,7 +279,7 @@ async function main() {
     row = {
       title: clip(g.title, 200), tag: 'ความรู้', body: buildBody(g), status: settings.auto === 'on' ? 'published' : 'pending',
       image_path: paths.infographic, gallery: [paths.comic, paths.clinical], ai_generated: true,
-      source_url: art.url, source_title: clip(`${art.title}${art.authors ? ' — ' + art.authors : ''}`, 300),
+      source_url: art.url, source_file_url: art.pdf, source_title: clip(`${art.title}${art.authors ? ' — ' + art.authors : ''}`, 300),
     };
     if (OFFLINE) { fs.writeFileSync(path.join(OFFLINE.out, 'news.json'), JSON.stringify({ article: art, row }, null, 2)); log('offline: บันทึกที่', OFFLINE.out); return; }
     const [news] = await db.insert('news', row);

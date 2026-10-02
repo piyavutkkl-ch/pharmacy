@@ -94,7 +94,7 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - เส้นทางไฟล์: รูปข่าว `news/<user id>/…`, รูปผลงาน `achievements/<unit>/…`, โปสเตอร์ `delivery/…`, สรุปเยี่ยมบ้าน `summaries/<unit>/…`, หลักฐาน `<ปีงบ>/<unit>/<ข้อ>/…`
 - ไฟล์: bucket `public-images` (≤1 MB, สาธารณะ), `documents` (≤5 MB), `evidence` (≤2 MB, path `ปีงบ/unit/…`), `news-files` (PDF ≤5 MB สาธารณะ, `<uid>/…`),
   `chat-images` (≤1 MB ส่วนตัว, `<conversation id>/…`), `criteria-samples` (≤5 MB ส่วนตัว, ผู้ดูแลอัปโหลด), `visit-photos` (≤1 MB ส่วนตัว PDPA, `<unit>/<patient>/…`) รวมฟรี 1 GB
-- ช่อง AI: ข่าวจาก AI = news.ai_generated + gallery (ภาพเพิ่ม ≤6) + source_url/source_title (อ้างอิง ไม่แนบ PDF) · ค่าเริ่มต้นเข้าคิวรอตรวจ · ai_news_log เขียนได้เฉพาะ secret key
+- ช่อง AI: ข่าวจาก AI = news.ai_generated + gallery (ภาพเพิ่ม ≤6) + source_url/source_title (อ้างอิง) + source_file_url (ลิงก์ดาวน์โหลด PDF ต้นฉบับ CCPE showfile.php · ไม่เก็บสำเนา · 29_ai_news_pdf.sql) · ค่าเริ่มต้นเข้าคิวรอตรวจ · ai_news_log เขียนได้เฉพาะ secret key
   ค่าลับ GitHub Secrets: GEMINI_API_KEY (เจ้าของเว็บสร้างเองที่ aistudio.google.com — ฟรี ไม่ใส่บัตร) + SUPABASE_SECRET_KEY · Gemini free tier อาจใช้ข้อมูลที่ส่งไปพัฒนาโมเดล → ส่งได้แค่บทความสาธารณะ ห้ามส่งข้อมูลผู้ป่วย
 - ข่าว: สถานะ pending/fix/rejected/published/unpublished/deleted · ถังข่าว (unpublished/deleted/rejected) มี trashed_at — หน้าผู้ดูแลลบถาวรเมื่อครบ 30 วัน
 
@@ -130,7 +130,7 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - [x] 5 GitHub Actions: กัน Supabase หยุดโปรเจกต์ + สำรองข้อมูลรายสัปดาห์ไป Google Drive กลาง (docs/BACKUP.md)
 - [x] 6 ระบบอัตโนมัติ: Claude แก้ → ทดสอบ → push → Actions ทดสอบ/รวม/อัปเดตฐานข้อมูล/ขึ้นเว็บเอง
 - [x] 7 PDPA: บันทึกการเปิดดู/เพิ่ม/แก้/ลบข้อมูลผู้ป่วย + หน้าผู้ดูแลค้นย้อนหลัง/ดาวน์โหลด CSV (08_audit_access.sql)
-- [ ] 8 ช่อง AI ข่าวจากบทความ CCPE (28_ai_news.sql + ai-news.yml) — โค้ดพร้อม · รอเจ้าของเว็บตั้ง GEMINI_API_KEY แล้วดูผลรอบแรก
+- [x] 8 ช่อง AI ข่าวจากบทความ CCPE (28_ai_news.sql + 29_ai_news_pdf.sql + ai-news.yml) — ตั้ง GEMINI_API_KEY แล้ว · ทำงานจริงแล้ว
 
 ## งานค้าง (ทำแล้วลบบรรทัดออก)
 - ต้นแบบ UI เดิม (ใช้อ้างอิงหน้าตา/ฟีเจอร์ที่ยังไม่ย้าย): Claude Artifact "Primary Care Pharmacy Services" ของเจ้าของโปรเจกต์

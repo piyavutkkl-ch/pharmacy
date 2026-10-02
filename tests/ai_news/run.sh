@@ -20,7 +20,7 @@ def jpeg_size(p):
         i += 2 + struct.unpack('>H', b[i + 2:i + 4])[0]
 d = json.load(open(os.path.join(out, 'news.json'))); a, r = d['article'], d['row']
 check('ai-news: เลือกบทความที่ยังไม่เคยทำ (1876) + อ่านชื่อ/ผู้เขียนจากหน้า CCPE', a['id'] == 1876 and a['title'].startswith('ยาทาสแตติน') and '&' in a['title'] and a['authors'] == 'ภก.ทดสอบ ตัวอย่าง', a)
-check('ai-news: อ้างอิงลิงก์บทความต้นฉบับ (ไม่แนบ PDF)', r['source_url'].endswith('id=1876') and r['source_url'].startswith('https://ccpe.') and 'file_path' not in r)
+check('ai-news: อ้างอิงลิงก์บทความต้นฉบับ + ลิงก์ดาวน์โหลด PDF ต้นฉบับ (ไม่เก็บสำเนา)', r['source_url'].endswith('id=1876') and r['source_url'].startswith('https://ccpe.') and r.get('source_file_url', '').endswith('showfile.php?file=1876') and r['source_file_url'].startswith('https://ccpe.') and 'file_path' not in r)
 check('ai-news: เนื้อข่าวมีย่อหน้า + ข้อควรรู้ + สำหรับบุคลากร + หมายเหตุ AI', all(x in r['body'] for x in ('สแตติน', '• อย่าบด', 'สำหรับบุคลากรทางการแพทย์:', 'สรุปโดย AI')))
 check('ai-news: ค่าเริ่มต้นรอผู้ดูแลตรวจ + ป้าย AI + หมวดความรู้', r['status'] == 'pending' and r['ai_generated'] is True and r['tag'] == 'ความรู้')
 check('ai-news: ภาพหลัก + แกลเลอรี 2 ภาพ', r['image_path'].endswith('infographic.jpg') and len(r['gallery']) == 2)
