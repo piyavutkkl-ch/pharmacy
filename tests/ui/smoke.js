@@ -138,7 +138,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     /* ================= ประชาชน ================= */
     p = await open('citizen', '#/me');
     check('ประชาชน: หน้า "ของฉัน" แสดงข้อมูลส่วนตัว', (await p.$eval('#mePhone', (e) => e.value)) !== '');
-    check('ประชาชน: เลือกปลายทางแชทได้ (ห้องยา + 7 รพ.สต.)', await count(p, '#meTargets [data-t]') === 8);
+    check('ประชาชน: ปลายทางแชท 2 ปุ่ม (รายการเลือก 7 รพ.สต. + ห้องยา รพ.)', await count(p, '#meUnitPick option[value]:not([value=""])') === 7 && await count(p, '#meTargets .me-hosp') === 1 && (await text(p, '#meTargets .me-hosp')).includes('ห้องยา'));
+    await p.selectOption('#meUnitPick', '3'); await p.waitForTimeout(300);
+    check('ประชาชน: เลือก รพ.สต. จากรายการ → เปิดห้องของหน่วยนั้น', (await text(p, '#meChatTitle')).includes('รพ.สต.') && await p.$eval('.me-pick', (e) => e.classList.contains('on')) && (await p.getAttribute('#meTargets .me-hosp', 'aria-current')) === 'false');
+    await p.click('#meTargets .me-hosp'); await p.waitForTimeout(300);
+    check('ประชาชน: กดปุ่มห้องยา รพ. → เปิดห้องยา', (await text(p, '#meChatTitle')).includes('ห้องยา') && (await p.getAttribute('#meTargets .me-hosp', 'aria-current')) === 'true' && (await p.inputValue('#meUnitPick')) === '');
     check('ประชาชน: เห็นข้อความเดิมในห้องแชท', await count(p, '#meLog .bubble') >= 1);
     await p.fill('#meInput', 'ทดสอบถามเรื่องยา'); await p.click('#meSend'); await p.waitForTimeout(400);
     check('ประชาชน: ส่งข้อความได้', (await calls(p, (c) => c.table === 'messages' && c.op === 'insert')).length === 1);

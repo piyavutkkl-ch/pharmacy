@@ -67,14 +67,15 @@ async function loadConvs() {
 }
 const convOf = (t) => convs.find((c) => (c.target_unit ?? null) === (t ?? null));
 
+// ปลายทางแชท 2 ปุ่ม: (1) เลือก รพ.สต. จากรายการ (2) ห้องยา รพ.ควนกาหลง · ตัวเลขข้อความใหม่ต่อห้องแสดงในรายการ + รวมที่ปุ่ม
 function renderTargets() {
-  const opts = [null, ...units.map((u) => u.id)];
-  $('#meTargets').innerHTML = opts.map((t) => {
-    const c = convOf(t), n = c?.unread_citizen || 0;
-    return `<button type="button" data-t="${t ?? ''}" aria-current="${(t ?? null) === (target ?? null)}">${esc(t == null ? 'ห้องยา รพ.' : unitName(t))}${n ? ` <span class="badge num" style="position:static">${n}</span>` : ''}</button>`;
-  }).join('');
-  const cur = $('#meTargets [aria-current="true"]');
-  if (cur) $('#meTargets').scrollLeft = cur.offsetLeft - $('#meTargets').offsetLeft - 8;   // เลื่อนให้เห็นปุ่มที่เลือก
+  const unread = (t) => convOf(t)?.unread_citizen || 0;
+  const unitSel = target != null, unitNew = units.reduce((a, u) => a + unread(u.id), 0), hospNew = unread(null);
+  $('#meTargets').innerHTML = `<label class="me-pick${unitSel ? ' on' : ''}"><span class="sr-only">เลือก รพ.สต.</span>`
+    + `<select id="meUnitPick" aria-label="เลือก รพ.สต. ที่ต้องการถาม"><option value=""${unitSel ? '' : ' selected'}>เลือก รพ.สต. …</option>`
+    + units.map((u) => `<option value="${u.id}"${target === u.id ? ' selected' : ''}>รพ.สต. ${esc(u.name)}${unread(u.id) ? ` (ใหม่ ${unread(u.id)})` : ''}</option>`).join('')
+    + `</select>${unitNew && !unitSel ? ` <span class="badge num">${unitNew}</span>` : ''}</label>`
+    + `<button type="button" class="me-hosp" data-t="" aria-current="${!unitSel}">${esc(targetName(null))}${hospNew ? ` <span class="badge num">${hospNew}</span>` : ''}</button>`;
 }
 const unitName = (id) => units.find((u) => u.id === id)?.name || '';
 
@@ -132,9 +133,12 @@ function bind() {
   $('#meChatForm').addEventListener('submit', send);
   pick = chatPicker($('#meFile'), $('#mePick'), $('#mePickNote'));
   $('#meTargets').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-t]'); if (!b) return;
-    const t = b.dataset.t === '' ? null : +b.dataset.t;
-    if (t === target) return;
+    const b = e.target.closest('[data-t]'); if (!b || target === null) return;
+    openTarget(null); renderTargets();
+  });
+  $('#meTargets').addEventListener('change', (e) => {
+    if (e.target.id !== 'meUnitPick' || e.target.value === '') return;
+    const t = +e.target.value; if (t === target) return;
     openTarget(t); renderTargets();
   });
   onConversationChange(async () => {                        // เจ้าหน้าที่ตอบห้องอื่น → อัปเดตตัวเลข
