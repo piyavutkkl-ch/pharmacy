@@ -5,6 +5,7 @@
 //
 //   mountInbox(slot, target)   กล่องข้อความฝั่งเจ้าหน้าที่/ผู้ดูแล (ใช้ทั้ง staff.js และ admin.js)
 //   startChatWatch()           ฟังการเปลี่ยนแปลงห้องแชทแบบ real-time → อัปเดตตัวเลขบนเมนู
+//   ผู้ไม่ได้ล็อกอิน (guest_name): ป้าย "ผู้ไม่ได้ล็อกอิน" · ตอบได้แต่ส่งรูปไม่ได้ · ห้องลบเองเมื่อไม่มีข้อความใหม่ 7 วัน (purge_guest_chats)
 //   ถังขยะ: เจ้าหน้าที่/ผู้ดูแลลบห้องลงถัง (trash_conversation) กู้คืนได้ 30 วัน · ครบแล้วหน้าผู้ดูแลลบถาวรให้เอง
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, toast, errText, busy, initials } from '../util.js?v=4.4';
@@ -122,6 +123,7 @@ const INBOX_HTML = `<div class="inbox">
 </div>`;
 
 let ib = null;   // สถานะกล่องข้อความที่เปิดอยู่ (มีได้ทีละกล่อง)
+const whoOf = (c) => c.guest_name ?? (c.citizen?.full_name || c.citizen?.email || 'ไม่ระบุชื่อ');
 const KEEP_DAYS = 30, DAY = 86_400_000;
 const daysLeft = (c) => Math.max(0, Math.ceil(KEEP_DAYS - (Date.now() - new Date(c.trashed_at)) / DAY));
 
@@ -141,7 +143,7 @@ export async function mountInbox(slot, target) {
   const mayMarkRead = auth.profile.role === 'staff' || target == null;
 
   async function loadList() {
-    let q = sb.from('conversations').select('id,target_unit,last_message_at,last_message_preview,unread_staff,trashed_at,citizen:profiles!conversations_citizen_id_fkey(full_name,email,phone,address,home_unit_id)');
+    let q = sb.from('conversations').select('id,target_unit,last_message_at,last_message_preview,unread_staff,trashed_at,guest_name,citizen:profiles!conversations_citizen_id_fkey(full_name,email,phone,address,home_unit_id)');
     q = target == null ? q.is('target_unit', null) : q.eq('target_unit', target);
     const { data, error } = await q.order('last_message_at', { ascending: false, nullsFirst: false }).limit(200);
     if (me !== ib) return;
@@ -155,9 +157,9 @@ export async function mountInbox(slot, target) {
     el('.ib-trash-btn').textContent = me.trash ? '← กลับกล่องข้อความ' : `ถังขยะ${trashed.length ? ` (${trashed.length})` : ''}`;
     el('.ib-count').textContent = me.convs.length ? `${me.convs.length} คน` : '';
     el('.ib-list').innerHTML = me.convs.length ? me.convs.map((c) => {
-      const n = c.citizen?.full_name || c.citizen?.email || 'ไม่ระบุชื่อ';
+      const n = whoOf(c);
       return `<button type="button" class="li-btn${c.id === me.sel?.id ? ' sel' : ''}" data-conv="${c.id}"><span class="avatar" style="width:34px;height:34px;font-size:12px">${esc(initials(n))}</span>`
-        + `<span class="l" style="min-width:0;flex:1"><b>${esc(n)}</b><span class="small muted conv-last">${esc(c.last_message_preview || '')}</span><span class="small muted">${me.trash ? `ลบถาวรในอีก ${daysLeft(c)} วัน` : `${esc(thaiDate(c.last_message_at))} ${time(c.last_message_at)}`}</span></span>`
+        + `<span class="l" style="min-width:0;flex:1"><b>${esc(n)}${c.guest_name != null ? ' <span class="chip c-off">ผู้ไม่ได้ล็อกอิน</span>' : ''}</b><span class="small muted conv-last">${esc(c.last_message_preview || '')}</span><span class="small muted">${me.trash ? `ลบถาวรในอีก ${daysLeft(c)} วัน` : `${esc(thaiDate(c.last_message_at))} ${time(c.last_message_at)}`}</span></span>`
         + (c.unread_staff ? `<span class="badge num" style="position:static">${c.unread_staff}</span>` : '') + '</button>';
     }).join('') : `<p class="empty">${me.trash ? 'ไม่มีห้องที่ลบไว้' : `ยังไม่มีผู้ทักเข้ามาที่${esc(targetName(target))}`}</p>`;
   }
@@ -168,9 +170,11 @@ export async function mountInbox(slot, target) {
     me.sel = c;
     slot.querySelectorAll('[data-conv]').forEach((b) => b.classList.toggle('sel', b.dataset.conv === id));
     const p = c.citizen || {};
-    el('.ib-head').innerHTML = `<div class="chat-who"><b>${esc(p.full_name || p.email || 'ไม่ระบุชื่อ')}</b>`
+    el('.ib-head').innerHTML = (c.guest_name != null
+      ? `<div class="chat-who"><b>${esc(c.guest_name)}<span class="chip c-off">ผู้ไม่ได้ล็อกอิน</span></b><span class="small muted">ไม่มีเบอร์โทร · ตอบเป็นข้อความเท่านั้น (ส่งรูปไม่ได้) · ห้องนี้ลบเองเมื่อไม่มีข้อความใหม่ 7 วัน</span></div>`
+      : `<div class="chat-who"><b>${esc(p.full_name || p.email || 'ไม่ระบุชื่อ')}</b>`
       + `<span class="small muted">${p.phone ? `โทร <a href="tel:${esc(p.phone.replace(/[^0-9]/g, ''))}">${esc(p.phone)}</a>` : 'ไม่มีเบอร์โทร'}`
-      + `${p.home_unit_id != null ? ' · ใกล้ รพ.สต. ' + esc(unitName(p.home_unit_id)) : ''}${p.address ? ' · ' + esc(p.address) : ''}</span></div>`
+      + `${p.home_unit_id != null ? ' · ใกล้ รพ.สต. ' + esc(unitName(p.home_unit_id)) : ''}${p.address ? ' · ' + esc(p.address) : ''}</span></div>`)
       + `<div class="row-btns ib-acts">${me.trash ? `<button type="button" class="btn btn-p btn-sm" data-restore>กู้คืน</button>${isAdmin ? '<button type="button" class="btn btn-no btn-sm" data-purge>ลบถาวร</button>' : ''}`
         : '<button type="button" class="btn btn-o btn-sm" data-trash title="ย้ายลงถังขยะ กู้คืนได้ภายใน 30 วัน">ลบห้องนี้</button>'}</div>`;
     el('.ib-log').innerHTML = '<div class="skeleton"></div>';
@@ -178,6 +182,7 @@ export async function mountInbox(slot, target) {
     if (me !== ib || me.sel?.id !== id) return;
     renderLog(el('.ib-log'), me.msgs, 'staff', 'ยังไม่มีข้อความ');
     enable(!me.trash);   // ห้องในถัง: อ่านได้อย่างเดียว (กู้คืนก่อนจึงตอบได้)
+    if (c.guest_name != null) { el('.ib-file').disabled = true; el('.chat-attach').classList.add('is-disabled'); pick.reset(); }   // ห้องผู้ไม่ได้ล็อกอิน: ส่งรูปไม่ได้
     if (me.trash) return;
     if (window.matchMedia('(max-width: 819px)').matches) el('.chat-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     else el('.ib-input').focus({ preventScroll: true });
@@ -207,7 +212,7 @@ export async function mountInbox(slot, target) {
   }
   el('.ib-head').onclick = async (e) => {
     const c = me.sel; if (!c) return;
-    const who = c.citizen?.full_name || c.citizen?.email || 'ผู้ใช้';
+    const who = whoOf(c);
     const act = e.target.closest('[data-trash],[data-restore],[data-purge]'); if (!act) return;
     if (act.hasAttribute('data-purge')) {
       if (!confirm(`ลบห้องสนทนากับ ${who} ถาวร?\nข้อความและรูปทั้งหมดจะหายทั้งสองฝั่ง กู้คืนไม่ได้`)) return;
@@ -244,6 +249,7 @@ export async function mountInbox(slot, target) {
   el('.ib-head').innerHTML = '<p class="small muted">เลือกรายชื่อทางซ้ายเพื่ออ่านและตอบกลับ</p>';
   el('.ib-log').innerHTML = '<p class="chat-empty">ยังไม่ได้เลือกห้องสนทนา</p>';
   enable(false);
+  await sb.rpc('purge_guest_chats').then(() => {}, () => {});   // แชทผู้ไม่ได้ล็อกอินที่ครบ 7 วัน → ลบก่อนแสดงรายการ
   await loadList();
 }
 

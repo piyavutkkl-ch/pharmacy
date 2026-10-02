@@ -1,6 +1,6 @@
 // ข่าวประชาสัมพันธ์: สไลด์หน้าแรก, รายการข่าว, หน้าอ่านข่าว (ถูกใจ / ความคิดเห็น / ผู้เข้าชม)
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, esc, thaiDate, art, toast, errText, busy } from '../util.js?v=4.4';
+import { $, esc, thaiDate, art, toast, errText, busy, deviceToken } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { fileLink, extFileLink } from './news-form.js?v=4.4';
 import { smartCover } from '../lightbox.js?v=4.4';
@@ -9,15 +9,6 @@ let news = null;          // cache ข่าวที่เผยแพร่แ
 const ANON_MAX = 15;      // ไม่ได้ login: ความคิดเห็นยาวได้ไม่เกิน 15 ตัวอักษร (ตรงกับ comment_news_anon ในฐานข้อมูล)
 const chars = (t) => [...t].length;   // นับแบบเดียวกับ char_length ของ Postgres
 
-/** รหัสสุ่มประจำเครื่อง (ใช้กดถูกใจ/แสดงความคิดเห็นโดยไม่ต้อง login) */
-let memToken = null;
-function deviceToken() {
-  try {
-    let t = localStorage.getItem('pcps_device');
-    if (!t) { t = crypto.randomUUID(); localStorage.setItem('pcps_device', t); }
-    return t;
-  } catch { return (memToken ||= crypto.randomUUID()); }
-}
 let loading = null;
 
 export function loadNews(force = false) {

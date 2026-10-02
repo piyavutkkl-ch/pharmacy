@@ -171,6 +171,29 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       && (await p.inputValue('#mePhone')) === '0899999999' && !(await p.$eval('#meInput', (e) => e.disabled)));
     await p.close();
 
+    /* ================= แชทแบบไม่ต้องล็อกอิน ================= */
+    p = await open(null, '', 390, 844);
+    check('หน้าแรก: ปุ่มแชทสอบถามเรื่องยา (ไม่ต้องล็อกอิน)', (await p.getAttribute('#homeChatLink', 'href')) === '#/me');
+    await go(p, '#/me'); await p.waitForTimeout(400);
+    check('แชทไม่ล็อกอิน: เปิดได้ + ช่องชื่อเล่น + ซ่อนข้อมูลส่วนตัว/ปุ่มแนบรูป', await visible(p, '#meGuest') && await visible(p, '#meGuestName') && !(await visible(p, '#meForm')) && !(await visible(p, '#meAttach')) && !(await visible(p, '#srPanel')) && await overflow(p) <= 0);
+    await p.fill('#meInput', 'สวัสดีค่ะ'); await p.click('#meSend'); await p.waitForTimeout(200);
+    check('แชทไม่ล็อกอิน: ต้องใส่ชื่อเล่นก่อน', (await text(p, '#meChatHint')).includes('ชื่อเล่น') && (await calls(p, (c) => c.rpc === 'guest_chat_send')).length === 0);
+    await p.fill('#meGuestName', 'ลุงมา'); await p.fill('#meInput', 'ยาความดันกินก่อนหรือหลังอาหารครับ'); await p.waitForTimeout(100);
+    check('แชทไม่ล็อกอิน: พิมพ์เกิน 15 ตัวอักษร → เตือนให้เข้าสู่ระบบ', (await text(p, '#meChatHint')).includes('เข้าสู่ระบบ') && await count(p, '#meChatHint a[href="#/login"]') === 1);
+    await p.click('#meSend'); await p.waitForTimeout(200);
+    check('แชทไม่ล็อกอิน: ข้อความยาวไม่ถูกส่ง', (await calls(p, (c) => c.rpc === 'guest_chat_send')).length === 0);
+    await p.fill('#meInput', 'ยากินตอนไหน'); await p.click('#meSend'); await p.waitForTimeout(400);
+    const gs = (await calls(p, (c) => c.rpc === 'guest_chat_send'))[0]?.args || {};
+    check('แชทไม่ล็อกอิน: ส่งข้อความสั้นได้ (ชื่อเล่น + รหัสเครื่อง) + ขึ้นในห้อง', gs.p_name === 'ลุงมา' && /^[0-9a-f-]{36}$/.test(gs.p_token || '') && (await text(p, '#meLog')).includes('ยากินตอนไหน') && (await p.evaluate(() => localStorage.getItem('pcps_guest_name'))) === 'ลุงมา', JSON.stringify(gs));
+    await p.evaluate(() => { const c = window.__db.conversations.find((x) => x.guest_name === 'ลุงมา'); window.__db.messages.push({ id: 99901, conversation_id: c.id, sender_role: 'staff', sender_name: 'เภสัชกร', body: 'หลังอาหารเช้าครับ', created_at: new Date().toISOString() }); c.unread_citizen = 1; });
+    await go(p, '#/'); await go(p, '#/me'); await p.waitForTimeout(400);
+    check('แชทไม่ล็อกอิน: กลับมาเครื่องเดิมเห็นห้องเดิม + คำตอบเจ้าหน้าที่', (await text(p, '#meLog')).includes('หลังอาหารเช้าครับ') && (await p.inputValue('#meGuestName')) === 'ลุงมา');
+    await p.screenshot({ path: path.join(SHOTS, 'guest-chat-390.png'), fullPage: true });
+    await p.evaluate(() => { const c = window.__db.conversations.find((x) => x.guest_name === 'ลุงมา'); for (let i = 0; i < 19; i++) window.__db.messages.push({ id: 99910 + i, conversation_id: c.id, sender_role: 'citizen', sender_name: 'ลุงมา', body: 'x', created_at: new Date().toISOString() }); });
+    await p.fill('#meInput', 'อีกข้อครับ'); await p.click('#meSend'); await p.waitForTimeout(300);
+    check('แชทไม่ล็อกอิน: ครบ 20 ข้อความต่อวัน → แจ้งให้เข้าสู่ระบบ', (await text(p, '#meChatHint')).includes('เข้าสู่ระบบ') && (await text(p, '#meChatHint')).includes('20'));
+    await p.close();
+
     /* ================= เจ้าหน้าที่ รพ.สต. ================= */
     p = await open('staff', '#/staff');
     for (const tab of ['news', 'criteria', 'visits', 'messages', 'rider', 'achievements', 'docs', 'feedback']) {
@@ -234,6 +257,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#staffInboxSlot [data-conv]'); await p.waitForTimeout(400);
     await p.fill('#staffInboxSlot .ib-input', 'ตอบกลับจากเจ้าหน้าที่'); await p.click('#staffInboxSlot .ib-form button'); await p.waitForTimeout(400);
     check('เจ้าหน้าที่: ตอบแชทประชาชนได้', (await calls(p, (c) => c.table === 'messages' && c.op === 'insert')).length === 1);
+    const gConv = await p.evaluate(() => window.__db.conversations.find((c) => c.guest_name === 'ป้าแดง')?.id);
+    const gRow = await text(p, `#staffInboxSlot [data-conv="${gConv}"]`);
+    check('เจ้าหน้าที่: เห็นแชทผู้ไม่ได้ล็อกอิน (ชื่อเล่น + ป้าย)', gRow.includes('ป้าแดง') && gRow.includes('ผู้ไม่ได้ล็อกอิน'), gRow);
+    await p.click(`#staffInboxSlot [data-conv="${gConv}"]`); await p.waitForTimeout(400);
+    check('เจ้าหน้าที่: ห้องผู้ไม่ได้ล็อกอิน ตอบได้แต่ส่งรูปไม่ได้', (await text(p, '#staffInboxSlot .ib-head')).includes('ผู้ไม่ได้ล็อกอิน') && await p.$eval('#staffInboxSlot .ib-file', (e) => e.disabled) && !(await p.$eval('#staffInboxSlot .ib-input', (e) => e.disabled)));
     await go(p, '#/staff/messages/admin'); await p.waitForTimeout(400);
     check('เจ้าหน้าที่: แท็บ "คุยกับผู้ดูแล" เปิดห้องของหน่วยตัวเอง (ซ่อนกล่องประชาชน)', await visible(p, '#staffUnitChatSlot .uc-form') && !(await visible(p, '#staffInboxSlot')) && (await text(p, '#staffUnitChatSlot .uc-log')).includes('ยังไม่มีข้อความ'));
     await p.fill('#staffUnitChatSlot .uc-input', 'ขอยาพาราเพิ่ม 2 กล่องครับ'); await p.click('#staffUnitChatSlot .uc-send'); await p.waitForTimeout(400);
@@ -477,7 +505,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.setInputFiles('#vPhotos', [img, img, img, img]); await p.waitForTimeout(700);
     check('เยี่ยมบ้าน: จำกัดไม่เกิน 5 รูป', await count(p, '#vPhotoList .fthumb') === 5 && await p.$eval('#vPhotos', (e) => e.disabled));
     await p.click('[data-act="cancel"]'); await p.waitForTimeout(200);
-    await go(p, '#/staff/messages'); await p.click('#staffInboxSlot [data-conv]'); await p.waitForTimeout(400);
+    await go(p, '#/staff/messages'); await p.click('#staffInboxSlot [data-conv="00000000-0000-0000-0000-0000000c0001"]'); await p.waitForTimeout(400);
     await p.setInputFiles('#staffInboxSlot .ib-file', img); await p.waitForTimeout(400);
     check('แชทเจ้าหน้าที่: เลือกรูปแล้วเห็นตัวอย่างก่อนส่ง', await visible(p, '#staffInboxSlot .chat-pick img'));
     await p.click('#staffInboxSlot .ib-send'); await p.waitForTimeout(500);

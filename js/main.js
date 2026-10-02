@@ -90,6 +90,7 @@ async function route() {
   }
   if (!auth.ready) { showView('message'); $('#msgTitle').textContent = 'กำลังโหลด…'; $('#msgBody').textContent = ''; return; }
   if (a === 'me') {
+    if (!auth.session && b !== 'request') { showView('me'); showMe(false); return; }   // ยังไม่เข้าสู่ระบบ = แชทแบบจำกัด (guest)
     if (requireRole(['citizen', 'staff', 'admin'])) {
       if (auth.profile.role !== 'citizen') { location.replace(ROLE_HOME[auth.profile.role]); return; }   // เจ้าหน้าที่ใช้เมนู "ข้อความ" ในหน้างานแทน
       showView('me'); showMe(b === 'request');

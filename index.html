@@ -68,6 +68,10 @@
           <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg></span>
           <span class="mi-label">บริการจัดส่งยาถึงบ้าน (Health Rider)</span>
         </a>
+        <a class="menu-icon-btn" href="#/me" id="homeChatLink">
+          <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8"/><path d="M8 13h5"/></svg></span>
+          <span class="mi-label">แชทสอบถามเรื่องยา</span>
+        </a>
       </div>
     </div>
 
@@ -253,7 +257,7 @@
 
 <!-- ============ ประชาชน (ขั้น 4.4) ============ -->
 <section data-view="me" class="app" hidden>
-  <div class="app-head"><div><span class="small muted">ประชาชนทั่วไป</span><h1 id="meHello">สวัสดี</h1></div></div>
+  <div class="app-head"><div><span class="small muted" id="meRoleLbl">ประชาชนทั่วไป</span><h1 id="meHello">สวัสดี</h1></div></div>
   <div class="citizen-split">
     <div class="panel">
       <h2>ข้อมูลส่วนตัว</h2>
@@ -269,6 +273,11 @@
     </div>
     <div class="panel chat-panel">
       <h2>สอบถามเรื่องยา</h2>
+      <div class="me-guest" id="meGuest">
+        <p class="small">ยังไม่ได้เข้าสู่ระบบ: พิมพ์ได้ข้อความละไม่เกิน 15 ตัวอักษร วันละ 20 ข้อความ · ส่งรูปไม่ได้ · แชทจำไว้ในเครื่องนี้ และลบเองเมื่อไม่มีข้อความใหม่ 7 วัน · <a href="#/login">เข้าสู่ระบบด้วย Google</a> เพื่อคุยได้เต็มที่</p>
+        <label for="meGuestName" class="small">ชื่อเล่น <span class="req">*</span> (เจ้าหน้าที่จะเห็นชื่อนี้)</label>
+        <input id="meGuestName" class="input" maxlength="30" placeholder="เช่น ป้าแดง" autocomplete="nickname">
+      </div>
       <div class="me-targets" id="meTargets" role="group" aria-label="เลือกหน่วยบริการที่ต้องการถาม"></div>
       <p class="small muted" id="meChatTitle"></p>
       <div class="chat-log" id="meLog" role="log" aria-live="polite"></div>
@@ -276,7 +285,7 @@
       <form class="chat-form" id="meChatForm" novalidate><label class="btn btn-o btn-sm chat-attach" id="meAttach" title="แนบรูป เช่น ฉลากยา ใบนัด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg><span class="sr-only">แนบรูป</span><input type="file" accept="image/*" class="sr-only chat-file" id="meFile"></label><input id="meInput" class="input" maxlength="1000" placeholder="พิมพ์ข้อความ…" autocomplete="off" aria-label="พิมพ์ข้อความ"><button class="btn btn-p btn-sm" type="submit" id="meSend">ส่ง</button></form>
       <span class="small muted chat-pick-note" id="mePickNote"></span>
       <p class="small" id="meChatHint" style="color:var(--warning)"></p>
-      <p class="small muted">เจ้าหน้าที่ตอบในเวลาราชการ · กรณีฉุกเฉิน โทร 1669 · ส่งรูปฉลากยา/ใบนัดได้ · ไม่ต้องส่งเลขหรือรูปบัตรประชาชนทางแชท</p>
+      <p class="small muted">เจ้าหน้าที่ตอบในเวลาราชการ · กรณีฉุกเฉิน โทร 1669 · ส่งรูปฉลากยา/ใบนัดได้ (เมื่อเข้าสู่ระบบ) · ไม่ต้องส่งเลขหรือรูปบัตรประชาชนทางแชท</p>
     </div>
   </div>
   <div class="panel sr-panel" id="srPanel">

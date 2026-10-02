@@ -662,3 +662,10 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .me-hosp .badge{position:static;margin-left:4px}
 .me-pick.on select option{background:var(--surface);color:var(--ink)}
 @media (max-width:420px){.me-targets{grid-template-columns:1fr}}
+/* แชทแบบไม่ต้องล็อกอิน (#/me ตอนยังไม่เข้าสู่ระบบ): ซ่อนข้อมูลส่วนตัว/ขอสิทธิ์ · แสดงช่องชื่อเล่น */
+[data-view="me"]:not(.guest) .me-guest{display:none}
+[data-view="me"].guest .citizen-split{grid-template-columns:1fr}
+[data-view="me"].guest .citizen-split > .panel:not(.chat-panel),[data-view="me"].guest #srPanel{display:none}
+.me-guest{display:flex;flex-direction:column;gap:6px;padding:12px 14px;margin-bottom:10px;border:1px solid var(--line);border-radius:14px;background:var(--sunken)}
+.me-guest p{margin:0}
+.chat-who .chip{margin-left:6px}

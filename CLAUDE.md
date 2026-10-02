@@ -44,7 +44,7 @@ js/auth.js            session/profile/role, signIn(), signOut(), ROLE_HOME
 js/data.js            ข้อมูลอ้างอิงที่ cache: units, ปีงบ, sortItems() เรียงข้อเกณฑ์
 js/nav.js             เมนูข้าง/เมนูล่างจอ (มือถือ) + ปุ่ม "เพิ่มเติม", setCurrent()
 js/theme.js           ปุ่มโหมดมืด/สว่าง ขวาบน (จำใน localStorage 'pcps_theme' · ค่าเริ่ม = ตามเครื่อง · <head> ใส่ data-theme ก่อนวาดหน้า)
-js/util.js            esc, fiscalYearOf, thaiDate, toast, busy, errText, art()
+js/util.js            esc, fiscalYearOf, thaiDate, toast, busy, errText, art(), deviceToken() (รหัสเครื่อง localStorage 'pcps_device')
 js/lightbox.js        smartCover() รูปหน้าอ่านข่าว/สรุปผลงาน: ใกล้ A4 (แนวตั้ง–แนวนอน) ไม่ครอบตัด · ยาว/กว้างกว่า A4 มากครอบตัด · openLightbox() ภาพเต็มจอ/ขนาดจริง
 js/profile.js         หน้าต่างข้อมูลส่วนตัว (กดชื่อบนแถบเมนู · ทุกบทบาท) openProfile(), saveMyProfile() → เหตุการณ์ 'pcps:profile'
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
@@ -61,7 +61,8 @@ js/pages/admin-staff.js    ผู้ดูแล › ตั้งค่า › �
 js/pages/admin-audit.js    ผู้ดูแล › ตั้งค่า › ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA · admin_audit_log() + ดาวน์โหลด CSV)
 js/pages/chat.js      แชท real-time: mountInbox() กล่องข้อความเจ้าหน้าที่/ผู้ดูแล (ลบห้องลงถัง กู้คืน 30 วัน · ผู้ดูแลลบถาวรเมื่อครบ), startChatWatch() ตัวเลขข้อความใหม่บนเมนู
 js/pages/unitchat.js  แชท เจ้าหน้าที่ รพ.สต. ⇄ ผู้ดูแล (1 รพ.สต. = 1 ห้อง): #/staff/messages/admin, #/admin/messages/units · mountUnitChat(slot, unit)
-js/pages/me.js        ประชาชน (#/me): ข้อมูลส่วนตัว + แชทถาม รพ.สต./ห้องยา รพ. (ต้องมีเบอร์โทรก่อน)
+js/pages/me.js        ประชาชน (#/me): ข้อมูลส่วนตัว + แชทถาม รพ.สต./ห้องยา รพ. (ต้องมีเบอร์โทรก่อน) · ปลายทาง = รายการเลือก รพ.สต. + ปุ่มห้องยา
+                      ไม่ล็อกอินก็แชทได้ (guest_chat_* ใน 30_guest_chat.sql): ชื่อเล่น · ≤15 ตัวอักษร/ข้อความ · 20 ข้อความ/เครื่อง/วัน · ไม่มีรูป · ลบเองเมื่อเงียบ 7 วัน (purge_guest_chats ← กล่องข้อความ + keepalive)
 js/pages/staff-request.js  ขอสิทธิ์เจ้าหน้าที่: ประชาชนส่งคำขอ (#/me/request) → ผู้ดูแลอนุมัติใน ตั้งค่า › บัญชีเจ้าหน้าที่ (approve_staff_request เพิ่ม staff_roster)
 js/pages/docs.js      เอกสารดาวน์โหลด: ผู้ดูแลอัปโหลด/แก้/แทนที่ไฟล์/ลบ, เจ้าหน้าที่ดาวน์โหลด (bucket documents)
 js/pages/staff.js     เจ้าหน้าที่: โครงหน้า/เมนู + ข่าว (ส่งตรวจ) + ผลงาน + ข้อเสนอแนะ + ตัวเลขแจ้งเตือน

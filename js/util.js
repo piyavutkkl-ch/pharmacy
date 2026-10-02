@@ -86,3 +86,13 @@ export function art(kind) {
   }
   return o + '</svg>';
 }
+
+/** รหัสสุ่มประจำเครื่อง (ใช้กดถูกใจ/แสดงความคิดเห็น/แชทโดยไม่ต้อง login) · localStorage 'pcps_device' */
+let memToken = null;
+export function deviceToken() {
+  try {
+    let t = localStorage.getItem('pcps_device');
+    if (!t) { t = crypto.randomUUID(); localStorage.setItem('pcps_device', t); }
+    return t;
+  } catch { return (memToken ||= crypto.randomUUID()); }
+}

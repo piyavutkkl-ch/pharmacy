@@ -73,6 +73,8 @@ begin;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
 insert into public.messages(conversation_id, body) values ('00000000-0000-0000-0000-0000000c0002', 'กินจนหายไอ ไม่เกิน 7 วันครับ');
 commit;
+-- แชทแบบไม่ต้องล็อกอิน (ขั้น 29): ผู้เยี่ยมชม "ป้าแดง" ถาม รพ.สต. 2
+select public.guest_chat_send('55555555-5555-5555-5555-555555555555', 2::smallint, 'ป้าแดง', 'ยากินตอนไหนคะ');
 -- คำร้องขอสิทธิ์เจ้าหน้าที่ (ขั้น 20) — c2 ขอเป็นเจ้าหน้าที่ รพ.สต. 3
 insert into public.staff_requests(user_id, email, full_name, unit_id, position, phone, note) values
   ('00000000-0000-0000-0000-0000000000c2', 'c2@gmail.com', 'ประชาชน สอง', 3, 'จพ.เภสัชกรรม', '0811112222', 'ย้ายมาประจำ รพ.สต. ใหม่');

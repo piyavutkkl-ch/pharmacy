@@ -123,6 +123,7 @@ function beforeInsert(table, row) {
     case 'messages': {
       const c = db.conversations.find((x) => x.id === row.conversation_id);
       if (!convOk(c)) return 'new row violates row-level security policy for table "messages"';
+      if (c.guest_key && row.image_path) return 'ห้องของผู้ไม่ได้ล็อกอิน ส่งรูปไม่ได้';
       Object.assign(row, { sender_id: ME.id, sender_role: c.citizen_id === ME.id ? 'citizen' : 'staff', sender_name: ME.full_name });
       row.body ??= ''; row.image_path ??= null;
       if (!String(row.body).trim() && !row.image_path) return 'new row for relation "messages" violates check constraint "messages_body_check"';
@@ -294,6 +295,34 @@ function rpc(name, a = {}) {
       db.news_comments.push(row);
       return { data: row.id, error: null };
     }
+    case 'purge_guest_chats': return { data: 0, error: null };
+    case 'guest_chat_send': {   // แทน guest_chat_send(): แชทแบบไม่ต้องล็อกอิน (≤15 ตัวอักษร · วันละ 20 ข้อความ)
+      if (ME) return err('เข้าสู่ระบบแล้ว กรุณาใช้แชทในหน้า "ของฉัน"', 'P0001');
+      const name = String(a.p_name || '').trim(), b = String(a.p_body || '').trim(), k = 'g:' + a.p_token;
+      if (!a.p_token) return err('ไม่พบรหัสเครื่อง กรุณารีเฟรชหน้า', 'P0001');
+      if (!name || [...name].length > 30) return err('กรุณาใส่ชื่อเล่น (ไม่เกิน 30 ตัวอักษร)', 'P0001');
+      if (!b) return err('กรุณาพิมพ์ข้อความ', 'P0001');
+      if ([...b].length > 15) return err('กรุณาเข้าสู่ระบบเพื่อแชทต่อ (ยังไม่ได้ล็อกอิน พิมพ์ได้ข้อความละไม่เกิน 15 ตัวอักษร)', 'P0001');
+      const mine = new Set(db.conversations.filter((c) => c.guest_key === k).map((c) => c.id));
+      if (db.messages.filter((m) => mine.has(m.conversation_id) && m.sender_role === 'citizen' && Date.now() - Date.parse(m.created_at) < 864e5).length >= 20)
+        return err('กรุณาเข้าสู่ระบบเพื่อแชทต่อ (ยังไม่ได้ล็อกอิน ส่งได้วันละ 20 ข้อความ)', 'P0001');
+      let c = db.conversations.find((x) => x.guest_key === k && (x.target_unit ?? null) === (a.p_target ?? null));
+      if (!c) { c = { id: crypto.randomUUID(), citizen_id: null, target_unit: a.p_target ?? null, guest_key: k, guest_name: name, unread_staff: 0, unread_citizen: 0, last_message_at: null, trashed_at: null, created_at: now() }; db.conversations.push(c); }
+      c.guest_name = name;
+      const row = { id: newId('messages'), conversation_id: c.id, sender_id: null, sender_role: 'citizen', sender_name: name, body: b, image_path: null, created_at: now() };
+      db.messages.push(row);
+      Object.assign(c, { last_message_at: row.created_at, last_message_preview: b, trashed_at: null }); c.unread_staff++;
+      return { data: { id: row.id, sender_role: 'citizen', sender_name: name, body: b, created_at: row.created_at }, error: null };
+    }
+    case 'guest_chat_fetch': {
+      const c = db.conversations.find((x) => x.guest_key === 'g:' + a.p_token && (x.target_unit ?? null) === (a.p_target ?? null));
+      if (!c) return { data: [], error: null };
+      c.unread_citizen = 0;
+      const list = db.messages.filter((m) => m.conversation_id === c.id).sort((x, y) => (x.created_at < y.created_at ? -1 : x.created_at > y.created_at ? 1 : x.id - y.id));
+      return { data: list.map(({ id, sender_role, sender_name, body, created_at }) => ({ id, sender_role, sender_name, body, created_at })), error: null };
+    }
+    case 'guest_chat_list':
+      return { data: db.conversations.filter((x) => x.guest_key === 'g:' + a.p_token).map((c) => ({ target_unit: c.target_unit ?? null, unread: c.unread_citizen, last_message_at: c.last_message_at })), error: null };
     case 'trash_conversation': {
       const c = db.conversations.find((x) => x.id === a.p_conv);
       if (!convOk(c) || c.citizen_id === ME.id || !(isAdmin() || isStaff())) return err('ไม่มีสิทธิ์', 'P0001');

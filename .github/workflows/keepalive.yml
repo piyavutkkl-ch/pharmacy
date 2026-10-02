@@ -1,5 +1,6 @@
 # กันระบบหลับ (ฟรี 100%)
 #  1) Supabase ฟรีจะหยุดโปรเจกต์ถ้าไม่มีการใช้งาน 7 วัน → เรียกฐานข้อมูลสัปดาห์ละ 2 ครั้ง
+#  1b) ลบแชทของผู้ไม่ได้ล็อกอินที่ครบ 7 วัน (purge_guest_chats)
 #  2) GitHub ปิดงานตั้งเวลาอัตโนมัติถ้า repo ไม่มีความเคลื่อนไหว 60 วัน → สั่งเปิดงานไว้ทุกครั้ง
 # ใช้แค่ URL + publishable key ที่อยู่ใน js/config.js (ค่าสาธารณะ) ไม่ต้องตั้ง secret
 name: keepalive
@@ -30,6 +31,12 @@ jobs:
             echo "::error::เรียก Supabase ไม่ได้ (HTTP $code) — โปรเจกต์อาจถูกหยุด: เข้า supabase.com/dashboard แล้วกด Restore project"
             exit 1
           fi
+      - name: ลบแชทของผู้ไม่ได้ล็อกอินที่ไม่มีข้อความใหม่ 7 วัน (เจ้าของเว็บยืนยันแล้ว · 30_guest_chat.sql)
+        run: |
+          url=$(grep -oE "https://[a-z0-9]+\.supabase\.co" js/config.js | head -1)
+          key=$(grep -oE "sb_publishable_[A-Za-z0-9_-]+" js/config.js | head -1)
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url/rest/v1/rpc/purge_guest_chats" -H "apikey: $key" -H 'content-type: application/json' -d '{}' || true)
+          echo "purge_guest_chats → HTTP $code"   # 404 = ฐานข้อมูลยังไม่มีขั้น 29 (ไม่ถือว่าผิด)
       - name: เปิดงานตั้งเวลาไว้เสมอ
         env:
           GH_TOKEN: ${{ github.token }}
