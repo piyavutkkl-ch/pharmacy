@@ -330,7 +330,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     }
     check('ข่าว (ผู้ดูแล): กล่องรอตรวจอยู่ใต้กล่องเขียนข่าว', await p.$eval('[data-admin-view="news"]', (v) => [...v.children].findIndex((c) => c.querySelector('#anForm')) < [...v.children].findIndex((c) => c.querySelector('#anQueue'))));
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));
-    check('เมนูผู้ดูแล: ข้อความอยู่เหนือตรวจประเมิน + ข้อเสนอแนะย้ายไปอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,review,visits,rider,docs,settings' && await count(p, '#afList .li') > 0);
+    check('เมนูผู้ดูแล: ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,rider,review,docs,settings' && await count(p, '#afList .li') > 0);
     await go(p, '#/admin/feedback'); await p.waitForTimeout(250);
     check('ลิงก์เดิม #/admin/feedback ยังเปิดได้ (พาไปตั้งค่า)', (await p.evaluate(() => location.hash)) === '#/admin/settings/feedback');
     await go(p, '#/admin/news');

@@ -19,7 +19,7 @@ import { mountSummaries } from './summaries.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', review: 'ตรวจประเมินผลงาน', visits: 'เยี่ยมบ้าน', rider: 'Health Rider', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', rider: 'Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
 const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster, delivery: initDeliveryAdmin, audit: initAudit, feedback: () => initFeedback() };
 
 export async function showAdmin(tab, sub) {
