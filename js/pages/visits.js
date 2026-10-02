@@ -43,7 +43,9 @@ const WS_HTML = `<div class="visits-stack">
   <div class="panel" id="ptPanel"></div>
 </div>`;
 
-/** แสดงหน้าจอเยี่ยมบ้านของ รพ.สต. unitId ลงใน slot (เจ้าหน้าที่ = หน่วยตัวเอง, ผู้ดูแล = เลือกหน่วย) */
+/** แสดงหน้าจอเยี่ยมบ้านของ รพ.สต. unitId ลงใน slot (เจ้าหน้าที่ = หน่วยตัวเอง, ผู้ดูแล = เลือกหน่วย หรือ ALL = โรงพยาบาล รวมทุกชื่อ)
+ *  สังกัด รพ.สต. = หน่วยที่ดูแล: เปลี่ยนสังกัดแล้วผู้ป่วย + บันทึกเยี่ยมย้ายไปอยู่รายชื่อของหน่วยนั้น (rpc transfer_patient) */
+export const ALL = 'all';
 export async function mountVisits(slot, unitId) {
   if (!ws) { ws = document.createElement('div'); ws.innerHTML = WS_HTML; slot.appendChild(ws); bind(); }
   else if (ws.parentNode !== slot) slot.appendChild(ws);
@@ -55,7 +57,9 @@ export const initVisits = () => mountVisits($('#staffVisitsSlot'), auth.profile.
 
 async function loadPatients() {
   $('#ptList').innerHTML = '<div class="skeleton" style="margin-top:8px"></div>';
-  const { data, error } = await sb.from('patients').select('*').eq('unit_id', unit).order('first_name');
+  let q = sb.from('patients').select('*');
+  if (unit !== ALL) q = q.eq('unit_id', unit);
+  const { data, error } = await q.order('first_name');
   if (error) { $('#ptList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   patients = data;
   logAccess();
@@ -69,14 +73,18 @@ function renderList() {
   $('#ptCount').textContent = `(${patients.length})`;
   $('#ptList').innerHTML = list.length ? list.map((p) => `<button type="button" class="li-btn${selected?.id === p.id ? ' sel' : ''}" data-pt="${p.id}">`
     + `<span style="display:flex;align-items:center;gap:10px;min-width:0"><span class="avatar" style="width:34px;height:34px;font-size:12px">${esc(initials(p.first_name + ' ' + p.last_name))}</span>`
-    + `<span class="l"><b>${esc(p.first_name)} ${esc(p.last_name)}</b><span class="small muted">${p.home_unit_id != null ? 'สังกัด รพ.สต. ' + esc(unitName(p.home_unit_id)) : 'HN รพ.สต. ' + esc(p.hn_unit || '–')}${p.birth_date ? ' · ' + age(p.birth_date) + ' ปี' : ''}</span></span></span></button>`).join('')
+    + `<span class="l"><b>${esc(p.first_name)} ${esc(p.last_name)}</b><span class="small muted">${unit === ALL || p.home_unit_id != null ? 'รพ.สต. ' + esc(unitName(unit === ALL ? p.unit_id : p.home_unit_id)) : 'HN รพ.สต. ' + esc(p.hn_unit || '–')}${p.birth_date ? ' · ' + age(p.birth_date) + ' ปี' : ''}</span></span></span></button>`).join('')
     : `<p class="empty">${patients.length ? 'ไม่พบผู้ป่วยที่ค้นหา' : 'ยังไม่มีผู้ป่วย · กด "เพิ่มผู้ป่วย" เพื่อเริ่ม'}</p>`;
 }
 
 /** บันทึกการเปิดดู (ไม่รอผล · ไม่ขวางการใช้งานถ้าบันทึกไม่สำเร็จ) */
 function logAccess(patientId = null) {
   if (!unit) return;   // ผู้ดูแลยังไม่ได้เลือก รพ.สต.
-  sb.rpc('log_patient_access', { p_unit: unit, p_patient: patientId }).then(({ error }) => { if (error) console.warn('audit', error.message); }, () => {});
+  if (unit === ALL && !patientId) { [...new Set(patients.map((p) => p.unit_id))].forEach((u) => auditRpc(u, null)); return; }   // รายชื่อรวม = บันทึกทุกหน่วยที่เห็น
+  auditRpc(unit === ALL ? patients.find((p) => p.id === patientId)?.unit_id : unit, patientId);
+}
+function auditRpc(u, patientId) {
+  sb.rpc('log_patient_access', { p_unit: u, p_patient: patientId }).then(({ error }) => { if (error) console.warn('audit', error.message); }, () => {});
 }
 
 async function select(id) {
@@ -125,6 +133,21 @@ function renderPanel() {
   hydrateSigned(el);
 }
 
+/* ---------- ที่อยู่ผู้ป่วยแยกช่อง (address_parts) + ที่อยู่เต็ม (address) สำหรับแสดง/ค้นหา ---------- */
+const ADDR = [['no', 'เลขที่', 30, ''], ['moo', 'หมู่', 10, ''], ['tambon', 'ตำบล', 60, ''], ['amphoe', 'อำเภอ', 60, 'ควนกาหลง'], ['province', 'จังหวัด', 60, 'สตูล'], ['zip', 'รหัสไปรษณีย์', 5, '91130']];
+function addrFields(p) {
+  const a = p?.address_parts || (p?.address ? { no: p.address } : {});   // ข้อมูลเก่า (ข้อความเดียว) → ใส่ไว้ช่องเลขที่ ไม่หาย
+  return '<fieldset class="field full addr-box"><legend>ที่อยู่</legend><div class="addr-grid">'
+    + ADDR.map(([k, label, max, def]) => `<div class="field"><label for="pfA_${k}">${label}</label><input id="pfA_${k}" class="input" maxlength="${max}"${k === 'zip' ? ' inputmode="numeric"' : ''} value="${esc(a[k] ?? (p?.address_parts || !p ? def : ''))}"></div>`).join('')
+    + '</div></fieldset>';
+}
+function readAddr() {
+  const a = Object.fromEntries(ADDR.map(([k]) => [k, $('#pfA_' + k).value.trim()]));
+  if (!a.no && !a.moo && !a.tambon) return { address_parts: null, address: null };   // ไม่กรอกที่อยู่ (อำเภอ/จังหวัดเป็นค่าตั้งต้น)
+  const full = [a.no && `เลขที่ ${a.no}`, a.moo && `หมู่ ${a.moo}`, a.tambon && `ต.${a.tambon}`, a.amphoe && `อ.${a.amphoe}`, a.province && `จ.${a.province}`, a.zip].filter(Boolean).join(' ');
+  return { address_parts: a, address: full.slice(0, 300) };
+}
+
 function patientForm(p) {
   const v = (k) => esc(p?.[k] || '');
   return `<h2>${p ? 'แก้ไขข้อมูลผู้ป่วย' : 'เพิ่มผู้ป่วยใหม่'}</h2><form id="ptForm" class="form-grid" novalidate>`
@@ -133,9 +156,9 @@ function patientForm(p) {
     + `<div class="field"><label for="pfNid">เลขประจำตัวประชาชน 13 หลัก</label><input id="pfNid" class="input" inputmode="numeric" maxlength="17" value="${v('national_id')}"></div>`
     + `<div class="field"><label for="pfDob">วันเกิด</label><input id="pfDob" class="input" inputmode="numeric" maxlength="10" placeholder="เช่น 12/5/1997" aria-describedby="pfDobHint" value="${esc(dmy(p?.birth_date))}"><span class="small muted" id="pfDobHint">วัน/เดือน/ปี ค.ศ. เช่น 12/5/1997 · กรอกปี พ.ศ. ได้ ระบบแปลงให้</span></div>`
     + `<div class="field"><label for="pfHnH">HN โรงพยาบาล</label><input id="pfHnH" class="input" maxlength="30" value="${v('hn_hospital')}"></div>`
-    + `<div class="field"><label for="pfHome">สังกัด รพ.สต.</label><select id="pfHome" class="input"><option value="">– ไม่ระบุ –</option>${unitList.map((u) => `<option value="${u.id}"${(p ? p.home_unit_id : unit) === u.id ? ' selected' : ''}>${esc(u.name)}</option>`).join('')}</select></div>`
+    + `<div class="field"><label for="pfHome">สังกัด รพ.สต.${unit === ALL ? ' <span class="req">*</span>' : ''}</label><select id="pfHome" class="input"><option value="">– ไม่ระบุ –</option>${unitList.map((u) => `<option value="${u.id}"${(p ? p.home_unit_id ?? p.unit_id : unit) === u.id ? ' selected' : ''}>${esc(u.name)}</option>`).join('')}</select><span class="small muted">เปลี่ยนสังกัด = ย้ายผู้ป่วยและบันทึกเยี่ยมไปอยู่ในรายชื่อของ รพ.สต. นั้น</span></div>`
     + `<div class="field"><label for="pfPhone">เบอร์โทร</label><input id="pfPhone" class="input" type="tel" inputmode="tel" maxlength="20" placeholder="เช่น 0812345678" value="${v('phone')}"></div>`
-    + `<div class="field full"><label for="pfAddr">ที่อยู่</label><input id="pfAddr" class="input" maxlength="300" placeholder="บ้านเลขที่ หมู่ ตำบล" value="${v('address')}"></div>`
+    + addrFields(p)
     + `<div class="field"><label for="pfCov">สิทธิการรักษา</label><select id="pfCov" class="input"><option value="">– ไม่ระบุ –</option>${COVERAGE.map((c) => `<option${p?.coverage === c ? ' selected' : ''}>${c}</option>`).join('')}</select></div>`
     + '<div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit">บันทึก</button><button class="btn btn-o btn-sm" type="button" data-act="cancel">ยกเลิก</button><span class="small" id="pfMsg" aria-live="polite"></span></div></form>';
 }
@@ -263,17 +286,27 @@ async function savePatient(form) {
   if (phone && !PHONE_RE.test(phone)) return err('เบอร์โทรไม่ถูกต้อง (ตัวเลข 9–10 หลัก เช่น 0812345678)', $('#pfPhone'));
   const row = { first_name: first, last_name: last, national_id: nid || null, birth_date: dob,
     hn_hospital: $('#pfHnH').value.trim() || null, coverage: $('#pfCov').value || null,
-    home_unit_id: $('#pfHome').value === '' ? null : +$('#pfHome').value, phone: phone || null, address: $('#pfAddr').value.trim() || null };
+    home_unit_id: $('#pfHome').value === '' ? null : +$('#pfHome').value, phone: phone || null, ...readAddr() };
+  const editing = editVisit === 'edit-patient' && selected, isAdmin = auth.profile.role === 'admin';
+  const target = row.home_unit_id, here = editing ? selected.unit_id : (unit === ALL ? target : isAdmin ? target ?? unit : unit);
+  if (here == null) return err('กรุณาเลือกสังกัด รพ.สต.', $('#pfHome'));
+  const moving = target != null && target !== here;   // สังกัดไม่ตรงกับหน่วยที่ดูแล → ย้ายไปหน่วยนั้น
+  if (moving && !isAdmin && !confirm(`ย้าย ${first} ${last} ไปอยู่ในรายชื่อของ รพ.สต. ${unitName(target)}?\nหลังย้าย รพ.สต. นี้จะไม่เห็นข้อมูลและบันทึกเยี่ยมของผู้ป่วยรายนี้อีก`)) return;
   const btn = form.querySelector('[type=submit]'); busy(btn, true, 'กำลังบันทึก…');
-  const editing = editVisit === 'edit-patient' && selected;
+  const save = moving ? { ...row, home_unit_id: here } : row;   // บันทึกในหน่วยเดิมก่อน แล้วค่อยย้าย
   const res = editing
-    ? await sb.from('patients').update(row).eq('id', selected.id).select().single()
-    : await sb.from('patients').insert({ ...row, unit_id: unit }).select().single();
+    ? await sb.from('patients').update(save).eq('id', selected.id).select().single()
+    : await sb.from('patients').insert({ ...save, unit_id: here }).select().single();
+  if (res.error) { busy(btn, false); return err(errText(res.error)); }
+  if (moving) {
+    const { error } = await sb.rpc('transfer_patient', { p_patient: res.data.id, p_unit: target });
+    if (error) { busy(btn, false); return err(`บันทึกแล้ว แต่ย้ายสังกัดไม่สำเร็จ: ${errText(error)}`); }
+  }
   busy(btn, false);
-  if (res.error) return err(errText(res.error));
-  toast(editing ? 'บันทึกข้อมูลผู้ป่วยแล้ว' : 'เพิ่มผู้ป่วยแล้ว');
+  toast(moving ? `${editing ? 'บันทึกแล้ว · ' : 'เพิ่มผู้ป่วยแล้ว · '}ย้ายไปอยู่ รพ.สต. ${unitName(target)}` : editing ? 'บันทึกข้อมูลผู้ป่วยแล้ว' : 'เพิ่มผู้ป่วยแล้ว');
   mode = 'view'; editVisit = null;
-  await loadPatients(); select(res.data.id);
+  await loadPatients();
+  if (patients.some((x) => x.id === res.data.id)) select(res.data.id); else { selected = null; renderList(); renderPanel(); }
 }
 
 async function saveVisit(form) {
@@ -293,7 +326,7 @@ async function saveVisit(form) {
   const uploaded = [];
   let res;
   try {
-    for (const x of newPhotos) uploaded.push(await uploadVisitPhoto(x.blob, unit, selected.id));
+    for (const x of newPhotos) uploaded.push(await uploadVisitPhoto(x.blob, selected.unit_id, selected.id));
     row.photo_paths = [...keptPhotos, ...uploaded];
     res = editVisit
       ? await sb.from('visits').update(row).eq('id', editVisit.id).select()

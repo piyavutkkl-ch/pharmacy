@@ -8,7 +8,7 @@ import { loadUnits, unitName } from '../data.js?v=4.4';
 import { setCurrent } from '../nav.js?v=4.4';
 import { initAdminNews } from './admin-news.js?v=4.4';
 import { initReview } from './admin-review.js?v=4.4';
-import { mountVisits } from './visits.js?v=4.4';
+import { mountVisits, ALL } from './visits.js?v=4.4';
 import { initAdminDocs } from './docs.js?v=4.4';
 import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
@@ -78,14 +78,16 @@ async function showMessages(sub) {
   mountInbox($('#adminInboxSlot'), msgTarget);
 }
 
-/* ---------- เยี่ยมบ้าน (เลือก รพ.สต.) ---------- */
-let visitUnit = 0;
+/* ---------- เยี่ยมบ้าน: โรงพยาบาล (รวมทุกชื่อ) หรือเลือก รพ.สต. ---------- */
+let visitUnit = ALL;
 async function showVisits() {
   const units = await loadUnits();
-  $('#avUnits').innerHTML = units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === visitUnit}">${esc(u.name)}</button>`).join('');
-  $('#avUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; visitUnit = +b.dataset.u; showVisits(); };
+  $('#avUnits').innerHTML = `<button type="button" data-u="${ALL}" aria-current="${visitUnit === ALL}">โรงพยาบาลควนกาหลง (รวมทุกชื่อ)</button>`
+    + units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === visitUnit}">${esc(u.name)}</button>`).join('');
+  $('#avUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; visitUnit = b.dataset.u === ALL ? ALL : +b.dataset.u; showVisits(); };
   mountVisits($('#adminVisitsSlot'), visitUnit);
-  mountSummaries($('#adminSumSlot'), visitUnit);
+  $('#adminSumSlot').hidden = visitUnit === ALL;   // สรุปผลงานเป็นราย รพ.สต.
+  if (visitUnit !== ALL) mountSummaries($('#adminSumSlot'), visitUnit);
 }
 
 /* ---------- ข้อเสนอแนะ ---------- */

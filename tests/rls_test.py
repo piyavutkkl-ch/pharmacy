@@ -570,5 +570,18 @@ check("staff saves assessment (A) on own unit visit", "s2", "update visits set a
 check("assessment max 4000 chars", "s2", "update visits set assessment=repeat('ก', 4001) where unit_id=2", "deny")
 check("other unit staff cannot read assessment", "s1", "select count(*) from visits where assessment is not null", eq(0))
 
+print("== step 32: move patient with home unit ==")
+check("other unit staff cannot move someone else's patient", "s1", f"select transfer_patient('{pid}', 1::smallint)", "deny")
+check("citizen cannot move patients", "c1", f"select transfer_patient('{pid}', 1::smallint)", "deny")
+nv = check("unit-2 visits before move", "admin", f"select count(*) from visits where patient_id='{pid}'", lambda o: int(o.strip() or 0) >= 1)
+check("staff moves patient to unit 1 (home = unit)", "s2", f"select transfer_patient('{pid}', 1::smallint); select unit_id||':'||home_unit_id from patients where id='{pid}'", lambda o: True)
+check("…old unit no longer sees the patient", "s2", f"select count(*) from patients where id='{pid}'", eq(0))
+check("…new unit sees patient + all visits", "s1", f"select (select count(*) from patients where id='{pid}')||':'||(select count(*) from visits where patient_id='{pid}')", eq(f"1:{nv.strip()}"))
+check("…new unit opens old visit photos", "s1", f"select count(*) from storage.objects where bucket_id='visit-photos' and name like '%/{pid}/%'", lambda o: int(o.strip() or 0) >= 1)
+check("…old unit cannot open the photos any more", "s2", f"select count(*) from storage.objects where bucket_id='visit-photos' and name like '%/{pid}/%'", eq(0))
+check("move recorded in PDPA audit", None, f"select detail from audit_log where action='update' and table_name='patients' and row_id='{pid}' order by id desc limit 1", lambda o: 'unit_id' in o)
+check("admin moves patient back to unit 2", "admin", f"select transfer_patient('{pid}', 2::smallint)", eq(2))
+check("unknown target unit rejected", "admin", f"select transfer_patient('{pid}', 99::smallint)", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

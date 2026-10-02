@@ -334,6 +334,16 @@ function rpc(name, a = {}) {
     }
     case 'guest_chat_list':
       return { data: db.conversations.filter((x) => x.guest_key === 'g:' + a.p_token).map((c) => ({ target_unit: c.target_unit ?? null, unread: c.unread_citizen, last_message_at: c.last_message_at })), error: null };
+    case 'transfer_patient': {   // แทน transfer_patient(): ย้ายผู้ป่วย + บันทึกเยี่ยมไปหน่วยใหม่
+      const pt = db.patients.find((x) => x.id === a.p_patient);
+      if (!pt) return err('ไม่พบผู้ป่วย', 'P0001');
+      if (!(isAdmin() || (isStaff() && pt.unit_id === ME.unit_id))) return err('ไม่มีสิทธิ์', 'P0001');
+      if (!db.units.some((u) => u.id === a.p_unit)) return err('ไม่พบ รพ.สต. ปลายทาง', 'P0001');
+      Object.assign(pt, { unit_id: a.p_unit, home_unit_id: a.p_unit });
+      db.visits.filter((v) => v.patient_id === pt.id).forEach((v) => { v.unit_id = a.p_unit; });
+      audit('update', 'patients', pt, 'home_unit_id,unit_id');
+      return { data: a.p_unit, error: null };
+    }
     case 'trash_conversation': {
       const c = db.conversations.find((x) => x.id === a.p_conv);
       if (!convOk(c) || c.citizen_id === ME.id || !(isAdmin() || isStaff())) return err('ไม่มีสิทธิ์', 'P0001');

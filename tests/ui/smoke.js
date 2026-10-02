@@ -407,7 +407,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#rfEmail', 'New.Staff@Gmail.com'); await p.fill('#rfName', 'เจ้าหน้าที่ใหม่'); await p.selectOption('#rfUnit', '4');
     await p.click('#rfSubmit'); await p.waitForTimeout(400);
     check('ผู้ดูแล: เพิ่มบัญชีเจ้าหน้าที่ (อีเมลเป็นตัวเล็ก)', await p.evaluate(() => window.__db.staff_roster.some((r) => r.email === 'new.staff@gmail.com')));
-    await go(p, '#/admin/visits');
+    await go(p, '#/admin/visits'); await p.waitForTimeout(400);
+    { const all = await p.evaluate(() => window.__db.patients.length);
+      check('ผู้ดูแล: เยี่ยมบ้านช่อง "โรงพยาบาลควนกาหลง" รวมทุกชื่อทุก รพ.สต. (ค่าเริ่มต้น)', (await p.getAttribute('#avUnits [data-u="all"]', 'aria-current')) === 'true' && await count(p, '#ptList [data-pt]') === all && all >= 1 && (await text(p, '#ptList')).includes('รพ.สต.')); }
     await p.click('#avUnits [data-u="2"]'); await p.waitForTimeout(300);
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
     await p.click('[data-act="edit-patient"]'); await p.fill('#pfPhone', '0899999999'); await p.click('#ptForm [type=submit]'); await p.waitForTimeout(400);
@@ -493,11 +495,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('[data-withdraw]'); await p.waitForTimeout(500);
     check('หลักฐาน: กดยกเลิกการส่งได้', (await calls(p, (c) => c.rpc === 'withdraw_item_status')).length === 1 && await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 2)?.status === 'none', i13));
     await go(p, '#/staff/visits'); await p.click('#ptAddBtn'); await p.waitForTimeout(150);
-    check('ผู้ป่วย: มีช่องสังกัด รพ.สต. (ค่าเริ่มต้น = หน่วยตัวเอง) + ที่อยู่ + เบอร์โทร แทน HN รพ.สต.', !(await p.$('#pfHnU')) && (await p.$eval('#pfHome', (e) => e.value)) === '2' && !!(await p.$('#pfAddr')) && (await p.getAttribute('#pfDob', 'placeholder')).includes('12/5/1997'));
-    await p.fill('#pfFirst', 'ทดสอบ'); await p.fill('#pfLast', 'วันเกิด'); await p.fill('#pfDob', '12/5/2540'); await p.fill('#pfPhone', '081-111-2222'); await p.fill('#pfAddr', 'ม.1');
+    check('ผู้ป่วย: มีช่องสังกัด รพ.สต. (ค่าเริ่มต้น = หน่วยตัวเอง) + ที่อยู่ + เบอร์โทร แทน HN รพ.สต.', !(await p.$('#pfHnU')) && (await p.$eval('#pfHome', (e) => e.value)) === '2' && !!(await p.$('#pfA_no')) && (await p.getAttribute('#pfDob', 'placeholder')).includes('12/5/1997'));
+    check('ผู้ป่วย: ที่อยู่แยกช่อง เลขที่/หมู่/ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ (ค่าตั้งต้น ควนกาหลง · สตูล · 91130)', (await p.inputValue('#pfA_amphoe')) === 'ควนกาหลง' && (await p.inputValue('#pfA_province')) === 'สตูล' && (await p.inputValue('#pfA_zip')) === '91130' && !!(await p.$('#pfA_moo')) && !!(await p.$('#pfA_tambon')));
+    await p.fill('#pfFirst', 'ทดสอบ'); await p.fill('#pfLast', 'วันเกิด'); await p.fill('#pfDob', '12/5/2540'); await p.fill('#pfPhone', '081-111-2222'); await p.fill('#pfA_no', '12/3'); await p.fill('#pfA_moo', '1'); await p.fill('#pfA_tambon', 'ทุ่งนุ้ย');
     await p.click('#ptForm [type=submit]'); await p.waitForTimeout(500);
     const pt = (await calls(p, (c) => c.table === 'patients' && c.op === 'insert'))[0]?.payload || {};
     check('ผู้ป่วย: วันเกิด 12/5/2540 (พ.ศ.) → 1997-05-12 + บันทึกเบอร์/ที่อยู่', pt.birth_date === '1997-05-12' && pt.phone === '081-111-2222' && pt.home_unit_id === 2, JSON.stringify(pt));
+    check('ผู้ป่วย: ที่อยู่เก็บแยกช่อง + ประกอบเป็นที่อยู่เต็ม', pt.address === 'เลขที่ 12/3 หมู่ 1 ต.ทุ่งนุ้ย อ.ควนกาหลง จ.สตูล 91130' && pt.address_parts?.zip === '91130' && pt.address_parts?.moo === '1', JSON.stringify(pt.address_parts));
     await p.click('[data-act="add-visit"]'); await p.waitForTimeout(150);
     check('เยี่ยมบ้าน: หน่วยยา เม็ด/ขวด/หลอด/(ไม่ระบุ)', (await p.$$eval('#vMeds .med-unit option', (o) => o.map((x) => x.value).join(','))) === 'เม็ด,ขวด,หลอด,(ไม่ระบุ)');
     await p.fill('#vO', 'ผิวแห้ง ไม่บวม'); await p.fill('#vA', 'ใช้ยาไม่สม่ำเสมอ'); await p.fill('#vMeds .med-name', 'เมทฟอร์มิน'); await p.fill('#vMeds .med-how', '1 เม็ด หลังอาหารเช้า'); await p.fill('#vMedNote', 'เก็บในตู้เย็น'); await p.check('#vNoDrp');
@@ -517,6 +521,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.setInputFiles('#vPhotos', [img, img, img, img]); await p.waitForTimeout(700);
     check('เยี่ยมบ้าน: จำกัดไม่เกิน 5 รูป', await count(p, '#vPhotoList .fthumb') === 5 && await p.$eval('#vPhotos', (e) => e.disabled));
     await p.click('[data-act="cancel"]'); await p.waitForTimeout(200);
+    { const before = await count(p, '#ptList [data-pt]'), pid = await p.evaluate(() => window.__db.patients.find((x) => x.first_name === 'ทดสอบ')?.id);
+      await p.click(`#ptList [data-pt="${pid}"]`); await p.waitForTimeout(300);
+      await p.click('[data-act="edit-patient"]'); await p.waitForTimeout(150);
+      check('ผู้ป่วย: แก้ไขแล้วที่อยู่เดิมขึ้นในช่องย่อย', (await p.inputValue('#pfA_tambon')) === 'ทุ่งนุ้ย' && (await p.inputValue('#pfA_no')) === '12/3');
+      await p.selectOption('#pfHome', '3'); await p.click('#ptForm [type=submit]'); await p.waitForTimeout(500);
+      const tr = (await calls(p, (c) => c.rpc === 'transfer_patient'))[0]?.args || {};
+      check('ผู้ป่วย: เปลี่ยนสังกัด → ย้ายไปอยู่รายชื่อของ รพ.สต. นั้น (หายจากหน่วยเดิม)', tr.p_patient === pid && tr.p_unit === 3 && await count(p, '#ptList [data-pt]') === before - 1
+        && await p.evaluate((id) => { const x = window.__db.patients.find((y) => y.id === id); return x.unit_id === 3 && window.__db.visits.filter((v) => v.patient_id === id).every((v) => v.unit_id === 3); }, pid), JSON.stringify(tr)); }
     await go(p, '#/staff/messages'); await p.click('#staffInboxSlot [data-conv="00000000-0000-0000-0000-0000000c0001"]'); await p.waitForTimeout(400);
     await p.setInputFiles('#staffInboxSlot .ib-file', img); await p.waitForTimeout(400);
     check('แชทเจ้าหน้าที่: เลือกรูปแล้วเห็นตัวอย่างก่อนส่ง', await visible(p, '#staffInboxSlot .chat-pick img'));
