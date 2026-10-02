@@ -565,5 +565,10 @@ check("admin marks s2 thread read (staff side untouched)", "admin", f"select mar
 check("staff cannot edit thread counters", "s2", "update staff_threads set unread_admin=5", "deny")
 check("anon cannot read threads", "anon", "select count(*) from staff_threads", "deny")
 
+print("== step 31: visit assessment ==")
+check("staff saves assessment (A) on own unit visit", "s2", "update visits set assessment='ควบคุมความดันได้' where unit_id=2 returning assessment", lambda o: 'ควบคุมความดันได้' in o)
+check("assessment max 4000 chars", "s2", "update visits set assessment=repeat('ก', 4001) where unit_id=2", "deny")
+check("other unit staff cannot read assessment", "s1", "select count(*) from visits where assessment is not null", eq(0))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

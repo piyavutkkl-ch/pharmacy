@@ -449,8 +449,9 @@ body.has-bottomnav .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 .crit-item .chip{flex-shrink:0}
 @media (max-width:480px){.crit-item .chip{order:2}}
 .med-rows{display:flex;flex-direction:column;gap:8px}
-.med-row{display:grid;grid-template-columns:1fr 90px 110px auto;gap:8px;align-items:center}
-@media (max-width:480px){.med-row{grid-template-columns:1fr 80px;}.med-row .med-unit{grid-column:1}.med-row button{justify-self:end}}
+.med-row{display:grid;grid-template-columns:1fr 1.3fr 90px 110px auto;gap:8px;align-items:center}
+@media (max-width:760px){.med-row{grid-template-columns:1fr 90px 110px auto}.med-row .med-how{grid-column:1 / -1;grid-row:2}}
+@media (max-width:480px){.med-row{grid-template-columns:1fr 80px;}.med-row .med-how{grid-column:1 / -1;grid-row:2}.med-row .med-unit{grid-column:1}.med-row button{justify-self:end}}
 .drp-box{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .drp-box legend{font-size:13px;font-weight:600;padding:0 4px}
 .drp-list{display:flex;flex-direction:column;gap:4px}

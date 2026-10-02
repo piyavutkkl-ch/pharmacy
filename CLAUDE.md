@@ -70,7 +70,7 @@ js/pages/criteria.js  เจ้าหน้าที่: ส่งหลัก�
 js/pages/delivery.js  บริการจัดส่งยาถึงบ้าน (#/delivery): โปสเตอร์/ข้อความ/สถิติ + ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน
 js/pages/rider.js     Health Rider: ผลงานแสดงในช่องบริการจัดส่งยาถึงบ้าน (#hrBlock · #/rider เลื่อนไปที่นั่น · ไม่มีปุ่มเมนูแยก) + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot, unit) — เจ้าหน้าที่เฉพาะหน่วยตัวเอง, ผู้ดูแลทุกหน่วย
 js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน ภาพ A4 ราย รพ.สต.×ปีงบ: แถวใต้ผลการดำเนินงาน, หน้าอ่าน #/summary/<id>, ฟอร์มในหน้าเยี่ยมบ้าน mountSummaries(slot, unit)
-js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP, รายการยา, DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
+js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP: S/O/A(assessment)/P, รายการยา + วิธีใช้ (med_list.how), DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP (imagePicker แสดงตัวอย่างทันที), ภาพย่อไฟล์ fileCard/hydrateSigned, ลิงก์ชั่วคราวไฟล์ส่วนตัว
 supabase/NN_*.sql     migration เรียงเลข · ไฟล์ใหม่ = เลขถัดไป → ระบบรันบน Supabase ให้เองหลังทดสอบผ่าน (tools/db/migrate.sh)
 .github/workflows/    ci-deploy (ทดสอบ→รวม→ฐานข้อมูล→ขึ้นเว็บ) · keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์) · restore (กู้) · ai-news (ช่อง AI เช็กทุกชั่วโมง ทำวันละ 1 ข่าว)

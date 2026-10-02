@@ -108,11 +108,12 @@ function renderPanel() {
     + `<dt>เบอร์โทร</dt><dd>${esc(p.phone || '–')}</dd><dt>ที่อยู่</dt><dd>${esc(p.address || '–')}</dd><dt>สิทธิ</dt><dd>${esc(p.coverage || '–')}</dd></dl>`
     + `<div class="panel-head"><h2>บันทึกการเยี่ยม (${visits.length})</h2><button type="button" class="btn btn-p btn-sm" data-act="add-visit">+ บันทึกการเยี่ยม</button></div>`
     + '<div class="list">' + (visits.length ? visits.map((v) => {
-      const meds = (v.med_list || []).map((m) => `${m.name}${m.qty ? ` (${m.qty} ${m.unit || ''})` : ''}`).join(', ');
+      const meds = (v.med_list || []).map((m) => `${m.name}${m.how ? ` [${m.how}]` : ''}${m.qty ? ` (${m.qty} ${m.unit || ''})` : ''}`).join(', ');
       const drp = v.drps?.length ? `DRPs ${v.drps.length} ข้อ${v.drp_resolved ? ' · แก้ไขสำเร็จ' : ' · ยังไม่แก้ไข'}` : 'ไม่พบ DRPs';
       return `<div class="li"><div class="l"><b>เยี่ยมวันที่ ${esc(thaiDate(v.visit_date))} <span class="small muted">· ปีงบ ${v.fiscal_year}</span></b>`
         + (v.subjective ? `<span class="small muted">S: ${esc(v.subjective.slice(0, 80))}</span>` : '')
         + (v.objective ? `<span class="small muted">O: ${esc(v.objective.slice(0, 80))}</span>` : '')
+        + (v.assessment ? `<span class="small muted">A: ${esc(v.assessment.slice(0, 80))}</span>` : '')
         + `<span class="small">${esc(drp)}</span>`
         + (meds ? `<span class="small muted">ยาที่เหลือ: ${esc(meds)}</span>` : '')
         + (v.med_excess ? '<span class="small" style="color:var(--warning)">ยาเหลือค้างที่บ้านเกิน 1 เดือน</span>' : '')
@@ -151,12 +152,12 @@ function visitForm(v) {
     + `<div class="field"><label for="vNext">นัดครั้งถัดไป</label><input id="vNext" class="input" type="date" value="${val('next_appt')}"></div>`
     + `<div class="field full"><label for="vS">S — อาการ/ข้อมูลจากผู้ป่วย</label><textarea id="vS" rows="2" maxlength="4000">${val('subjective')}</textarea></div>`
     + `<div class="field full"><label for="vO">O — ข้อมูลตรวจพบ (Objective data)</label><textarea id="vO" rows="2" maxlength="4000" placeholder="เช่น สภาพทั่วไป อาการแสดง ผลตรวจ การใช้ยาที่สังเกตได้">${val('objective')}</textarea></div>`
+    + `<div class="field full"><label for="vA">A — การประเมิน (Assessment)</label><textarea id="vA" rows="2" maxlength="4000" placeholder="เช่น ความร่วมมือในการใช้ยา การควบคุมโรค ปัญหาที่พบโดยสรุป">${val('assessment')}</textarea></div>`
     + `<div class="field full"><label for="vRecon">Medication reconciliation</label><textarea id="vRecon" rows="2" maxlength="4000">${val('med_reconcile')}</textarea></div>`
     + '<div class="field full"><label>รายการยาที่เหลือ</label><div id="vMeds" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" data-act="add-med">+ เพิ่มรายการยา</button></div></div>'
     + `<div class="field full"><label for="vMedNote">หมายเหตุรายการยาที่เหลือ</label><textarea id="vMedNote" rows="2" maxlength="2000" placeholder="เช่น ยาเก็บในตู้เย็น, ผู้ป่วยแบ่งยาให้ญาติ, ยาเสื่อมสภาพ">${val('med_note')}</textarea></div>`
-    + `<div class="field"><label for="vMedUntil">ยาพอถึงวันที่</label><input id="vMedUntil" class="input" type="date" value="${val('med_until')}"></div>`
     + `<label class="small full"><input type="checkbox" id="vExcess"${v?.med_excess ? ' checked' : ''}> ยาเหลือค้างที่บ้านเกิน 1 เดือน</label>`
-    + `<fieldset class="field full drp-box"><legend>A — ปัญหาจากการใช้ยา (DRPs)</legend><label class="small"><input type="checkbox" id="vNoDrp"${drps.size ? '' : ' checked'}> ไม่พบ DRPs</label>`
+    + `<fieldset class="field full drp-box"><legend>ปัญหาจากการใช้ยา (DRPs)</legend><label class="small"><input type="checkbox" id="vNoDrp"${drps.size ? '' : ' checked'}> ไม่พบ DRPs</label>`
     + `<div id="vDrpList" class="drp-list">${DRP_CATS.map((c, i) => `<label class="small"><input type="checkbox" data-drp="${i}"${drps.has(c) ? ' checked' : ''}> ${esc(c)}</label>`).join('')}</div>`
     + `<textarea id="vDrpDetail" rows="2" maxlength="4000" placeholder="รายละเอียดปัญหาและการแก้ไข">${val('drp_detail')}</textarea>`
     + `<label class="small"><input type="checkbox" id="vDrpResolved"${v?.drp_resolved ? ' checked' : ''}> แก้ไขปัญหาสำเร็จแล้ว</label></fieldset>`
@@ -189,6 +190,7 @@ async function addPhotos(input) {
 
 function medRow(m = {}) {
   return `<div class="med-row"><input class="input med-name" placeholder="ชื่อยา" maxlength="120" value="${esc(m.name || '')}" aria-label="ชื่อยา">`
+    + `<input class="input med-how" placeholder="วิธีใช้ เช่น 1 เม็ด เช้า-เย็น หลังอาหาร" maxlength="200" value="${esc(m.how || '')}" aria-label="วิธีใช้">`
     + `<input class="input med-qty" type="number" inputmode="numeric" min="0" step="1" placeholder="จำนวน" value="${esc(m.qty ?? '')}" aria-label="จำนวน">`
     + `<select class="input med-unit" aria-label="หน่วย">${[...MED_UNITS, ...(m.unit && !MED_UNITS.includes(m.unit) ? [m.unit] : [])].map((u) => `<option${m.unit === u ? ' selected' : ''}>${esc(u)}</option>`).join('')}</select>`
     + '<button type="button" class="btn btn-no btn-sm" data-act="rm-med" aria-label="ลบรายการยา">✕</button></div>';
@@ -197,6 +199,7 @@ function fillMeds(list) { $('#vMeds').innerHTML = (list.length ? list : [{}]).ma
 function readMeds() {
   return [...document.querySelectorAll('#vMeds .med-row')].map((r) => ({
     name: r.querySelector('.med-name').value.trim(),
+    how: r.querySelector('.med-how').value.trim() || null,
     qty: r.querySelector('.med-qty').value === '' ? null : Math.max(0, Math.round(+r.querySelector('.med-qty').value)),
     unit: r.querySelector('.med-unit').value,
   })).filter((m) => m.name);
@@ -282,8 +285,8 @@ async function saveVisit(form) {
   if (!none && !drps.length) { m.style.color = 'var(--error)'; m.textContent = 'เลือกประเภท DRPs อย่างน้อย 1 ข้อ หรือติ๊ก "ไม่พบ DRPs"'; return; }
   const num = (id) => ($(id).value === '' ? null : +$(id).value);
   const row = { patient_id: selected.id, visit_date: date, age: num('#vAge'), weight: num('#vWeight'), bp: $('#vBp').value.trim() || null,
-    dtx: $('#vDtx').value.trim() || null, subjective: $('#vS').value.trim() || null, objective: $('#vO').value.trim() || null, med_reconcile: $('#vRecon').value.trim() || null,
-    med_list: readMeds(), med_note: $('#vMedNote').value.trim() || null, med_excess: $('#vExcess').checked, med_until: $('#vMedUntil').value || null, next_appt: $('#vNext').value || null,
+    dtx: $('#vDtx').value.trim() || null, subjective: $('#vS').value.trim() || null, objective: $('#vO').value.trim() || null, assessment: $('#vA').value.trim() || null, med_reconcile: $('#vRecon').value.trim() || null,
+    med_list: readMeds(), med_note: $('#vMedNote').value.trim() || null, med_excess: $('#vExcess').checked, next_appt: $('#vNext').value || null,
     drps, drp_detail: none ? null : ($('#vDrpDetail').value.trim() || null), drp_resolved: none ? false : $('#vDrpResolved').checked,
     plan: $('#vPlan').value.trim() || null };
   const btn = form.querySelector('[type=submit]'); busy(btn, true, newPhotos.length ? 'กำลังอัปโหลดรูป…' : 'กำลังบันทึก…');

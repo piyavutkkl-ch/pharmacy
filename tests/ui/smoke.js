@@ -500,12 +500,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ผู้ป่วย: วันเกิด 12/5/2540 (พ.ศ.) → 1997-05-12 + บันทึกเบอร์/ที่อยู่', pt.birth_date === '1997-05-12' && pt.phone === '081-111-2222' && pt.home_unit_id === 2, JSON.stringify(pt));
     await p.click('[data-act="add-visit"]'); await p.waitForTimeout(150);
     check('เยี่ยมบ้าน: หน่วยยา เม็ด/ขวด/หลอด/(ไม่ระบุ)', (await p.$$eval('#vMeds .med-unit option', (o) => o.map((x) => x.value).join(','))) === 'เม็ด,ขวด,หลอด,(ไม่ระบุ)');
-    await p.fill('#vO', 'ผิวแห้ง ไม่บวม'); await p.fill('#vMeds .med-name', 'เมทฟอร์มิน'); await p.fill('#vMedNote', 'เก็บในตู้เย็น'); await p.check('#vNoDrp');
+    await p.fill('#vO', 'ผิวแห้ง ไม่บวม'); await p.fill('#vA', 'ใช้ยาไม่สม่ำเสมอ'); await p.fill('#vMeds .med-name', 'เมทฟอร์มิน'); await p.fill('#vMeds .med-how', '1 เม็ด หลังอาหารเช้า'); await p.fill('#vMedNote', 'เก็บในตู้เย็น'); await p.check('#vNoDrp');
     await p.setInputFiles('#vPhotos', [img, { ...img, name: 'b.png' }]); await p.waitForTimeout(500);
     check('เยี่ยมบ้าน: เลือกรูปแล้วเห็นตัวอย่าง', await count(p, '#vPhotoList .fthumb img') === 2);
+    check('เยี่ยมบ้าน: ไม่มีช่อง "ยาพอถึงวันที่" แล้ว', !(await p.$('#vMedUntil')));
+    { const vp = p.viewportSize(); await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(150);
+      check('เยี่ยมบ้าน (มือถือ): ฟอร์มไม่ล้นจอ', await overflow(p) <= 0); await (await p.$('#vForm')).screenshot({ path: path.join(SHOTS, 'visit-form-390.png') }); await p.setViewportSize(vp); }
     await p.click('#vForm [type=submit]'); await p.waitForTimeout(600);
     const vi = (await calls(p, (c) => c.table === 'visits' && c.op === 'insert'))[0]?.payload || {};
     check('เยี่ยมบ้าน: มีช่อง O — Objective data และบันทึกได้', vi.objective === 'ผิวแห้ง ไม่บวม');
+    check('เยี่ยมบ้าน: มีช่อง A — Assessment และบันทึกได้', vi.assessment === 'ใช้ยาไม่สม่ำเสมอ' && (await text(p, '#ptPanel')).includes('A: ใช้ยาไม่สม่ำเสมอ'));
+    check('เยี่ยมบ้าน: ใส่วิธีใช้หลังชื่อยาได้ + แสดงในบันทึก', vi.med_list?.[0]?.how === '1 เม็ด หลังอาหารเช้า' && (await text(p, '#ptPanel')).includes('1 เม็ด หลังอาหารเช้า'), JSON.stringify(vi.med_list));
     check('เยี่ยมบ้าน: บันทึกหมายเหตุรายการยา + รูป 2 รูป (ส่วนตัว)', vi.med_note === 'เก็บในตู้เย็น' && vi.photo_paths?.length === 2 && (await calls(p, (c) => c.upload === 'visit-photos')).length === 2, JSON.stringify(vi));
     check('เยี่ยมบ้าน: รูปแสดงในบันทึกการเยี่ยม', await count(p, '#ptPanel .visit-photos img') === 2);
     await p.click('[data-edit-visit]'); await p.waitForTimeout(300);
