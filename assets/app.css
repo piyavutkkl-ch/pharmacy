@@ -66,13 +66,14 @@ a{color:var(--primary)}
 :root[data-theme="dark"] .theme-btn .i-moon{display:none}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .theme-btn .i-sun{display:block}:root:not([data-theme="light"]) .theme-btn .i-moon{display:none}}
 @media (max-width:560px){.nav a[data-route="home"]{display:none}}   /* มือถือ: กดโลโก้กลับหน้าหลักแทน — เหลือที่ให้ปุ่มโหมดมืด */
-@media (max-width:420px){.nav{gap:2px}.nav a{padding:8px 10px}.top-end{gap:4px}}
 .nav a{font-size:14px;font-weight:600;text-decoration:none;padding:8px 14px;border-radius:999px;color:var(--muted);white-space:nowrap;transition:background-color .15s,color .15s}
 .nav a:hover{color:var(--ink);background:var(--sunken)}
 .nav a[aria-current="page"]{color:var(--ink);background:var(--sunken)}
 .nav a.cta{background:var(--primary);color:var(--on-primary)}
 .nav a.cta:hover{background:var(--primary-hover)}
 .nav a.cta[aria-current="page"]{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--primary)}
+@media (max-width:900px){.nav{gap:2px}.nav a{padding:8px 10px}}   /* มีปุ่มข้อมูลส่วนตัวเพิ่ม — บีบระยะไม่ให้ล้นจอแท็บเล็ต (ต้องอยู่หลัง .nav a) */
+@media (max-width:420px){.nav a{padding:8px 8px}.top-end{gap:4px}}
 .who{font-size:13px;color:var(--muted);padding-inline:6px}
 @media (max-width:520px){.mark b{display:none}.who{display:none}}
 
@@ -426,8 +427,20 @@ body.has-bottomnav .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 .chip.c-on{background:var(--success-soft);color:var(--success)}
 .chip.c-off{background:var(--sunken);color:var(--muted)}
 .chip.c-role{background:var(--primary-soft);color:var(--primary)}
-.nav .who-chip{font-size:13px;color:var(--muted);padding-inline:6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:900px){.nav .who-chip{display:none}}  /* ชื่อแสดงที่หัวหน้าอยู่แล้ว — กันเมนูล้นจอแท็บเล็ต */
+.nav .who-chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;max-width:200px}
+.nav .who-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav .who-chip svg{width:18px;height:18px;flex-shrink:0;color:var(--primary)}
+.nav .who-chip:hover{border-color:var(--primary)}
+@media (max-width:900px){.nav .who-chip{padding:0}.nav .who-chip span{display:none}}  /* จอเล็ก: เหลือไอคอน กันเมนูล้นจอ */
+/* หน้าต่างข้อมูลส่วนตัว (js/profile.js) */
+.pd-dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.pd-dialog::backdrop{background:rgba(8,12,15,.5)}
+.pd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.pd-head h2{margin:0}
+.pd-x{width:44px;height:44px;flex-shrink:0;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--ink);font-size:24px;line-height:1;cursor:pointer}
+.pd-x:hover{border-color:var(--primary)}
+#pdMsg{grid-column:1/-1;margin:0}
+#pdMsg:empty{display:none}
 .roster-row .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .roster-row .actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:560px){.roster-row{flex-wrap:wrap}.roster-row .actions{width:100%;justify-content:flex-start;padding-left:50px}}

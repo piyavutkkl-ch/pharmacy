@@ -50,7 +50,7 @@ function renderStats(years) {
 let E = null;   // { unit (null = ผู้ดูแล), isAdmin, units }
 
 const TEMPLATE = (isAdmin) => `
-  <p class="small muted">ตัวเลขที่บันทึกแสดงที่หน้าหลัก › Health Rider ทันที · <a href="#/rider">ดูหน้าผลงาน Health Rider</a></p>
+  <p class="small muted">ตัวเลขที่บันทึกแสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน (Health Rider) ทันที · <a href="#/rider">ดูหน้าผลงาน Health Rider</a></p>
   <div class="panel">
     <div class="panel-head"><h2>ผลงาน Health Rider</h2><label class="small" for="hrYear">ปีงบประมาณ</label></div>
     <select id="hrYear" class="input"></select>

@@ -46,6 +46,7 @@ js/nav.js             เมนูข้าง/เมนูล่างจอ (�
 js/theme.js           ปุ่มโหมดมืด/สว่าง ขวาบน (จำใน localStorage 'pcps_theme' · ค่าเริ่ม = ตามเครื่อง · <head> ใส่ data-theme ก่อนวาดหน้า)
 js/util.js            esc, fiscalYearOf, thaiDate, toast, busy, errText, art()
 js/lightbox.js        smartCover() รูปหน้าอ่านข่าว/สรุปผลงาน: ใกล้ A4 (แนวตั้ง–แนวนอน) ไม่ครอบตัด · ยาว/กว้างกว่า A4 มากครอบตัด · openLightbox() ภาพเต็มจอ/ขนาดจริง
+js/profile.js         หน้าต่างข้อมูลส่วนตัว (กดชื่อบนแถบเมนู · ทุกบทบาท) openProfile(), saveMyProfile() → เหตุการณ์ 'pcps:profile'
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
 js/pages/news.js      สไลด์ข่าว, รายการข่าว, หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น — ไม่ login ก็ได้: ถูกใจผ่าน like_news_anon, ความเห็น ≤15 ตัวอักษรผ่าน comment_news_anon · รหัสเครื่อง localStorage 'pcps_device' · ผู้ดูแลลบความเห็นได้)
 js/pages/dose.js      เครื่องคำนวณโดสยา (ตาราง dose_drugs)
@@ -66,7 +67,7 @@ js/pages/docs.js      เอกสารดาวน์โหลด: ผู้�
 js/pages/staff.js     เจ้าหน้าที่: โครงหน้า/เมนู + ข่าว (ส่งตรวจ) + ผลงาน + ข้อเสนอแนะ + ตัวเลขแจ้งเตือน
 js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence)
 js/pages/delivery.js  บริการจัดส่งยาถึงบ้าน (#/delivery): โปสเตอร์/ข้อความ/สถิติ + ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน
-js/pages/rider.js     Health Rider (#/rider) หน้าแสดงผลงาน + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot, unit) — เจ้าหน้าที่เฉพาะหน่วยตัวเอง, ผู้ดูแลทุกหน่วย
+js/pages/rider.js     Health Rider: ผลงานแสดงในช่องบริการจัดส่งยาถึงบ้าน (#hrBlock · #/rider เลื่อนไปที่นั่น · ไม่มีปุ่มเมนูแยก) + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot, unit) — เจ้าหน้าที่เฉพาะหน่วยตัวเอง, ผู้ดูแลทุกหน่วย
 js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน ภาพ A4 ราย รพ.สต.×ปีงบ: แถวใต้ผลการดำเนินงาน, หน้าอ่าน #/summary/<id>, ฟอร์มในหน้าเยี่ยมบ้าน mountSummaries(slot, unit)
 js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP, รายการยา, DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP (imagePicker แสดงตัวอย่างทันที), ภาพย่อไฟล์ fileCard/hydrateSigned, ลิงก์ชั่วคราวไฟล์ส่วนตัว

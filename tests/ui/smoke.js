@@ -89,9 +89,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('[data-panel-link="delivery"]'); await p.waitForTimeout(400);
     check('บริการจัดส่งยาถึงบ้าน: ช่องใต้ผลการดำเนินงาน + ข้อความแนะนำ + สถิติการจัดส่ง', await visible(p, '[data-panel="delivery"]') && (await text(p, '#dlInfo')).includes('จัดส่งยาถึงบ้าน') && (await text(p, '#dlFigs')).includes('105') && await count(p, '#dlBars .bar-row') === 3
       && await p.evaluate(() => { const l = [...document.querySelectorAll('.menu-icons [data-panel-link]')].map((a) => a.dataset.panelLink); return l.indexOf('delivery') === l.indexOf('tracking') + 1; }));
-    await p.click('[data-panel-link="rider"]'); await p.waitForTimeout(400);
-    check('Health Rider: หน้าแสดงผลงาน (ข้อความแนะนำ + ตัวเลขรวม + ราย รพ.สต.) ถัดจากส่งยาถึงบ้าน', await visible(p, '[data-panel="rider"]') && (await text(p, '#hrInfo')).includes('Health Rider') && (await text(p, '#hrFigs')).includes('48') && await count(p, '#hrBars .bar-row') === 2
-      && await p.evaluate(() => { const l = [...document.querySelectorAll('.menu-icons [data-panel-link]')].map((a) => a.dataset.panelLink); return l.indexOf('rider') === l.indexOf('delivery') + 1; }));
+    check('Health Rider: ผลงานอยู่ในช่องบริการจัดส่งยาถึงบ้าน (ข้อความแนะนำ + ตัวเลขรวม + ราย รพ.สต.) · ไม่มีปุ่มเมนูแยก', await visible(p, '[data-panel="delivery"] #hrBlock') && (await text(p, '#hrInfo')).includes('Health Rider') && (await text(p, '#hrFigs')).includes('48') && await count(p, '#hrBars .bar-row') === 2
+      && !(await p.$('[data-panel-link="rider"]')) && (await text(p, '[data-panel-link="delivery"]')).includes('บริการจัดส่งยาถึงบ้าน (Health Rider)'));
     await go(p, '#/achievements');
     check('ผลงาน รพ.สต.: การ์ดผลงานแสดง', await count(p, '#achGrid .news-card') >= 2);
     await go(p, '#/contact');
@@ -158,6 +157,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.close();
     p = await open('citizen2', '#/me');
     check('ประชาชนที่ยังไม่กรอกเบอร์: ช่องแชทปิดไว้', await p.$eval('#meInput', (e) => e.disabled));
+    await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(200);
+    check('ข้อมูลส่วนตัว (มือถือ): ปุ่มรูปคน ≥ 44px บนเมนู + ไม่ล้นจอ', await visible(p, '#profileBtn') && await p.$eval('#profileBtn', (e) => e.getBoundingClientRect().height >= 44) && await overflow(p) <= 0);
+    await p.click('#profileBtn'); await p.waitForTimeout(300);
+    await p.fill('#pdPhone', '0899999999'); await p.selectOption('#pdUnit', '3');
+    await p.screenshot({ path: path.join(SHOTS, 'profile-dialog-390.png') });
+    await p.click('#pdSave'); await p.waitForTimeout(400);
+    check('ข้อมูลส่วนตัว (ประชาชน): เลือก รพ.สต. ใกล้บ้านได้ + ฟอร์มในหน้า "ของฉัน" อัปเดต + แชทเปิดใช้ได้', (await calls(p, (c) => c.table === 'profiles' && c.op === 'update')).pop()?.payload?.home_unit_id === 3
+      && (await p.inputValue('#mePhone')) === '0899999999' && !(await p.$eval('#meInput', (e) => e.disabled)));
     await p.close();
 
     /* ================= เจ้าหน้าที่ รพ.สต. ================= */
@@ -167,6 +174,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const shown = await p.$eval(`[data-staff-view="${tab}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
       check(`เจ้าหน้าที่: เมนู ${tab} เปิดได้`, shown && (await text(p, '#staffViewTitle')));
     }
+    await p.click('#profileBtn'); await p.waitForTimeout(200);
+    check('ข้อมูลส่วนตัว: กดชื่อบนเมนู → หน้าต่างแก้ไข (เจ้าหน้าที่: ไม่มีช่อง รพ.สต. ใกล้บ้าน)', await p.$eval('#pdDialog', (d) => d.open) && (await p.inputValue('#pdName')) === 'สมศรี ใจดี' && !(await visible(p, '#pdUnitField')) && (await p.getAttribute('#pdEmail', 'readonly')) !== null);
+    await p.fill('#pdName', ''); await p.click('#pdSave'); await p.waitForTimeout(150);
+    check('ข้อมูลส่วนตัว: ชื่อว่างถูกเตือน', (await text(p, '#pdMsg')).includes('ชื่อ') && await p.$eval('#pdDialog', (d) => d.open));
+    await p.fill('#pdName', 'สมศรี ใจดีมาก'); await p.fill('#pdPhone', '081-222-3333'); await p.click('#pdSave'); await p.waitForTimeout(400);
+    const pu = (await calls(p, (c) => c.table === 'profiles' && c.op === 'update')).pop()?.payload || {};
+    check('ข้อมูลส่วนตัว: บันทึกเฉพาะช่องที่แก้ได้ + ชื่อบนเมนู/คำทักทายเปลี่ยนตาม', pu.full_name === 'สมศรี ใจดีมาก' && pu.phone === '081-222-3333' && !('role' in pu) && !('unit_id' in pu) && !('home_unit_id' in pu)
+      && !(await p.$eval('#pdDialog', (d) => d.open)) && (await text(p, '#profileBtn')).includes('ใจดีมาก') && (await text(p, '#staffHello')).includes('ใจดีมาก'), JSON.stringify(pu));
     await go(p, '#/staff/news');
     await p.click('#snSubmit'); await p.waitForTimeout(100);
     check('เจ้าหน้าที่: ส่งข่าวว่างถูกเตือน', (await text(p, '#snMsg')).length > 0);
@@ -367,6 +382,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#hrInfoEdit', 'ไรเดอร์สุขภาพ ส่งยาถึงบ้าน'); await p.click('#hrInfoSave'); await p.waitForTimeout(300);
     check('ผู้ดูแล: บันทึกผลงาน Health Rider หลาย รพ.สต. พร้อมกัน', (await calls(p, (c) => c.table === 'rider_stats' && c.op === 'upsert'))[0]?.payload?.length === 5);
     await go(p, '#/rider'); await p.waitForTimeout(500);
+    check('ลิงก์ #/rider เดิม: เปิดช่องบริการจัดส่งยาถึงบ้านที่ผลงาน Health Rider', await visible(p, '[data-panel="delivery"] #hrBlock'));
     check('หน้าหลัก Health Rider: ข้อความใหม่ + ผลงานอัปเดต', (await text(p, '#hrInfo')).includes('ไรเดอร์สุขภาพ') && (await text(p, '#hrFigs')).includes('3,258') && await count(p, '#hrBars .bar-row') === 5);
     await p.screenshot({ path: path.join(SHOTS, 'home-rider-1280.png'), fullPage: true });
     await go(p, '#/admin/settings/dose');

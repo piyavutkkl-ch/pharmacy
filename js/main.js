@@ -1,7 +1,7 @@
 // จุดเริ่มต้นของแอป: เส้นทางหน้า (hash router), แถบเมนูด้านบน, ฟอร์มท้ายเว็บ
 //
 // เส้นทาง (URL หลัง #):
-//   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/delivery | #/rider | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
+//   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/delivery (+ Health Rider · #/rider เลื่อนไปที่ผลงาน Health Rider) | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
 //   #/summary/<id>     สรุปผลงานเยี่ยมบ้าน (ภาพ A4)
 //   #/me[/request]     ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่ + ขอสิทธิ์เจ้าหน้าที่ (/request = เปิดฟอร์มคำขอ)
@@ -20,11 +20,12 @@ import { initDelivery } from './pages/delivery.js?v=4.4';
 import { initRider } from './pages/rider.js?v=4.4';
 import { showSummary } from './pages/summaries.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
+import { openProfile } from './profile.js?v=4.4';
 import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4.4';
 import { unmountUnitChat } from './pages/unitchat.js?v=4.4';
 import { showStaff } from './pages/staff.js?v=4.4';
 
-const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'rider', 'achievements', 'contact'];
+const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'achievements', 'contact'];   // Health Rider อยู่ในช่อง delivery (#/rider เปิดช่องเดียวกัน)
 
 function showView(name) {
   $$('[data-view]').forEach((v) => { v.hidden = v.dataset.view !== name; });
@@ -39,7 +40,7 @@ function message(title, body) {
   showView('message');
 }
 
-function openPanel(id) {
+function openPanel(id, scrollTo = null) {
   HOME_PANELS.forEach((p) => {
     const el = document.querySelector(`[data-panel="${p}"]`);
     const on = p === id;
@@ -48,9 +49,9 @@ function openPanel(id) {
   });
   $$('[data-panel-link]').forEach((a) => a.setAttribute('aria-expanded', a.dataset.panelLink === id ? 'true' : 'false'));
   if (!id) return;
-  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: initDelivery, rider: initRider,
+  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: () => { initDelivery(); initRider(); },
     achievements: initAchievements, contact: initContacts })[id]?.();
-  const el = document.querySelector(`[data-panel="${id}"]`);
+  const el = scrollTo || document.querySelector(`[data-panel="${id}"]`);
   requestAnimationFrame(() => el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
 }
 
@@ -73,6 +74,7 @@ async function route() {
   if (a !== 'me') leaveMe();                                 // ปิดห้องแชทที่เปิดค้างเมื่อออกจากหน้า
   if (b !== 'messages') { unmountInbox(); unmountUnitChat(); }
 
+  if (a === 'rider' && !b) { showView('home'); openPanel('delivery', $('#hrBlock')); return; }   // Health Rider = ส่วนหนึ่งของบริการจัดส่งยาถึงบ้าน
   if (!a || HOME_PANELS.includes(a) && !b) {
     showView('home');
     openPanel(a || null);
@@ -100,14 +102,17 @@ async function route() {
 }
 
 /* ---------- แถบเมนูด้านบน ---------- */
+const USER_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
+window.addEventListener('pcps:profile', () => renderNav());   // แก้ชื่อในหน้าต่างข้อมูลส่วนตัว/หน้า "ของฉัน" → ชื่อบนเมนูเปลี่ยนตาม
 function renderNav() {
   const nav = $('#topNav');
   if (auth.session && auth.profile) {
     const p = auth.profile;
     const appLink = { admin: 'ผู้ดูแลระบบ', staff: 'ระบบเจ้าหน้าที่', citizen: 'ของฉัน' }[p.role];
     nav.innerHTML = `<a href="#/" data-route="home">หน้าหลัก</a><a href="${ROLE_HOME[p.role]}" data-route="${ROLE_HOME[p.role].slice(2)}">${appLink}${p.role === 'citizen' ? ' <span id="navMsgBadge" class="badge num"></span>' : ''}</a>`
-      + `<span class="who-chip" title="${esc(p.email)}">${esc(p.full_name || p.email)}</span><a href="#" id="logoutLink">ออกจากระบบ</a>`;
+      + `<button type="button" class="who-chip" id="profileBtn" title="แก้ไขข้อมูลส่วนตัว · ${esc(p.email)}" aria-label="ข้อมูลส่วนตัว: ${esc(p.full_name || p.email)}">${USER_SVG}<span>${esc(p.full_name || p.email)}</span></button><a href="#" id="logoutLink">ออกจากระบบ</a>`;
     $('#logoutLink').addEventListener('click', (e) => { e.preventDefault(); signOut(); });
+    $('#profileBtn').addEventListener('click', openProfile);
   } else {
     nav.innerHTML = '<a href="#/" data-route="home">หน้าหลัก</a><a href="#/login" class="cta" data-route="login">เข้าสู่ระบบ</a>';
   }

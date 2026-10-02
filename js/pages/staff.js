@@ -215,3 +215,6 @@ function bindFeedback() {
     $('#sfText').value = ''; toast('ส่งข้อเสนอแนะแล้ว ขอบคุณครับ'); loadFeedback();
   });
 }
+
+// แก้ชื่อในหน้าต่างข้อมูลส่วนตัว → คำทักทายหัวหน้าเปลี่ยนตาม
+window.addEventListener('pcps:profile', () => { $('#staffHello').textContent = 'สวัสดี ' + (auth.profile?.full_name || ''); });

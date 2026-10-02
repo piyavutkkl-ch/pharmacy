@@ -4,10 +4,10 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits } from '../data.js?v=4.4';
+import { PHONE_RE, saveMyProfile } from '../profile.js?v=4.4';
 import { initStaffRequest } from './staff-request.js?v=4.4';
 import { targetName, loadMessages, sendMessage, renderLog, openRoom, markRead, refreshMsgBadge, onConversationChange, chatPicker } from './chat.js?v=4.4';
 
-const PHONE_RE = /^[0-9][0-9 -]{7,14}$/;
 let convs = [], target, msgs = [], closeRoom = null, bound = false, units = [], pick = null;
 
 export async function showMe(openRequest = false) {
@@ -44,14 +44,13 @@ async function saveProfile(e) {
   if (!PHONE_RE.test(phone)) { say('เบอร์โทรไม่ถูกต้อง (ตัวเลข 9–10 หลัก เช่น 0812345678)'); $('#mePhone').setAttribute('aria-invalid', 'true'); $('#mePhone').focus(); return; }
   const row = { full_name, phone, address: $('#meAddr').value.trim() || null, home_unit_id: $('#meUnit').value === '' ? null : +$('#meUnit').value };
   const btn = $('#meSave'); busy(btn, true, 'กำลังบันทึก…');
-  const { error } = await sb.from('profiles').update(row).eq('id', auth.profile.id);
+  const error = await saveMyProfile(row);
   busy(btn, false);
   if (error) { say(errText(error)); return; }
-  Object.assign(auth.profile, row);
-  $('#meHello').textContent = 'สวัสดี ' + full_name;
   say('บันทึกแล้ว', true);
-  syncHint();
 }
+// แก้จากหน้าต่างข้อมูลส่วนตัว (ชื่อบนแถบเมนู) หรือจากฟอร์มในหน้านี้ → เติมฟอร์ม/คำทักทายใหม่
+window.addEventListener('pcps:profile', () => { if (!bound) return; $('#meHello').textContent = 'สวัสดี ' + (auth.profile.full_name || ''); if (units.length) fillProfile(); });
 
 function syncHint() {
   const ok = !!auth.profile.phone;

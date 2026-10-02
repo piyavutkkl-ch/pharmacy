@@ -109,3 +109,6 @@ async function initFeedback() {
     if (er) toast(errText(er), 'err'); else { toast('ลบแล้ว'); initFeedback(); }
   };
 }
+
+// แก้ชื่อในหน้าต่างข้อมูลส่วนตัว → คำทักทายหัวหน้าเปลี่ยนตาม
+window.addEventListener('pcps:profile', () => { $('#adminHello').textContent = 'สวัสดี ' + (auth.profile?.full_name || ''); });

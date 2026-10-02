@@ -30,6 +30,19 @@
   </div>
 </header>
 
+<dialog class="pd-dialog" id="pdDialog" aria-labelledby="pdTitle">
+  <form id="pdForm" class="form-grid" novalidate>
+    <div class="full pd-head"><div><h2 id="pdTitle">ข้อมูลส่วนตัว</h2><span class="small muted" id="pdRole"></span></div><button type="button" class="pd-x" id="pdClose" aria-label="ปิด">×</button></div>
+    <div class="field full"><label for="pdName">ชื่อ-นามสกุล <span class="req">*</span></label><input id="pdName" class="input" autocomplete="name" maxlength="120"></div>
+    <div class="field"><label for="pdPhone">เบอร์โทรศัพท์ <span class="req" id="pdPhoneReq">*</span></label><input id="pdPhone" class="input" type="tel" inputmode="tel" autocomplete="tel" placeholder="08x-xxx-xxxx" maxlength="15"></div>
+    <div class="field" id="pdUnitField"><label for="pdUnit">รพ.สต. ใกล้บ้าน</label><select id="pdUnit" class="input"></select></div>
+    <div class="field full"><label for="pdAddr">ที่อยู่ (หมู่บ้าน / ตำบล)</label><input id="pdAddr" class="input" autocomplete="street-address" maxlength="200"></div>
+    <div class="field full"><label for="pdEmail">อีเมล Google ที่ใช้เข้าสู่ระบบ (แก้ไม่ได้)</label><input id="pdEmail" class="input" readonly></div>
+    <p class="small" id="pdMsg" aria-live="polite"></p>
+    <div class="full row-btns"><button class="btn btn-p" type="submit" id="pdSave">บันทึก</button><button class="btn btn-o" type="button" id="pdCancel">ยกเลิก</button></div>
+  </form>
+</dialog>
+
 <main class="wrap" id="main">
 
 <!-- ============ HOME (ทุกคนดูได้) ============ -->
@@ -53,11 +66,7 @@
         </a>
         <a class="menu-icon-btn" href="#/delivery" data-panel-link="delivery" aria-expanded="false">
           <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg></span>
-          <span class="mi-label">บริการจัดส่งยาถึงบ้าน</span>
-        </a>
-        <a class="menu-icon-btn" href="#/rider" data-panel-link="rider" aria-expanded="false">
-          <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg></span>
-          <span class="mi-label">Health Rider</span>
+          <span class="mi-label">บริการจัดส่งยาถึงบ้าน (Health Rider)</span>
         </a>
       </div>
     </div>
@@ -133,7 +142,7 @@
   </div>
 
   <div class="sec reveal" data-panel="delivery" hidden>
-    <div class="sec-head"><h2>บริการจัดส่งยาถึงบ้าน</h2></div>
+    <div class="sec-head"><h2>บริการจัดส่งยาถึงบ้าน (Health Rider)</h2></div>
     <div class="poster-wrap">
       <button type="button" class="poster-nav" data-poster-nav="prev" aria-label="เลื่อนไปทางซ้าย">‹</button>
       <div class="poster-row" id="dlPosters" tabindex="0" role="region" aria-label="โปสเตอร์บริการจัดส่งยาถึงบ้าน (เลื่อนซ้าย-ขวาได้)"></div>
@@ -146,12 +155,9 @@
       <div class="track-figs dl-figs" id="dlFigs" aria-live="polite"></div>
       <div class="bars" id="dlBars"></div>
     </div>
-  </div>
-
-  <div class="sec reveal" data-panel="rider" hidden>
-    <div class="sec-head"><h2>ผลงาน Health Rider</h2></div>
-    <div class="panel"><div class="article-body dl-info" id="hrInfo"></div></div>
-    <div class="panel">
+    <div class="panel" id="hrBlock">
+      <div class="panel-head"><h2>ผลงาน Health Rider</h2></div>
+      <div class="article-body dl-info" id="hrInfo"></div>
       <div class="unit-tabs" id="hrYears" aria-label="เลือกปีงบประมาณ"></div>
       <div class="track-figs dl-figs" id="hrFigs" aria-live="polite"></div>
       <div class="bars" id="hrBars"></div>
