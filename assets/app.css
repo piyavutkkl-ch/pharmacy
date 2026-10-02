@@ -196,6 +196,7 @@ main section[hidden]{display:none!important}
 .lightbox.actual .lb-body{align-items:start;justify-items:safe center}
 .lightbox.actual .lb-body img{max-width:none;max-height:none;cursor:zoom-out}
 .article-body{display:flex;flex-direction:column;gap:16px;font-size:16px;line-height:1.8;max-width:65ch}
+.article .article-body{max-width:none}   /* หน้าอ่านข่าว: ตัวหนังสือเต็มความกว้างเท่ากรอบภาพ (กรอบข่าวจำกัด 760px อยู่แล้ว) */
 .attach{display:flex;align-items:center;gap:14px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
 .attach svg{width:22px;height:22px;color:var(--primary);flex-shrink:0}
 .attach .l{display:flex;flex-direction:column}

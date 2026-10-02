@@ -318,6 +318,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#anReview [data-decide="published"]'); await p.waitForTimeout(500);
       check('ช่อง AI: อนุมัติแล้วเผยแพร่', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.status === 'published'));
       await go(p, '#/news/' + AI); await p.waitForTimeout(500);
+      const arW = await p.evaluate(() => [document.querySelector('#arBody').getBoundingClientRect().width, document.querySelector('#arBody').parentElement.getBoundingClientRect().width]);
+      check('หน้าอ่านข่าว: เนื้อข่าวเต็มความกว้างกรอบข่าว (ไม่เว้นว่างด้านขวา)', Math.abs(arW[0] - arW[1]) <= 2, JSON.stringify(arW));
       check('หน้าอ่านข่าว AI: ป้าย "สรุปโดย AI" + ภาพเพิ่ม 2 ภาพ + อ้างอิงบทความต้นฉบับ + ปุ่มดาวน์โหลด PDF ต้นฉบับ', await visible(p, '#arAi') && await count(p, '#arGallery .cover') === 2 && (await p.getAttribute('#arSource a', 'href')).includes('ccpe.pharmacycouncil.org') && await visible(p, '#arFile .file-link') && (await p.getAttribute('#arFile a', 'href')).endsWith('showfile.php?file=1876') && (await p.getAttribute('#arFile a', 'target')) === '_blank');
       await p.screenshot({ path: path.join(SHOTS, 'ai-news-article-1280.png'), fullPage: true });
       await go(p, '#/admin/news'); await p.waitForTimeout(300);
