@@ -258,7 +258,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     { const q = await open('staff', '#/staff/visits', 390, 844); await q.waitForTimeout(400);
       await (await q.$('.vs-other')).screenshot({ path: path.join(SHOTS, 'summary-people-390.png') });
       check('สรุปผลงาน 390px: ช่องกรอกชื่อเองไม่ล้นจอ', await overflow(q) <= 0); await q.close(); }
+    await p.click('#vsVisitBtn'); await p.waitForTimeout(300);
+    check('เชื่อมโยงรายการเยี่ยม: กดแล้วค้นหาชื่อผู้ป่วยได้ (รายชื่อผู้ป่วยของหน่วย)', await visible(p, '#vsVisitPick') && (await text(p, '#vsVisitRes')).includes('ประยูร'));
+    await p.fill('#vsVisitQ', 'ประยูร'); await p.click('#vsVisitRes [data-vpt]'); await p.waitForTimeout(300);
+    check('เชื่อมโยงรายการเยี่ยม: เลือกชื่อแล้วเห็นวันที่เยี่ยมแต่ละครั้ง + บันทึกการเข้าถึง (PDPA)', (await text(p, '#vsVisitRes')).includes('เยี่ยมวันที่') && (await calls(p, (c) => c.rpc === 'log_patient_access' && c.args.p_patient)).length >= 1);
+    await p.check('#vsVisitRes [data-vv]'); await p.waitForTimeout(100);
+    check('เชื่อมโยงรายการเยี่ยม: เลือกแล้วขึ้นในรายการ (ชื่อ · วันที่เยี่ยม) ลบได้', (await text(p, '#vsVisits')).includes('ประยูร') && (await text(p, '#vsVisits')).includes('เยี่ยมวันที่') && await count(p, '#vsVisits [data-rm-link]') === 1);
+    const linkedVisit = await p.getAttribute('#vsVisitRes [data-vv]', 'data-vv');
     await p.click('#vsSubmit'); await p.waitForTimeout(600);
+    check('เชื่อมโยงรายการเยี่ยม: บันทึกลิงก์กับสรุป + รายการบอกจำนวน', (await calls(p, (c) => c.table === 'summary_visits' && c.op === 'insert')).length === 1 && (await text(p, '#vsList')).includes('เชื่อมโยง 1 รายการเยี่ยม'));
     const vsIns = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert'))[0]?.payload;
     check('สรุปผลงาน: บันทึกวันที่ + ผู้ร่วมลง 2 คน + รายการแสดงวันที่และชื่อ', vsIns?.summary_date === today && vsIns?.participant_ids?.length === 2 && vsIns.participant_ids.includes(adm) && vsIns.participant_others?.[0] === 'สมหญิง ทดสอบ (อสม.)' && (await text(p, '#vsList')).includes('วันที่ ') && (await text(p, '#vsList')).includes('ผู้ร่วมลง:'), JSON.stringify(vsIns));
     check('สรุปผลงาน: เผยแพร่ได้ (ภาพหลัก + ภาพเพิ่ม 1 · รูปอยู่ summaries/<หน่วย>/)', vsIns?.unit_id === 2 && vsIns?.image_path?.startsWith('summaries/2/') && vsIns?.gallery?.length === 1 && !('file_path' in vsIns) && await count(p, '#vsList .da-poster') === 1, JSON.stringify(vsIns));
@@ -283,7 +291,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#trackArt .sp-slide.on'); await p.waitForTimeout(400);
     check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + ภาพเพิ่ม + รายละเอียด)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await count(p, '#smGallery .cover') === 1);
     check('สรุปผลงาน: หน้าอ่านแสดงวันที่ + เจ้าหน้าที่ที่ร่วมลง', (await text(p, '#smDate')).startsWith('วันที่ ') && (await text(p, '#smPeople')).includes('เจ้าหน้าที่ที่ร่วมลง:') && await visible(p, '#smPeople'));
+    check('สรุปผลงาน: เจ้าหน้าที่เห็น "รายการเยี่ยมที่เชื่อมโยง" (ชื่อ · วันที่เยี่ยม · ลิงก์ไปบันทึก)', await visible(p, '#smVisits') && (await text(p, '#smVisits')).includes('ประยูร') && (await p.getAttribute('#smVisits a', 'href')) === `#/staff/visits/${linkedVisit}`);
     await p.screenshot({ path: path.join(SHOTS, 'summary-1280.png'), fullPage: true });
+    { const q = await open(null, `#/summary/${await p.evaluate(() => location.hash.split('/')[2])}`); await q.waitForTimeout(600);
+      check('สรุปผลงาน: ประชาชน/ไม่ล็อกอินไม่เห็นรายการเยี่ยม (PDPA)', !(await visible(q, '#smVisits')) && !(await text(q, '[data-view="summary"]')).includes('ประยูร')); await q.close(); }
+    await p.click('#smVisits a'); await p.waitForTimeout(900);
+    check('สรุปผลงาน: กดลิงก์ → ไปหน้าเยี่ยมบ้าน เปิดผู้ป่วย + ไฮไลต์บันทึกการเยี่ยมนั้น', (await text(p, '#ptPanel')).includes('ประยูร') && await count(p, `#vt-${linkedVisit}.hl`) === 1);
     await go(p, '#/staff/visits'); await p.waitForTimeout(300);
     await p.click('#vsList [data-del]'); await p.waitForTimeout(400);
     check('สรุปผลงาน: ลบได้', await count(p, '#vsList .da-poster') === 0);

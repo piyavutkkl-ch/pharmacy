@@ -46,14 +46,23 @@ const WS_HTML = `<div class="visits-stack">
 /** แสดงหน้าจอเยี่ยมบ้านของ รพ.สต. unitId ลงใน slot (เจ้าหน้าที่ = หน่วยตัวเอง, ผู้ดูแล = เลือกหน่วย หรือ ALL = โรงพยาบาล รวมทุกชื่อ)
  *  สังกัด รพ.สต. = หน่วยที่ดูแล: เปลี่ยนสังกัดแล้วผู้ป่วย + บันทึกเยี่ยมย้ายไปอยู่รายชื่อของหน่วยนั้น (rpc transfer_patient) */
 export const ALL = 'all';
-export async function mountVisits(slot, unitId) {
+export async function mountVisits(slot, unitId, openVisit = null) {
   if (!ws) { ws = document.createElement('div'); ws.innerHTML = WS_HTML; slot.appendChild(ws); bind(); }
   else if (ws.parentNode !== slot) slot.appendChild(ws);
   unitList = await loadUnits();
   if (unit !== unitId) { unit = unitId; selected = null; mode = 'view'; editVisit = null; $('#ptSearch').value = ''; }
   await loadPatients();
+  if (openVisit) await showVisit(openVisit);
 }
-export const initVisits = () => mountVisits($('#staffVisitsSlot'), auth.profile.unit_id);
+export const initVisits = (openVisit) => mountVisits($('#staffVisitsSlot'), auth.profile.unit_id, openVisit);
+/** เปิดบันทึกการเยี่ยมตาม id (ลิงก์จากสรุปผลงาน one page) → เลือกผู้ป่วย + ไฮไลต์บันทึกนั้น */
+async function showVisit(id) {
+  const { data } = await sb.from('visits').select('id,patient_id').eq('id', id).maybeSingle();
+  if (!data || !patients.some((p) => p.id === data.patient_id)) { toast('ไม่พบบันทึกการเยี่ยมนี้ หรือไม่มีสิทธิ์ดู', 'err'); return; }
+  await select(data.patient_id);
+  const li = document.getElementById('vt-' + id);
+  if (li) { li.classList.add('hl'); li.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+}
 
 async function loadPatients() {
   $('#ptList').innerHTML = '<div class="skeleton" style="margin-top:8px"></div>';
@@ -118,7 +127,7 @@ function renderPanel() {
     + '<div class="list">' + (visits.length ? visits.map((v) => {
       const meds = (v.med_list || []).map((m) => `${m.name}${m.how ? ` [${m.how}]` : ''}${m.qty ? ` (${m.qty} ${m.unit || ''})` : ''}`).join(', ');
       const drp = v.drps?.length ? `DRPs ${v.drps.length} ข้อ${v.drp_resolved ? ' · แก้ไขสำเร็จ' : ' · ยังไม่แก้ไข'}` : 'ไม่พบ DRPs';
-      return `<div class="li"><div class="l"><b>เยี่ยมวันที่ ${esc(thaiDate(v.visit_date))} <span class="small muted">· ปีงบ ${v.fiscal_year}</span></b>`
+      return `<div class="li" id="vt-${esc(v.id)}"><div class="l"><b>เยี่ยมวันที่ ${esc(thaiDate(v.visit_date))} <span class="small muted">· ปีงบ ${v.fiscal_year}</span></b>`
         + (v.subjective ? `<span class="small muted">S: ${esc(v.subjective.slice(0, 80))}</span>` : '')
         + (v.objective ? `<span class="small muted">O: ${esc(v.objective.slice(0, 80))}</span>` : '')
         + (v.assessment ? `<span class="small muted">A: ${esc(v.assessment.slice(0, 80))}</span>` : '')

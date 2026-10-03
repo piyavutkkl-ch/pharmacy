@@ -646,5 +646,20 @@ check("free-typed participants (not in system) trimmed, empties dropped", "s2", 
 check("max 20 free-typed participants", "s2", "update visit_summaries set participant_others=(select array_agg('คน '||g) from generate_series(1,21) g) where title='มีผู้ร่วม'", "deny")
 check("anon sees participant names on public summary", "anon", "select cardinality(participant_names) from visit_summaries where title='มีผู้ร่วม'", eq(2))
 
+print("== step 38: summary ↔ home visits (PDPA) ==")
+sid = run("select id from visit_summaries where title='มีผู้ร่วม'")[1]
+vid = run("select id from visits where unit_id=2 order by visit_date desc limit 1")[1]
+run("insert into patients(id,unit_id,first_name,last_name) values ('00000000-0000-0000-0000-00000000f001',1,'หน่วยหนึ่ง','ทดสอบ') on conflict do nothing")
+run("insert into visits(patient_id,unit_id,visit_date) values ('00000000-0000-0000-0000-00000000f001',1,current_date)")
+vid1 = run("select v.id from visits v where v.unit_id=1 limit 1")[1]
+check("staff links own-unit visit to summary", "s2", f"insert into summary_visits(summary_id,visit_id) values ({sid},'{vid}') returning created_by is not null", eq("t"))
+check("staff cannot link another unit's visit", "s2", f"insert into summary_visits(summary_id,visit_id) values ({sid},'{vid1}')", "deny")
+check("other unit staff cannot see the link", "s1", f"select count(*) from summary_visits where summary_id={sid}", eq(0))
+check("anon cannot see links (not even count)", "anon", "select count(*) from summary_visits", "deny")
+check("citizen cannot see links", "c1", "select count(*) from summary_visits", eq(0))
+check("admin sees the link", "admin", f"select count(*) from summary_visits where summary_id={sid}", eq(1))
+check("other unit staff cannot add link to someone else's summary", "s1", f"insert into summary_visits(summary_id,visit_id) values ({sid},'{vid}')", "deny")
+check("staff removes link", "s2", f"delete from summary_visits where summary_id={sid} returning visit_id", rows(1))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

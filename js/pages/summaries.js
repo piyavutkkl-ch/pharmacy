@@ -3,6 +3,8 @@
 //   #/summary/<id>: หน้าอ่านแบบข่าว (ภาพเต็ม + รายละเอียด + PDF แนบ) → showSummary(id)
 //   หน้าเยี่ยมบ้าน (เจ้าหน้าที่/ผู้ดูแล): เพิ่ม/แก้/ลบ → mountSummaries(slot, unit) · เลือก รพ.สต. ได้ (ค่าเริ่มต้น = หน่วยตัวเอง)
 //     หลายภาพ (ภาพแรก = image_path · ที่เหลือ = gallery ≤ 6 · กด × ลบ) · ไม่มีช่อง PDF แล้ว (ไฟล์เดิมยังแสดง)
+//   เชื่อมโยงรายการเยี่ยม (summary_visits · 39_summary_visits.sql · PDPA): เลือกผู้ป่วย → บันทึกเยี่ยม → หน้าอ่านมีลิงก์ไปบันทึกนั้น
+//     (เห็นเฉพาะเจ้าหน้าที่ รพ.สต. ที่ดูแลผู้ป่วย + ผู้ดูแล · ประชาชนไม่เห็น · ทุกครั้งที่แสดงชื่อผู้ป่วยบันทึก log_patient_access)
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
@@ -81,6 +83,32 @@ export async function showSummary(id) {
   }
   $('#smBody').innerHTML = paras(s.body);
   $('#smFile').innerHTML = s.file_path ? fileLink(s) : ''; $('#smFile').hidden = !s.file_path;
+  showLinkedVisits(s.id);
+}
+
+/* ---------- รายการเยี่ยมที่เชื่อมโยง (PDPA: เฉพาะเจ้าหน้าที่/ผู้ดูแลที่มีสิทธิ์เห็นบันทึกนั้น · RLS กรองให้) ---------- */
+const audit = (u, pid = null) => sb.rpc('log_patient_access', { p_unit: u, p_patient: pid }).then(() => {}, () => {});
+/** บันทึกเยี่ยมตาม id → [{ id, visit_date, unit_id, patient_id, name }] เรียงวันที่ใหม่ก่อน (เห็นเฉพาะที่มีสิทธิ์) */
+async function visitRows(ids) {
+  if (!ids.length) return [];
+  const { data: vs } = await sb.from('visits').select('id,visit_date,unit_id,patient_id').in('id', ids);
+  const pids = [...new Set((vs || []).map((v) => v.patient_id))];
+  const { data: ps } = pids.length ? await sb.from('patients').select('id,first_name,last_name').in('id', pids) : { data: [] };
+  const nameOf = new Map((ps || []).map((p) => [p.id, `${p.first_name} ${p.last_name}`]));
+  return (vs || []).map((v) => ({ ...v, name: nameOf.get(v.patient_id) || 'ผู้ป่วย' }))
+    .sort((a, b) => String(b.visit_date).localeCompare(String(a.visit_date)) || a.name.localeCompare(b.name, 'th'));
+}
+async function showLinkedVisits(id) {
+  const box = $('#smVisits'); box.hidden = true; box.innerHTML = '';
+  const role = auth.profile?.role;
+  if (role !== 'staff' && role !== 'admin') return;   // ประชาชน/ไม่ล็อกอิน: ไม่มีแม้แต่หัวข้อ
+  const { data: links } = await sb.from('summary_visits').select('visit_id').eq('summary_id', id);
+  const rows = await visitRows((links || []).map((l) => l.visit_id));
+  if (!rows.length) return;
+  rows.forEach((r) => audit(r.unit_id, r.patient_id));
+  box.innerHTML = `<h2>รายการเยี่ยมที่เชื่อมโยง (${rows.length})</h2><p class="small muted">เห็นเฉพาะเจ้าหน้าที่และผู้ดูแล · กดเพื่อดูรายละเอียดการเยี่ยม (ทำอะไร ติดตามอะไร) · การเปิดดูถูกบันทึกตาม PDPA</p>`
+    + '<div class="list">' + rows.map((r) => `<a class="li-btn" href="#/${role}/visits/${esc(r.id)}"><span class="l"><b>${esc(r.name)}</b><span class="small muted">เยี่ยมวันที่ ${esc(thaiDate(r.visit_date))}${role === 'admin' ? ' · รพ.สต.' + esc(unitName(r.unit_id)) : ''}</span></span><span aria-hidden="true">›</span></a>`).join('') + '</div>';
+  box.hidden = false;
 }
 
 /* ======================= เพิ่ม/แก้/ลบ (หน้าเยี่ยมบ้าน) ======================= */
@@ -99,6 +127,10 @@ const FORM = `
         <div class="vs-other"><p class="small muted">ไม่มีชื่อในรายการ? กรอกเพิ่มเองได้ (ชื่อ นามสกุล ตำแหน่ง)</p>
           <div class="vs-other-row"><input id="vsOFirst" class="input" maxlength="50" placeholder="ชื่อ" aria-label="ชื่อผู้ร่วมลง"><input id="vsOLast" class="input" maxlength="50" placeholder="นามสกุล" aria-label="นามสกุลผู้ร่วมลง"><input id="vsOPos" class="input" maxlength="45" placeholder="ตำแหน่ง เช่น อสม." aria-label="ตำแหน่งผู้ร่วมลง"><button type="button" class="btn btn-o btn-sm" id="vsOAdd">+ เพิ่มชื่อ</button></div>
           <div class="list vs-other-list" id="vsOthers"></div></div></div>
+      <div class="field full"><span class="lbl-t" id="vsVisitL">เชื่อมโยงรายการเยี่ยม</span><p class="small muted vs-hint">ผูกบันทึกการเยี่ยมของผู้ป่วยแต่ละคนใน one page นี้ · เจ้าหน้าที่/ผู้ดูแลกดจากหน้าสรุปไปดูว่าเยี่ยมแล้วทำอะไร ติดตามอะไร (ประชาชนไม่เห็นส่วนนี้)</p>
+        <div class="list vs-other-list" id="vsVisits" aria-labelledby="vsVisitL"></div>
+        <div><button type="button" class="btn btn-o btn-sm" id="vsVisitBtn" aria-expanded="false" aria-controls="vsVisitPick">+ เชื่อมโยงรายการเยี่ยม</button></div>
+        <div class="vs-visit-pick" id="vsVisitPick" hidden><input id="vsVisitQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อผู้ป่วย" aria-label="ค้นหาชื่อผู้ป่วย"><div class="list" id="vsVisitRes"></div></div></div>
       <div class="field full"><label for="vsImage">ภาพสรุป (A4) <span class="req">*</span></label><input id="vsImage" class="input" type="file" accept="image/*" multiple><span class="small muted" id="vsImageNote">${HINT_IMG}</span><div class="img-list" id="vsImagePreview" hidden></div></div>
       <div class="field full"><label for="vsBody">รายละเอียด (ถ้ามี)</label><textarea id="vsBody" rows="4" maxlength="5000"></textarea></div>
       <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="vsSubmit">เผยแพร่สรุปผลงาน</button><button class="btn btn-o btn-sm" type="button" id="vsCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="vsMsg" aria-live="polite"></span></div>
@@ -113,7 +145,7 @@ export async function mountSummaries(slot, unit) {
   if (!S || !slot.contains($('#vsForm'))) {
     document.querySelectorAll('[data-sum-slot]').forEach((s) => { if (s !== slot) s.innerHTML = ''; });   // id ในหน้าต้องไม่ซ้ำ
     slot.innerHTML = FORM;
-    S = { unit, list: [], editing: null, people: null, picked: new Set(), others: [], img: imageList($('#vsImage'), $('#vsImagePreview'), $('#vsImageNote'), { max: MAX_IMGS, hint: HINT_IMG }) };
+    S = { unit, list: [], editing: null, people: null, picked: new Set(), others: [], links: new Map(), linksOrig: new Set(), pts: null, openPt: null, img: imageList($('#vsImage'), $('#vsImagePreview'), $('#vsImageNote'), { max: MAX_IMGS, hint: HINT_IMG }) };
     const years = await loadYears();
     $('#vsYear').innerHTML = [...new Set([...years, CUR_FY])].sort((a, b) => b - a).map((y) => `<option value="${y}">ปีงบประมาณ ${y}</option>`).join('');
     $('#vsUnit').innerHTML = units.map((u) => `<option value="${u.id}">รพ.สต.${esc(u.name)}</option>`).join('');
@@ -123,6 +155,15 @@ export async function mountSummaries(slot, unit) {
     $('#vsDate').addEventListener('change', onDate);
     $('#vsPeopleQ').addEventListener('input', renderPeople);
     $('#vsOAdd').addEventListener('click', addOther);
+    $('#vsVisitBtn').addEventListener('click', toggleVisitPick);
+    $('#vsVisitQ').addEventListener('input', renderVisitPick);
+    $('#vsVisitRes').addEventListener('click', (e) => { const b = e.target.closest('[data-vpt]'); if (b) openPatientVisits(b.dataset.vpt); });
+    $('#vsVisitRes').addEventListener('change', (e) => {
+      const id = e.target.dataset?.vv; if (!id) return;
+      if (e.target.checked) S.links.set(id, JSON.parse(e.target.dataset.row)); else S.links.delete(id);
+      renderLinks();
+    });
+    $('#vsVisits').addEventListener('click', (e) => { const b = e.target.closest('[data-rm-link]'); if (b) { S.links.delete(b.dataset.rmLink); renderLinks(); renderVisitPick(); } });
     ['#vsOFirst', '#vsOLast', '#vsOPos'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOther(); } }));
     $('#vsOthers').addEventListener('click', (e) => { const b = e.target.closest('[data-rm-other]'); if (b) { S.others.splice(+b.dataset.rmOther, 1); renderOthers(); } });
     $('#vsPeople').addEventListener('click', (e) => {   // ค้นหาไม่พบ → กรอกชื่อนั้นเป็นชื่อใหม่
@@ -152,6 +193,8 @@ function reset() {
   $('#vsDate').value = todayIso(); onDate();
   S.picked = new Set(auth.profile ? [auth.profile.id] : []); renderPeople();   // ค่าเริ่มต้น = ตัวเองร่วมลง
   S.others = []; renderOthers();
+  S.links = new Map(); S.linksOrig = new Set(); S.openPt = null; renderLinks();
+  $('#vsVisitPick').hidden = true; $('#vsVisitBtn').setAttribute('aria-expanded', 'false'); $('#vsVisitQ').value = '';
   $('#vsMsg').textContent = '';
   $('#vsFormTitle').textContent = 'เพิ่มสรุปผลงานเยี่ยมบ้าน one page summary'; $('#vsSubmit').textContent = 'เผยแพร่สรุปผลงาน'; $('#vsCancel').hidden = true;
 }
@@ -193,6 +236,55 @@ function renderOthers() {
   $('#vsOthers').innerHTML = S.others.map((n, i) => `<div class="li"><span>${esc(n)}</span><button type="button" class="btn btn-no btn-sm" data-rm-other="${i}" aria-label="ลบ ${esc(n)}">ลบ</button></div>`).join('');
   peopleCount();
 }
+/* ---------- เชื่อมโยงรายการเยี่ยม: ค้นหาชื่อผู้ป่วย → เลือกบันทึกเยี่ยม (วันที่) ---------- */
+async function toggleVisitPick() {
+  const box = $('#vsVisitPick'), open = box.hidden;
+  box.hidden = !open; $('#vsVisitBtn').setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  if (!S.pts) {
+    $('#vsVisitRes').innerHTML = '<div class="skeleton"></div>';
+    const { data, error } = await sb.from('patients').select('id,unit_id,first_name,last_name').order('first_name');
+    if (error) { $('#vsVisitRes').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+    S.pts = data;
+    [...new Set(data.map((p) => p.unit_id))].forEach((u) => audit(u));   // เห็นรายชื่อผู้ป่วย = บันทึกการเข้าถึง
+  }
+  renderVisitPick(); $('#vsVisitQ').focus();
+}
+function renderVisitPick() {
+  if (!S.pts || $('#vsVisitPick').hidden) return;
+  const q = $('#vsVisitQ').value.trim().toLowerCase();
+  const list = S.pts.filter((p) => !q || `${p.first_name} ${p.last_name}`.toLowerCase().includes(q)).slice(0, 30);
+  $('#vsVisitRes').innerHTML = list.map((p) => {
+    const open = S.openPt?.id === p.id;
+    return `<button type="button" class="li-btn${open ? ' sel' : ''}" data-vpt="${esc(p.id)}" aria-expanded="${open}"><span class="l"><b>${esc(p.first_name)} ${esc(p.last_name)}</b>`
+      + `${auth.profile?.role === 'admin' ? `<span class="small muted">รพ.สต.${esc(unitName(p.unit_id))}</span>` : ''}</span><span aria-hidden="true">${open ? '▾' : '›'}</span></button>`
+      + (open ? `<div class="vs-visit-days">${S.openPt.visits.length ? S.openPt.visits.map((v) => {
+        const row = esc(JSON.stringify({ id: v.id, visit_date: v.visit_date, unit_id: v.unit_id, patient_id: p.id, name: `${p.first_name} ${p.last_name}` }));
+        return `<label class="crit-opt"><input type="checkbox" data-vv="${esc(v.id)}" data-row="${row}"${S.links.has(v.id) ? ' checked' : ''}><span><b>เยี่ยมวันที่ ${esc(thaiDate(v.visit_date))}</b>${v.assessment || v.subjective ? ` <span class="muted">${esc((v.assessment || v.subjective).slice(0, 60))}</span>` : ''}</span></label>`;
+      }).join('') : '<p class="small muted">ยังไม่มีบันทึกการเยี่ยมของผู้ป่วยคนนี้</p>'}</div>` : '');
+  }).join('') || `<p class="empty">${S.pts.length ? 'ไม่พบชื่อผู้ป่วยที่ค้นหา' : 'ยังไม่มีผู้ป่วยในรายชื่อเยี่ยมบ้าน'}</p>`;
+}
+async function openPatientVisits(pid) {
+  if (S.openPt?.id === pid) { S.openPt = null; renderVisitPick(); return; }
+  const p = S.pts.find((x) => x.id === pid); if (!p) return;
+  audit(p.unit_id, p.id);
+  const { data } = await sb.from('visits').select('id,visit_date,unit_id,subjective,assessment').eq('patient_id', pid).order('visit_date', { ascending: false });
+  S.openPt = { id: pid, visits: data || [] };
+  renderVisitPick();
+}
+function renderLinks() {
+  const rows = [...S.links.values()].sort((a, b) => String(b.visit_date).localeCompare(String(a.visit_date)));
+  $('#vsVisits').innerHTML = rows.map((r) => `<div class="li"><span><b>${esc(r.name)}</b> <span class="small muted">· เยี่ยมวันที่ ${esc(thaiDate(r.visit_date))}</span></span>`
+    + `<button type="button" class="btn btn-no btn-sm" data-rm-link="${esc(r.id)}" aria-label="ยกเลิกเชื่อมโยง ${esc(r.name)}">ลบ</button></div>`).join('');
+  $('#vsVisitBtn').textContent = rows.length ? `+ เชื่อมโยงเพิ่ม (ตอนนี้ ${rows.length} รายการ)` : '+ เชื่อมโยงรายการเยี่ยม';
+}
+/** หลังบันทึกสรุป: เพิ่ม/ลบลิงก์ให้ตรงกับที่เลือก */
+async function syncLinks(summaryId) {
+  const add = [...S.links.keys()].filter((id) => !S.linksOrig.has(id)), del = [...S.linksOrig].filter((id) => !S.links.has(id));
+  if (add.length) { const { error } = await sb.from('summary_visits').insert(add.map((visit_id) => ({ summary_id: summaryId, visit_id }))); if (error) throw error; }
+  if (del.length) { const { error } = await sb.from('summary_visits').delete().eq('summary_id', summaryId).in('visit_id', del); if (error) throw error; }
+}
+
 function peopleCount() {
   const names = [...(S.people || []).filter((p) => S.picked.has(p.id)).map((p) => p.full_name), ...(S.others || [])];
   $('#vsPeopleN').textContent = names.length ? `ร่วมลง ${names.length} คน: ${names.join(', ')}` : '';
@@ -200,6 +292,7 @@ function peopleCount() {
 
 async function load() {
   $('#vsList').innerHTML = '<div class="skeleton"></div>';
+  S.linkCount = new Map();
   const order = (q) => q.order('fiscal_year', { ascending: false }).order('summary_date', { ascending: false }).order('created_at', { ascending: false });
   const base = sb.from('visit_summaries').select(COLS);
   const [a, mine] = await Promise.all([   // หน่วยที่ดูอยู่ + ที่ตัวเองเพิ่มให้หน่วยอื่น
@@ -209,8 +302,12 @@ async function load() {
   if (a.error) { $('#vsList').innerHTML = `<p class="empty">${esc(errText(a.error))}</p>`; return; }
   const seen = new Set(), data = [...a.data, ...(mine.data || [])].filter((x) => !seen.has(x.id) && seen.add(x.id));
   S.list = data;
+  if (data.length) {   // จำนวนรายการเยี่ยมที่เชื่อมโยง (เห็นเฉพาะที่มีสิทธิ์)
+    const { data: ls } = await sb.from('summary_visits').select('summary_id').in('summary_id', data.map((x) => x.id));
+    (ls || []).forEach((l) => S.linkCount.set(l.summary_id, (S.linkCount.get(l.summary_id) || 0) + 1));
+  }
   $('#vsList').innerHTML = data.length ? data.map((s) => `<div class="da-poster"><img src="${esc(publicImageUrl(s.image_path))}" alt="">`
-    + `<div class="l"><b>${esc(s.title)}</b><span class="small muted">วันที่ ${esc(dateOf(s))} · รพ.สต.${esc(unitName(s.unit_id))} · ปีงบประมาณ ${s.fiscal_year} · ${imgsOf(s).length} ภาพ${s.file_path ? ' · มี PDF' : ''}</span>`
+    + `<div class="l"><b>${esc(s.title)}</b><span class="small muted">วันที่ ${esc(dateOf(s))} · รพ.สต.${esc(unitName(s.unit_id))} · ปีงบประมาณ ${s.fiscal_year} · ${imgsOf(s).length} ภาพ${s.file_path ? ' · มี PDF' : ''}${S.linkCount.get(s.id) ? ` · เชื่อมโยง ${S.linkCount.get(s.id)} รายการเยี่ยม` : ''}</span>`
     + (peopleOf(s) ? `<span class="small muted">ผู้ร่วมลง: ${esc(peopleOf(s))}</span>` : '') + '</div>'
     + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/summary/${s.id}">ดู</a><button type="button" class="btn btn-o btn-sm" data-edit="${s.id}">แก้ไข</button><button type="button" class="btn btn-no btn-sm" data-del="${s.id}">ลบ</button></div></div>`).join('')
     : '<p class="empty">ยังไม่มีสรุปผลงาน · เพิ่มได้จากฟอร์มด้านบน</p>';
@@ -225,6 +322,13 @@ async function onList(e) {
     $('#vsDate').value = s.summary_date || String(s.created_at).slice(0, 10); onDate(); $('#vsYear').value = String(s.fiscal_year);
     S.picked = new Set(s.participant_ids || []); $('#vsPeopleQ').value = ''; renderPeople();
     S.others = [...(s.participant_others || [])]; renderOthers();
+    S.links = new Map(); S.linksOrig = new Set(); renderLinks();
+    sb.from('summary_visits').select('visit_id').eq('summary_id', s.id).then(async ({ data: ls }) => {
+      const rows = await visitRows((ls || []).map((l) => l.visit_id));
+      if (S.editing?.id !== s.id) return;
+      rows.forEach((r) => audit(r.unit_id, r.patient_id));
+      S.links = new Map(rows.map((r) => [r.id, r])); S.linksOrig = new Set(S.links.keys()); renderLinks();
+    });
     S.img.set(imgsOf(s));
     $('#vsFormTitle').textContent = 'แก้ไขสรุปผลงาน'; $('#vsSubmit').textContent = 'บันทึกการแก้ไข'; $('#vsCancel').hidden = false;
     $('#vsForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -263,8 +367,10 @@ async function save(e) {
     }
     const row = { unit_id: unitId, fiscal_year: +$('#vsYear').value, title, body: $('#vsBody').value.trim(), image_path: paths[0], gallery: paths.slice(1),
       summary_date: $('#vsDate').value, participant_ids: [...S.picked], participant_others: [...S.others], updated_at: new Date().toISOString() };
-    const { error } = old ? await sb.from('visit_summaries').update(row).eq('id', old.id) : await sb.from('visit_summaries').insert(row);
+    const { data: saved, error } = old ? await sb.from('visit_summaries').update(row).eq('id', old.id).select('id') : await sb.from('visit_summaries').insert(row).select('id');
     if (error) throw error;
+    const sid = saved?.[0]?.id ?? old?.id;
+    if (sid) await syncLinks(sid).catch((err) => toast('บันทึกสรุปแล้ว แต่เชื่อมโยงรายการเยี่ยมไม่สำเร็จ: ' + errText(err), 'err'));
     if (old) { const gone = imgsOf(old).filter((p) => !paths.includes(p)); if (gone.length) removeFiles('public-images', gone); }   // ภาพที่กด × ออก
     busy(btn, false);
     toast(old ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่สรุปผลงานแล้ว — แสดงที่หน้าหลัก › ผลการดำเนินงาน');

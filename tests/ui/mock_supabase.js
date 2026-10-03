@@ -38,6 +38,7 @@ function visible(t, r) {
     case 'messages': return convOk(db.conversations.find((c) => c.id === r.conversation_id));
     case 'patients': case 'visits': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'item_status': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
+    case 'summary_visits': { const v = db.visits.find((x) => x.id === r.visit_id); return !!v && visible('visits', v); }
     case 'ai_matches': return isAdmin() || (ME && r.user_id === ME.id) || (isStaff() && r.unit_id === ME.unit_id);
     case 'feedback': return isAdmin() || (ME && r.author_id === ME.id);
     case 'staff_requests': return isAdmin() || (ME && r.user_id === ME.id);

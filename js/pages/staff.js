@@ -34,7 +34,7 @@ export function showStaff(tab, sub) {
   setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindAch(); bindFeedback(); }
-  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: () => { initVisits(); mountSummaries($('#staffSumSlot'), auth.profile.unit_id); }, messages: () => showMessages(sub), docs: initStaffDocs, feedback: loadFeedback })[tab]();
+  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: () => { initVisits(sub); mountSummaries($('#staffSumSlot'), auth.profile.unit_id); }, messages: () => showMessages(sub), docs: initStaffDocs, feedback: loadFeedback })[tab]();
   refreshBadges();
 }
 
