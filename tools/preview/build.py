@@ -92,7 +92,6 @@ def ai_samples(mock):
     tmp = OUT / "_aifx"
     try:
         shutil.copytree(ROOT / "tests/ai_news/fixtures", tmp)
-        (tmp / "gemini-image.json").write_text('{"candidates":[]}', encoding="utf-8")   # ใช้อีโมจิแทนภาพวาด AI
         env = {**os.environ, "AI_NEWS_BRAND": rename("งานเภสัชกรรมปฐมภูมิ · โรงพยาบาลควนกาหลง")}
         if not env.get("NODE_PATH"):
             env["NODE_PATH"] = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True).stdout.strip()

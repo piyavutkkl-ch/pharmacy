@@ -1,0 +1,13 @@
+{
+ "candidates": [
+  {
+   "content": {
+    "parts": [
+     {
+      "text": "{\"topic\": \"การใช้ยาสแตตินแบบทาเพื่อช่วยสมานแผล\", \"article_type\": \"ทบทวนวรรณกรรม\", \"facts\": [{\"claim\": \"สแตตินแบบทาอาจช่วยให้แผลหายเร็วขึ้นในบางการศึกษา\", \"quote\": \"topical statins may accelerate wound healing\", \"page\": 3}, {\"claim\": \"การศึกษาส่วนใหญ่มีขนาดเล็ก\", \"quote\": \"most studies were small\", \"page\": 7}], \"drugs\": [{\"name\": \"simvastatin\", \"dose\": null, \"use\": \"ทาแผล\", \"page\": 4}], \"evidence_strength\": \"ปานกลาง-ต่ำ\", \"limitations\": [\"การศึกษาขนาดเล็ก\"], \"conclusion\": \"ต้องการการศึกษาเพิ่มเติม\"}"
+     }
+    ]
+   }
+  }
+ ]
+}

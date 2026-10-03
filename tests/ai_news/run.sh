@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # ทดสอบช่อง AI (tools/ai_news/run.mjs) แบบไม่ใช้เน็ต/คีย์จริง: หน้าเว็บ CCPE + คำตอบ Gemini จำลองใน fixtures/
-#   ตรวจ: เลือกบทความที่ยังไม่เคยทำ · อ่านข้อมูลบทความ · ประกอบเนื้อข่าว + อ้างอิง · ภาพ AI 1 ภาพ 3 ส่วน (คำสั่งของเจ้าของเว็บ)
-#         · AI วาดไม่ได้ → ภาพแม่แบบ 3 แบบ (JPEG ขนาด A4, ≤ 1 MB)
+#   ตรวจ: เลือกบทความที่ยังไม่เคยทำ · อ่านข้อมูลบทความ · AI วิเคราะห์ PDF → เขียนข่าว → ตรวจทานซ้ำจนไม่พบจุดผิด
+#         · ประกอบเนื้อข่าว + อ้างอิง · ภาพแม่แบบ 3 แบบ (ไม่ใช้ AI วาดภาพ · JPEG ขนาด A4, ≤ 1 MB)
+#         · ตรวจทานครบรอบแล้วยังพบจุดผิด → ไม่เผยแพร่อัตโนมัติ (รอผู้ดูแลตรวจ)
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 out=$(mktemp -d); trap 'rm -rf "$out"' EXIT
 node "$root/tools/ai_news/run.mjs" --offline "$root/tests/ai_news/fixtures" "$out" >/dev/null
-# รอบที่ 2: ไม่มีผู้วาดภาพ AI (ไม่มีคำตอบภาพจำลอง) → ต้องได้ภาพแม่แบบ 3 ภาพ
-fx2="$out/fx-noart"; mkdir -p "$fx2" "$out/noart"; cp "$root/tests/ai_news/fixtures/"* "$fx2/"; rm -f "$fx2/gemini-image.json"
-node "$root/tools/ai_news/run.mjs" --offline "$fx2" "$out/noart" >/dev/null
-python3 - "$out" <<'PY'
+# รอบที่ 2: เปิดเผยแพร่อัตโนมัติ แต่ตรวจทานทุกรอบยังพบจุดผิด → ต้องรอผู้ดูแลตรวจ
+fx2="$out/fx-issues"; mkdir -p "$fx2" "$out/issues"; cp "$root/tests/ai_news/fixtures/"* "$fx2/"
+cp "$fx2/gemini-verify1.json" "$fx2/gemini-verify2.json"; cp "$fx2/gemini-verify1.json" "$fx2/gemini-verify3.json"; echo '{"auto":"on"}' > "$fx2/settings.json"
+node "$root/tools/ai_news/run.mjs" --offline "$fx2" "$out/issues" >/dev/null
+# รอบที่ 3: เปิดเผยแพร่อัตโนมัติ + ตรวจทานผ่าน → เผยแพร่ได้
+fx3="$out/fx-auto"; mkdir -p "$fx3" "$out/auto"; cp "$root/tests/ai_news/fixtures/"* "$fx3/"; echo '{"auto":"on"}' > "$fx3/settings.json"
+node "$root/tools/ai_news/run.mjs" --offline "$fx3" "$out/auto" >/dev/null
+ROOT_DIR="$root" python3 - "$out" <<'PY'
 import json, os, struct, sys
 out = sys.argv[1]; ok = True; n = [0, 0]
 def check(name, cond, info=''):
@@ -27,16 +32,18 @@ check('ai-news: เลือกบทความที่ยังไม่เ�
 check('ai-news: อ้างอิงลิงก์บทความต้นฉบับ + ลิงก์ดาวน์โหลด PDF ต้นฉบับ (ไม่เก็บสำเนา)', r['source_url'].endswith('id=1876') and r['source_url'].startswith('https://ccpe.') and r.get('source_file_url', '').endswith('showfile.php?file=1876') and r['source_file_url'].startswith('https://ccpe.') and 'file_path' not in r)
 check('ai-news: เนื้อข่าวมีย่อหน้า + ข้อควรรู้ + สำหรับบุคลากร + หมายเหตุ AI (ไม่มีคำว่าผ่านการตรวจทาน)', all(x in r['body'] for x in ('สแตติน', '• อย่าบด', 'สำหรับบุคลากรทางการแพทย์:', 'สรุปโดย AI')) and 'ผ่านการตรวจทาน' not in r['body'])
 check('ai-news: ค่าเริ่มต้นรอผู้ดูแลตรวจ + ป้าย AI + หมวดความรู้', r['status'] == 'pending' and r['ai_generated'] is True and r['tag'] == 'ความรู้')
-pr = d['prompt']
-check('ai-news: ภาพ AI 1 ภาพ (ไม่มีแกลเลอรี) วาดโดยผู้วาดที่ใช้ได้', r['image_path'].endswith('-ai.jpg') and r['gallery'] == [] and d['painter'] == 'Gemini', (r['image_path'], r['gallery'], d.get('painter')))
-check('ai-news: คำสั่งวาดภาพ = รูปเดียว 3 ส่วนตามคำสั่งเจ้าของเว็บ + เติมข้อมูลจากบทความ', 'ONLY ONE single image' in pr and 'An informative medical infographic poster titled \'TOPICAL STATIN WOUND HEALING\'' in pr
-      and 'A funny 3-panel comic strip' in pr and 'A cute band-aid character' in pr and 'clinical flowchart and decision matrix' in pr and 'Chronic Wound Assessment' in pr and 'No visual noise.' in pr, pr[:300])
-p = os.path.join(out, 'ai.jpg'); sz = jpeg_size(p) if os.path.exists(p) else None
-check('ai-news: ภาพ AI แปลงเป็น JPEG ไม่เกิน 1 MB', sz and os.path.getsize(p) <= 1_000_000, sz)
-d2 = json.load(open(os.path.join(out, 'noart', 'news.json'))); r2 = d2['row']
-check('ai-news: AI วาดภาพไม่ได้ → ภาพแม่แบบ: ภาพหลัก + แกลเลอรี 2 ภาพ', r2['image_path'].endswith('infographic.jpg') and len(r2['gallery']) == 2 and d2['painter'] == '', (r2['image_path'], d2['painter']))
+ck = d['check']
+check('ai-news: AI วิเคราะห์ PDF ก่อน (ข้อเท็จจริง + ข้อความอ้างอิง + เลขหน้า)', len(d['facts']['facts']) == 2 and all(f.get('quote') and f.get('page') for f in d['facts']['facts']))
+check('ai-news: ตรวจทานเทียบ PDF → แก้จุดผิด (หัวข้อ) แล้วตรวจซ้ำจนไม่พบจุดผิด', r['title'].startswith('ยาสแตตินแบบทา อาจช่วย') and ck == {'rounds': 2, 'fixed': 1, 'left': 0}, (r['title'], ck))
+check('ai-news: ไม่ใช้ AI วาดภาพ → ภาพแม่แบบ 3 ภาพจากข้อมูลที่ตรวจแล้ว (ภาพหลัก + แกลเลอรี 2 ภาพ)', r['image_path'].endswith('infographic.jpg') and len(r['gallery']) == 2 and 'painter' not in d and not os.path.exists(os.path.join(out, 'ai.jpg')), (r['image_path'], r['gallery']))
+d2 = json.load(open(os.path.join(out, 'issues', 'news.json')))
+check('ai-news: ตรวจทานครบ 3 รอบยังพบจุดผิด → ไม่เผยแพร่อัตโนมัติ (รอผู้ดูแลตรวจ)', d2['row']['status'] == 'pending' and d2['check']['rounds'] == 3 and d2['check']['left'] > 0, d2['check'])
+d3 = json.load(open(os.path.join(out, 'auto', 'news.json')))
+check('ai-news: เปิดเผยแพร่อัตโนมัติ + ตรวจทานผ่าน → เผยแพร่ทันที', d3['row']['status'] == 'published' and d3['check']['left'] == 0)
+src = open(os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs')).read()
+check('ai-news: ไม่มีโค้ดเรียก AI วาดภาพ (Gemini image / Cloudflare / Pollinations)', not any(x in src for x in ('pollinations', 'cloudflare', 'responseModalities')))
 for k, want in (('infographic', (1240, 1754)), ('comic', (1754, 1240)), ('clinical', (1240, None))):
-    p = os.path.join(out, 'noart', k + '.jpg'); sz = jpeg_size(p) if os.path.exists(p) else None
+    p = os.path.join(out, k + '.jpg'); sz = jpeg_size(p) if os.path.exists(p) else None
     good = sz and sz[0] == want[0] and (sz[1] == want[1] if want[1] else 1240 <= sz[1] <= 1754)
     check(f'ai-news: ภาพแม่แบบ {k} กว้าง {want[0]} สัดส่วนไม่เกิน A4 ไม่เกิน 1 MB', good and os.path.getsize(p) <= 1_000_000, sz)
 print(f'ai-news: {n[0]} passed, {n[1]} failed')
