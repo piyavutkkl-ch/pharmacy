@@ -66,6 +66,7 @@ js/pages/me.js        ประชาชน (#/me): ข้อมูลส่ว�
 js/pages/staff-request.js  ขอสิทธิ์เจ้าหน้าที่: ประชาชนส่งคำขอ (#/me/request) → ผู้ดูแลอนุมัติใน ตั้งค่า › บัญชีเจ้าหน้าที่ (approve_staff_request เพิ่ม staff_roster)
 js/pages/docs.js      เอกสารดาวน์โหลด: ผู้ดูแลอัปโหลด/แก้/แทนที่ไฟล์/ลบ, เจ้าหน้าที่ดาวน์โหลด (bucket documents)
 js/pages/staff.js     เจ้าหน้าที่: โครงหน้า/เมนู (ข่าว › ข้อความ › เยี่ยมบ้าน › ผลงาน › มาตรฐาน › เอกสาร › ข้อเสนอแนะ) + ข่าว (ส่งตรวจ) + ผลงาน + ข้อเสนอแนะ + ตัวเลขแจ้งเตือน
+                      ผลงาน: AI แนะนำข้อมาตรฐานจากรายละเอียด (ai_match_start/poll/link · 37_ai_match.sql: ฐานข้อมูลเรียก Gemini ผ่าน pg_net · คีย์ใน Supabase Vault ที่ ci-deploy ส่งจาก GitHub Secrets ด้วย ops.set_ai_key · รุ่นจาก site_texts ai_match_model) · สถานะ AI ในรายการผลงาน
 js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence) + ผลงานที่ผูกข้อนั้น (achievements.item_ids · 36_achievement_items.sql · ไม่ต้องส่งตรวจ)
 js/pages/delivery.js  บริการจัดส่งยาถึงบ้าน (#/delivery): โปสเตอร์/ข้อความ/สถิติ + ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน
 js/pages/rider.js     Health Rider: ผลงานแสดงในช่องบริการจัดส่งยาถึงบ้าน (#hrBlock · #/rider เลื่อนไปที่นั่น · ไม่มีปุ่มเมนูแยก) + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot) — ผู้ดูแลกรอกทุกหน่วย (เมนูเจ้าหน้าที่ไม่มี Health Rider แล้ว)

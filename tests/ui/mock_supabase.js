@@ -12,7 +12,7 @@ window.__calls = [];
 window.__channels = [];
 const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
-const NUMERIC_ID = new Set(['unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
+const NUMERIC_ID = new Set(['ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
 /* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
 db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
@@ -38,6 +38,7 @@ function visible(t, r) {
     case 'messages': return convOk(db.conversations.find((c) => c.id === r.conversation_id));
     case 'patients': case 'visits': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'item_status': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
+    case 'ai_matches': return isAdmin() || (ME && r.user_id === ME.id) || (isStaff() && r.unit_id === ME.unit_id);
     case 'feedback': return isAdmin() || (ME && r.author_id === ME.id);
     case 'staff_requests': return isAdmin() || (ME && r.user_id === ME.id);
     case 'staff_roster': return isAdmin() || (ME && r.email === ME.email);
@@ -382,6 +383,35 @@ function rpc(name, a = {}) {
         && (!q || `${r.patient_name} ${r.actor_name} ${r.actor_email} ${r.detail}`.toLowerCase().includes(q)))
         .sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : y.id - x.id));
       return { data: out.slice(a.p_offset || 0, (a.p_offset || 0) + (a.p_limit || 200)).map((r) => ({ ...r, total: out.length })), error: null };
+    }
+    /* แทน ai_match_* (37_ai_match.sql): ตอบ "รอ" 1 รอบก่อนได้ผล · จับคู่ข้อเกณฑ์ด้วยตัวอักษร 3 ตัวที่ซ้ำกัน (ของจริงใช้ Gemini) */
+    case 'ai_match_start': {
+      if (!isStaff() && !isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const t = String(a.p_text || '').trim();
+      if (t.length < 10) return err('กรุณาพิมพ์รายละเอียดผลงานก่อน (อย่างน้อย 10 ตัวอักษร)', 'P0001');
+      const ach = a.p_achievement && db.achievements.find((x) => x.id === a.p_achievement);
+      const L = (db.ai_matches ||= []), row = { id: newId('ai_matches'), user_id: ME.id, unit_id: ach ? ach.unit_id : ME.unit_id, achievement_id: a.p_achievement || null,
+        fiscal_year: fiscalYear(now()), input: t, status: 'pending', matches: [], note: null, created_at: now(), polls: 0 };
+      L.push(row); return { data: row.id, error: null };
+    }
+    case 'ai_match_poll': {
+      const r = (db.ai_matches || []).find((x) => x.id === a.p_id);
+      if (!r || !(isAdmin() || r.user_id === ME?.id || (isStaff() && r.unit_id === ME.unit_id))) return err('ไม่พบรายการนี้', 'P0001');
+      if (r.status === 'pending' && ++r.polls >= 2) {
+        const g = (x) => { const c = String(x).replace(/\s+/g, ''), o = new Set(); for (let i = 0; i + 3 <= c.length; i++) o.add(c.slice(i, i + 3)); return o; };
+        const gi = g(r.input);
+        r.matches = db.criteria_items.filter((i) => i.fiscal_year === r.fiscal_year)
+          .map((i) => { const gb = g(i.body); let n = 0; gb.forEach((x) => { if (gi.has(x)) n++; }); return { i, sc: gb.size ? n / gb.size : 0 }; })
+          .filter((x) => x.sc >= 0.2).sort((x, y) => y.sc - x.sc).slice(0, 3)
+          .map(({ i }) => ({ item_id: i.id, item_no: i.item_no, reason: `ผลงานสอดคล้องกับ "${i.body.slice(0, 40)}"` }));
+        r.status = 'done'; r.done_at = now();
+      }
+      return { data: { id: r.id, status: r.status, matches: r.matches, note: r.note, achievement_id: r.achievement_id }, error: null };
+    }
+    case 'ai_match_link': {
+      const r = (db.ai_matches || []).find((x) => x.id === a.p_id && x.user_id === ME?.id), ach = db.achievements.find((x) => x.id === a.p_achievement);
+      if (!r || !ach) return err('ไม่พบรายการนี้', 'P0001');
+      Object.assign(r, { achievement_id: ach.id, unit_id: ach.unit_id }); return { data: null, error: null };
     }
     default: return err(`function ${name} not found in mock`, 'PGRST202');
   }

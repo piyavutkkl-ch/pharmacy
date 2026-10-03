@@ -99,6 +99,16 @@ jobs:
         run: |
           export SUPABASE_URL=$(grep -oE "https://[a-z0-9]+\.supabase\.co" js/config.js | head -1)
           bash tools/db/migrate.sh
+      - name: ส่งคีย์ AI เข้า Supabase Vault (ช่อง AI แนะนำข้อมาตรฐาน · ไม่แสดงค่าใน log)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "${GEMINI_API_KEY:-}" ]; then echo "ยังไม่ได้ตั้ง GEMINI_API_KEY — ข้าม"; exit 0; fi
+          if psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -v key="$GEMINI_API_KEY" >/dev/null 2>&1 <<'SQL'
+          select ops.set_ai_key(:'key');
+          SQL
+          then echo "ตั้งคีย์ AI แล้ว"; else echo "::warning::ตั้งคีย์ AI ใน Vault ไม่ได้ — ช่อง AI แนะนำข้อมาตรฐานจะยังใช้ไม่ได้"; fi
 
   deploy:
     needs: migrate

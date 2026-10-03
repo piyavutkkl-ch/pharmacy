@@ -30,3 +30,20 @@ grant execute on function storage.foldername(text) to anon, authenticated;
 
 create publication supabase_realtime;
 alter default privileges in schema public revoke execute on functions from public;
+
+-- Vault (เก็บค่าลับเข้ารหัส) + pg_net (เรียก HTTP จากฐานข้อมูลแบบไม่รอผล) — จำลองเท่าที่ 37_ai_match.sql ใช้
+create schema vault;
+create table vault.secrets (id uuid primary key default gen_random_uuid(), name text unique, secret text, description text);
+create view vault.decrypted_secrets as select id, name, secret as decrypted_secret from vault.secrets;
+create function vault.create_secret(new_secret text, new_name text default null, new_description text default '') returns uuid language sql as
+$$ insert into vault.secrets(name, secret, description) values (new_name, new_secret, new_description) returning id $$;
+create function vault.update_secret(secret_id uuid, new_secret text default null) returns void language sql as
+$$ update vault.secrets set secret = coalesce(new_secret, secret) where id = secret_id $$;
+create schema net;
+grant usage on schema net to anon, authenticated;
+create table net.http_request_queue (id bigserial primary key, method text, url text, headers jsonb, body bytea, timeout_milliseconds int);
+create table net._http_response (id bigint, status_code int, content_type text, headers jsonb, content text, timed_out bool, error_msg text, created timestamptz not null default now());
+create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 5000) returns bigint
+language sql security definer as
+$$ insert into net.http_request_queue(method, url, headers, body, timeout_milliseconds) values ('POST', url, headers, convert_to(body::text, 'utf8'), timeout_milliseconds) returning id $$;
+grant execute on function net.http_post(text, jsonb, jsonb, jsonb, int) to anon, authenticated;

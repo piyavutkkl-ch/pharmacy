@@ -145,10 +145,85 @@ async function loadAch() {
   ]);
   if (error) { $('#saList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   unitAch = data;
-  $('#saList').innerHTML = data.length ? data.map((a) => `<div class="newsrow"><div class="thumb2">${a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy">` : ''}</div>`
+  aiOf = new Map();
+  if (data.length) {
+    const { data: ms } = await sb.from('ai_matches').select('id,achievement_id,status,matches,note,created_at').in('achievement_id', data.map((a) => a.id)).order('created_at', { ascending: false });
+    (ms || []).forEach((m) => { if (!aiOf.has(m.achievement_id)) aiOf.set(m.achievement_id, m); });
+  }
+  renderAchList();
+}
+function renderAchList() {
+  $('#saList').innerHTML = unitAch.length ? unitAch.map((a) => `<div class="newsrow"><div class="thumb2">${a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy">` : ''}</div>`
     + `<div class="l"><b>${esc(a.title)}</b><span class="small muted">${esc(thaiDate(a.created_at))}${critLabel(a.item_ids) ? ' · มาตรฐานข้อ ' + esc(critLabel(a.item_ids)) : ''}</span></div>`
+    + aiStatus(a)
     + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-edit="${a.id}">แก้ไข</button><button type="button" class="btn btn-no btn-sm" data-del="${a.id}">ลบ</button></div></div>`).join('')
     : '<p class="empty">ยังไม่มีผลงาน</p>';
+  clearTimeout(aiTimer);
+  if ([...aiOf.values()].some((m) => m.status === 'pending')) aiTimer = setTimeout(pollAchAi, 3000);
+}
+
+/* ---- AI แนะนำข้อมาตรฐาน (37_ai_match.sql · Gemini ผ่านฐานข้อมูล ไม่มีคีย์ในหน้าเว็บ): เริ่ม → รอผลสักครู่ ---- */
+let aiOf = new Map(), aiTimer = 0, formAi = null;   // aiOf: ผลงาน → ผลวิเคราะห์ล่าสุด · formAi: ผลในฟอร์ม { id, text } → ผูกกับผลงานตอนบันทึก
+const SPIN = '<span class="spin" aria-hidden="true"></span>';
+const achText = (title, body) => [String(title || '').trim(), String(body || '').trim()].filter(Boolean).join('\n');
+const aiNos = (m) => m.matches.map((x) => x.item_no).join(', ');
+function aiStatus(a) {
+  const m = aiOf.get(a.id), run = (t) => `<button type="button" class="btn btn-o btn-sm" data-ai-run="${a.id}">${t}</button>`;
+  let h;
+  if (!m) h = `<span class="chip c-off">AI ยังไม่วิเคราะห์</span>${run('ให้ AI วิเคราะห์')}`;
+  else if (m.status === 'pending') h = `<span class="chip c-rev">${SPIN}AI กำลังวิเคราะห์…</span>`;
+  else if (m.status === 'error') h = `<span class="chip c-fix" title="${esc(m.note || '')}">AI วิเคราะห์ไม่สำเร็จ</span>${run('ลองใหม่')}`;
+  else if (!m.matches.length) h = '<span class="chip c-off">AI: ไม่พบข้อที่ตรงชัดเจน</span>';
+  else {
+    const missing = m.matches.filter((x) => !(a.item_ids || []).includes(x.item_id));
+    h = `<span class="chip c-ok" title="${esc(m.matches.map((x) => `ข้อ ${x.item_no}: ${x.reason}`).join('\n'))}">AI: ตรงกับข้อ ${esc(aiNos(m))}</span>`
+      + (missing.length ? `<button type="button" class="btn btn-p btn-sm" data-ai-apply="${a.id}">แนบตามที่ AI แนะนำ</button>` : '<span class="small muted">แนบครบแล้ว</span>');
+  }
+  return `<div class="ai-st" aria-live="polite">${h}</div>`;
+}
+async function pollAi(id) {
+  const { data, error } = await sb.rpc('ai_match_poll', { p_id: id });
+  if (error) throw error;
+  return data;
+}
+async function pollAchAi() {
+  if ($('[data-staff-view="achievements"]')?.hidden) return;   // ออกจากหน้าแล้ว — หยุดรอ
+  for (const [aid, m] of aiOf) if (m.status === 'pending') { try { aiOf.set(aid, { ...m, ...await pollAi(m.id) }); } catch { /* ลองรอบหน้า */ } }
+  renderAchList();
+}
+async function runFormAi() {
+  const body = $('#saBody').value.trim(), out = $('#saAiOut'), btn = $('#saAiBtn');
+  if (body.length < 10) { out.innerHTML = '<p class="small ai-err">กรุณาพิมพ์ "รายละเอียด" ผลงานด้านบนก่อน (อย่างน้อย 10 ตัวอักษร) แล้วจึงกดให้ AI วิเคราะห์</p>'; $('#saBody').focus(); return; }
+  const text = achText($('#saTitle').value, body);
+  busy(btn, true, 'AI กำลังวิเคราะห์…');
+  out.innerHTML = `<p class="small muted">${SPIN}AI กำลังเทียบกับหัวข้อมาตรฐานทุกข้อ กรุณารอสักครู่ (ประมาณ 10–30 วินาที)</p>`;
+  try {
+    const { data: id, error } = await sb.rpc('ai_match_start', { p_text: text });
+    if (error) throw error;
+    formAi = { id, text };
+    let r = await pollAi(id);
+    for (let i = 0; r.status === 'pending' && i < 48; i++) { await new Promise((ok) => setTimeout(ok, 2500)); r = await pollAi(id); }
+    if (formAi?.id === id) showFormAi(r);
+  } catch (err) { out.innerHTML = `<p class="small ai-err">${esc(errText(err))}</p>`; }
+  finally { busy(btn, false); }
+}
+function showFormAi(r) {
+  const out = $('#saAiOut');
+  if (r.status === 'pending') { out.innerHTML = '<p class="small muted">AI ยังวิเคราะห์ไม่เสร็จ · บันทึกผลงานได้เลย ผลจะขึ้นในรายการผลงานด้านล่าง</p>'; return; }
+  if (r.status === 'error') { out.innerHTML = `<p class="small ai-err">${esc(r.note || 'AI วิเคราะห์ไม่สำเร็จ')}</p>`; return; }
+  if (!r.matches.length) { out.innerHTML = '<p class="small">AI ไม่พบข้อมาตรฐานที่ตรงกับรายละเอียดนี้ชัดเจน · เลือกเองได้จากรายการด้านล่าง</p>'; return; }
+  r.matches.forEach((m) => critPicked.add(m.item_id));
+  $('#saCritQ').value = ''; renderCritPick();
+  out.innerHTML = `<p class="small"><b>AI แนะนำ ${r.matches.length} ข้อ — ติ๊กให้แล้วในรายการด้านล่าง</b> ตรวจดู/แก้ได้ก่อนกดบันทึก</p><ul class="ai-list">`
+    + r.matches.map((m) => `<li><b>ข้อ ${esc(m.item_no)}</b> ${esc(m.reason)}</li>`).join('') + '</ul>';
+}
+/** หลังบันทึก: ผูกผลวิเคราะห์ในฟอร์ม หรือให้ AI วิเคราะห์ผลงานนี้ (ถ้าข้อความใหม่/เปลี่ยน) → สถานะขึ้นในรายการ */
+async function aiAfterSave(saved, before) {
+  const text = achText(saved.title, saved.body);
+  try {
+    if (formAi && formAi.text === text) await sb.rpc('ai_match_link', { p_id: formAi.id, p_achievement: saved.id });
+    else if (text.length >= 10 && (!before || text !== achText(before.title, before.body))) await sb.rpc('ai_match_start', { p_text: text, p_achievement: saved.id });
+  } catch { /* AI ไม่พร้อม/ครบโควตา — ผลงานบันทึกแล้ว กด "ให้ AI วิเคราะห์" ในรายการภายหลังได้ */ }
 }
 
 /* ผลงาน ↔ ข้อมาตรฐานปีงบปัจจุบัน (achievements.item_ids) — แนบเป็นหลักฐานของข้อนั้นอัตโนมัติ ไม่ต้องส่งตรวจ */
@@ -183,24 +258,43 @@ function critCount() {
 
 function resetAch() {
   editingAch = null; $('#saForm').reset(); $('#saImageNote').textContent = '';
-  critPicked.clear(); renderCritPick();
+  critPicked.clear(); renderCritPick(); formAi = null; $('#saAiOut').innerHTML = '';
   $('#saFormTitle').textContent = 'เพิ่มผลงาน'; $('#saSubmit').textContent = 'เผยแพร่ผลงาน'; $('#saCancel').hidden = true; $('#saMsg').textContent = '';
 }
 
 function bindAch() {
   $('#saCancel').addEventListener('click', resetAch);
   $('#saCritQ').addEventListener('input', renderCritPick);
+  $('#saAiBtn').addEventListener('click', runFormAi);
   $('#saCrit').addEventListener('change', (e) => {
     const id = +e.target.value; if (!id) return;
     if (e.target.checked) critPicked.add(id); else critPicked.delete(id);
     critCount();
   });
   $('#saList').addEventListener('click', async (e) => {
+    const ar = e.target.closest('[data-ai-run]');
+    if (ar) {
+      const a = unitAch.find((x) => x.id === ar.dataset.aiRun); if (!a) return;
+      busy(ar, true, 'กำลังส่ง…');
+      const { data: id, error } = await sb.rpc('ai_match_start', { p_text: achText(a.title, a.body), p_achievement: a.id });
+      if (error) { busy(ar, false); toast(errText(error), 'err'); return; }
+      aiOf.set(a.id, { id, achievement_id: a.id, status: 'pending', matches: [] }); renderAchList(); return;
+    }
+    const ap = e.target.closest('[data-ai-apply]');
+    if (ap) {
+      const a = unitAch.find((x) => x.id === ap.dataset.aiApply), m = a && aiOf.get(a.id); if (!m) return;
+      busy(ap, true, 'กำลังแนบ…');
+      const ids = [...new Set([...(a.item_ids || []), ...m.matches.map((x) => x.item_id)])];
+      const { error } = await sb.from('achievements').update({ item_ids: ids }).eq('id', a.id);
+      if (error) { busy(ap, false); toast(errText(error), 'err'); return; }
+      a.item_ids = ids; toast(`แนบเป็นหลักฐานมาตรฐานข้อ ${aiNos(m)} แล้ว`); renderAchList(); return;
+    }
     const ed = e.target.closest('[data-edit]');
     if (ed) {
       const a = unitAch.find((x) => x.id === ed.dataset.edit); if (!a) return;
       editingAch = a; $('#saTitle').value = a.title; $('#saBody').value = a.body || '';
       critPicked.clear(); (a.item_ids || []).forEach((id) => critPicked.add(id)); $('#saCritQ').value = ''; renderCritPick();
+      formAi = null; $('#saAiOut').innerHTML = '';
       $('#saImageNote').textContent = a.image_path ? 'มีรูปเดิมอยู่แล้ว · เลือกรูปใหม่เพื่อเปลี่ยน' : '';
       $('#saFormTitle').textContent = 'แก้ไขผลงาน'; $('#saSubmit').textContent = 'บันทึกการแก้ไข'; $('#saCancel').hidden = false;
       $('#saForm').scrollIntoView({ behavior: 'smooth' }); return;
@@ -229,6 +323,7 @@ function bindAch() {
         ? await sb.from('achievements').update(row).eq('id', editingAch.id).select()
         : await sb.from('achievements').insert({ ...row, unit_id: auth.profile.unit_id }).select();
       if (res.error) throw res.error;
+      if (res.data?.[0]) await aiAfterSave(res.data[0], editingAch);
       if (file && editingAch?.image_path) removeFiles('public-images', [editingAch.image_path]);
       const linked = critLabel(row.item_ids);
       toast((editingAch ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่ผลงานแล้ว') + (linked ? ` · แนบเป็นหลักฐานมาตรฐานข้อ ${linked}` : ''));

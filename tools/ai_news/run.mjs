@@ -48,6 +48,7 @@ function supa() {
   return {
     get: (p) => call('/rest/v1/' + p),
     insert: (table, row) => call('/rest/v1/' + table, { method: 'POST', headers: { 'content-type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(row) }),
+    upsert: (table, row) => call('/rest/v1/' + table, { method: 'POST', headers: { 'content-type': 'application/json', Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(row) }),
     upload: (p, buf, type) => call(`/storage/v1/object/public-images/${p}`, { method: 'POST', headers: { 'content-type': type, 'x-upsert': 'true' }, body: buf }),
   };
 }
@@ -253,6 +254,9 @@ async function main() {
 
   const models = await pickModels();
   log('รุ่น AI:', models.text.join(', '));
+  // รุ่น flash ที่ใช้ได้จริงกับคีย์นี้ → ให้ช่อง "AI แนะนำข้อมาตรฐาน" ในฐานข้อมูลใช้ตาม (37_ai_match.sql · ค่าเริ่ม gemini-flash-latest)
+  const fast = models.text.find((n) => !/pro|lite/.test(n));
+  if (fast && !OFFLINE) await db.upsert('site_texts', { key: 'ai_match_model', body: fast }).catch((e) => log('บันทึกรุ่น AI ไม่ได้:', e.message.slice(0, 120)));
   const quick = [...models.text.filter((n) => !/pro/.test(n)), ...models.text.filter((n) => /pro/.test(n))];   // งานเลือกบทความใช้รุ่น flash (เก็บโควตา pro ไว้วิเคราะห์)
   let art = arts[0];
   if (arts.length > 1) {
