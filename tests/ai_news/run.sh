@@ -25,7 +25,7 @@ def jpeg_size(p):
 d = json.load(open(os.path.join(out, 'news.json'))); a, r = d['article'], d['row']
 check('ai-news: เลือกบทความที่ยังไม่เคยทำ (1876) + อ่านชื่อ/ผู้เขียนจากหน้า CCPE', a['id'] == 1876 and a['title'].startswith('ยาทาสแตติน') and '&' in a['title'] and a['authors'] == 'ภก.ทดสอบ ตัวอย่าง', a)
 check('ai-news: อ้างอิงลิงก์บทความต้นฉบับ + ลิงก์ดาวน์โหลด PDF ต้นฉบับ (ไม่เก็บสำเนา)', r['source_url'].endswith('id=1876') and r['source_url'].startswith('https://ccpe.') and r.get('source_file_url', '').endswith('showfile.php?file=1876') and r['source_file_url'].startswith('https://ccpe.') and 'file_path' not in r)
-check('ai-news: เนื้อข่าวมีย่อหน้า + ข้อควรรู้ + สำหรับบุคลากร + หมายเหตุ AI', all(x in r['body'] for x in ('สแตติน', '• อย่าบด', 'สำหรับบุคลากรทางการแพทย์:', 'สรุปโดย AI')))
+check('ai-news: เนื้อข่าวมีย่อหน้า + ข้อควรรู้ + สำหรับบุคลากร + หมายเหตุ AI (ไม่มีคำว่าผ่านการตรวจทาน)', all(x in r['body'] for x in ('สแตติน', '• อย่าบด', 'สำหรับบุคลากรทางการแพทย์:', 'สรุปโดย AI')) and 'ผ่านการตรวจทาน' not in r['body'])
 check('ai-news: ค่าเริ่มต้นรอผู้ดูแลตรวจ + ป้าย AI + หมวดความรู้', r['status'] == 'pending' and r['ai_generated'] is True and r['tag'] == 'ความรู้')
 pr = d['prompt']
 check('ai-news: ภาพ AI 1 ภาพ (ไม่มีแกลเลอรี) วาดโดยผู้วาดที่ใช้ได้', r['image_path'].endswith('-ai.jpg') and r['gallery'] == [] and d['painter'] == 'Gemini', (r['image_path'], r['gallery'], d.get('painter')))

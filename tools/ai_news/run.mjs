@@ -256,7 +256,7 @@ export function buildBody(g) {
   const tips = (g.tips || []).slice(0, 6).map((t) => '• ' + clip(t, 200));
   if (tips.length) out.push('ข้อควรรู้', ...tips);
   if (g.for_professionals) out.push('สำหรับบุคลากรทางการแพทย์: ' + clip(g.for_professionals, 800));
-  out.push('ข่าวนี้สรุปโดย AI จากบทความวิชาการ และผ่านการตรวจทานก่อนเผยแพร่ · ข้อมูลเพื่อความรู้ ไม่ใช้แทนคำแนะนำของแพทย์หรือเภสัชกร');
+  out.push('ข่าวนี้สรุปโดย AI จากบทความวิชาการ · ข้อมูลเพื่อความรู้ ไม่ใช้แทนคำแนะนำของแพทย์หรือเภสัชกร');
   return out.filter(Boolean).join('\n');
 }
 

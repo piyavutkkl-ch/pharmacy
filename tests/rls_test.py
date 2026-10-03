@@ -583,5 +583,11 @@ check("move recorded in PDPA audit", None, f"select detail from audit_log where 
 check("admin moves patient back to unit 2", "admin", f"select transfer_patient('{pid}', 2::smallint)", eq(2))
 check("unknown target unit rejected", "admin", f"select transfer_patient('{pid}', 99::smallint)", "deny")
 
+print("== step 33: AI news footer ==")
+run("insert into news(title,body,tag,status,ai_generated) values ('ข่าว AI เก่า','เนื้อหา'||chr(10)||'ข่าวนี้สรุปโดย AI จากบทความวิชาการ และผ่านการตรวจทานก่อนเผยแพร่ · ข้อมูลเพื่อความรู้','ความรู้','pending',true)")
+run(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'supabase', '34_ai_news_footer.sql')).read())
+check("old AI news footer no longer says reviewed", None, "select count(*) from news where ai_generated and body like '%ผ่านการตรวจทาน%'", eq(0))
+check("…rest of the footer kept", None, "select count(*) from news where title='ข่าว AI เก่า' and body like '%ข่าวนี้สรุปโดย AI จากบทความวิชาการ · ข้อมูลเพื่อความรู้'", eq(1))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
