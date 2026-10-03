@@ -633,5 +633,16 @@ run("update ai_matches set created_at = now() - interval '2 days'")
 run(f"insert into ai_matches(user_id,unit_id,fiscal_year,input) select '{U['s2']}',2,2570,'x' from generate_series(1,30)")
 check("daily limit 30 per person", "s2", "select ai_match_start('มีคำสั่งแต่งตั้งคณะกรรมการเภสัชกรรมและการบำบัด')", "deny")
 
+print("== step 37: summary date + participants ==")
+check("old summaries got a date (from created_at)", None, "select count(*) from visit_summaries where summary_date is null", eq(0))
+check("staff sees directory of admins + staff (no citizens)", "s2", "select string_agg(distinct role, ',' order by role) from staff_directory()", eq("admin,staff"))
+check("citizen cannot read directory", "c1", "select count(*) from staff_directory()", "deny")
+check("anon cannot read directory", "anon", "select count(*) from staff_directory()", "deny")
+check("summary with date + participants (citizen id dropped, dup removed, names filled)", "s2",
+      f"insert into visit_summaries(unit_id,fiscal_year,title,image_path,summary_date,participant_ids) values (2,2570,'มีผู้ร่วม','summaries/2/p.webp','2026-09-15',array['{U['s2']}','{U['admin']}','{U['c1']}','{U['s2']}']::uuid[]) returning cardinality(participant_ids)||':'||cardinality(participant_names)||':'||summary_date",
+      eq("2:2:2026-09-15"))
+check("names cannot be typed in (trigger overwrites)", "s2", "update visit_summaries set participant_names=array['ปลอม'] where title='มีผู้ร่วม' returning participant_names[1] <> 'ปลอม'", eq("t"))
+check("anon sees participant names on public summary", "anon", "select cardinality(participant_names) from visit_summaries where title='มีผู้ร่วม'", eq(2))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

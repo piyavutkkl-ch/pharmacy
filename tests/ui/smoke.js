@@ -237,8 +237,19 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#vsImagePreview [data-rmimg="2"]'); await p.waitForTimeout(150);
     check('สรุปผลงาน: กด × ลบภาพออกได้', await count(p, '#vsImagePreview .img-item') === 2);
     await p.fill('#vsBody', 'เยี่ยม 20 ราย\nแก้ DRPs ได้ 8 ราย');
+    const today = await p.inputValue('#vsDate');
+    check('สรุปผลงาน: ช่องวันที่ (ค่าเริ่มต้น = วันนี้ · แสดงแบบไทย)', /^\d{4}-\d{2}-\d{2}$/.test(today) && /25\d\d/.test(await text(p, '#vsDateTh')));
+    await p.fill('#vsDate', '2026-09-15'); await p.dispatchEvent('#vsDate', 'change');
+    check('สรุปผลงาน: เลือกวันที่แล้วปีงบประมาณเปลี่ยนตาม (ก่อน 1 ต.ค. = ปีงบเดิม)', (await p.inputValue('#vsYear')) === '2569');
+    await p.fill('#vsDate', today); await p.dispatchEvent('#vsDate', 'change');
+    const me = await p.evaluate(() => window.__db.profiles.find((x) => x.email === 's2@gmail.com').id), adm = await p.evaluate(() => window.__db.profiles.find((x) => x.role === 'admin').id);
+    check('สรุปผลงาน: เลือกผู้ร่วมลงจากรายชื่อผู้ดูแล + เจ้าหน้าที่ (ตัวเองติ๊กไว้แล้ว · ไม่มีประชาชน)', (await text(p, '#vsPeople')).includes('ผู้ดูแล (โรงพยาบาล)') && await p.isChecked(`#vsPeople input[value="${me}"]`)
+      && await p.evaluate(() => [...document.querySelectorAll('#vsPeople input')].every((i) => ['staff', 'admin'].includes(window.__db.profiles.find((x) => x.id === i.value)?.role))));
+    await p.check(`#vsPeople input[value="${adm}"]`);
+    check('สรุปผลงาน: เลือกได้หลายคน + แสดงจำนวน', (await text(p, '#vsPeopleN')).includes('2 คน'));
     await p.click('#vsSubmit'); await p.waitForTimeout(600);
     const vsIns = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert'))[0]?.payload;
+    check('สรุปผลงาน: บันทึกวันที่ + ผู้ร่วมลง 2 คน + รายการแสดงวันที่และชื่อ', vsIns?.summary_date === today && vsIns?.participant_ids?.length === 2 && vsIns.participant_ids.includes(adm) && (await text(p, '#vsList')).includes('วันที่ ') && (await text(p, '#vsList')).includes('ผู้ร่วมลง:'), JSON.stringify(vsIns));
     check('สรุปผลงาน: เผยแพร่ได้ (ภาพหลัก + ภาพเพิ่ม 1 · รูปอยู่ summaries/<หน่วย>/)', vsIns?.unit_id === 2 && vsIns?.image_path?.startsWith('summaries/2/') && vsIns?.gallery?.length === 1 && !('file_path' in vsIns) && await count(p, '#vsList .da-poster') === 1, JSON.stringify(vsIns));
     await p.click('#vsList [data-edit]'); await p.waitForTimeout(150);
     check('สรุปผลงาน: แก้ไขแล้วภาพเดิมขึ้นครบ', await count(p, '#vsImagePreview .img-item') === 2 && (await p.inputValue('#vsUnit')) === '2');
@@ -256,9 +267,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#trkUnitTabs [data-u="all"]'); await p.waitForTimeout(400);
     { const r = await p.$eval('#trackArt', (e) => { const b = e.getBoundingClientRect(); return { ratio: b.width / b.height, poster: e.classList.contains('sum-poster'), img: !!e.querySelector('.sp-slide.on img'), href: e.querySelector('.sp-slide')?.getAttribute('href') || '' }; });
       check('ผลการดำเนินงาน: กรอบโปสเตอร์ 10:7 แสดงภาพสรุปผลงานเยี่ยมบ้าน (กดไปหน้าอ่านได้)', r.poster && r.img && Math.abs(r.ratio - 10 / 7) < 0.05 && r.href.startsWith('#/summary/'), JSON.stringify(r)); }
+    check('ผลการดำเนินงาน: โปสเตอร์สรุปผลงานแสดงวันที่', /25\d\d/.test(await text(p, '#trackArt .sp-slide.on .sp-date')));
     await p.screenshot({ path: path.join(SHOTS, 'tracking-poster-1280.png') });
     await p.click('#trackArt .sp-slide.on'); await p.waitForTimeout(400);
     check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + ภาพเพิ่ม + รายละเอียด)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await count(p, '#smGallery .cover') === 1);
+    check('สรุปผลงาน: หน้าอ่านแสดงวันที่ + เจ้าหน้าที่ที่ร่วมลง', (await text(p, '#smDate')).startsWith('วันที่ ') && (await text(p, '#smPeople')).includes('เจ้าหน้าที่ที่ร่วมลง:') && await visible(p, '#smPeople'));
     await p.screenshot({ path: path.join(SHOTS, 'summary-1280.png'), fullPage: true });
     await go(p, '#/staff/visits'); await p.waitForTimeout(300);
     await p.click('#vsList [data-del]'); await p.waitForTimeout(400);

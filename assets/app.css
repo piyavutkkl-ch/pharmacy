@@ -421,6 +421,10 @@ a.menu-icon-btn{text-decoration:none}
 .sum-poster .sp-slide.on{opacity:1;pointer-events:auto}
 .sum-poster .sp-bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(18px) brightness(.85);transform:scale(1.05)}
 .sum-poster img{position:relative;display:block;width:100%;height:100%;object-fit:contain}
+.sum-poster .sp-date{position:absolute;left:10px;top:10px;padding:2px 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600}
+.vs-people{max-height:240px}
+.vs-people-n{color:var(--primary);font-weight:600}
+.sm-people{margin:6px 0 0}
 .sum-poster .sp-count{position:absolute;right:10px;bottom:10px;padding:2px 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600}
 @media (prefers-reduced-motion: reduce){.sum-poster .sp-slide{transition:none}}
 .track-figs{display:flex;flex-direction:column;gap:14px}

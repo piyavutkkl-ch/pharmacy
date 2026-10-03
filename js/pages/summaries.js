@@ -13,11 +13,14 @@ import { fileLink, imageList } from './news-form.js?v=4.4';
 import { smartCover } from '../lightbox.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
-const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at';
+const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names';
 const MAX_IMGS = 7;   // ภาพแรก + gallery ไม่เกิน 6 (visit_summaries_gallery_check)
 const imgsOf = (s) => [s.image_path, ...(s.gallery || [])].filter(Boolean);
 const HINT_IMG = `ภาพสรุป 1 หน้า (เช่น อินโฟกราฟิกจาก Canva) · เลือกได้หลายภาพ ไม่เกิน ${MAX_IMGS} ภาพ · ย่อไม่เกิน A4 อัตโนมัติ · ภาพแรกเป็นภาพหลัก`;
 const label = (s) => `รพ.สต.${unitName(s.unit_id)} · ปีงบประมาณ ${s.fiscal_year}`;
+const dateOf = (s) => thaiDate(s.summary_date || s.created_at);   // วันที่ของผลงาน (ก่อนมีช่องนี้ = วันที่บันทึก)
+const peopleOf = (s) => (s.participant_names || []).join(', ');
+const todayIso = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 
 /* ======================= หน้าหลัก ======================= */
 
@@ -26,9 +29,9 @@ let rowSeq = 0;
 export async function loadSummaryList(unit, year) {
   const seq = ++rowSeq;
   await loadUnits();
-  let q = sb.from('visit_summaries').select('id,unit_id,fiscal_year,title,image_path,gallery').eq('fiscal_year', year);
+  let q = sb.from('visit_summaries').select('id,unit_id,fiscal_year,title,image_path,gallery,summary_date,created_at').eq('fiscal_year', year);
   if (unit !== 'all') q = q.eq('unit_id', unit);
-  const { data, error } = await q.order('created_at', { ascending: false });
+  const { data, error } = await q.order('summary_date', { ascending: false }).order('created_at', { ascending: false });
   if (seq !== rowSeq) return null;
   return error ? [] : data;
 }
@@ -41,8 +44,9 @@ export function renderSummaryPoster(box, list, fallback) {
   if (!slides.length) { box.classList.remove('sum-poster'); box.innerHTML = fallback; return; }
   list = slides;
   box.classList.add('sum-poster');
-  box.innerHTML = list.map((s, i) => `<a class="sp-slide${i ? '' : ' on'}" href="#/summary/${s.id}" aria-label="${esc(s.title)} — ${esc(label(s))}"${i ? ' tabindex="-1"' : ''}>`
-    + `<span class="sp-bg" style="background-image:url('${esc(publicImageUrl(s.image_path))}')"></span><img src="${esc(publicImageUrl(s.image_path))}" alt="${esc(s.title)}" loading="lazy"></a>`).join('')
+  box.innerHTML = list.map((s, i) => `<a class="sp-slide${i ? '' : ' on'}" href="#/summary/${s.id}" aria-label="${esc(s.title)} — ${esc(label(s))} · ${esc(dateOf(s))}"${i ? ' tabindex="-1"' : ''}>`
+    + `<span class="sp-bg" style="background-image:url('${esc(publicImageUrl(s.image_path))}')"></span><img src="${esc(publicImageUrl(s.image_path))}" alt="${esc(s.title)}" loading="lazy">`
+    + `<span class="sp-date num">${esc(dateOf(s))}</span></a>`).join('')
     + (list.length > 1 ? `<span class="sp-count num" aria-live="polite">1/${list.length}</span>` : '');
   if (list.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   let i = 0;
@@ -59,14 +63,15 @@ export function renderSummaryPoster(box, list, fallback) {
 /* ======================= หน้าอ่าน #/summary/<id> ======================= */
 export async function showSummary(id) {
   $('#smTitle').textContent = 'กำลังโหลด…';
-  $('#smTag').textContent = ''; $('#smDate').textContent = ''; $('#smBody').innerHTML = ''; $('#smCover').innerHTML = ''; $('#smCover').className = 'cover'; $('#smFile').hidden = true; $('#smGallery').innerHTML = ''; $('#smGallery').hidden = true;
+  $('#smTag').textContent = ''; $('#smDate').textContent = ''; $('#smPeople').hidden = true; $('#smBody').innerHTML = ''; $('#smCover').innerHTML = ''; $('#smCover').className = 'cover'; $('#smFile').hidden = true; $('#smGallery').innerHTML = ''; $('#smGallery').hidden = true;
   await loadUnits();
   const { data: s, error } = await sb.from('visit_summaries').select(COLS).eq('id', +id || 0).maybeSingle();
   if (error || !s) { $('#smTitle').textContent = 'ไม่พบสรุปผลงานนี้'; $('#smBody').innerHTML = '<p class="muted">อาจถูกลบไปแล้ว</p>'; return; }
   document.title = s.title + ' · Primary Care Pharmacy Services';
   $('#smTag').textContent = label(s);
   $('#smTitle').textContent = s.title;
-  $('#smDate').textContent = thaiDate(s.created_at);
+  $('#smDate').textContent = 'วันที่ ' + dateOf(s);
+  if (peopleOf(s)) { $('#smPeople').textContent = 'เจ้าหน้าที่ที่ร่วมลง: ' + peopleOf(s); $('#smPeople').hidden = false; }
   const url = publicImageUrl(s.image_path);
   smartCover($('#smCover'), url, s.title);
   const gal = (s.gallery || []).filter(Boolean);   // ภาพเพิ่ม (ใกล้ A4 = ไม่ครอบตัด · กดขยายได้)
@@ -88,7 +93,9 @@ const FORM = `
     <form id="vsForm" class="form-grid" novalidate>
       <div class="field"><label for="vsTitle">หัวข้อ <span class="req">*</span></label><input id="vsTitle" class="input" maxlength="200" placeholder="เช่น สรุปผลการเยี่ยมบ้าน ไตรมาส 1"></div>
       <div class="field"><label for="vsUnit">รพ.สต. <span class="req">*</span></label><select id="vsUnit" class="input"></select></div>
+      <div class="field"><label for="vsDate">วันที่ <span class="req">*</span></label><input id="vsDate" class="input" type="date"><span class="small muted" id="vsDateTh"></span></div>
       <div class="field"><label for="vsYear">ปีงบประมาณ</label><select id="vsYear" class="input"></select></div>
+      <div class="field full"><label for="vsPeopleQ">เจ้าหน้าที่ที่ร่วมลง (เลือกได้หลายคน)</label><input id="vsPeopleQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อ"><div class="crit-pick vs-people" id="vsPeople" role="group" aria-label="เจ้าหน้าที่ที่ร่วมลง"></div><span class="small vs-people-n" id="vsPeopleN" aria-live="polite"></span></div>
       <div class="field full"><label for="vsImage">ภาพสรุป (A4) <span class="req">*</span></label><input id="vsImage" class="input" type="file" accept="image/*" multiple><span class="small muted" id="vsImageNote">${HINT_IMG}</span><div class="img-list" id="vsImagePreview" hidden></div></div>
       <div class="field full"><label for="vsBody">รายละเอียด (ถ้ามี)</label><textarea id="vsBody" rows="4" maxlength="5000"></textarea></div>
       <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="vsSubmit">เผยแพร่สรุปผลงาน</button><button class="btn btn-o btn-sm" type="button" id="vsCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="vsMsg" aria-live="polite"></span></div>
@@ -103,13 +110,22 @@ export async function mountSummaries(slot, unit) {
   if (!S || !slot.contains($('#vsForm'))) {
     document.querySelectorAll('[data-sum-slot]').forEach((s) => { if (s !== slot) s.innerHTML = ''; });   // id ในหน้าต้องไม่ซ้ำ
     slot.innerHTML = FORM;
-    S = { unit, list: [], editing: null, img: imageList($('#vsImage'), $('#vsImagePreview'), $('#vsImageNote'), { max: MAX_IMGS, hint: HINT_IMG }) };
+    S = { unit, list: [], editing: null, people: null, picked: new Set(), img: imageList($('#vsImage'), $('#vsImagePreview'), $('#vsImageNote'), { max: MAX_IMGS, hint: HINT_IMG }) };
     const years = await loadYears();
     $('#vsYear').innerHTML = [...new Set([...years, CUR_FY])].sort((a, b) => b - a).map((y) => `<option value="${y}">ปีงบประมาณ ${y}</option>`).join('');
     $('#vsUnit').innerHTML = units.map((u) => `<option value="${u.id}">รพ.สต.${esc(u.name)}</option>`).join('');
     $('#vsForm').addEventListener('submit', save);
     $('#vsCancel').addEventListener('click', reset);
     $('#vsList').addEventListener('click', onList);
+    $('#vsDate').addEventListener('change', onDate);
+    $('#vsPeopleQ').addEventListener('input', renderPeople);
+    $('#vsPeople').addEventListener('change', (e) => {
+      const id = e.target.value; if (!id) return;
+      if (e.target.checked) S.picked.add(id); else S.picked.delete(id);
+      peopleCount();
+    });
+    const { data: ppl, error: pErr } = await sb.rpc('staff_directory');
+    S.people = pErr ? [] : ppl;
   }
   S.unit = unit;
   reset();
@@ -122,13 +138,43 @@ const defaultUnit = () => (S.unit !== 'all' && S.unit != null ? S.unit : auth.pr
 function reset() {
   if (!S) return;
   S.editing = null; $('#vsForm').reset(); S.img.set([]); $('#vsYear').value = String(CUR_FY); $('#vsUnit').value = String(defaultUnit());
+  $('#vsDate').value = todayIso(); onDate();
+  S.picked = new Set(auth.profile ? [auth.profile.id] : []); renderPeople();   // ค่าเริ่มต้น = ตัวเองร่วมลง
   $('#vsMsg').textContent = '';
   $('#vsFormTitle').textContent = 'เพิ่มสรุปผลงานเยี่ยมบ้าน one page summary'; $('#vsSubmit').textContent = 'เผยแพร่สรุปผลงาน'; $('#vsCancel').hidden = true;
 }
 
+/** วันที่ → แสดงแบบไทย + ปีงบประมาณตามวันที่ (เริ่ม 1 ต.ค.) */
+function onDate() {
+  const v = $('#vsDate').value;
+  $('#vsDateTh').textContent = v ? thaiDate(v) : '';
+  if (!v) return;
+  const fy = fiscalYearOf(new Date(v)), sel = $('#vsYear');
+  if (![...sel.options].some((o) => +o.value === fy)) sel.insertAdjacentHTML('afterbegin', `<option value="${fy}">ปีงบประมาณ ${fy}</option>`);
+  sel.value = String(fy);
+}
+/** รายชื่อผู้ดูแล + เจ้าหน้าที่ (staff_directory) แยกกลุ่มตามหน่วย · ค้นหาชื่อได้ · จำที่เลือกไว้ */
+function renderPeople() {
+  if (!S?.people) return;
+  const q = $('#vsPeopleQ').value.trim().toLowerCase();
+  const list = S.people.filter((p) => !q || p.full_name.toLowerCase().includes(q));
+  const group = (p) => (p.role === 'admin' ? 'ผู้ดูแล (โรงพยาบาล)' : `รพ.สต.${unitName(p.unit_id)}`);
+  let last = null;
+  $('#vsPeople').innerHTML = list.map((p) => {
+    const g = group(p), head = g !== last ? `<p class="crit-pick-h">${esc(g)}</p>` : '';
+    last = g;
+    return head + `<label class="crit-opt"><input type="checkbox" value="${esc(p.id)}"${S.picked.has(p.id) ? ' checked' : ''}><span>${esc(p.full_name)}</span></label>`;
+  }).join('') || `<p class="empty">${S.people.length ? 'ไม่พบชื่อที่ค้นหา' : 'ยังไม่มีรายชื่อเจ้าหน้าที่'}</p>`;
+  peopleCount();
+}
+function peopleCount() {
+  const names = (S.people || []).filter((p) => S.picked.has(p.id)).map((p) => p.full_name);
+  $('#vsPeopleN').textContent = names.length ? `ร่วมลง ${names.length} คน: ${names.join(', ')}` : '';
+}
+
 async function load() {
   $('#vsList').innerHTML = '<div class="skeleton"></div>';
-  const order = (q) => q.order('fiscal_year', { ascending: false }).order('created_at', { ascending: false });
+  const order = (q) => q.order('fiscal_year', { ascending: false }).order('summary_date', { ascending: false }).order('created_at', { ascending: false });
   const base = sb.from('visit_summaries').select(COLS);
   const [a, mine] = await Promise.all([   // หน่วยที่ดูอยู่ + ที่ตัวเองเพิ่มให้หน่วยอื่น
     order(S.unit === 'all' ? base : base.eq('unit_id', S.unit)),
@@ -138,7 +184,8 @@ async function load() {
   const seen = new Set(), data = [...a.data, ...(mine.data || [])].filter((x) => !seen.has(x.id) && seen.add(x.id));
   S.list = data;
   $('#vsList').innerHTML = data.length ? data.map((s) => `<div class="da-poster"><img src="${esc(publicImageUrl(s.image_path))}" alt="">`
-    + `<div class="l"><b>${esc(s.title)}</b><span class="small muted">รพ.สต.${esc(unitName(s.unit_id))} · ปีงบประมาณ ${s.fiscal_year} · ${imgsOf(s).length} ภาพ · ${esc(thaiDate(s.created_at))}${s.file_path ? ' · มี PDF' : ''}</span></div>`
+    + `<div class="l"><b>${esc(s.title)}</b><span class="small muted">วันที่ ${esc(dateOf(s))} · รพ.สต.${esc(unitName(s.unit_id))} · ปีงบประมาณ ${s.fiscal_year} · ${imgsOf(s).length} ภาพ${s.file_path ? ' · มี PDF' : ''}</span>`
+    + (peopleOf(s) ? `<span class="small muted">ผู้ร่วมลง: ${esc(peopleOf(s))}</span>` : '') + '</div>'
     + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/summary/${s.id}">ดู</a><button type="button" class="btn btn-o btn-sm" data-edit="${s.id}">แก้ไข</button><button type="button" class="btn btn-no btn-sm" data-del="${s.id}">ลบ</button></div></div>`).join('')
     : '<p class="empty">ยังไม่มีสรุปผลงาน · เพิ่มได้จากฟอร์มด้านบน</p>';
 }
@@ -148,7 +195,9 @@ async function onList(e) {
   if (ed) {
     const s = S.list.find((x) => x.id === +ed.dataset.edit); if (!s) return;
     S.editing = s;
-    $('#vsTitle').value = s.title; $('#vsYear').value = String(s.fiscal_year); $('#vsUnit').value = String(s.unit_id); $('#vsBody').value = s.body || '';
+    $('#vsTitle').value = s.title; $('#vsUnit').value = String(s.unit_id); $('#vsBody').value = s.body || '';
+    $('#vsDate').value = s.summary_date || String(s.created_at).slice(0, 10); onDate(); $('#vsYear').value = String(s.fiscal_year);
+    S.picked = new Set(s.participant_ids || []); $('#vsPeopleQ').value = ''; renderPeople();
     S.img.set(imgsOf(s));
     $('#vsFormTitle').textContent = 'แก้ไขสรุปผลงาน'; $('#vsSubmit').textContent = 'บันทึกการแก้ไข'; $('#vsCancel').hidden = false;
     $('#vsForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -171,6 +220,7 @@ async function save(e) {
   msg.style.color = 'var(--error)';
   if (!title) { msg.textContent = 'กรุณาใส่หัวข้อ'; return; }
   if (!unitId) { msg.textContent = 'กรุณาเลือก รพ.สต.'; return; }
+  if (!$('#vsDate').value) { msg.textContent = 'กรุณาใส่วันที่'; return; }
   await S.img.ready();
   if (!S.img.items().length) { msg.textContent = 'กรุณาเลือกภาพสรุปอย่างน้อย 1 ภาพ'; return; }
   msg.textContent = '';
@@ -184,7 +234,8 @@ async function save(e) {
       if (x.path) { paths.push(x.path); continue; }
       const p = await uploadPublicImage(x.blob, folder); done.push(p); paths.push(p);
     }
-    const row = { unit_id: unitId, fiscal_year: +$('#vsYear').value, title, body: $('#vsBody').value.trim(), image_path: paths[0], gallery: paths.slice(1), updated_at: new Date().toISOString() };
+    const row = { unit_id: unitId, fiscal_year: +$('#vsYear').value, title, body: $('#vsBody').value.trim(), image_path: paths[0], gallery: paths.slice(1),
+      summary_date: $('#vsDate').value, participant_ids: [...S.picked], updated_at: new Date().toISOString() };
     const { error } = old ? await sb.from('visit_summaries').update(row).eq('id', old.id) : await sb.from('visit_summaries').insert(row);
     if (error) throw error;
     if (old) { const gone = imgsOf(old).filter((p) => !paths.includes(p)); if (gone.length) removeFiles('public-images', gone); }   // ภาพที่กด × ออก

@@ -113,7 +113,7 @@ function beforeInsert(table, row) {
     case 'patients': row.created_by = ME.id; break;
     case 'visits': row.unit_id = db.patients.find((p) => p.id === row.patient_id)?.unit_id; row.fiscal_year = fiscalYear(row.visit_date); row.created_by = ME.id; break;
     case 'dose_drugs': row.active ??= true; row.concs ??= []; row.sort ??= 0; break;
-    case 'visit_summaries': row.author_id = ME.id; row.gallery ??= []; row.created_at ??= now(); break;
+    case 'visit_summaries': row.author_id = ME.id; row.gallery ??= []; row.created_at ??= now(); row.summary_date ??= now().slice(0, 10); summaryPeople(row); break;
     case 'staff_roster':
       row.email = String(row.email).trim().toLowerCase(); row.active ??= true;
       if (rows.some((r) => r.email === row.email)) return 'duplicate key value violates unique constraint "staff_roster_pkey"';
@@ -159,7 +159,13 @@ function beforeUpdate(table, row, patch) {
     if (['unpublished', 'deleted', 'rejected'].includes(row.status)) { if (prev !== row.status) { row.trashed_at = now(); row.prev_status = prev; } } else row.trashed_at = null;
   }
   if (table === 'item_status' && isStaff()) row.status = 'submitted';
+  if (table === 'visit_summaries') summaryPeople(row);
   return null;
+}
+/** แทน trigger before_summary_people: เก็บเฉพาะผู้ดูแล/เจ้าหน้าที่ + เติมชื่อจาก profiles */
+function summaryPeople(row) {
+  const ps = [...new Set(row.participant_ids || [])].map((id) => db.profiles.find((p) => p.id === id && ['staff', 'admin'].includes(p.role))).filter(Boolean);
+  row.participant_ids = ps.map((p) => p.id); row.participant_names = ps.map((p) => p.full_name || 'เจ้าหน้าที่');
 }
 
 /* ---------- query builder ---------- */
@@ -407,6 +413,11 @@ function rpc(name, a = {}) {
         r.status = 'done'; r.done_at = now();
       }
       return { data: { id: r.id, status: r.status, matches: r.matches, note: r.note, achievement_id: r.achievement_id }, error: null };
+    }
+    case 'staff_directory': {
+      if (!isStaff() && !isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      return { data: db.profiles.filter((p) => ['staff', 'admin'].includes(p.role)).map((p) => ({ id: p.id, full_name: p.full_name || 'เจ้าหน้าที่', role: p.role, unit_id: p.unit_id }))
+        .sort((a, b) => (a.role !== 'admin') - (b.role !== 'admin') || (a.unit_id ?? 0) - (b.unit_id ?? 0) || a.full_name.localeCompare(b.full_name, 'th')), error: null };
     }
     case 'ai_match_link': {
       const r = (db.ai_matches || []).find((x) => x.id === a.p_id && x.user_id === ME?.id), ach = db.achievements.find((x) => x.id === a.p_achievement);
