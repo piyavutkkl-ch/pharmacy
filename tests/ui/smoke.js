@@ -247,9 +247,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       && await p.evaluate(() => [...document.querySelectorAll('#vsPeople input')].every((i) => ['staff', 'admin'].includes(window.__db.profiles.find((x) => x.id === i.value)?.role))));
     await p.check(`#vsPeople input[value="${adm}"]`);
     check('สรุปผลงาน: เลือกได้หลายคน + แสดงจำนวน', (await text(p, '#vsPeopleN')).includes('2 คน'));
+    await p.fill('#vsPeopleQ', 'สมหญิง ทดสอบ'); await p.waitForTimeout(100);
+    check('สรุปผลงาน: ค้นหาไม่พบชื่อ → บอกให้กรอกเป็นชื่อใหม่', (await text(p, '#vsPeople')).includes('ไม่พบ') && await count(p, '#vsPeople [data-new-person]') === 1);
+    await p.click('#vsPeople [data-new-person]');
+    check('สรุปผลงาน: กดแล้วเติมชื่อ/นามสกุลจากคำค้นให้', (await p.inputValue('#vsOFirst')) === 'สมหญิง' && (await p.inputValue('#vsOLast')) === 'ทดสอบ');
+    await p.fill('#vsOPos', 'อสม.'); await p.click('#vsOAdd');
+    await p.fill('#vsOFirst', 'ลบทิ้ง'); await p.press('#vsOFirst', 'Enter');
+    await p.click('#vsOthers [data-rm-other="1"]'); await p.fill('#vsPeopleQ', ''); await p.waitForTimeout(100);
+    check('สรุปผลงาน: กรอกชื่อ นามสกุล ตำแหน่ง เพิ่มเองได้ (ลบได้) + นับรวม', await count(p, '#vsOthers .li') === 1 && (await text(p, '#vsOthers')).includes('สมหญิง ทดสอบ (อสม.)') && (await text(p, '#vsPeopleN')).includes('3 คน'));
+    { const q = await open('staff', '#/staff/visits', 390, 844); await q.waitForTimeout(400);
+      await (await q.$('.vs-other')).screenshot({ path: path.join(SHOTS, 'summary-people-390.png') });
+      check('สรุปผลงาน 390px: ช่องกรอกชื่อเองไม่ล้นจอ', await overflow(q) <= 0); await q.close(); }
     await p.click('#vsSubmit'); await p.waitForTimeout(600);
     const vsIns = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert'))[0]?.payload;
-    check('สรุปผลงาน: บันทึกวันที่ + ผู้ร่วมลง 2 คน + รายการแสดงวันที่และชื่อ', vsIns?.summary_date === today && vsIns?.participant_ids?.length === 2 && vsIns.participant_ids.includes(adm) && (await text(p, '#vsList')).includes('วันที่ ') && (await text(p, '#vsList')).includes('ผู้ร่วมลง:'), JSON.stringify(vsIns));
+    check('สรุปผลงาน: บันทึกวันที่ + ผู้ร่วมลง 2 คน + รายการแสดงวันที่และชื่อ', vsIns?.summary_date === today && vsIns?.participant_ids?.length === 2 && vsIns.participant_ids.includes(adm) && vsIns.participant_others?.[0] === 'สมหญิง ทดสอบ (อสม.)' && (await text(p, '#vsList')).includes('วันที่ ') && (await text(p, '#vsList')).includes('ผู้ร่วมลง:'), JSON.stringify(vsIns));
     check('สรุปผลงาน: เผยแพร่ได้ (ภาพหลัก + ภาพเพิ่ม 1 · รูปอยู่ summaries/<หน่วย>/)', vsIns?.unit_id === 2 && vsIns?.image_path?.startsWith('summaries/2/') && vsIns?.gallery?.length === 1 && !('file_path' in vsIns) && await count(p, '#vsList .da-poster') === 1, JSON.stringify(vsIns));
     await p.click('#vsList [data-edit]'); await p.waitForTimeout(150);
     check('สรุปผลงาน: แก้ไขแล้วภาพเดิมขึ้นครบ', await count(p, '#vsImagePreview .img-item') === 2 && (await p.inputValue('#vsUnit')) === '2');

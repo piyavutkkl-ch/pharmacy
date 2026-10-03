@@ -166,6 +166,7 @@ function beforeUpdate(table, row, patch) {
 function summaryPeople(row) {
   const ps = [...new Set(row.participant_ids || [])].map((id) => db.profiles.find((p) => p.id === id && ['staff', 'admin'].includes(p.role))).filter(Boolean);
   row.participant_ids = ps.map((p) => p.id); row.participant_names = ps.map((p) => p.full_name || 'เจ้าหน้าที่');
+  row.participant_others = (row.participant_others || []).map((x) => String(x).trim().replace(/\s+/g, ' ')).filter(Boolean).map((x) => x.slice(0, 150));
 }
 
 /* ---------- query builder ---------- */

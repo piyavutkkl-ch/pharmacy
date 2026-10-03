@@ -642,6 +642,8 @@ check("summary with date + participants (citizen id dropped, dup removed, names 
       f"insert into visit_summaries(unit_id,fiscal_year,title,image_path,summary_date,participant_ids) values (2,2570,'มีผู้ร่วม','summaries/2/p.webp','2026-09-15',array['{U['s2']}','{U['admin']}','{U['c1']}','{U['s2']}']::uuid[]) returning cardinality(participant_ids)||':'||cardinality(participant_names)||':'||summary_date",
       eq("2:2:2026-09-15"))
 check("names cannot be typed in (trigger overwrites)", "s2", "update visit_summaries set participant_names=array['ปลอม'] where title='มีผู้ร่วม' returning participant_names[1] <> 'ปลอม'", eq("t"))
+check("free-typed participants (not in system) trimmed, empties dropped", "s2", "update visit_summaries set participant_others=array['  สมชาย   ใจดี (อสม.) ','',' '] where title='มีผู้ร่วม' returning array_to_string(participant_others,'|')", eq("สมชาย ใจดี (อสม.)"))
+check("max 20 free-typed participants", "s2", "update visit_summaries set participant_others=(select array_agg('คน '||g) from generate_series(1,21) g) where title='มีผู้ร่วม'", "deny")
 check("anon sees participant names on public summary", "anon", "select cardinality(participant_names) from visit_summaries where title='มีผู้ร่วม'", eq(2))
 
 print(f"\n{passed} passed, {failed} failed")

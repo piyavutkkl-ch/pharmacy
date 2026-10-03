@@ -2,7 +2,8 @@
 --  ขั้นที่ 37: สรุปผลงานเยี่ยมบ้าน — วันที่ + เจ้าหน้าที่ที่ร่วมลง — รันต่อจาก 37 · รันซ้ำได้ · เพิ่มอย่างเดียว
 --   summary_date = วันที่ของผลงาน (เดิม = วันที่บันทึก) · แสดงในรายการ/หน้าอ่าน/กรอบโปสเตอร์หน้าหลัก
 --   participant_ids = เลือกจากรายชื่อผู้ดูแล + เจ้าหน้าที่ในระบบ (staff_directory) · participant_names เติมโดย trigger จาก profiles
---   (ใส่ชื่อเองไม่ได้ · id ที่ไม่ใช่ผู้ดูแล/เจ้าหน้าที่ถูกตัดทิ้ง) → หน้าสาธารณะแสดงชื่อได้โดยไม่ต้องเปิดตาราง profiles
+--   (id ที่ไม่ใช่ผู้ดูแล/เจ้าหน้าที่ถูกตัดทิ้ง) → หน้าสาธารณะแสดงชื่อได้โดยไม่ต้องเปิดตาราง profiles
+--   participant_others = ผู้ร่วมลงที่ไม่มีบัญชีในระบบ กรอกเอง "ชื่อ นามสกุล (ตำแหน่ง)" (≤ 20 คน · คนละ ≤ 150 ตัวอักษร)
 -- =====================================================================
 
 alter table public.visit_summaries add column if not exists summary_date date;
@@ -12,8 +13,9 @@ alter table public.visit_summaries alter column summary_date set not null;
 
 alter table public.visit_summaries add column if not exists participant_ids uuid[] not null default '{}';
 alter table public.visit_summaries add column if not exists participant_names text[] not null default '{}';
+alter table public.visit_summaries add column if not exists participant_others text[] not null default '{}';
 alter table public.visit_summaries drop constraint if exists visit_summaries_participants_check;
-alter table public.visit_summaries add constraint visit_summaries_participants_check check (cardinality(participant_ids) <= 30);
+alter table public.visit_summaries add constraint visit_summaries_participants_check check (cardinality(participant_ids) <= 30 and cardinality(participant_others) <= 20);
 
 create or replace function public.before_summary_people()
 returns trigger language plpgsql security definer
@@ -24,6 +26,9 @@ begin
     into new.participant_ids, new.participant_names
     from (select distinct on (u) u, n from unnest(new.participant_ids) with ordinality as t(u, n) order by u, n) x
     join public.profiles p on p.id = x.u and p.role in ('staff', 'admin');
+  select coalesce(array_agg(left(v, 150) order by n), '{}') into new.participant_others
+    from (select btrim(regexp_replace(o, '\s+', ' ', 'g')) v, n from unnest(new.participant_others) with ordinality as t(o, n)) y
+   where v <> '';
   return new;
 end $$;
 revoke execute on function public.before_summary_people() from public, anon, authenticated;
