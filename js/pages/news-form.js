@@ -8,8 +8,8 @@ export const NEWS_TAGS = ['ข่าว', 'ประชาสัมพันธ�
 export const MAX_NEWS_IMAGES = 7;   // รูปหลัก 1 + ภาพเพิ่ม (gallery) ไม่เกิน 6 — ตรงกับ news_source_check
 const HINT_IMG = `ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ · ไม่เกิน ${MAX_NEWS_IMAGES} รูป · รูปแรกเป็นรูปหลัก`;
 
-/** รูปประกอบข่าวหลายรูป: รายการ = รูปเดิม { path } + รูปใหม่ที่ย่อแล้ว { blob, url } · ปุ่ม × ลบ · ปุ่ม "ตั้งเป็นรูปหลัก" ย้ายไปไว้หน้าสุด */
-function imageList(input, box, note) {
+/** รูปประกอบหลายรูป (ข่าว + สรุปผลงานเยี่ยมบ้าน): รายการ = รูปเดิม { path } + รูปใหม่ที่ย่อแล้ว { blob, url } · ปุ่ม × ลบ · ปุ่ม "ตั้งเป็นรูปหลัก" ย้ายไปไว้หน้าสุด */
+export function imageList(input, box, note, { max = MAX_NEWS_IMAGES, hint = HINT_IMG } = {}) {
   let items = [], job = 0, pending = Promise.resolve();
   const say = (t, err) => { note.textContent = t; note.classList.toggle('err-text', !!err); };
   const free = (x) => { if (x.url) URL.revokeObjectURL(x.url); };
@@ -18,13 +18,13 @@ function imageList(input, box, note) {
     box.innerHTML = items.map((x, i) => `<figure class="img-item${i ? '' : ' main'}"><img src="${esc(x.url || publicImageUrl(x.path))}" alt="รูปประกอบที่ ${i + 1}">`
       + `<button type="button" class="img-x" data-rmimg="${i}" aria-label="ลบรูปที่ ${i + 1}" title="ลบรูปนี้">×</button>`
       + `<figcaption>${i ? `<button type="button" class="linkish" data-mainimg="${i}">ตั้งเป็นรูปหลัก</button>` : 'รูปหลัก'}</figcaption></figure>`).join('');
-    input.disabled = items.length >= MAX_NEWS_IMAGES;
+    input.disabled = items.length >= max;
   };
-  const sayCount = () => say(items.length ? `${items.length}/${MAX_NEWS_IMAGES} รูป · ย่อไม่เกินขนาด A4 · กด × เพื่อลบ${items.length >= MAX_NEWS_IMAGES ? ' · ครบแล้ว' : ' · เลือกไฟล์เพื่อเพิ่มรูป'}` : HINT_IMG);
+  const sayCount = () => say(items.length ? `${items.length}/${max} รูป · ย่อไม่เกินขนาด A4 · กด × เพื่อลบ${items.length >= max ? ' · ครบแล้ว' : ' · เลือกไฟล์เพื่อเพิ่มรูป'}` : hint);
   input.addEventListener('change', () => {
     const files = [...input.files], my = job; input.value = '';
     if (!files.length) return;
-    const room = MAX_NEWS_IMAGES - items.length;
+    const room = max - items.length;
     say('กำลังย่อรูป…');
     pending = pending.then(async () => {
       let bad = '';

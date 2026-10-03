@@ -88,8 +88,7 @@ async function showVisits() {
     + units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === visitUnit}">${esc(u.name)}</button>`).join('');
   $('#avUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; visitUnit = b.dataset.u === ALL ? ALL : +b.dataset.u; showVisits(); };
   mountVisits($('#adminVisitsSlot'), visitUnit);
-  $('#adminSumSlot').hidden = visitUnit === ALL;   // สรุปผลงานเป็นราย รพ.สต.
-  if (visitUnit !== ALL) mountSummaries($('#adminSumSlot'), visitUnit);
+  mountSummaries($('#adminSumSlot'), visitUnit === ALL ? 'all' : visitUnit);   // ผู้ดูแลเพิ่ม/แก้สรุปผลงานได้ทุกหน่วย (เลือก รพ.สต. ในฟอร์ม)
 }
 
 /* ---------- ข้อเสนอแนะ ---------- */

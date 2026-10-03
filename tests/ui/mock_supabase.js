@@ -112,6 +112,7 @@ function beforeInsert(table, row) {
     case 'patients': row.created_by = ME.id; break;
     case 'visits': row.unit_id = db.patients.find((p) => p.id === row.patient_id)?.unit_id; row.fiscal_year = fiscalYear(row.visit_date); row.created_by = ME.id; break;
     case 'dose_drugs': row.active ??= true; row.concs ??= []; row.sort ??= 0; break;
+    case 'visit_summaries': row.author_id = ME.id; row.gallery ??= []; row.created_at ??= now(); break;
     case 'staff_roster':
       row.email = String(row.email).trim().toLowerCase(); row.active ??= true;
       if (rows.some((r) => r.email === row.email)) return 'duplicate key value violates unique constraint "staff_roster_pkey"';

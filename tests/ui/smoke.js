@@ -202,7 +202,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= เจ้าหน้าที่ รพ.สต. ================= */
     p = await open('staff', '#/staff');
-    for (const tab of ['news', 'criteria', 'visits', 'messages', 'rider', 'achievements', 'docs', 'feedback']) {
+    check('เมนูเจ้าหน้าที่: เรียง ข่าว › ข้อความ › เยี่ยมบ้าน › ผลงาน › มาตรฐาน › เอกสาร › ข้อเสนอแนะ (ไม่มี Health Rider)', (await p.$$eval('.sidenav [data-staff-tab]', (a) => a.map((x) => x.dataset.staffTab).join(','))) === 'news,messages,visits,achievements,criteria,docs,feedback');
+    for (const tab of ['news', 'messages', 'visits', 'achievements', 'criteria', 'docs', 'feedback']) {
       await go(p, '#/staff/' + tab); await p.waitForTimeout(250);
       const shown = await p.$eval(`[data-staff-view="${tab}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
       check(`เจ้าหน้าที่: เมนู ${tab} เปิดได้`, shown && (await text(p, '#staffViewTitle')));
@@ -227,24 +228,34 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     const logs = await calls(p, (c) => c.rpc === 'log_patient_access');
     check('เจ้าหน้าที่: เปิดรายชื่อ + เปิดดูผู้ป่วย ถูกบันทึก (PDPA)', logs.some((c) => c.args.p_unit === 2 && !c.args.p_patient) && logs.some((c) => c.args.p_patient));
     check('เจ้าหน้าที่: มีข้อความแจ้งว่าการเข้าถึงถูกบันทึก', (await text(p, '.pdpa-note')).includes('PDPA'));
-    check('เยี่ยมบ้าน: มีฟอร์มสรุปผลงาน (ภาพ A4) ใต้บันทึกการเยี่ยม', await visible(p, '#staffSumSlot #vsForm') && (await text(p, '#vsList')).includes('ยังไม่มีสรุปผลงาน'));
+    check('เยี่ยมบ้าน: มีฟอร์มสรุปผลงาน one page summary ใต้บันทึกการเยี่ยม (ไม่มีช่อง PDF)', await visible(p, '#staffSumSlot #vsForm') && (await text(p, '#vsFormTitle')).includes('one page summary') && !(await p.$('#vsFile')) && (await text(p, '#vsList')).includes('ยังไม่มีสรุปผลงาน'));
+    check('สรุปผลงาน: ช่องเลือก รพ.สต. ขึ้นหน่วยของตัวเองอัตโนมัติ', (await p.inputValue('#vsUnit')) === '2' && await count(p, '#vsUnit option') === 7);
     await p.click('#vsSubmit'); await p.waitForTimeout(150);
     check('สรุปผลงาน: ไม่ใส่หัวข้อ/ภาพ ถูกเตือน', (await text(p, '#vsMsg')).length > 0);
-    await p.fill('#vsTitle', 'สรุปเยี่ยมบ้าน ไตรมาส 1'); await p.setInputFiles('#vsImage', { name: 'sum.png', mimeType: 'image/png', buffer: PNG }); await p.waitForTimeout(400);
-    await p.fill('#vsBody', 'เยี่ยม 20 ราย\nแก้ DRPs ได้ 8 ราย'); await p.setInputFiles('#vsFile', { name: 'sum.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') });
+    await p.fill('#vsTitle', 'สรุปเยี่ยมบ้าน ไตรมาส 1'); await p.setInputFiles('#vsImage', [{ name: 'sum.png', mimeType: 'image/png', buffer: PNG }, { name: 'sum2.png', mimeType: 'image/png', buffer: PNG }, { name: 'sum3.png', mimeType: 'image/png', buffer: PNG }]); await p.waitForTimeout(600);
+    check('สรุปผลงาน: เลือกหลายภาพแล้วเห็นตัวอย่าง + ปุ่ม × ทุกภาพ', await count(p, '#vsImagePreview .img-item') === 3 && await count(p, '#vsImagePreview .img-x') === 3);
+    await p.click('#vsImagePreview [data-rmimg="2"]'); await p.waitForTimeout(150);
+    check('สรุปผลงาน: กด × ลบภาพออกได้', await count(p, '#vsImagePreview .img-item') === 2);
+    await p.fill('#vsBody', 'เยี่ยม 20 ราย\nแก้ DRPs ได้ 8 ราย');
     await p.click('#vsSubmit'); await p.waitForTimeout(600);
     const vsIns = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert'))[0]?.payload;
-    check('สรุปผลงาน: เผยแพร่ได้ (รูปอยู่ summaries/<หน่วย>/ + PDF แนบ)', vsIns?.unit_id === 2 && vsIns?.image_path?.startsWith('summaries/2/') && !!vsIns?.file_path && await count(p, '#vsList .da-poster') === 1);
+    check('สรุปผลงาน: เผยแพร่ได้ (ภาพหลัก + ภาพเพิ่ม 1 · รูปอยู่ summaries/<หน่วย>/)', vsIns?.unit_id === 2 && vsIns?.image_path?.startsWith('summaries/2/') && vsIns?.gallery?.length === 1 && !('file_path' in vsIns) && await count(p, '#vsList .da-poster') === 1, JSON.stringify(vsIns));
     await p.click('#vsList [data-edit]'); await p.waitForTimeout(150);
+    check('สรุปผลงาน: แก้ไขแล้วภาพเดิมขึ้นครบ', await count(p, '#vsImagePreview .img-item') === 2 && (await p.inputValue('#vsUnit')) === '2');
     await p.fill('#vsTitle', 'สรุปเยี่ยมบ้าน ไตรมาส 1 (แก้ไข)'); await p.click('#vsSubmit'); await p.waitForTimeout(400);
     check('สรุปผลงาน: แก้ไขได้ (ไม่ต้องเลือกภาพใหม่) + ปุ่มกลับเป็น "เผยแพร่"', (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'update')).length === 1 && (await text(p, '#vsList')).includes('(แก้ไข)') && (await text(p, '#vsSubmit')).includes('เผยแพร่'));
+    await p.fill('#vsTitle', 'สรุปให้หน่วยอื่น'); await p.selectOption('#vsUnit', '3'); await p.setInputFiles('#vsImage', { name: 'o.png', mimeType: 'image/png', buffer: PNG }); await p.waitForTimeout(400);
+    await p.click('#vsSubmit'); await p.waitForTimeout(500);
+    { const o = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert'))[1]?.payload || {};
+      check('สรุปผลงาน: เลือก รพ.สต. อื่นได้ (รูปยังอยู่โฟลเดอร์หน่วยตัวเอง) + ยังเห็นในรายการของฉัน', o.unit_id === 3 && o.image_path?.startsWith('summaries/2/') && (await text(p, '#vsList')).includes('สรุปให้หน่วยอื่น'), JSON.stringify(o)); }
+    await p.evaluate(() => { const r = window.__db.visit_summaries; const i = r.findIndex((x) => x.title === 'สรุปให้หน่วยอื่น'); if (i >= 0) r.splice(i, 1); });
     await go(p, '#/tracking'); await p.waitForTimeout(500);
     check('หน้าหลัก › ผลการดำเนินงาน: แสดงภาพสรุปเยี่ยมบ้าน', await count(p, '#trkSums .poster img') === 1);
     { const r = await p.$eval('#trackArt', (e) => { const b = e.getBoundingClientRect(); return { ratio: b.width / b.height, poster: e.classList.contains('sum-poster'), img: !!e.querySelector('.sp-slide.on img'), href: e.querySelector('.sp-slide')?.getAttribute('href') || '' }; });
       check('ผลการดำเนินงาน: กรอบโปสเตอร์ 10:7 แสดงภาพสรุปผลงานเยี่ยมบ้าน (กดไปหน้าอ่านได้)', r.poster && r.img && Math.abs(r.ratio - 10 / 7) < 0.05 && r.href.startsWith('#/summary/'), JSON.stringify(r)); }
     await p.screenshot({ path: path.join(SHOTS, 'tracking-poster-1280.png') });
     await p.click('#trkSums .poster'); await p.waitForTimeout(400);
-    check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + รายละเอียด + PDF)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await visible(p, '#smFile a'));
+    check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + ภาพเพิ่ม + รายละเอียด)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await count(p, '#smGallery .cover') === 1);
     await p.screenshot({ path: path.join(SHOTS, 'summary-1280.png'), fullPage: true });
     await go(p, '#/staff/visits'); await p.waitForTimeout(300);
     await p.click('#vsList [data-del]'); await p.waitForTimeout(400);
@@ -258,10 +269,6 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#sdQ', ''); await p.selectOption('#sdSort', 'title_asc'); await p.waitForTimeout(150);
     const titles = await p.$$eval('#sdList .li b', (b) => b.map((x) => x.textContent));
     check('เอกสาร: เรียงตามชื่อได้', titles.join('|') === [...titles].sort((a, b) => a.localeCompare(b, 'th')).join('|') && titles.length === 2);
-    await go(p, '#/staff/rider'); await p.waitForTimeout(300);
-    check('เจ้าหน้าที่: Health Rider กรอกได้เฉพาะหน่วยตัวเอง (ไม่มีข้อความแนะนำของผู้ดูแล)', await count(p, '#hrStats .da-stat') === 1 && !(await p.$('#hrInfoEdit')) && (await p.inputValue('#hrStats [data-k="trips"]')) === '30');
-    await p.fill('#hrStats [data-k="clients"]', '15'); await p.click('#hrStatSave'); await p.waitForTimeout(300);
-    check('เจ้าหน้าที่: บันทึกผลงาน Health Rider ของหน่วยตัวเอง', (await calls(p, (c) => c.table === 'rider_stats' && c.op === 'upsert'))[0]?.payload?.every((r) => r.unit_id === 2 && r.clients === 15 && r.trips === 30));
     await go(p, '#/staff/messages');
     await p.click('#staffInboxSlot [data-conv]'); await p.waitForTimeout(400);
     await p.fill('#staffInboxSlot .ib-input', 'ตอบกลับจากเจ้าหน้าที่'); await p.click('#staffInboxSlot .ib-form button'); await p.waitForTimeout(400);
@@ -425,6 +432,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ผู้ดูแล: เพิ่มบัญชีเจ้าหน้าที่ (อีเมลเป็นตัวเล็ก)', await p.evaluate(() => window.__db.staff_roster.some((r) => r.email === 'new.staff@gmail.com')));
     await go(p, '#/admin/visits'); await p.waitForTimeout(400);
     { const all = await p.evaluate(() => window.__db.patients.length);
+      check('ผู้ดูแล: เพิ่มสรุปผลงานเยี่ยมบ้านได้ (ฟอร์มเลือก รพ.สต. ได้ทุกหน่วย)', await visible(p, '#adminSumSlot #vsForm') && await count(p, '#adminSumSlot #vsUnit option') === 7 && (await text(p, '#vsListTitle')).includes('ทุก รพ.สต.'));
       check('ผู้ดูแล: เยี่ยมบ้านช่อง "โรงพยาบาลควนกาหลง" รวมทุกชื่อทุก รพ.สต. (ค่าเริ่มต้น)', (await p.getAttribute('#avUnits [data-u="all"]', 'aria-current')) === 'true' && await count(p, '#ptList [data-pt]') === all && all >= 1 && (await text(p, '#ptList')).includes('รพ.สต.')); }
     await p.click('#avUnits [data-u="2"]'); await p.waitForTimeout(300);
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);

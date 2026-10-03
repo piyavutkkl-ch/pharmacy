@@ -65,11 +65,11 @@ js/pages/me.js        ประชาชน (#/me): ข้อมูลส่ว�
                       ไม่ล็อกอินก็แชทได้ (guest_chat_* ใน 30_guest_chat.sql): ชื่อเล่น · ≤15 ตัวอักษร/ข้อความ · 20 ข้อความ/เครื่อง/วัน · ไม่มีรูป · ลบเองเมื่อเงียบ 7 วัน (purge_guest_chats ← กล่องข้อความ + keepalive)
 js/pages/staff-request.js  ขอสิทธิ์เจ้าหน้าที่: ประชาชนส่งคำขอ (#/me/request) → ผู้ดูแลอนุมัติใน ตั้งค่า › บัญชีเจ้าหน้าที่ (approve_staff_request เพิ่ม staff_roster)
 js/pages/docs.js      เอกสารดาวน์โหลด: ผู้ดูแลอัปโหลด/แก้/แทนที่ไฟล์/ลบ, เจ้าหน้าที่ดาวน์โหลด (bucket documents)
-js/pages/staff.js     เจ้าหน้าที่: โครงหน้า/เมนู + ข่าว (ส่งตรวจ) + ผลงาน + ข้อเสนอแนะ + ตัวเลขแจ้งเตือน
+js/pages/staff.js     เจ้าหน้าที่: โครงหน้า/เมนู (ข่าว › ข้อความ › เยี่ยมบ้าน › ผลงาน › มาตรฐาน › เอกสาร › ข้อเสนอแนะ) + ข่าว (ส่งตรวจ) + ผลงาน + ข้อเสนอแนะ + ตัวเลขแจ้งเตือน
 js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence)
 js/pages/delivery.js  บริการจัดส่งยาถึงบ้าน (#/delivery): โปสเตอร์/ข้อความ/สถิติ + ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน
-js/pages/rider.js     Health Rider: ผลงานแสดงในช่องบริการจัดส่งยาถึงบ้าน (#hrBlock · #/rider เลื่อนไปที่นั่น · ไม่มีปุ่มเมนูแยก) + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot, unit) — เจ้าหน้าที่เฉพาะหน่วยตัวเอง, ผู้ดูแลทุกหน่วย
-js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน ภาพ A4 ราย รพ.สต.×ปีงบ: กรอบโปสเตอร์ 10:7 ในผลการดำเนินงาน (renderSummaryPoster สลับภาพ) + แถวใต้ผลการดำเนินงาน, หน้าอ่าน #/summary/<id>, ฟอร์มในหน้าเยี่ยมบ้าน mountSummaries(slot, unit)
+js/pages/rider.js     Health Rider: ผลงานแสดงในช่องบริการจัดส่งยาถึงบ้าน (#hrBlock · #/rider เลื่อนไปที่นั่น · ไม่มีปุ่มเมนูแยก) + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot) — ผู้ดูแลกรอกทุกหน่วย (เมนูเจ้าหน้าที่ไม่มี Health Rider แล้ว)
+js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน one page summary ราย รพ.สต.×ปีงบ (หลายภาพ: image_path + gallery · เลือก รพ.สต. ได้ · 35_summary_images.sql): กรอบโปสเตอร์ 10:7 ในผลการดำเนินงาน (renderSummaryPoster สลับภาพ) + แถวใต้ผลการดำเนินงาน, หน้าอ่าน #/summary/<id>, ฟอร์มในหน้าเยี่ยมบ้าน mountSummaries(slot, unit)
 js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP: S/O/A(assessment)/P, รายการยา + วิธีใช้ (med_list.how), DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
                       สังกัด รพ.สต. = หน่วยที่ดูแล: เปลี่ยนแล้วย้ายผู้ป่วย+บันทึกเยี่ยมด้วย rpc transfer_patient (33_patient_transfer.sql) · ผู้ดูแลมีช่อง ALL = โรงพยาบาล รวมทุกชื่อ
                       ที่อยู่แยกช่อง patients.address_parts {no,moo,tambon,amphoe,province,zip} + address (ข้อความเต็ม)
