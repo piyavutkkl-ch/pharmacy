@@ -1,6 +1,6 @@
 // เจ้าหน้าที่: ประเมินมาตรฐานด้านยา — ส่งรายละเอียด + ไฟล์หลักฐานรายข้อ ให้ผู้ดูแลตรวจ
 // ปีงบปัจจุบันส่ง/แก้ได้ · ปีที่ผ่านมาดูอย่างเดียว (ฐานข้อมูลบังคับด้วย trigger)
-import { sb } from '../supabase.js?v=4.4';
+import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, fiscalYearOf, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadYears, sortItems } from '../data.js?v=4.4';
@@ -10,6 +10,8 @@ import { refreshBadges } from './staff.js?v=4.4';
 const CUR_FY = fiscalYearOf();
 let year = null, items = [], status = new Map(), openId = null, bound = false;
 const pendingRemove = new Set();   // ไฟล์ที่กดลบ — ลบจริงตอนกดส่ง
+const pickedAch = new Set();       // รูปจาก "ผลงาน" ที่เลือกเป็นหลักฐาน — คัดลอกเข้า evidence ตอนกดส่ง
+let achList = null;                 // ผลงานที่มีรูปของหน่วยตัวเอง (โหลดเมื่อกดเลือกครั้งแรก)
 
 const ST = { none: ['ยังไม่ส่ง', 'c-off'], submitted: ['ส่งแล้ว รอตรวจ', 'c-rev'], fix: ['ต้องแก้ไข', 'c-fix'], approved: ['ผ่านแล้ว', 'c-ok'] };
 const FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>';
@@ -103,6 +105,7 @@ function box(it, editable) {
     + (canEdit
       ? `<label class="small" style="font-weight:600" for="ev-detail">รายละเอียดหลักฐาน</label><textarea id="ev-detail" rows="3" maxlength="4000" placeholder="อธิบายว่าหลักฐานคืออะไร เช่น เลขที่คำสั่ง วันที่ ไฟล์แนบ">${esc(s?.detail || '')}</textarea>`
         + `<label class="small" style="font-weight:600" for="ev-files">แนบไฟล์เพิ่ม (PDF/รูป · เลือกได้หลายไฟล์)</label><input id="ev-files" class="input" type="file" accept="application/pdf,image/*" multiple><div class="fthumbs" id="ev-preview" hidden></div>`
+        + '<div><button type="button" class="btn btn-o btn-sm" data-ach-pick aria-expanded="false" aria-controls="ev-ach">เลือกรูปจาก "ผลงาน" ที่นำเสนอแล้ว</button> <span class="small muted" id="ev-ach-n"></span></div><div class="ach-pick" id="ev-ach" hidden></div>'
       : (s?.detail ? `<p class="small"><b>รายละเอียด:</b> ${esc(s.detail)}</p>` : '<p class="small muted">ยังไม่มีการส่งหลักฐาน</p>'))
     + (files ? `<p class="small" style="font-weight:600">ไฟล์หลักฐานที่ส่งแล้ว (กดเพื่อเปิด)</p><div class="fthumbs">${files}</div>` : '')
     + '<div class="row-btns" style="align-items:center">'
@@ -125,8 +128,11 @@ function bind() {
   });
   $('#scList').addEventListener('click', async (e) => {
     const o = e.target.closest('[data-open]');
-    if (o) { const id = +o.dataset.open; openId = openId === id ? null : id; pendingRemove.clear(); render(); return; }
-    if (e.target.closest('[data-close]')) { openId = null; pendingRemove.clear(); render(); return; }
+    if (o) { const id = +o.dataset.open; openId = openId === id ? null : id; pendingRemove.clear(); pickedAch.clear(); render(); return; }
+    if (e.target.closest('[data-close]')) { openId = null; pendingRemove.clear(); pickedAch.clear(); render(); return; }
+    if (e.target.closest('[data-ach-pick]')) { toggleAchPicker(e.target.closest('[data-ach-pick]')); return; }
+    const ao = e.target.closest('[data-ach-opt]');
+    if (ao) { const id = ao.dataset.achOpt; if (pickedAch.has(id)) pickedAch.delete(id); else pickedAch.add(id); ao.setAttribute('aria-pressed', String(pickedAch.has(id))); achCount(); return; }
     const f = e.target.closest('[data-file]');
     if (f) { try { await openPrivateFile(f); } catch (err) { toast(errText(err), 'err'); } return; }
     const rm = e.target.closest('[data-rmfile]');
@@ -144,6 +150,34 @@ function bind() {
   $('#scList').addEventListener('change', (e) => { if (e.target.id === 'ev-files') previewFiles(e.target.files, $('#ev-preview')); });
 }
 
+/* ---------- เลือกรูปจาก "ผลงาน" (ตาราง achievements ของหน่วยตัวเอง) เป็นหลักฐาน ---------- */
+const achCount = () => { const n = $('#ev-ach-n'); if (n) n.textContent = pickedAch.size ? `เลือกแล้ว ${pickedAch.size} รูป · คัดลอกเป็นไฟล์หลักฐานตอนกดส่ง` : ''; };
+async function toggleAchPicker(btn) {
+  const box = $('#ev-ach'), open = box.hidden;
+  box.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  if (!achList) {
+    box.innerHTML = '<div class="skeleton"></div>';
+    const { data, error } = await sb.from('achievements').select('id,title,image_path,created_at').eq('unit_id', auth.profile.unit_id).order('created_at', { ascending: false }).limit(60);
+    if (error) { box.innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+    achList = data.filter((a) => a.image_path);
+  }
+  box.innerHTML = achList.length ? achList.map((a) => `<button type="button" class="ach-opt" data-ach-opt="${a.id}" aria-pressed="${pickedAch.has(a.id)}"><img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy"><span>${esc(a.title)}</span></button>`).join('')
+    : '<p class="empty">ยังไม่มีผลงานที่มีรูป · ส่งผลงานได้ที่เมนู "ผลงาน"</p>';
+}
+/** คัดลอกรูปผลงานที่เลือกเป็นไฟล์หลักฐาน (bucket evidence ส่วนตัว) → path */
+async function copyAchImages(folder) {
+  const out = [];
+  for (const id of pickedAch) {
+    const a = achList?.find((x) => x.id === id); if (!a) continue;
+    const r = await fetch(publicImageUrl(a.image_path));
+    if (!r.ok) throw new Error(`โหลดรูปผลงาน "${a.title}" ไม่ได้`);
+    const blob = await r.blob();
+    out.push(await uploadEvidence(new File([blob], 'achievement.webp', { type: blob.type || 'image/webp' }), folder));
+  }
+  return out;
+}
+
 /** ยกเลิกการส่ง (ยังรอตรวจ) → กลับเป็น "ยังไม่ส่ง" หรือ "ต้องแก้ไข" · รายละเอียด/ไฟล์ยังอยู่ */
 async function withdraw(statusId, btn) {
   if (!confirm('ยกเลิกการส่งข้อนี้?\nรายละเอียดและไฟล์ยังอยู่ แก้ไขแล้วส่งใหม่ได้')) return;
@@ -158,11 +192,12 @@ async function submit(itemId, btn) {
   const it = items.find((x) => x.id === itemId), s = status.get(itemId), m = $('#ev-msg');
   const detail = $('#ev-detail').value.trim(), files = [...$('#ev-files').files];
   const kept = (s?.evidence_paths || []).filter((p) => !pendingRemove.has(p));
-  if (!detail && !files.length && !kept.length) { m.style.color = 'var(--error)'; m.textContent = 'กรุณากรอกรายละเอียดหรือแนบไฟล์หลักฐาน'; return; }
-  busy(btn, true, files.length ? 'กำลังอัปโหลด…' : 'กำลังส่ง…'); m.textContent = '';
+  if (!detail && !files.length && !kept.length && !pickedAch.size) { m.style.color = 'var(--error)'; m.textContent = 'กรุณากรอกรายละเอียดหรือแนบไฟล์หลักฐาน'; return; }
+  busy(btn, true, files.length || pickedAch.size ? 'กำลังอัปโหลด…' : 'กำลังส่ง…'); m.textContent = '';
   const uploaded = [];
   try {
     for (const f of files) uploaded.push(await uploadEvidence(f, `${year}/${auth.profile.unit_id}/${it.item_no}`));
+    uploaded.push(...await copyAchImages(`${year}/${auth.profile.unit_id}/${it.item_no}`));
     const paths = [...kept, ...uploaded];
     const res = s
       ? await sb.from('item_status').update({ detail: detail || null, evidence_paths: paths }).eq('id', s.id).select()
@@ -171,7 +206,7 @@ async function submit(itemId, btn) {
     if (!res.data?.length) throw new Error('บันทึกไม่สำเร็จ (ข้อนี้อาจถูกอนุมัติแล้ว)');
     if (pendingRemove.size) removeFiles('evidence', [...pendingRemove]);
     toast(`ส่งข้อ ${it.item_no} ให้ผู้ดูแลตรวจแล้ว`);
-    openId = null; pendingRemove.clear(); await load(); refreshBadges();
+    openId = null; pendingRemove.clear(); pickedAch.clear(); await load(); refreshBadges();
   } catch (err) {
     if (uploaded.length) removeFiles('evidence', uploaded);
     m.style.color = 'var(--error)'; m.textContent = errText(err);

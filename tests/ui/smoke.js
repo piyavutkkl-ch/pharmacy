@@ -516,9 +516,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click(`[data-open="${i13}"]`); await p.waitForTimeout(200);
     await p.setInputFiles('#ev-files', [img, pdf]); await p.waitForTimeout(200);
     check('หลักฐาน: เลือกไฟล์แล้วแสดงตัวอย่าง (รูป + PDF)', await count(p, '#ev-preview .fthumb') === 2 && await count(p, '#ev-preview img') === 1);
-    await p.click(`[data-submit="${i13}"]`); await p.waitForTimeout(600);
+    await p.evaluate(() => window.__db.achievements.push({ id: '00000000-0000-0000-0000-0000000ac001', unit_id: 2, title: 'ผลงานมีรูป', image_path: 'achievements/2/x.webp', created_at: new Date().toISOString() }));
+    await p.click('[data-ach-pick]'); await p.waitForTimeout(300);
+    check('หลักฐาน: เลือกรูปจาก "ผลงาน" ที่นำเสนอแล้วได้ (เฉพาะผลงานที่มีรูปของหน่วยตัวเอง)', await count(p, '#ev-ach [data-ach-opt]') === 1 && (await text(p, '#ev-ach')).includes('ผลงานมีรูป'));
+    await p.click('#ev-ach [data-ach-opt]'); await p.waitForTimeout(100);
+    check('หลักฐาน: กดเลือกแล้วขึ้นเลือกแล้ว + จำนวน', (await p.getAttribute('#ev-ach [data-ach-opt]', 'aria-pressed')) === 'true' && (await text(p, '#ev-ach-n')).includes('1 รูป'));
+    await p.click(`[data-submit="${i13}"]`); await p.waitForTimeout(800);
     await p.click(`[data-open="${i13}"]`); await p.waitForTimeout(300);
-    check('หลักฐาน: ส่งแล้วขึ้น "รอตรวจ" + ภาพย่อไฟล์ที่ส่ง', await visible(p, '.wait-note') && await count(p, '.crit-editbox .fthumb[data-file]') === 2);
+    check('หลักฐาน: ส่งแล้วขึ้น "รอตรวจ" + ภาพย่อไฟล์ที่ส่ง (รวมรูปจากผลงาน)', await visible(p, '.wait-note') && await count(p, '.crit-editbox .fthumb[data-file]') === 3 && (await calls(p, (c) => c.upload === 'evidence')).length === 3);
     await p.click('[data-withdraw]'); await p.waitForTimeout(500);
     check('หลักฐาน: กดยกเลิกการส่งได้', (await calls(p, (c) => c.rpc === 'withdraw_item_status')).length === 1 && await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 2)?.status === 'none', i13));
     await go(p, '#/staff/visits'); await p.click('#ptAddBtn'); await p.waitForTimeout(150);
