@@ -653,18 +653,14 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .an-date{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
 .an-date .input{width:auto}
 #anList.an-scroll{max-height:min(70vh,640px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
-/* ประชาชน › สอบถามเรื่องยา: ปลายทาง 2 ปุ่ม (เลือก รพ.สต. แบบรายการ · ห้องยา รพ.) */
-.me-targets{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* ประชาชน › สอบถามเรื่องยา: ปลายทาง = เลือก รพ.สต. จากรายการ */
+.me-targets{display:grid;grid-template-columns:1fr;gap:8px}
 .me-pick{position:relative;display:flex;align-items:center;min-width:0}
 .me-pick select{width:100%;min-height:44px;padding:0 34px 0 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;
   background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;text-overflow:ellipsis}
 .me-pick.on select{background-color:var(--primary);color:var(--on-primary);border-color:var(--primary)}
 .me-pick .badge{position:absolute;top:-6px;right:-4px}
-.me-hosp{position:relative;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:14px;font-weight:600;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.me-hosp[aria-current="true"]{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
-.me-hosp .badge{position:static;margin-left:4px}
 .me-pick.on select option{background:var(--surface);color:var(--ink)}
-@media (max-width:420px){.me-targets{grid-template-columns:1fr}}
 /* แชทแบบไม่ต้องล็อกอิน (#/me ตอนยังไม่เข้าสู่ระบบ): ซ่อนข้อมูลส่วนตัว/ขอสิทธิ์ · แสดงช่องชื่อเล่น */
 [data-view="me"]:not(.guest) .me-guest{display:none}
 [data-view="me"].guest .citizen-split{grid-template-columns:1fr}

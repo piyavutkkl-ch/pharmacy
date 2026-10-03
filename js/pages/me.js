@@ -11,6 +11,7 @@ import { initStaffRequest } from './staff-request.js?v=4.4';
 import { targetName, loadMessages, sendMessage, renderLog, openRoom, markRead, refreshMsgBadge, onConversationChange, chatPicker } from './chat.js?v=4.4';
 
 let convs = [], target, msgs = [], closeRoom = null, bound = false, units = [], pick = null, guest = false;
+const NONE = '';   // ยังไม่ได้เลือก รพ.สต. (null = ห้องยา รพ. เดิม — ปิดรับห้องใหม่แล้ว เปิดอ่านได้ถ้าเคยคุย)
 const GUEST_MAX = 15, NAME_KEY = 'pcps_guest_name', POLL_MS = 10_000;
 const chars = (t) => [...t].length;   // นับแบบเดียวกับ char_length ของ Postgres
 
@@ -33,7 +34,7 @@ export async function showMe(openRequest = false) {
     fillProfile();
   }
   await loadConvs();
-  if (target === undefined) target = convs[0]?.target_unit ?? (guest ? null : auth.profile.home_unit_id) ?? null;   // ห้องล่าสุด → หน่วยใกล้บ้าน → ห้องยา รพ.
+  if (target === undefined) target = convs.find((c) => c.target_unit != null)?.target_unit ?? (guest ? null : auth.profile.home_unit_id) ?? NONE;   // ห้องล่าสุด → หน่วยใกล้บ้าน → ให้เลือก
   renderTargets();
   openTarget(target);
   if (!guest) initStaffRequest(openRequest);
@@ -89,21 +90,25 @@ async function loadConvs() {
 }
 const convOf = (t) => convs.find((c) => (c.target_unit ?? null) === (t ?? null));
 
-// ปลายทางแชท 2 ปุ่ม: (1) เลือก รพ.สต. จากรายการ (2) ห้องยา รพ.ควนกาหลง · ตัวเลขข้อความใหม่ต่อห้องแสดงในรายการ + รวมที่ปุ่ม
+// ปลายทางแชท: เลือก รพ.สต. จากรายการเท่านั้น (ผู้ดูแลเข้ามาช่วยตอบในห้องของ รพ.สต. ได้) · ห้องยา รพ. เดิมแสดงเฉพาะคนที่เคยคุยไว้
 function renderTargets() {
-  const unread = (t) => convOf(t)?.unread_citizen || 0;
-  const unitSel = target != null, unitNew = units.reduce((a, u) => a + unread(u.id), 0), hospNew = unread(null);
-  $('#meTargets').innerHTML = `<label class="me-pick${unitSel ? ' on' : ''}"><span class="sr-only">เลือก รพ.สต.</span>`
-    + `<select id="meUnitPick" aria-label="เลือก รพ.สต. ที่ต้องการถาม"><option value=""${unitSel ? '' : ' selected'}>เลือก รพ.สต. …</option>`
+  const unread = (t) => convOf(t)?.unread_citizen || 0, legacy = convOf(null);
+  $('#meTargets').innerHTML = `<label class="me-pick${target !== NONE ? ' on' : ''}"><span class="sr-only">เลือก รพ.สต.</span>`
+    + `<select id="meUnitPick" aria-label="เลือก รพ.สต. ที่ต้องการถาม"><option value=""${target === NONE ? ' selected' : ''}>เลือก รพ.สต. ที่ต้องการถาม…</option>`
     + units.map((u) => `<option value="${u.id}"${target === u.id ? ' selected' : ''}>รพ.สต. ${esc(u.name)}${unread(u.id) ? ` (ใหม่ ${unread(u.id)})` : ''}</option>`).join('')
-    + `</select>${unitNew && !unitSel ? ` <span class="badge num">${unitNew}</span>` : ''}</label>`
-    + `<button type="button" class="me-hosp" data-t="" aria-current="${!unitSel}">${esc(targetName(null))}${hospNew ? ` <span class="badge num">${hospNew}</span>` : ''}</button>`;
+    + (legacy ? `<option value="h"${target === null ? ' selected' : ''}>ห้องยา รพ. (ข้อความเดิม)${unread(null) ? ` (ใหม่ ${unread(null)})` : ''}</option>` : '')
+    + '</select></label>';
 }
 const unitName = (id) => units.find((u) => u.id === id)?.name || '';
 
 async function openTarget(t) {
   closeRoom?.(); closeRoom = null;
   target = t;
+  if (t === NONE) {                                         // ยังไม่ได้เลือกปลายทาง
+    msgs = []; $('#meChatTitle').textContent = '';
+    $('#meLog').innerHTML = '<p class="chat-empty">เลือก รพ.สต. ที่ต้องการถามจากรายการด้านบนก่อน เจ้าหน้าที่ รพ.สต. นั้นจะตอบในเวลาราชการ</p>';
+    return;
+  }
   $('#meChatTitle').textContent = 'ส่งถึง ' + targetName(t);
   const c = convOf(t);
   msgs = [];
@@ -171,6 +176,8 @@ function listen(c) {
 async function send(e) {
   e.preventDefault();
   const inp = $('#meInput'), body = inp.value.trim();
+  if (target === NONE) { $('#meChatHint').textContent = 'กรุณาเลือก รพ.สต. ที่ต้องการถามก่อน'; $('#meUnitPick').focus(); return; }
+  if (target === null) { $('#meChatHint').textContent = 'ห้องยา รพ. ปิดรับข้อความใหม่แล้ว — กรุณาเลือก รพ.สต. ที่ต้องการถาม'; return; }   // อ่านข้อความเดิมได้อย่างเดียว
   if (guest) { if (body) await guestSend(body); return; }
   const blob = await pick.ready();
   if (!body && !blob) return;
@@ -203,13 +210,10 @@ function bind() {
     if (n > GUEST_MAX) loginHint(`เกิน ${GUEST_MAX} ตัวอักษร (${n}) — กรุณาเข้าสู่ระบบเพื่อแชทต่อ`); else $('#meChatHint').textContent = '';
   });
   pick = chatPicker($('#meFile'), $('#mePick'), $('#mePickNote'));
-  $('#meTargets').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-t]'); if (!b || target === null) return;
-    openTarget(null); renderTargets();
-  });
   $('#meTargets').addEventListener('change', (e) => {
     if (e.target.id !== 'meUnitPick' || e.target.value === '') return;
-    const t = +e.target.value; if (t === target) return;
+    const t = e.target.value === 'h' ? null : +e.target.value; if (t === target) return;
+    $('#meChatHint').textContent = '';
     openTarget(t); renderTargets();
   });
   onConversationChange(async () => {                        // เจ้าหน้าที่ตอบห้องอื่น → อัปเดตตัวเลข

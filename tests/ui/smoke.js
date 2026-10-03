@@ -138,11 +138,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     /* ================= ประชาชน ================= */
     p = await open('citizen', '#/me');
     check('ประชาชน: หน้า "ของฉัน" แสดงข้อมูลส่วนตัว', (await p.$eval('#mePhone', (e) => e.value)) !== '');
-    check('ประชาชน: ปลายทางแชท 2 ปุ่ม (รายการเลือก 7 รพ.สต. + ห้องยา รพ.)', await count(p, '#meUnitPick option[value]:not([value=""])') === 7 && await count(p, '#meTargets .me-hosp') === 1 && (await text(p, '#meTargets .me-hosp')).includes('ห้องยา'));
+    check('ประชาชน: ปลายทางแชทเลือก รพ.สต. เท่านั้น (ไม่มีปุ่มห้องยา) · ห้องยาเดิมอยู่ในรายการเฉพาะคนที่เคยคุย', await count(p, '#meUnitPick option') === 9 && await count(p, '#meUnitPick option[value="h"]') === 1 && !(await p.$('#meTargets button')));
     await p.selectOption('#meUnitPick', '3'); await p.waitForTimeout(300);
-    check('ประชาชน: เลือก รพ.สต. จากรายการ → เปิดห้องของหน่วยนั้น', (await text(p, '#meChatTitle')).includes('รพ.สต.') && await p.$eval('.me-pick', (e) => e.classList.contains('on')) && (await p.getAttribute('#meTargets .me-hosp', 'aria-current')) === 'false');
-    await p.click('#meTargets .me-hosp'); await p.waitForTimeout(300);
-    check('ประชาชน: กดปุ่มห้องยา รพ. → เปิดห้องยา', (await text(p, '#meChatTitle')).includes('ห้องยา') && (await p.getAttribute('#meTargets .me-hosp', 'aria-current')) === 'true' && (await p.inputValue('#meUnitPick')) === '');
+    check('ประชาชน: เลือก รพ.สต. จากรายการ → เปิดห้องของหน่วยนั้น', (await text(p, '#meChatTitle')).includes('รพ.สต.') && await p.$eval('.me-pick', (e) => e.classList.contains('on')));
+    await p.selectOption('#meUnitPick', 'h'); await p.waitForTimeout(300);
+    check('ประชาชน: ห้องยา รพ. เดิม อ่านข้อความเก่าได้', (await text(p, '#meChatTitle')).includes('ห้องยา') && await count(p, '#meLog .bubble') >= 1);
+    await p.fill('#meInput', 'ถามต่อ'); await p.click('#meSend'); await p.waitForTimeout(300);
+    check('ประชาชน: ห้องยา รพ. ปิดรับข้อความใหม่ (แนะนำให้เลือก รพ.สต.)', (await text(p, '#meChatHint')).includes('ปิดรับ') && (await calls(p, (c) => c.table === 'messages' && c.op === 'insert')).length === 0);
+    await p.selectOption('#meUnitPick', '2'); await p.waitForTimeout(300);
     check('ประชาชน: เห็นข้อความเดิมในห้องแชท', await count(p, '#meLog .bubble') >= 1);
     await p.fill('#meInput', 'ทดสอบถามเรื่องยา'); await p.click('#meSend'); await p.waitForTimeout(400);
     check('ประชาชน: ส่งข้อความได้', (await calls(p, (c) => c.table === 'messages' && c.op === 'insert')).length === 1);
@@ -177,6 +180,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/me'); await p.waitForTimeout(400);
     check('แชทไม่ล็อกอิน: เปิดได้ + ช่องชื่อเล่น + ซ่อนข้อมูลส่วนตัว/ปุ่มแนบรูป', await visible(p, '#meGuest') && await visible(p, '#meGuestName') && !(await visible(p, '#meForm')) && !(await visible(p, '#meAttach')) && !(await visible(p, '#srPanel')) && await overflow(p) <= 0);
     await p.fill('#meInput', 'สวัสดีค่ะ'); await p.click('#meSend'); await p.waitForTimeout(200);
+    check('แชทไม่ล็อกอิน: ต้องเลือก รพ.สต. ก่อน (ไม่มีห้องยา รพ.)', (await text(p, '#meChatHint')).includes('เลือก รพ.สต.') && !(await p.$('#meUnitPick option[value="h"]')) && (await calls(p, (c) => c.rpc === 'guest_chat_send')).length === 0);
+    await p.selectOption('#meUnitPick', '2'); await p.waitForTimeout(300);
+    await p.click('#meSend'); await p.waitForTimeout(200);
     check('แชทไม่ล็อกอิน: ต้องใส่ชื่อเล่นก่อน', (await text(p, '#meChatHint')).includes('ชื่อเล่น') && (await calls(p, (c) => c.rpc === 'guest_chat_send')).length === 0);
     await p.fill('#meGuestName', 'ลุงมา'); await p.fill('#meInput', 'ยาความดันกินก่อนหรือหลังอาหารครับ'); await p.waitForTimeout(100);
     check('แชทไม่ล็อกอิน: พิมพ์เกิน 15 ตัวอักษร → เตือนให้เข้าสู่ระบบ', (await text(p, '#meChatHint')).includes('เข้าสู่ระบบ') && await count(p, '#meChatHint a[href="#/login"]') === 1);
@@ -292,6 +298,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     }
     await go(p, '#/admin/messages'); await p.waitForTimeout(400);
     check('ผู้ดูแล: เมนูข้อความมีแท็บ "คุยกับ รพ.สต." + ตัวเลขยังไม่อ่าน', (await text(p, '#ucAdminSwitch [data-uc="admin"] [data-uc-badge]')).trim() === '1');
+    check('ผู้ดูแล: ข้อความจากประชาชนเลือกดูตาม รพ.สต. (เปิดหน่วยที่มีข้อความค้างก่อน) · ห้องยาเดิมเป็นแท็บท้าย', (await p.getAttribute('#amTargets [data-t="2"]', 'aria-current')) === 'true'
+      && (await p.$$eval('#amTargets [data-t]', (b) => b.map((x) => x.dataset.t))).at(-1) === '' && await count(p, '#amTargets [data-t]') === 8);
+    await p.click('#adminInboxSlot [data-conv="00000000-0000-0000-0000-0000000c0001"]'); await p.waitForTimeout(400);
+    await p.fill('#adminInboxSlot .ib-input', 'ผู้ดูแลช่วยตอบครับ'); await p.click('#adminInboxSlot .ib-send'); await p.waitForTimeout(400);
+    check('ผู้ดูแล: เข้าไปช่วยตอบในห้องของ รพ.สต. ได้ (ไม่ล้างตัวเลขของหน่วย)', (await calls(p, (c) => c.table === 'messages' && c.op === 'insert')).some((c) => c.payload.body === 'ผู้ดูแลช่วยตอบครับ') && !(await calls(p, (c) => c.rpc === 'mark_conversation_read')).length);
+    await p.click('#amTargets [data-t=""]'); await p.waitForTimeout(400);
     await p.click('#adminInboxSlot [data-conv]'); await p.waitForTimeout(400);
     await p.click('#adminInboxSlot [data-trash]'); await p.waitForTimeout(400);
     check('แชท: ลบห้องสนทนาลงถังขยะได้ (ออกจากรายชื่อ + ถังขยะนับ 1)', (await calls(p, (c) => c.rpc === 'trash_conversation' && c.args.p_trash === true)).length === 1

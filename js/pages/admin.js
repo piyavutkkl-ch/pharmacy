@@ -60,7 +60,7 @@ export async function refreshAdminBadges() {
 }
 
 /* ---------- ข้อความ: ห้องยา รพ. (ค่าเริ่มต้น) หรือดูกล่องของ รพ.สต. ---------- */
-let msgTarget = null;
+let msgTarget;   // รพ.สต. ที่เปิดดู (ประชาชนคุยกับ รพ.สต. เท่านั้น · ผู้ดูแลเข้าไปช่วยตอบได้) · null = ห้องยา รพ. เดิม (แสดงเมื่อยังมีห้องเก่า)
 async function showMessages(sub) {
   const toUnits = sub === 'units';   // #/admin/messages/units = คุยกับ รพ.สต.
   $$('#ucAdminSwitch [data-uc]').forEach((a) => { if ((a.dataset.uc === 'admin') === toUnits) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
@@ -70,9 +70,11 @@ async function showMessages(sub) {
   const units = await loadUnits();
   const { data } = await sb.from('conversations').select('target_unit,unread_staff');
   const unread = (t) => (data || []).filter((c) => (c.target_unit ?? null) === t).reduce((s, c) => s + c.unread_staff, 0);
-  $('#amTargets').innerHTML = [null, ...units.map((u) => u.id)].map((t) => {
+  const legacy = (data || []).some((c) => c.target_unit == null);
+  if (msgTarget === undefined || (msgTarget === null && !legacy)) msgTarget = (units.find((u) => unread(u.id)) || units[0])?.id ?? null;   // หน่วยที่มีข้อความค้างก่อน
+  $('#amTargets').innerHTML = [...units.map((u) => u.id), ...(legacy ? [null] : [])].map((t) => {
     const n = unread(t);
-    return `<button type="button" data-t="${t ?? ''}" aria-current="${t === msgTarget}">${t == null ? 'ห้องยา รพ. (ตอบเอง)' : esc(unitName(t))}${n ? ` (${n})` : ''}</button>`;
+    return `<button type="button" data-t="${t ?? ''}" aria-current="${t === msgTarget}">${t == null ? 'ห้องยา รพ. (ข้อความเดิม)' : 'รพ.สต.' + esc(unitName(t))}${n ? ` (${n})` : ''}</button>`;
   }).join('');
   $('#amTargets').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; msgTarget = b.dataset.t === '' ? null : +b.dataset.t; showMessages(); };
   mountInbox($('#adminInboxSlot'), msgTarget);
