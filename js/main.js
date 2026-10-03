@@ -109,7 +109,7 @@ function renderNav() {
   const nav = $('#topNav');
   if (auth.session && auth.profile) {
     const p = auth.profile;
-    const appLink = { admin: 'ผู้ดูแลระบบ', staff: 'ระบบเจ้าหน้าที่', citizen: 'ของฉัน' }[p.role];
+    const appLink = { admin: 'ระบบผู้ดูแล', staff: 'ระบบเจ้าหน้าที่', citizen: 'ของฉัน' }[p.role];
     nav.innerHTML = `<a href="#/" data-route="home">หน้าหลัก</a><a href="${ROLE_HOME[p.role]}" data-route="${ROLE_HOME[p.role].slice(2)}">${appLink}${p.role === 'citizen' ? ' <span id="navMsgBadge" class="badge num"></span>' : ''}</a>`
       + `<button type="button" class="who-chip" id="profileBtn" title="แก้ไขข้อมูลส่วนตัว · ${esc(p.email)}" aria-label="ข้อมูลส่วนตัว: ${esc(p.full_name || p.email)}">${USER_SVG}<span>${esc(p.full_name || p.email)}</span></button><a href="#" id="logoutLink">ออกจากระบบ</a>`;
     $('#logoutLink').addEventListener('click', (e) => { e.preventDefault(); signOut(); });

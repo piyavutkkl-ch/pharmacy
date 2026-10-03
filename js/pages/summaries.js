@@ -20,7 +20,7 @@ const label = (s) => `รพ.สต.${unitName(s.unit_id)} · ปีงบปร
 /* ======================= หน้าหลัก ======================= */
 let rowBound = false, rowSeq = 0;
 
-/** แถวภาพสรุปใต้ผลการดำเนินงาน · unit = 'all' หรือเลข รพ.สต. */
+/** แถวภาพสรุปใต้ผลการดำเนินงาน · unit = 'all' หรือเลข รพ.สต. · คืนรายการ (null = ผู้ใช้เปลี่ยนแท็บระหว่างโหลด) */
 export async function renderSummaryRow(unit, year) {
   const row = $('#trkSums'), seq = ++rowSeq;
   if (!rowBound) { rowBound = true; bindPosterNav(row); }
@@ -29,12 +29,34 @@ export async function renderSummaryRow(unit, year) {
   let q = sb.from('visit_summaries').select('id,unit_id,fiscal_year,title,image_path').eq('fiscal_year', year);
   if (unit !== 'all') q = q.eq('unit_id', unit);
   const { data, error } = await q.order('created_at', { ascending: false });
-  if (seq !== rowSeq) return;   // ผู้ใช้เปลี่ยนแท็บระหว่างโหลด
+  if (seq !== rowSeq) return null;   // ผู้ใช้เปลี่ยนแท็บระหว่างโหลด
   const list = error ? [] : data;
   row.innerHTML = list.length ? list.map((s) => `<a class="poster" href="#/summary/${s.id}">`
     + `<img src="${esc(publicImageUrl(s.image_path))}" alt="${esc(s.title)}" loading="lazy"><span>${esc(s.title)}<em class="small muted"> ${esc(label(s))}</em></span></a>`).join('')
     : `<p class="empty">ยังไม่มีสรุปผลงานเยี่ยมบ้าน${unit === 'all' ? '' : 'ของ รพ.สต.' + esc(unitName(unit))} ปีงบ ${year}</p>`;
   row.parentNode.querySelectorAll('[data-poster-nav]').forEach((b) => { b.hidden = list.length < 2; });
+  return list;
+}
+
+/** กรอบโปสเตอร์ 10:7 ในผลการดำเนินงาน: แสดงภาพสรุปผลงานเยี่ยมบ้าน (หลายภาพ = สลับทุก 5 วินาที · กดเพื่อเปิดอ่าน) · ไม่มีภาพ = ภาพประกอบเดิม */
+let posterTimer = null;
+export function renderSummaryPoster(box, list, fallback) {
+  clearInterval(posterTimer); posterTimer = null;
+  if (!list?.length) { box.classList.remove('sum-poster'); box.innerHTML = fallback; return; }
+  box.classList.add('sum-poster');
+  box.innerHTML = list.map((s, i) => `<a class="sp-slide${i ? '' : ' on'}" href="#/summary/${s.id}" aria-label="${esc(s.title)} — ${esc(label(s))}"${i ? ' tabindex="-1"' : ''}>`
+    + `<span class="sp-bg" style="background-image:url('${esc(publicImageUrl(s.image_path))}')"></span><img src="${esc(publicImageUrl(s.image_path))}" alt="${esc(s.title)}" loading="lazy"></a>`).join('')
+    + (list.length > 1 ? `<span class="sp-count num" aria-live="polite">1/${list.length}</span>` : '');
+  if (list.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let i = 0;
+  posterTimer = setInterval(() => {
+    if (!box.isConnected || box.closest('[hidden]')) { clearInterval(posterTimer); return; }
+    const slides = box.querySelectorAll('.sp-slide');
+    slides[i].classList.remove('on'); slides[i].tabIndex = -1;
+    i = (i + 1) % slides.length;
+    slides[i].classList.add('on'); slides[i].removeAttribute('tabindex');
+    box.querySelector('.sp-count').textContent = `${i + 1}/${slides.length}`;
+  }, 5000);
 }
 
 /* ======================= หน้าอ่าน #/summary/<id> ======================= */

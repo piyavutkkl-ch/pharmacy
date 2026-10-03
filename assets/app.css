@@ -415,8 +415,16 @@ a.menu-icon-btn{text-decoration:none}
 .panel-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
 .track-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:center}
 .track-grid .cover{aspect-ratio:4/3}
+/* กรอบโปสเตอร์ 10:7 = ภาพสรุปผลงานเยี่ยมบ้าน (summaries.js renderSummaryPoster) · ภาพทั้งใบไม่ครอบตัด + พื้นหลังเบลอจากภาพเดียวกัน */
+.track-grid .cover.sum-poster{aspect-ratio:10/7;position:relative;background:var(--sunken)}
+.sum-poster .sp-slide{position:absolute;inset:0;display:block;opacity:0;transition:opacity .6s ease;pointer-events:none}
+.sum-poster .sp-slide.on{opacity:1;pointer-events:auto}
+.sum-poster .sp-bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(18px) brightness(.85);transform:scale(1.05)}
+.sum-poster img{position:relative;display:block;width:100%;height:100%;object-fit:contain}
+.sum-poster .sp-count{position:absolute;right:10px;bottom:10px;padding:2px 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600}
+@media (prefers-reduced-motion: reduce){.sum-poster .sp-slide{transition:none}}
 .track-figs{display:flex;flex-direction:column;gap:14px}
-@media (max-width:640px){.track-grid{grid-template-columns:1fr}.track-grid .cover{display:none}}
+@media (max-width:640px){.track-grid{grid-template-columns:1fr}.track-grid .cover:not(.sum-poster){display:none}}   /* มือถือ: ซ่อนภาพประกอบ แต่แสดงโปสเตอร์สรุปผลงาน */
 .footer-col{display:flex;flex-direction:column;gap:6px}
 .footer-links{display:flex;flex-direction:column;gap:4px;margin-top:6px}
 .empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:14px;border:1px dashed var(--line);border-radius:16px}

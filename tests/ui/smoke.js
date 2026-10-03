@@ -240,6 +240,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('สรุปผลงาน: แก้ไขได้ (ไม่ต้องเลือกภาพใหม่) + ปุ่มกลับเป็น "เผยแพร่"', (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'update')).length === 1 && (await text(p, '#vsList')).includes('(แก้ไข)') && (await text(p, '#vsSubmit')).includes('เผยแพร่'));
     await go(p, '#/tracking'); await p.waitForTimeout(500);
     check('หน้าหลัก › ผลการดำเนินงาน: แสดงภาพสรุปเยี่ยมบ้าน', await count(p, '#trkSums .poster img') === 1);
+    { const r = await p.$eval('#trackArt', (e) => { const b = e.getBoundingClientRect(); return { ratio: b.width / b.height, poster: e.classList.contains('sum-poster'), img: !!e.querySelector('.sp-slide.on img'), href: e.querySelector('.sp-slide')?.getAttribute('href') || '' }; });
+      check('ผลการดำเนินงาน: กรอบโปสเตอร์ 10:7 แสดงภาพสรุปผลงานเยี่ยมบ้าน (กดไปหน้าอ่านได้)', r.poster && r.img && Math.abs(r.ratio - 10 / 7) < 0.05 && r.href.startsWith('#/summary/'), JSON.stringify(r)); }
+    await p.screenshot({ path: path.join(SHOTS, 'tracking-poster-1280.png') });
     await p.click('#trkSums .poster'); await p.waitForTimeout(400);
     check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + รายละเอียด + PDF)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await visible(p, '#smFile a'));
     await p.screenshot({ path: path.join(SHOTS, 'summary-1280.png'), fullPage: true });
@@ -297,6 +300,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผู้ดูแล: ลบความคิดเห็นไม่เหมาะสมในหน้าอ่านข่าวได้', n0 >= 1 && (await calls(p, (c) => c.table === 'news_comments' && c.op === 'delete')).length === 1 && await count(p, '#arComments [data-del-comment]') === n0 - 1);
     }
     await go(p, '#/admin/messages'); await p.waitForTimeout(400);
+    check('ผู้ดูแล: แถบเมนูบนใช้คำว่า "ระบบผู้ดูแล"', (await text(p, '#topNav')).includes('ระบบผู้ดูแล') && !(await text(p, '#topNav')).includes('ผู้ดูแลระบบ'));
     check('ผู้ดูแล: เมนูข้อความมีแท็บ "คุยกับ รพ.สต." + ตัวเลขยังไม่อ่าน', (await text(p, '#ucAdminSwitch [data-uc="admin"] [data-uc-badge]')).trim() === '1');
     check('ผู้ดูแล: ข้อความจากประชาชนเลือกดูตาม รพ.สต. (เปิดหน่วยที่มีข้อความค้างก่อน) · ห้องยาเดิมเป็นแท็บท้าย', (await p.getAttribute('#amTargets [data-t="2"]', 'aria-current')) === 'true'
       && (await p.$$eval('#amTargets [data-t]', (b) => b.map((x) => x.dataset.t))).at(-1) === '' && await count(p, '#amTargets [data-t]') === 8);
