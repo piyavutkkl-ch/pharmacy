@@ -250,11 +250,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('สรุปผลงาน: เลือก รพ.สต. อื่นได้ (รูปยังอยู่โฟลเดอร์หน่วยตัวเอง) + ยังเห็นในรายการของฉัน', o.unit_id === 3 && o.image_path?.startsWith('summaries/2/') && (await text(p, '#vsList')).includes('สรุปให้หน่วยอื่น'), JSON.stringify(o)); }
     await p.evaluate(() => { const r = window.__db.visit_summaries; const i = r.findIndex((x) => x.title === 'สรุปให้หน่วยอื่น'); if (i >= 0) r.splice(i, 1); });
     await go(p, '#/tracking'); await p.waitForTimeout(500);
-    check('หน้าหลัก › ผลการดำเนินงาน: แสดงภาพสรุปเยี่ยมบ้าน', await count(p, '#trkSums .poster img') === 1);
+    check('ผลการดำเนินงาน: แถวล่าง "ผลงานด้านเภสัชกรรมปฐมภูมิ" แสดงผลงานจากเมนูผลงานของเจ้าหน้าที่', (await text(p, '[data-panel="tracking"]')).includes('ผลงานด้านเภสัชกรรมปฐมภูมิ') && (await text(p, '#trkSums')).includes('ตู้เย็นเก็บยาได้มาตรฐาน') && await count(p, '#trkSums .ach-poster') >= 2);
+    await p.click('#trkUnitTabs [data-u="3"]'); await p.waitForTimeout(400);
+    check('ผลการดำเนินงาน: ผลงานกรองตาม รพ.สต. ที่เลือก', (await text(p, '#trkSums')).includes('FEFO') && !(await text(p, '#trkSums')).includes('ตู้เย็นเก็บยา'));
+    await p.click('#trkUnitTabs [data-u="all"]'); await p.waitForTimeout(400);
     { const r = await p.$eval('#trackArt', (e) => { const b = e.getBoundingClientRect(); return { ratio: b.width / b.height, poster: e.classList.contains('sum-poster'), img: !!e.querySelector('.sp-slide.on img'), href: e.querySelector('.sp-slide')?.getAttribute('href') || '' }; });
       check('ผลการดำเนินงาน: กรอบโปสเตอร์ 10:7 แสดงภาพสรุปผลงานเยี่ยมบ้าน (กดไปหน้าอ่านได้)', r.poster && r.img && Math.abs(r.ratio - 10 / 7) < 0.05 && r.href.startsWith('#/summary/'), JSON.stringify(r)); }
     await p.screenshot({ path: path.join(SHOTS, 'tracking-poster-1280.png') });
-    await p.click('#trkSums .poster'); await p.waitForTimeout(400);
+    await p.click('#trackArt .sp-slide.on'); await p.waitForTimeout(400);
     check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + ภาพเพิ่ม + รายละเอียด)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await count(p, '#smGallery .cover') === 1);
     await p.screenshot({ path: path.join(SHOTS, 'summary-1280.png'), fullPage: true });
     await go(p, '#/staff/visits'); await p.waitForTimeout(300);

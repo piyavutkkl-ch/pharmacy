@@ -2,7 +2,9 @@
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, art, thaiDate, fiscalYearOf } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
-import { renderSummaryRow, renderSummaryPoster } from './summaries.js?v=4.4';
+import { loadSummaryList, renderSummaryPoster } from './summaries.js?v=4.4';
+import { bindPosterNav } from './delivery.js?v=4.4';
+import { openLightbox } from '../lightbox.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 
@@ -24,12 +26,34 @@ async function renderTracking(units, years) {
     .concat(units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${trkUnit === u.id}">${esc(u.name)}</button>`)).join('');
   $('#trkYearTabs').innerHTML = years.map((y) => `<button type="button" data-y="${y}" aria-current="${trkYear === y}">ปีงบประมาณ ${y}${y === CUR_FY ? ' (ปัจจุบัน)' : ''}</button>`).join('');
   ['#trkVisits', '#trkDrps', '#trkMedExcess'].forEach((s) => { $(s).textContent = '…'; });
-  renderSummaryRow(trkUnit, trkYear).then((list) => { if (list) renderSummaryPoster($('#trackArt'), list, art('visit')); });   // กรอบ 10:7 = ภาพสรุปผลงานเยี่ยมบ้าน
+  loadSummaryList(trkUnit, trkYear).then((list) => { if (list) renderSummaryPoster($('#trackArt'), list, art('visit')); });   // กรอบ 10:7 = ภาพสรุปผลงานเยี่ยมบ้าน
+  renderAchRow(trkUnit, trkYear);   // แถวล่าง = ผลงานด้านเภสัชกรรมปฐมภูมิ (เมนูผลงานของเจ้าหน้าที่)
   const { data, error } = await sb.rpc('public_tracking_stats', { p_year: trkYear, p_unit: trkUnit === 'all' ? null : trkUnit });
   const r = (!error && data && data[0]) || { visits: 0, drps_found: 0, drps_resolved: 0, excess_resolved: 0 };
   $('#trkVisits').textContent = r.visits.toLocaleString('th-TH');
   $('#trkDrps').textContent = `${r.drps_found} / ${r.drps_resolved}`;
   $('#trkMedExcess').textContent = r.excess_resolved.toLocaleString('th-TH');
+}
+
+/** แถว "ผลงานด้านเภสัชกรรมปฐมภูมิ" ใต้ผลการดำเนินงาน: ผลงานที่เจ้าหน้าที่ส่งจากเมนูผลงาน ตาม รพ.สต./ปีงบที่เลือก (ปีงบนับจากวันที่ส่ง) */
+let achSeq = 0, achRowBound = false, achRows = [];
+async function renderAchRow(unit, year) {
+  const row = $('#trkSums'), seq = ++achSeq;
+  if (!achRowBound) {
+    achRowBound = true; bindPosterNav(row);
+    row.addEventListener('click', (e) => { const b = e.target.closest('[data-ach]'); const a = b && achRows.find((x) => x.id === b.dataset.ach); if (a?.image_path) openLightbox(publicImageUrl(a.image_path), a.title); });
+  }
+  row.innerHTML = '<div class="skeleton poster-skel"></div>';
+  let q = sb.from('achievements').select('id,unit_id,title,body,image_path,created_at');
+  if (unit !== 'all') q = q.eq('unit_id', unit);
+  const { data, error } = await q.order('created_at', { ascending: false }).limit(200);
+  if (seq !== achSeq) return;
+  achRows = (error ? [] : data).filter((a) => fiscalYearOf(new Date(a.created_at)) === year);
+  row.innerHTML = achRows.length ? achRows.map((a) => `<button type="button" class="poster ach-poster" data-ach="${a.id}"${a.image_path ? ' aria-label="ขยายภาพ ' + esc(a.title) + '"' : ' disabled'}>`
+    + (a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy">` : `<span class="ach-art">${art('รายงาน')}</span>`)
+    + `<span>${esc(a.title)}<em class="small muted"> รพ.สต.${esc(unitName(a.unit_id))} · ${esc(thaiDate(a.created_at))}</em></span></button>`).join('')
+    : `<p class="empty">ยังไม่มีผลงาน${unit === 'all' ? '' : 'ของ รพ.สต.' + esc(unitName(unit))} ในปีงบ ${year}</p>`;
+  row.parentNode.querySelectorAll('[data-poster-nav]').forEach((b) => { b.hidden = achRows.length < 2; });
 }
 
 /* ---------- ผลงาน รพ.สต. + อันดับ ---------- */

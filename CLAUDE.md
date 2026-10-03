@@ -50,7 +50,7 @@ js/profile.js         หน้าต่างข้อมูลส่วนต�
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
 js/pages/news.js      สไลด์ข่าว, รายการข่าว, หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น — ไม่ login ก็ได้: ถูกใจผ่าน like_news_anon, ความเห็น ≤15 ตัวอักษรผ่าน comment_news_anon · รหัสเครื่อง localStorage 'pcps_device' · ผู้ดูแลลบความเห็นได้)
 js/pages/dose.js      เครื่องคำนวณโดสยา (ตาราง dose_drugs)
-js/pages/stats.js     ผลการดำเนินงาน, ผลงาน รพ.สต. + อันดับ, ช่องทางติดต่อ
+js/pages/stats.js     ผลการดำเนินงาน (+ แถว "ผลงานด้านเภสัชกรรมปฐมภูมิ" จากตาราง achievements ตาม รพ.สต./ปีงบ), ผลงาน รพ.สต. + อันดับ, ช่องทางติดต่อ
 js/pages/admin.js     ผู้ดูแล: โครงหน้า/เมนู (#/admin/<tab>[/<sub>]) + ตัวเลขงานค้าง + ข้อเสนอแนะ (ตั้งค่า › ข้อเสนอแนะ)
 js/pages/admin-news.js     ผู้ดูแล › ข่าว: เขียน/แก้ข่าว + ตรวจข่าวจาก รพ.สต. + ข่าวที่หยุดเผยแพร่ (หยุดเผยแพร่/ลบ/ไม่ผ่าน เรียกคืนได้ 30 วัน)
 js/pages/admin-ai.js       ผู้ดูแล › ข่าว › ช่อง AI: สถานะ/ประวัติ (ai_news_log), สวิตช์เผยแพร่ทันที (site_texts ai_news_auto), ปุ่มสร้างข่าวตอนนี้ (ai_news_request)
@@ -69,7 +69,7 @@ js/pages/staff.js     เจ้าหน้าที่: โครงหน้�
 js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence)
 js/pages/delivery.js  บริการจัดส่งยาถึงบ้าน (#/delivery): โปสเตอร์/ข้อความ/สถิติ + ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน
 js/pages/rider.js     Health Rider: ผลงานแสดงในช่องบริการจัดส่งยาถึงบ้าน (#hrBlock · #/rider เลื่อนไปที่นั่น · ไม่มีปุ่มเมนูแยก) + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot) — ผู้ดูแลกรอกทุกหน่วย (เมนูเจ้าหน้าที่ไม่มี Health Rider แล้ว)
-js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน one page summary ราย รพ.สต.×ปีงบ (หลายภาพ: image_path + gallery · เลือก รพ.สต. ได้ · 35_summary_images.sql): กรอบโปสเตอร์ 10:7 ในผลการดำเนินงาน (renderSummaryPoster สลับภาพ) + แถวใต้ผลการดำเนินงาน, หน้าอ่าน #/summary/<id>, ฟอร์มในหน้าเยี่ยมบ้าน mountSummaries(slot, unit)
+js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน one page summary ราย รพ.สต.×ปีงบ (หลายภาพ: image_path + gallery · เลือก รพ.สต. ได้ · 35_summary_images.sql): กรอบโปสเตอร์ 10:7 ในผลการดำเนินงาน (loadSummaryList + renderSummaryPoster สลับภาพ), หน้าอ่าน #/summary/<id>, ฟอร์มในหน้าเยี่ยมบ้าน mountSummaries(slot, unit)
 js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP: S/O/A(assessment)/P, รายการยา + วิธีใช้ (med_list.how), DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
                       สังกัด รพ.สต. = หน่วยที่ดูแล: เปลี่ยนแล้วย้ายผู้ป่วย+บันทึกเยี่ยมด้วย rpc transfer_patient (33_patient_transfer.sql) · ผู้ดูแลมีช่อง ALL = โรงพยาบาล รวมทุกชื่อ
                       ที่อยู่แยกช่อง patients.address_parts {no,moo,tambon,amphoe,province,zip} + address (ข้อความเต็ม)

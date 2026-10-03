@@ -1,5 +1,5 @@
 // สรุปผลงานเยี่ยมบ้าน (ขั้น 23) — ภาพ A4 one-page summary ราย รพ.สต. × ปีงบ
-//   หน้าหลัก › ผลการดำเนินงาน: แถวภาพสรุปเลื่อนซ้าย-ขวา ตาม รพ.สต./ปีงบที่เลือก → renderSummaryRow(unit, year)
+//   หน้าหลัก › ผลการดำเนินงาน: กรอบโปสเตอร์ 10:7 สลับภาพสรุป ตาม รพ.สต./ปีงบที่เลือก → loadSummaryList + renderSummaryPoster
 //   #/summary/<id>: หน้าอ่านแบบข่าว (ภาพเต็ม + รายละเอียด + PDF แนบ) → showSummary(id)
 //   หน้าเยี่ยมบ้าน (เจ้าหน้าที่/ผู้ดูแล): เพิ่ม/แก้/ลบ → mountSummaries(slot, unit) · เลือก รพ.สต. ได้ (ค่าเริ่มต้น = หน่วยตัวเอง)
 //     หลายภาพ (ภาพแรก = image_path · ที่เหลือ = gallery ≤ 6 · กด × ลบ) · ไม่มีช่อง PDF แล้ว (ไฟล์เดิมยังแสดง)
@@ -8,7 +8,7 @@ import { $, esc, thaiDate, toast, errText, busy, fiscalYearOf } from '../util.js
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
-import { bindPosterNav, paras } from './delivery.js?v=4.4';
+import { paras } from './delivery.js?v=4.4';
 import { fileLink, imageList } from './news-form.js?v=4.4';
 import { smartCover } from '../lightbox.js?v=4.4';
 
@@ -20,24 +20,17 @@ const HINT_IMG = `ภาพสรุป 1 หน้า (เช่น อิน�
 const label = (s) => `รพ.สต.${unitName(s.unit_id)} · ปีงบประมาณ ${s.fiscal_year}`;
 
 /* ======================= หน้าหลัก ======================= */
-let rowBound = false, rowSeq = 0;
 
-/** แถวภาพสรุปใต้ผลการดำเนินงาน · unit = 'all' หรือเลข รพ.สต. · คืนรายการ (null = ผู้ใช้เปลี่ยนแท็บระหว่างโหลด) */
-export async function renderSummaryRow(unit, year) {
-  const row = $('#trkSums'), seq = ++rowSeq;
-  if (!rowBound) { rowBound = true; bindPosterNav(row); }
-  row.innerHTML = '<div class="skeleton poster-skel"></div>';
+/** รายการสรุปผลงานเยี่ยมบ้านตาม รพ.สต./ปีงบ (ใช้กับกรอบโปสเตอร์ 10:7) · unit = 'all' หรือเลข รพ.สต. · null = ผู้ใช้เปลี่ยนแท็บระหว่างโหลด */
+let rowSeq = 0;
+export async function loadSummaryList(unit, year) {
+  const seq = ++rowSeq;
   await loadUnits();
   let q = sb.from('visit_summaries').select('id,unit_id,fiscal_year,title,image_path,gallery').eq('fiscal_year', year);
   if (unit !== 'all') q = q.eq('unit_id', unit);
   const { data, error } = await q.order('created_at', { ascending: false });
-  if (seq !== rowSeq) return null;   // ผู้ใช้เปลี่ยนแท็บระหว่างโหลด
-  const list = error ? [] : data;
-  row.innerHTML = list.length ? list.map((s) => `<a class="poster" href="#/summary/${s.id}">`
-    + `<img src="${esc(publicImageUrl(s.image_path))}" alt="${esc(s.title)}" loading="lazy"><span>${esc(s.title)}<em class="small muted"> ${esc(label(s))}</em></span></a>`).join('')
-    : `<p class="empty">ยังไม่มีสรุปผลงานเยี่ยมบ้าน${unit === 'all' ? '' : 'ของ รพ.สต.' + esc(unitName(unit))} ปีงบ ${year}</p>`;
-  row.parentNode.querySelectorAll('[data-poster-nav]').forEach((b) => { b.hidden = list.length < 2; });
-  return list;
+  if (seq !== rowSeq) return null;
+  return error ? [] : data;
 }
 
 /** กรอบโปสเตอร์ 10:7 ในผลการดำเนินงาน: แสดงภาพสรุปผลงานเยี่ยมบ้าน (หลายภาพ = สลับทุก 5 วินาที · กดเพื่อเปิดอ่าน) · ไม่มีภาพ = ภาพประกอบเดิม */
