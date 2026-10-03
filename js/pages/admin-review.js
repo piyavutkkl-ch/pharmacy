@@ -2,12 +2,13 @@
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, fiscalYearOf, toast, errText, busy, thaiDate } from '../util.js?v=4.4';
 import { loadUnits, loadYears, resetYears, sortItems, isHiddenYear } from '../data.js?v=4.4';
-import { fileCard, hydrateSigned, openPrivateFile, uploadSample, uploadEvidence, previewFiles, removeFiles } from '../upload.js?v=4.4';
+import { fileCard, hydrateSigned, openPrivateFile, uploadSample, uploadEvidence, previewFiles, removeFiles, linkMap, linkedHtml } from '../upload.js?v=4.4';
+import { openLightbox } from '../lightbox.js?v=4.4';
 import { refreshAdminBadges } from './admin.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 const ST = { none: ['ยังไม่ส่ง', 'c-off'], submitted: ['รอตรวจ', 'c-rev'], fix: ['ต้องแก้ไข', 'c-fix'], approved: ['ผ่านแล้ว', 'c-ok'] };
-let units = [], years = [], year = null, unit = 0, items = [], rows = [], openId = null, filter = 'all', bound = false;
+let units = [], years = [], year = null, unit = 0, items = [], rows = [], achs = [], openId = null, filter = 'all', bound = false;   // achs: ผลงานที่ผูกข้อมาตรฐาน
 
 export async function initReview() {
   units = await loadUnits(); years = await loadYears({ includeHidden: true });
@@ -23,6 +24,8 @@ async function load() {
   const ids = items.map((i) => i.id);
   const st = ids.length ? await sb.from('item_status').select('*, submitter:profiles!item_status_submitted_by_fkey(full_name)').in('item_id', ids) : { data: [] };
   rows = st.data || [];
+  const ac = await sb.from('achievements').select('id,unit_id,title,image_path,item_ids,created_at').order('created_at', { ascending: false });
+  achs = (ac.data || []).filter((a) => a.item_ids?.length);
   render();
 }
 
@@ -59,7 +62,9 @@ function renderUnit() {
     if (it.topic_no !== lastTopic) { lastTopic = it.topic_no; lastSub = null; head += `<h3 class="topic-h">${esc(it.topic_title)}</h3>`; }
     if (it.sub_id !== lastSub) { lastSub = it.sub_id; head += (it.sub_label ? `<div class="crit-sub">${esc(it.sub_label)}</div>` : '') + (it.evidence ? `<p class="small muted" style="margin:0 0 6px">หลักฐานที่ต้องใช้: ${esc(it.evidence)}</p>` : ''); }
     const s = stOf(it.id, unit), [label, cls] = ST[s];
-    return head + `<div class="crit-item" id="rv-${it.id}"><span class="ci-no">${esc(it.item_no)}</span><span class="ci-text">${esc(it.body)}</span><span class="chip ${cls}">${label}</span>`
+    const nAch = achs.filter((a) => a.unit_id === unit && a.item_ids.includes(it.id)).length;
+    return head + `<div class="crit-item" id="rv-${it.id}"><span class="ci-no">${esc(it.item_no)}</span><span class="ci-text">${esc(it.body)}</span>`
+      + (nAch ? `<span class="chip c-role" title="ผลงานที่แนบเป็นหลักฐาน">ผลงาน ${nAch}</span>` : '') + `<span class="chip ${cls}">${label}</span>`
       + (s === 'approved' || s === 'fix' ? undoBtn(it, 'ย้อนกลับ') : '')
       + `<button type="button" class="btn btn-o btn-sm" data-open="${it.id}">${openId === it.id ? 'ปิด' : 'ตรวจ'}</button></div>` + (openId === it.id ? reviewBox(it) : '');
   }).join('');
@@ -83,6 +88,7 @@ function reviewBox(it) {
     + (r?.submitted_at ? `<p class="small muted">ส่งโดย ${esc(r.submitter?.full_name || '-')} · ${esc(thaiDate(r.submitted_at))}</p>` : '<p class="small muted">รพ.สต. ยังไม่ได้ส่งหลักฐานข้อนี้ (ให้ผ่านได้ หากตรวจพบหลักฐานจริงที่หน่วยบริการ)</p>')
     + (r?.detail ? `<p class="small"><b>รายละเอียด:</b> ${esc(r.detail)}</p>` : '')
     + (files ? `<div class="fthumbs">${files}</div>` : '')
+    + linkedHtml(linkMap(achs.filter((a) => a.unit_id === unit)).get(it.id))
     + `<label class="small" style="font-weight:600" for="rvComment">ความเห็นถึง รพ.สต. (จำเป็นเมื่อขอแก้ไข)</label><textarea id="rvComment" rows="2" maxlength="1000">${esc(r?.review_comment || '')}</textarea>`
     + (r?.review_files?.length ? `<p class="small" style="font-weight:600">ไฟล์ที่แนบกลับไปแล้ว</p><div class="fthumbs">${r.review_files.map((p, i) => `<div class="fitem">${fileCard('evidence', p, `ไฟล์ผู้ดูแล ${i + 1}`)}<button type="button" class="btn btn-no btn-sm" data-rmreview="${esc(p)}" data-item="${it.id}">ลบ</button></div>`).join('')}</div>` : '')
     + '<label class="small" style="font-weight:600" for="rvFiles">แนบไฟล์กลับไปให้ รพ.สต. (ถ้ามี · PDF/รูป)</label><input id="rvFiles" class="input" type="file" accept="application/pdf,image/*" multiple><div class="fthumbs" id="rvPreview" hidden></div>'
@@ -327,6 +333,7 @@ function bind() {
     const o = e.target.closest('[data-open]'); if (o) { const id = +o.dataset.open; openId = openId === id ? null : id; render(); return; }
     const s = e.target.closest('[data-set]'); if (s) { setStatus(+s.dataset.item, s.dataset.set, s); return; }
     const fl = e.target.closest('[data-file]'); if (fl) { try { await openPrivateFile(fl); } catch (err) { toast(errText(err), 'err'); } return; }
+    const al = e.target.closest('[data-achlink]'); if (al) { openLightbox(al.dataset.achlink, al.dataset.title); return; }
     const rs = e.target.closest('[data-rmsample]'); if (rs) { removeSample(rs.dataset.k, rs.dataset.rmsample); return; }
     const rr = e.target.closest('[data-rmreview]'); if (rr) { removeReviewFile(+rr.dataset.item, rr.dataset.rmreview); return; }
     if (e.target.closest('#critSave')) { saveEditor(e.target.closest('#critSave')); return; }

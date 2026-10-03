@@ -594,5 +594,16 @@ run(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'supabas
 check("old AI news footer no longer says reviewed", None, "select count(*) from news where ai_generated and body like '%ผ่านการตรวจทาน%'", eq(0))
 check("…rest of the footer kept", None, "select count(*) from news where title='ข่าว AI เก่า' and body like '%ข่าวนี้สรุปโดย AI จากบทความวิชาการ · ข้อมูลเพื่อความรู้'", eq(1))
 
+print("== step 35: achievement ↔ criteria items ==")
+run(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'supabase', '36_achievement_items.sql')).read())
+cid = run("select string_agg(id::text, ',' order by sort) from (select id, sort from criteria_items order by fiscal_year desc, sort limit 2) x")[1].split(',')
+check("staff links own-unit achievement to 2 criteria items (unknown id dropped)", "s2", f"insert into achievements(unit_id,title,item_ids) values (2,'ผลงานผูกเกณฑ์',array[{cid[1]},{cid[0]},{cid[0]},999999]::bigint[]) returning array_to_string(item_ids,',')", eq(f"{min(int(c) for c in cid)},{max(int(c) for c in cid)}"))
+check("other unit staff cannot change the links", "s1", "update achievements set item_ids='{}' where title='ผลงานผูกเกณฑ์' returning id", rows(0))
+check("staff cannot link achievement of another unit", "s2", f"insert into achievements(unit_id,title,item_ids) values (1,'x',array[{cid[0]}]::bigint[])", "deny")
+run("insert into criteria_years(fiscal_year) values (2590) on conflict do nothing; insert into criteria_items(fiscal_year,topic_no,topic_title,sub_id,item_no,body,sort) select 2590,9,'t','9.1','9.'||g,'b',g from generate_series(1,41) g")
+check("max 40 linked items", "s2", "update achievements set item_ids=(select array_agg(id) from criteria_items where fiscal_year=2590) where title='ผลงานผูกเกณฑ์'", "deny")
+run("delete from criteria_years where fiscal_year=2590")
+check("anon sees linked items (public achievement)", "anon", "select cardinality(item_ids) from achievements where title='ผลงานผูกเกณฑ์'", eq(2))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

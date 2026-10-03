@@ -685,6 +685,19 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .addr-box legend{font-weight:600;font-size:14px;padding:0 6px}
 .addr-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 @media (max-width:560px){.addr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* ผลงาน › เลือกข้อมาตรฐานที่สอดคล้อง (เลือกได้หลายข้อ) */
+#saCritHint{margin:0}
+.crit-pick{max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:12px;padding:4px 10px;background:var(--surface)}
+.crit-pick-h{margin:8px 0 2px;font-size:12px;font-weight:700;color:var(--muted)}
+.crit-opt{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:8px 2px;border-top:1px solid var(--line);font-size:14px;cursor:pointer}
+.field label.crit-opt{font-weight:400}
+.crit-pick-h+.crit-opt{border-top:0}
+.crit-opt input{width:20px;height:20px;margin:1px 0 0;flex-shrink:0;accent-color:var(--primary)}
+.crit-opt span{min-width:0;overflow-wrap:anywhere}
+.crit-opt:has(input:checked){color:var(--primary)}
+#saCritN{color:var(--primary);font-weight:600}
+a.fthumb.ach-link{text-decoration:none}
+.ach-link .ficon{color:var(--primary);background:var(--primary-soft)}
 /* หลักฐานเกณฑ์: เลือกรูปจาก "ผลงาน" ที่นำเสนอแล้ว (criteria.js) */
 .ach-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:8px}
 .ach-opt{appearance:none;display:flex;flex-direction:column;gap:4px;padding:6px;border:2px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;text-align:left;cursor:pointer;min-height:44px}

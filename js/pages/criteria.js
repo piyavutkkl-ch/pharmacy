@@ -4,11 +4,12 @@ import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, fiscalYearOf, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadYears, sortItems } from '../data.js?v=4.4';
-import { uploadEvidence, removeFiles, previewFiles, fileCard, hydrateSigned, openPrivateFile } from '../upload.js?v=4.4';
+import { uploadEvidence, removeFiles, previewFiles, fileCard, hydrateSigned, openPrivateFile, linkMap, linkedHtml } from '../upload.js?v=4.4';
+import { openLightbox } from '../lightbox.js?v=4.4';
 import { refreshBadges } from './staff.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
-let year = null, items = [], status = new Map(), openId = null, bound = false;
+let year = null, items = [], status = new Map(), linked = new Map(), openId = null, bound = false;   // linked: item_id → ผลงานที่ผูกข้อนั้น
 const pendingRemove = new Set();   // ไฟล์ที่กดลบ — ลบจริงตอนกดส่ง
 const pickedAch = new Set();       // รูปจาก "ผลงาน" ที่เลือกเป็นหลักฐาน — คัดลอกเข้า evidence ตอนกดส่ง
 let achList = null;                 // ผลงานที่มีรูปของหน่วยตัวเอง (โหลดเมื่อกดเลือกครั้งแรก)
@@ -27,13 +28,15 @@ export async function initCriteria() {
 
 async function load() {
   $('#scList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
-  const [ci, st] = await Promise.all([
+  const [ci, st, ach] = await Promise.all([
     sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,sub_label,evidence,evidence_samples,item_no,body,sort').eq('fiscal_year', year).order('sort'),
     sb.from('item_status').select('id,item_id,status,detail,evidence_paths,review_comment,review_files,submitted_at').eq('unit_id', auth.profile.unit_id),
+    sb.from('achievements').select('id,title,image_path,item_ids,created_at').eq('unit_id', auth.profile.unit_id).order('created_at', { ascending: false }),
   ]);
   if (ci.error) { $('#scList').innerHTML = `<p class="empty">${esc(errText(ci.error))}</p>`; return; }
   items = sortItems(ci.data);
   status = new Map((st.data || []).map((s) => [s.item_id, s]));
+  linked = linkMap(ach.data || []);
   render();
 }
 
@@ -77,6 +80,7 @@ function render() {
       }
       const s = stOf(it), [label, cls] = ST[s];
       return head + `<div class="crit-item" id="ci-${it.id}"><span class="ci-no">${esc(it.item_no)}</span><span class="ci-text">${esc(it.body)}</span>`
+        + (linked.get(it.id)?.length ? `<span class="chip c-role" title="ผลงานที่แนบเป็นหลักฐาน">ผลงาน ${linked.get(it.id).length}</span>` : '')
         + `<span class="chip ${cls}">${label}</span>`
         + `<button type="button" class="ci-folder st-${s}" data-open="${it.id}" aria-expanded="${openId === it.id}" aria-label="${editable ? 'ส่ง/ดูหลักฐาน' : 'ดูหลักฐาน'}ข้อ ${esc(it.item_no)}">${FOLDER}</button></div>`
         + (openId === it.id ? box(it, editable) : '');
@@ -108,6 +112,7 @@ function box(it, editable) {
         + '<div><button type="button" class="btn btn-o btn-sm" data-ach-pick aria-expanded="false" aria-controls="ev-ach">เลือกรูปจาก "ผลงาน" ที่นำเสนอแล้ว</button> <span class="small muted" id="ev-ach-n"></span></div><div class="ach-pick" id="ev-ach" hidden></div>'
       : (s?.detail ? `<p class="small"><b>รายละเอียด:</b> ${esc(s.detail)}</p>` : '<p class="small muted">ยังไม่มีการส่งหลักฐาน</p>'))
     + (files ? `<p class="small" style="font-weight:600">ไฟล์หลักฐานที่ส่งแล้ว (กดเพื่อเปิด)</p><div class="fthumbs">${files}</div>` : '')
+    + linkedHtml(linked.get(it.id))
     + '<div class="row-btns" style="align-items:center">'
     + (canEdit ? `<button type="button" class="btn btn-p btn-sm" data-submit="${it.id}">${st === 'none' ? 'ส่งให้ผู้ดูแลตรวจ' : 'ส่งตรวจอีกครั้ง'}</button>` : '')
     + '<button type="button" class="btn btn-o btn-sm" data-close="1">ปิด</button><span class="small" id="ev-msg" aria-live="polite"></span></div></div>';
@@ -135,6 +140,8 @@ function bind() {
     if (ao) { const id = ao.dataset.achOpt; if (pickedAch.has(id)) pickedAch.delete(id); else pickedAch.add(id); ao.setAttribute('aria-pressed', String(pickedAch.has(id))); achCount(); return; }
     const f = e.target.closest('[data-file]');
     if (f) { try { await openPrivateFile(f); } catch (err) { toast(errText(err), 'err'); } return; }
+    const al = e.target.closest('[data-achlink]');
+    if (al) { openLightbox(al.dataset.achlink, al.dataset.title); return; }
     const rm = e.target.closest('[data-rmfile]');
     if (rm) {
       const path = rm.dataset.rmfile, detail = $('#ev-detail')?.value;

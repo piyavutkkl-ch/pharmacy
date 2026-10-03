@@ -31,7 +31,9 @@ begin;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000b2', true);
 insert into public.news(title, tag, body, status, unit_id, review_comment) values
   ('ข่าวของ รพ.สต. ทุ่งนุ้ย (รอแก้)', 'ประกาศ', 'เนื้อหา', 'fix', 2, 'กรุณาแก้ชื่อเรื่องให้ชัดเจน');
-insert into public.achievements(unit_id, title, body) values (2, 'ตู้เย็นเก็บยาได้มาตรฐาน', 'ควบคุมอุณหภูมิ 2–8 °C ทุกวัน');
+insert into public.achievements(unit_id, title, body, item_ids)
+  select 2, 'ตู้เย็นเก็บยาได้มาตรฐาน', 'ควบคุมอุณหภูมิ 2–8 °C ทุกวัน', coalesce(array_agg(id), '{}')
+    from public.criteria_items where fiscal_year = public.fiscal_year_of(current_date) and item_no = '1.3';
 insert into public.item_status(item_id, unit_id, status, detail, evidence_paths, submitted_at)
   select id, 2, 'approved', 'คำสั่งแต่งตั้งที่ 12/2569', array[public.fiscal_year_of(current_date) || '/2/1.1/a.pdf'], now() - interval '10 days'
     from public.criteria_items where fiscal_year = public.fiscal_year_of(current_date) and item_no = '1.1';

@@ -66,7 +66,7 @@ js/pages/me.js        ประชาชน (#/me): ข้อมูลส่ว�
 js/pages/staff-request.js  ขอสิทธิ์เจ้าหน้าที่: ประชาชนส่งคำขอ (#/me/request) → ผู้ดูแลอนุมัติใน ตั้งค่า › บัญชีเจ้าหน้าที่ (approve_staff_request เพิ่ม staff_roster)
 js/pages/docs.js      เอกสารดาวน์โหลด: ผู้ดูแลอัปโหลด/แก้/แทนที่ไฟล์/ลบ, เจ้าหน้าที่ดาวน์โหลด (bucket documents)
 js/pages/staff.js     เจ้าหน้าที่: โครงหน้า/เมนู (ข่าว › ข้อความ › เยี่ยมบ้าน › ผลงาน › มาตรฐาน › เอกสาร › ข้อเสนอแนะ) + ข่าว (ส่งตรวจ) + ผลงาน + ข้อเสนอแนะ + ตัวเลขแจ้งเตือน
-js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence)
+js/pages/criteria.js  เจ้าหน้าที่: ส่งหลักฐานเกณฑ์มาตรฐานรายข้อ (item_status + bucket evidence) + ผลงานที่ผูกข้อนั้น (achievements.item_ids · 36_achievement_items.sql · ไม่ต้องส่งตรวจ)
 js/pages/delivery.js  บริการจัดส่งยาถึงบ้าน (#/delivery): โปสเตอร์/ข้อความ/สถิติ + ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน
 js/pages/rider.js     Health Rider: ผลงานแสดงในช่องบริการจัดส่งยาถึงบ้าน (#hrBlock · #/rider เลื่อนไปที่นั่น · ไม่มีปุ่มเมนูแยก) + แท็บกรอก/นำเข้า Excel mountRiderEditor(slot) — ผู้ดูแลกรอกทุกหน่วย (เมนูเจ้าหน้าที่ไม่มี Health Rider แล้ว)
 js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน one page summary ราย รพ.สต.×ปีงบ (หลายภาพ: image_path + gallery · เลือก รพ.สต. ได้ · 35_summary_images.sql): กรอบโปสเตอร์ 10:7 ในผลการดำเนินงาน (loadSummaryList + renderSummaryPoster สลับภาพ), หน้าอ่าน #/summary/<id>, ฟอร์มในหน้าเยี่ยมบ้าน mountSummaries(slot, unit)

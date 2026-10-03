@@ -1,7 +1,8 @@
 // เจ้าหน้าที่ รพ.สต.: โครงหน้า + ข่าว (ส่งตรวจ) + ผลงาน (เผยแพร่ทันที) + ข้อเสนอแนะ
 // มาตรฐาน → criteria.js · เยี่ยมบ้าน → visits.js · ข้อความ → chat.js · เอกสาร → docs.js · Health Rider → rider.js
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, $$, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
+import { $, $$, esc, thaiDate, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
+import { sortItems } from '../data.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { newsForm, removeNewsFiles } from './news-form.js?v=4.4';
@@ -19,7 +20,7 @@ export const STAFF_TABS = {   // เรียงตามเมนู: ข่า
   visits: 'เยี่ยมบ้าน',
   achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.',
   criteria: 'ประเมินมาตรฐานด้านยา รพ.สต.',
-  docs: 'เอกสารดาวน์โหลด',
+  docs: 'ดาวน์โหลดเอกสาร',
   feedback: 'ข้อเสนอแนะถึงทีมพัฒนา',
 };
 let bound = false;
@@ -138,27 +139,68 @@ let unitAch = [], editingAch = null;
 
 async function loadAch() {
   $('#saList').innerHTML = '<div class="skeleton"></div>';
-  const { data, error } = await sb.from('achievements').select('id,title,body,image_path,created_at').eq('unit_id', auth.profile.unit_id).order('created_at', { ascending: false });
+  const [{ data, error }] = await Promise.all([
+    sb.from('achievements').select('id,title,body,image_path,item_ids,created_at').eq('unit_id', auth.profile.unit_id).order('created_at', { ascending: false }),
+    loadCritPick(),
+  ]);
   if (error) { $('#saList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   unitAch = data;
   $('#saList').innerHTML = data.length ? data.map((a) => `<div class="newsrow"><div class="thumb2">${a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy">` : ''}</div>`
-    + `<div class="l"><b>${esc(a.title)}</b><span class="small muted">${esc(thaiDate(a.created_at))}</span></div>`
+    + `<div class="l"><b>${esc(a.title)}</b><span class="small muted">${esc(thaiDate(a.created_at))}${critLabel(a.item_ids) ? ' · มาตรฐานข้อ ' + esc(critLabel(a.item_ids)) : ''}</span></div>`
     + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-edit="${a.id}">แก้ไข</button><button type="button" class="btn btn-no btn-sm" data-del="${a.id}">ลบ</button></div></div>`).join('')
     : '<p class="empty">ยังไม่มีผลงาน</p>';
 }
 
+/* ผลงาน ↔ ข้อมาตรฐานปีงบปัจจุบัน (achievements.item_ids) — แนบเป็นหลักฐานของข้อนั้นอัตโนมัติ ไม่ต้องส่งตรวจ */
+let critItems = null;
+const critPicked = new Set();   // id ข้อที่เลือก (รวมข้อของปีงบก่อนที่ผูกไว้เดิม — เก็บไว้ตามเดิม)
+const critLabel = (ids) => (critItems || []).filter((it) => ids?.includes(it.id)).map((it) => it.item_no).join(', ');
+async function loadCritPick() {
+  if (!critItems) {
+    $('#saCrit').innerHTML = '<div class="skeleton"></div>';
+    const { data, error } = await sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,item_no,body,sort').eq('fiscal_year', fiscalYearOf()).order('sort');
+    if (error) { $('#saCrit').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+    critItems = sortItems(data);
+  }
+  renderCritPick();
+}
+function renderCritPick() {
+  if (!critItems) return;
+  const q = $('#saCritQ').value.trim().toLowerCase();
+  const list = critItems.filter((it) => !q || `${it.item_no} ${it.body} ${it.topic_title}`.toLowerCase().includes(q));
+  let lastTopic = null;
+  $('#saCrit').innerHTML = list.map((it) => {
+    const head = it.topic_no !== lastTopic ? `<p class="crit-pick-h">${esc(it.topic_title)}</p>` : '';
+    lastTopic = it.topic_no;
+    return head + `<label class="crit-opt"><input type="checkbox" value="${it.id}"${critPicked.has(it.id) ? ' checked' : ''}><span><b>${esc(it.item_no)}</b> ${esc(it.body)}</span></label>`;
+  }).join('') || `<p class="empty">${critItems.length ? 'ไม่พบข้อที่ค้นหา' : `ยังไม่มีเกณฑ์มาตรฐานของปีงบ ${fiscalYearOf()}`}</p>`;
+  critCount();
+}
+function critCount() {
+  const l = critLabel([...critPicked]);
+  $('#saCritN').textContent = l ? `เลือกแล้ว: ข้อ ${l}` : '';
+}
+
 function resetAch() {
   editingAch = null; $('#saForm').reset(); $('#saImageNote').textContent = '';
+  critPicked.clear(); renderCritPick();
   $('#saFormTitle').textContent = 'เพิ่มผลงาน'; $('#saSubmit').textContent = 'เผยแพร่ผลงาน'; $('#saCancel').hidden = true; $('#saMsg').textContent = '';
 }
 
 function bindAch() {
   $('#saCancel').addEventListener('click', resetAch);
+  $('#saCritQ').addEventListener('input', renderCritPick);
+  $('#saCrit').addEventListener('change', (e) => {
+    const id = +e.target.value; if (!id) return;
+    if (e.target.checked) critPicked.add(id); else critPicked.delete(id);
+    critCount();
+  });
   $('#saList').addEventListener('click', async (e) => {
     const ed = e.target.closest('[data-edit]');
     if (ed) {
       const a = unitAch.find((x) => x.id === ed.dataset.edit); if (!a) return;
       editingAch = a; $('#saTitle').value = a.title; $('#saBody').value = a.body || '';
+      critPicked.clear(); (a.item_ids || []).forEach((id) => critPicked.add(id)); $('#saCritQ').value = ''; renderCritPick();
       $('#saImageNote').textContent = a.image_path ? 'มีรูปเดิมอยู่แล้ว · เลือกรูปใหม่เพื่อเปลี่ยน' : '';
       $('#saFormTitle').textContent = 'แก้ไขผลงาน'; $('#saSubmit').textContent = 'บันทึกการแก้ไข'; $('#saCancel').hidden = false;
       $('#saForm').scrollIntoView({ behavior: 'smooth' }); return;
@@ -181,14 +223,15 @@ function bindAch() {
     const btn = $('#saSubmit'); busy(btn, true, 'กำลังบันทึก…'); m.textContent = '';
     try {
       const file = $('#saImage').files[0];
-      const row = { title, body: $('#saBody').value.trim() || null };
+      const row = { title, body: $('#saBody').value.trim() || null, item_ids: [...critPicked] };
       if (file) row.image_path = await uploadPublicImage(file, `achievements/${auth.profile.unit_id}`);
       const res = editingAch
         ? await sb.from('achievements').update(row).eq('id', editingAch.id).select()
         : await sb.from('achievements').insert({ ...row, unit_id: auth.profile.unit_id }).select();
       if (res.error) throw res.error;
       if (file && editingAch?.image_path) removeFiles('public-images', [editingAch.image_path]);
-      toast(editingAch ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่ผลงานแล้ว');
+      const linked = critLabel(row.item_ids);
+      toast((editingAch ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่ผลงานแล้ว') + (linked ? ` · แนบเป็นหลักฐานมาตรฐานข้อ ${linked}` : ''));
       resetAch(); loadAch();
     } catch (err) { m.style.color = 'var(--error)'; m.textContent = errText(err); }
     finally { busy(btn, false); }

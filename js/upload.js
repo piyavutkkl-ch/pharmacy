@@ -1,5 +1,5 @@
 // อัปโหลดไฟล์ขึ้น Supabase Storage — ย่อรูปในเครื่องก่อน (WebP) เพื่อให้อยู่ในพื้นที่ฟรี 1 GB
-import { sb } from './supabase.js?v=4.4';
+import { sb, publicImageUrl } from './supabase.js?v=4.4';
 import { esc } from './util.js?v=4.4';
 
 const rand = () => Math.random().toString(36).slice(2, 8);
@@ -124,6 +124,24 @@ export function fileCard(bucket, path, label, extraClass = '') {
     + (isImgPath(path) ? `<img data-signed="${esc(bucket)}|${esc(path)}" alt="">` : PDF_ICON)
     + `<figcaption>${esc(label)}</figcaption></button>`;
 }
+
+/** การ์ดผลงานที่ผูกกับข้อมาตรฐาน (achievements.item_ids) — มีรูป: กดดูภาพเต็ม (data-achlink) · ไม่มีรูป: ไปหน้าผลงาน */
+export function achCard(a) {
+  const cap = `<figcaption>ผลงาน: ${esc(a.title)}</figcaption>`;
+  return a.image_path
+    ? `<button type="button" class="fthumb ach-link" data-achlink="${esc(publicImageUrl(a.image_path))}" data-title="${esc(a.title)}" aria-label="เปิดผลงาน ${esc(a.title)}"><img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy">${cap}</button>`
+    : `<a class="fthumb ach-link" href="#/achievements"><span class="ficon">ผลงาน</span>${cap}</a>`;
+}
+
+/** ผลงาน → ข้อมาตรฐาน (achievements.item_ids) เป็น Map item_id → [ผลงาน] */
+export function linkMap(list) {
+  const m = new Map();
+  list.forEach((a) => (a.item_ids || []).forEach((id) => { if (!m.has(id)) m.set(id, []); m.get(id).push(a); }));
+  return m;
+}
+/** ส่วน "ผลงานที่แนบเป็นหลักฐาน" ในกล่องข้อเกณฑ์ (ใช้ทั้งเจ้าหน้าที่และผู้ดูแล) */
+export const linkedHtml = (list) => list?.length
+  ? `<p class="small" style="font-weight:600">ผลงานที่แนบเป็นหลักฐาน (จากเมนู "ผลงาน" · ไม่ต้องส่งตรวจ)</p><div class="fthumbs">${list.map(achCard).join('')}</div>` : '';
 
 const signedCache = new Map();   // "bucket|path" → { url, at } — ลิงก์อายุ 5 นาที ใช้ซ้ำได้ 4 นาที
 /** เติมรูปจากลิงก์ชั่วคราวให้ <img data-signed="bucket|path"> ใน root */
