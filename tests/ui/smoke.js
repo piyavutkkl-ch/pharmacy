@@ -520,6 +520,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     { const all = await p.evaluate(() => window.__db.patients.length);
       check('ผู้ดูแล: เพิ่มสรุปผลงานเยี่ยมบ้านได้ (ฟอร์มเลือก รพ.สต. ได้ทุกหน่วย)', await visible(p, '#adminSumSlot #vsForm') && await count(p, '#adminSumSlot #vsUnit option') === 7 && (await text(p, '#vsListTitle')).includes('ทุก รพ.สต.'));
       check('ผู้ดูแล: เยี่ยมบ้านช่อง "โรงพยาบาลควนกาหลง" รวมทุกชื่อทุก รพ.สต. (ค่าเริ่มต้น)', (await p.getAttribute('#avUnits [data-u="all"]', 'aria-current')) === 'true' && await count(p, '#ptList [data-pt]') === all && all >= 1 && (await text(p, '#ptList')).includes('รพ.สต.')); }
+    await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);   // ช่องรวมทุกชื่อ: บันทึกการเยี่ยมใหม่ได้ (เดิม error smallint "all")
+    await p.click('[data-act="add-visit"]'); await p.waitForTimeout(200);
+    await p.check('#vNoDrp'); await p.click('#vForm [type=submit]'); await p.waitForTimeout(600);
+    { const vi = (await calls(p, (c) => c.table === 'visits' && c.op === 'insert')).pop()?.payload || {};
+      check('ผู้ดูแล › เยี่ยมบ้าน ช่องรวมทุกชื่อ: บันทึกการเยี่ยมได้ (ใช้ รพ.สต. ของผู้ป่วย ไม่ใช่ "all")', Number.isInteger(vi.unit_id) && !(await text(p, '#ptPanel')).includes('invalid input'), JSON.stringify(vi)); }
     await p.click('#avUnits [data-u="2"]'); await p.waitForTimeout(300);
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
     await p.click('[data-act="edit-patient"]'); await p.fill('#pfPhone', '0899999999'); await p.click('#ptForm [type=submit]'); await p.waitForTimeout(400);

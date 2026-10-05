@@ -339,7 +339,7 @@ async function saveVisit(form) {
     row.photo_paths = [...keptPhotos, ...uploaded];
     res = editVisit
       ? await sb.from('visits').update(row).eq('id', editVisit.id).select()
-      : await sb.from('visits').insert({ ...row, unit_id: unit }).select();
+      : await sb.from('visits').insert({ ...row, unit_id: selected.unit_id }).select();   // หน่วยของผู้ป่วย (ผู้ดูแลอาจอยู่ช่อง "รวมทุกชื่อ")
     if (res.error) throw res.error;
   } catch (err) {
     removeFiles('visit-photos', uploaded); busy(btn, false);
