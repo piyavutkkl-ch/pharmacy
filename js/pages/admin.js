@@ -94,15 +94,8 @@ async function showVisits(openVisit = null) {
   mountSummaries($('#adminSumSlot'), visitUnit === ALL ? 'all' : visitUnit);   // ผู้ดูแลเพิ่ม/แก้สรุปผลงานได้ทุกหน่วย (เลือก รพ.สต. ในฟอร์ม)
 }
 
-/* ---------- ผลงาน รพ.สต. (ผู้ดูแลเพิ่ม/แก้/ลบแทนหน่วยไหนก็ได้ · ใช้หน้าเดียวกับเจ้าหน้าที่ staff.js mountAch) ---------- */
-let achUnit = null;
-async function showAch() {
-  const units = await loadUnits();
-  if (achUnit == null) achUnit = units[0]?.id ?? null;
-  $('#aaUnits').innerHTML = units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === achUnit}">${esc(u.name)}</button>`).join('');
-  $('#aaUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; achUnit = +b.dataset.u; showAch(); };
-  if (achUnit != null) mountAch($('#adminAchSlot'), achUnit);
-}
+/* ---------- ผลงาน รพ.สต. (ผู้ดูแล: ผลงานทุกหน่วย · เลือก/เปลี่ยน รพ.สต. ในฟอร์ม · ใช้หน้าเดียวกับเจ้าหน้าที่ staff.js mountAch) ---------- */
+const showAch = () => mountAch($('#adminAchSlot'), 'all');
 
 /* ---------- ข้อเสนอแนะ ---------- */
 let fbFilter = 'all';

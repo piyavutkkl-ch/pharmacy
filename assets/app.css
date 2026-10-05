@@ -633,7 +633,10 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .poster{flex:0 0 min(78%,300px);scroll-snap-align:start;display:flex;flex-direction:column;gap:6px;color:var(--ink);text-decoration:none}
 .poster img{width:100%;aspect-ratio:1/1.414;object-fit:cover;border-radius:14px;border:1px solid var(--line);background:var(--sunken);box-shadow:0 4px 14px rgba(22,34,43,.08)}
 .poster span{font-size:13px;font-weight:600}
-.ach-poster{appearance:none;border:0;background:none;padding:0;font:inherit;text-align:left;cursor:zoom-in}
+.ach-poster{appearance:none;border:0;background:none;padding:0;font:inherit;text-align:left;cursor:pointer}
+.ac-crit{margin-top:16px}
+.ac-crit-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.ac-hidden{margin:6px 0 0;color:var(--warning);font-weight:600}
 .ach-poster:disabled{cursor:default;opacity:1}
 .ach-poster .ach-art{display:block;width:100%;aspect-ratio:1/1.414;border-radius:14px;border:1px solid var(--line);overflow:hidden;background:var(--sunken)}
 .ach-poster .ach-art svg{width:100%;height:100%;display:block}

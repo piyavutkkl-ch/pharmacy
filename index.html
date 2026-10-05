@@ -208,6 +208,19 @@
   <div id="smFile" hidden></div>
   <section class="panel sm-visits" id="smVisits" hidden></section>
 </section>
+<!-- ผลงาน รพ.สต. (stats.js showAchievement · #/achievement/<id>) -->
+<section data-view="achievement" class="article" hidden>
+  <a class="back" href="#/tracking" id="acBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>ผลการดำเนินงาน</a>
+  <div class="article-head">
+    <span class="tag" id="acTag"></span>
+    <h1 id="acTitle"></h1>
+    <span class="d num" id="acDate"></span>
+    <p class="small ac-hidden" id="acHidden" hidden>ผลงานนี้ระงับการแสดงอยู่ · เห็นเฉพาะเจ้าหน้าที่ของ รพ.สต. และผู้ดูแล</p>
+  </div>
+  <div class="cover" id="acCover"></div>
+  <div class="article-body" id="acBody"></div>
+  <section class="panel ac-crit" id="acCrit" hidden></section>
+</section>
 
 <section data-view="article" class="article" hidden>
   <a class="back" href="#/news"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>ข่าวประชาสัมพันธ์</a>
@@ -353,6 +366,7 @@
           <h2 id="saFormTitle">เพิ่มผลงาน</h2>
           <p class="small muted">ผลงานของ รพ.สต. จะขึ้นหน้าหลักทันที ไม่ต้องรอผู้ดูแลตรวจ</p>
           <form id="saForm" class="form-grid" novalidate>
+            <div class="field full" id="saUnitWrap" hidden><label for="saUnit">รพ.สต. ที่ทำผลงานนี้ <span class="req">*</span></label><select id="saUnit" class="input"></select><span class="small muted">ผู้ดูแลเปลี่ยน รพ.สต. ภายหลังได้ (กด "แก้ไข" ที่รายการ) · หลักฐานมาตรฐานย้ายไปหน่วยใหม่ด้วย</span></div>
             <div class="field full"><label for="saTitle">ชื่อผลงาน <span class="req">*</span></label><input id="saTitle" class="input" maxlength="200"></div>
             <div class="field full"><label for="saBody">รายละเอียด</label><textarea id="saBody" maxlength="10000" rows="4"></textarea></div>
             <div class="field full"><label for="saImage">รูปผลงาน (ถ้ามี)</label><input id="saImage" class="input" type="file" accept="image/*"><span class="small muted" id="saImageNote"></span></div>
@@ -494,7 +508,6 @@
 
       <!-- เยี่ยมบ้าน: ดูแทน รพ.สต. ใดก็ได้ -->
       <div data-admin-view="achievements" hidden>
-        <div class="unit-tabs" id="aaUnits" aria-label="เลือก รพ.สต."></div>
         <div id="adminAchSlot"></div>
       </div>
       <div data-admin-view="visits" hidden>

@@ -39,6 +39,7 @@ function visible(t, r) {
     case 'patients': case 'visits': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'item_status': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'summary_visits': { const v = db.visits.find((x) => x.id === r.visit_id); return !!v && visible('visits', v); }
+    case 'achievements': return !r.hidden || isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'ai_matches': return isAdmin() || (ME && r.user_id === ME.id) || (isStaff() && r.unit_id === ME.unit_id);
     case 'feedback': return isAdmin() || (ME && r.author_id === ME.id);
     case 'staff_requests': return isAdmin() || (ME && r.user_id === ME.id);
@@ -101,7 +102,7 @@ function beforeInsert(table, row) {
       if (isStaff()) { row.status = 'pending'; row.unit_id = ME.unit_id; } else row.status ??= 'pending';
       if (row.status === 'published') row.published_at = now();
       break;
-    case 'achievements': row.author_id = ME.id; break;
+    case 'achievements': row.author_id = ME.id; row.hidden ??= false; row.item_ids ??= []; break;
     case 'item_status': row.submitted_by = ME.id; row.submitted_at = now(); if (isStaff()) row.status = 'submitted'; row.evidence_paths ??= []; break;
     case 'feedback': row.author_id = ME?.id; row.source = isStaff() ? 'staff' : 'public'; row.unit_id = isStaff() ? ME.unit_id : null; break;
     case 'news_comments': row.author_id = ME.id; row.author_name = ME.full_name; break;

@@ -4,7 +4,9 @@ import { $, esc, art, thaiDate, fiscalYearOf } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { loadSummaryList, renderSummaryPoster } from './summaries.js?v=4.4';
 import { bindPosterNav } from './delivery.js?v=4.4';
-import { openLightbox } from '../lightbox.js?v=4.4';
+import { smartCover } from '../lightbox.js?v=4.4';
+import { paras } from './delivery.js?v=4.4';
+import { sortItems } from '../data.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 
@@ -41,19 +43,42 @@ async function renderAchRow(unit, year) {
   const row = $('#trkSums'), seq = ++achSeq;
   if (!achRowBound) {
     achRowBound = true; bindPosterNav(row);
-    row.addEventListener('click', (e) => { const b = e.target.closest('[data-ach]'); const a = b && achRows.find((x) => x.id === b.dataset.ach); if (a?.image_path) openLightbox(publicImageUrl(a.image_path), a.title); });
   }
   row.innerHTML = '<div class="skeleton poster-skel"></div>';
-  let q = sb.from('achievements').select('id,unit_id,title,body,image_path,created_at');
+  let q = sb.from('achievements').select('id,unit_id,title,body,image_path,created_at').eq('hidden', false);   // ระงับการแสดง = ไม่ขึ้นหน้าสาธารณะ
   if (unit !== 'all') q = q.eq('unit_id', unit);
   const { data, error } = await q.order('created_at', { ascending: false }).limit(200);
   if (seq !== achSeq) return;
   achRows = (error ? [] : data).filter((a) => fiscalYearOf(new Date(a.created_at)) === year);
-  row.innerHTML = achRows.length ? achRows.map((a) => `<button type="button" class="poster ach-poster" data-ach="${a.id}"${a.image_path ? ' aria-label="ขยายภาพ ' + esc(a.title) + '"' : ' disabled'}>`
+  row.innerHTML = achRows.length ? achRows.map((a) => `<a class="poster ach-poster" href="#/achievement/${esc(a.id)}" data-ach="${esc(a.id)}" aria-label="อ่านผลงาน ${esc(a.title)}">`
     + (a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy">` : `<span class="ach-art">${art('รายงาน')}</span>`)
-    + `<span>${esc(a.title)}<em class="small muted"> รพ.สต.${esc(unitName(a.unit_id))} · ${esc(thaiDate(a.created_at))}</em></span></button>`).join('')
+    + `<span>${esc(a.title)}<em class="small muted"> รพ.สต.${esc(unitName(a.unit_id))} · ${esc(thaiDate(a.created_at))}</em></span></a>`).join('')
     : `<p class="empty">ยังไม่มีผลงาน${unit === 'all' ? '' : 'ของ รพ.สต.' + esc(unitName(unit))} ในปีงบ ${year}</p>`;
   row.parentNode.querySelectorAll('[data-poster-nav]').forEach((b) => { b.hidden = achRows.length < 2; });
+}
+
+/* ---------- หน้าอ่านผลงาน #/achievement/<id> (แบบหน้าข่าว) ---------- */
+export async function showAchievement(id) {
+  ['#acTag', '#acTitle', '#acDate'].forEach((s) => { $(s).textContent = ''; });
+  $('#acTitle').textContent = 'กำลังโหลด…'; $('#acBody').innerHTML = ''; $('#acCover').innerHTML = ''; $('#acCover').className = 'cover'; $('#acCrit').hidden = true; $('#acHidden').hidden = true;
+  await loadUnits();
+  const { data: a, error } = await sb.from('achievements').select('id,unit_id,title,body,image_path,item_ids,hidden,created_at').eq('id', id).maybeSingle();
+  if (error || !a) { $('#acTitle').textContent = 'ไม่พบผลงานนี้'; $('#acBody').innerHTML = '<p class="muted">อาจถูกลบหรือระงับการแสดงแล้ว</p>'; return; }
+  document.title = a.title + ' · Primary Care Pharmacy Services';
+  $('#acTag').textContent = `ผลงาน รพ.สต.${unitName(a.unit_id)}`;
+  $('#acTitle').textContent = a.title;
+  $('#acDate').textContent = thaiDate(a.created_at);
+  $('#acHidden').hidden = !a.hidden;
+  if (a.image_path) smartCover($('#acCover'), publicImageUrl(a.image_path), a.title); else $('#acCover').innerHTML = art('รายงาน');
+  $('#acBody').innerHTML = a.body ? paras(a.body) : '<p class="muted">ไม่มีรายละเอียดเพิ่มเติม</p>';
+  if (a.item_ids?.length) {   // ข้อมาตรฐานที่ผลงานนี้เป็นหลักฐาน (เกณฑ์เป็นข้อมูลสาธารณะ)
+    const { data: its } = await sb.from('criteria_items').select('id,item_no,body,sort,topic_no,sub_id,fiscal_year').in('id', a.item_ids);
+    const list = sortItems(its || []);
+    if (list.length) {
+      $('#acCrit').innerHTML = '<h2>สอดคล้องกับมาตรฐาน</h2><ul class="ac-crit-list">' + list.map((it) => `<li><b>ข้อ ${esc(it.item_no)}</b> ${esc(it.body)} <span class="small muted">(ปีงบ ${it.fiscal_year})</span></li>`).join('') + '</ul>';
+      $('#acCrit').hidden = false;
+    }
+  }
 }
 
 /* ---------- ผลงาน รพ.สต. + อันดับ ---------- */
@@ -61,11 +86,11 @@ let lbYear = null, achBound = false;
 
 export async function initAchievements() {
   const [units, years] = await Promise.all([loadUnits(), loadYears()]);
-  const { data, error } = await sb.from('achievements').select('id,unit_id,title,image_path,created_at').order('created_at', { ascending: false }).limit(30);
+  const { data, error } = await sb.from('achievements').select('id,unit_id,title,image_path,created_at').eq('hidden', false).order('created_at', { ascending: false }).limit(30);
   const list = error ? [] : data;
   $('#achGrid').innerHTML = list.length
-    ? list.map((a) => `<div class="news-card"><div class="thumb">${a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">` : art('รายงาน')}</div>`
-      + `<div class="body"><span class="tag">รพ.สต. ${esc(unitName(a.unit_id))}</span><h3>${esc(a.title)}</h3><span class="d num">${esc(thaiDate(a.created_at))}</span></div></div>`).join('')
+    ? list.map((a) => `<a class="news-card" href="#/achievement/${esc(a.id)}"><div class="thumb">${a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">` : art('รายงาน')}</div>`
+      + `<div class="body"><span class="tag">รพ.สต. ${esc(unitName(a.unit_id))}</span><h3>${esc(a.title)}</h3><span class="d num">${esc(thaiDate(a.created_at))}</span></div></a>`).join('')
     : '<p class="empty" style="grid-column:1/-1">ยังไม่มีผลงานที่เผยแพร่</p>';
 
   const critYears = years.filter((y) => y <= CUR_FY);

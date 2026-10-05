@@ -137,21 +137,25 @@ function bindNews() {
 /* ---------------- ผลงาน ---------------- */
 let unitAch = [], editingAch = null, achUnit = null, achBound = false;
 
-/** หน้าผลงานของ รพ.สต. unit ลงใน slot — เจ้าหน้าที่ = หน่วยตัวเอง · ผู้ดูแล = หน่วยที่เลือก (admin.js) */
+/** หน้าผลงานลงใน slot — เจ้าหน้าที่: unit = หน่วยตัวเอง · ผู้ดูแล: unit = 'all' (ทุกหน่วย + ช่องเลือก/เปลี่ยน รพ.สต. ในฟอร์ม) */
+const ALL_UNITS = 'all';
 export async function mountAch(slot, unit) {
-  await loadUnits();
+  const units = await loadUnits();
+  $('#saUnitWrap').hidden = unit !== ALL_UNITS;
+  $('#saUnit').innerHTML = '<option value="">— เลือก รพ.สต. —</option>' + units.map((u) => `<option value="${u.id}">รพ.สต.${esc(u.name)}</option>`).join('');
   const ws = $('#achWs');
   if (ws.parentNode !== slot) slot.appendChild(ws);
   if (!achBound) { achBound = true; bindAch(); }
   if (achUnit !== unit) { achUnit = unit; resetAch(); }
-  $('#saListTitle').textContent = `ผลงานของ รพ.สต.${unitName(unit)}`;
+  $('#saListTitle').textContent = unit === ALL_UNITS ? 'ผลงานของ รพ.สต. ทุกแห่ง' : `ผลงานของ รพ.สต.${unitName(unit)}`;
   return loadAch();
 }
 
 async function loadAch() {
   $('#saList').innerHTML = '<div class="skeleton"></div>';
+  const q = sb.from('achievements').select('id,unit_id,title,body,image_path,item_ids,hidden,created_at');
   const [{ data, error }] = await Promise.all([
-    sb.from('achievements').select('id,title,body,image_path,item_ids,created_at').eq('unit_id', achUnit).order('created_at', { ascending: false }),
+    (achUnit === ALL_UNITS ? q : q.eq('unit_id', achUnit)).order('created_at', { ascending: false }),
     loadCritPick(),
   ]);
   if (error) { $('#saList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
@@ -165,9 +169,10 @@ async function loadAch() {
 }
 function renderAchList() {
   $('#saList').innerHTML = unitAch.length ? unitAch.map((a) => `<div class="newsrow"><div class="thumb2">${a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy">` : ''}</div>`
-    + `<div class="l"><b>${esc(a.title)}</b><span class="small muted">${esc(thaiDate(a.created_at))}${critLabel(a.item_ids) ? ' · มาตรฐานข้อ ' + esc(critLabel(a.item_ids)) : ''}</span></div>`
+    + `<div class="l"><b>${esc(a.title)}${a.hidden ? ' <span class="chip c-off">ระงับการแสดง</span>' : ''}</b><span class="small muted">${achUnit === ALL_UNITS ? 'รพ.สต.' + esc(unitName(a.unit_id)) + ' · ' : ''}${esc(thaiDate(a.created_at))}${critLabel(a.item_ids) ? ' · มาตรฐานข้อ ' + esc(critLabel(a.item_ids)) : ''}</span></div>`
     + aiStatus(a)
-    + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-edit="${a.id}">แก้ไข</button><button type="button" class="btn btn-no btn-sm" data-del="${a.id}">ลบ</button></div></div>`).join('')
+    + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/achievement/${esc(a.id)}">ดู</a><button type="button" class="btn btn-o btn-sm" data-edit="${a.id}">แก้ไข</button>`
+    + `<button type="button" class="btn btn-o btn-sm" data-hide="${a.id}" aria-pressed="${!!a.hidden}">${a.hidden ? 'แสดงอีกครั้ง' : 'ระงับการแสดง'}</button><button type="button" class="btn btn-no btn-sm" data-del="${a.id}">ลบ</button></div></div>`).join('')
     : '<p class="empty">ยังไม่มีผลงาน</p>';
   clearTimeout(aiTimer);
   if ([...aiOf.values()].some((m) => m.status === 'pending')) aiTimer = setTimeout(pollAchAi, 3000);
@@ -283,6 +288,14 @@ function bindAch() {
     critCount();
   });
   $('#saList').addEventListener('click', async (e) => {
+    const hd = e.target.closest('[data-hide]');
+    if (hd) {   // ระงับการแสดงบนหน้าสาธารณะ (ยังไม่ลบ · เปิดแสดงอีกครั้งได้)
+      const a = unitAch.find((x) => x.id === hd.dataset.hide); if (!a) return;
+      busy(hd, true, 'กำลังบันทึก…');
+      const { error } = await sb.from('achievements').update({ hidden: !a.hidden }).eq('id', a.id);
+      if (error) { busy(hd, false); toast(errText(error), 'err'); return; }
+      a.hidden = !a.hidden; toast(a.hidden ? 'ระงับการแสดงแล้ว — หน้าหลักจะไม่แสดงผลงานนี้ (ยังไม่ลบ)' : 'แสดงผลงานอีกครั้งแล้ว'); renderAchList(); return;
+    }
     const ar = e.target.closest('[data-ai-run]');
     if (ar) {
       const a = unitAch.find((x) => x.id === ar.dataset.aiRun); if (!a) return;
@@ -303,7 +316,7 @@ function bindAch() {
     const ed = e.target.closest('[data-edit]');
     if (ed) {
       const a = unitAch.find((x) => x.id === ed.dataset.edit); if (!a) return;
-      editingAch = a; $('#saTitle').value = a.title; $('#saBody').value = a.body || '';
+      editingAch = a; $('#saTitle').value = a.title; $('#saBody').value = a.body || ''; $('#saUnit').value = String(a.unit_id ?? '');
       critPicked.clear(); (a.item_ids || []).forEach((id) => critPicked.add(id)); $('#saCritQ').value = ''; renderCritPick();
       formAi = null; $('#saAiOut').innerHTML = '';
       $('#saImageNote').textContent = a.image_path ? 'มีรูปเดิมอยู่แล้ว · เลือกรูปใหม่เพื่อเปลี่ยน' : '';
@@ -328,11 +341,13 @@ function bindAch() {
     const btn = $('#saSubmit'); busy(btn, true, 'กำลังบันทึก…'); m.textContent = '';
     try {
       const file = $('#saImage').files[0];
-      const row = { title, body: $('#saBody').value.trim() || null, item_ids: [...critPicked] };
-      if (file) row.image_path = await uploadPublicImage(file, `achievements/${achUnit}`);
+      const unit = achUnit === ALL_UNITS ? +$('#saUnit').value : achUnit;   // ผู้ดูแล: หน่วยที่เลือกในฟอร์ม (เปลี่ยนภายหลังได้)
+      if (!unit) throw new Error('กรุณาเลือก รพ.สต. ที่ทำผลงานนี้');
+      const row = { title, body: $('#saBody').value.trim() || null, item_ids: [...critPicked], ...(achUnit === ALL_UNITS ? { unit_id: unit } : {}) };
+      if (file) row.image_path = await uploadPublicImage(file, `achievements/${unit}`);
       const res = editingAch
         ? await sb.from('achievements').update(row).eq('id', editingAch.id).select()
-        : await sb.from('achievements').insert({ ...row, unit_id: achUnit }).select();
+        : await sb.from('achievements').insert({ ...row, unit_id: unit }).select();
       if (res.error) throw res.error;
       if (res.data?.[0]) await aiAfterSave(res.data[0], editingAch);
       if (file && editingAch?.image_path) removeFiles('public-images', [editingAch.image_path]);

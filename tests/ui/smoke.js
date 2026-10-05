@@ -386,14 +386,21 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('แชท: กู้คืนแล้วกลับเข้ากล่องข้อความ', (await calls(p, (c) => c.rpc === 'trash_conversation' && c.args.p_trash === false)).length === 1 && await count(p, '#adminInboxSlot .ib-list [data-conv]') === 1);
     await p.evaluate(() => { const c = window.__db.conversations.find((x) => x.target_unit == null); c.trashed_at = new Date(Date.now() - 31 * 86400000).toISOString(); });
     { const q = await open('admin', '#/admin/achievements'); await q.waitForTimeout(600);
-      check('ผู้ดูแล: มีเมนู "ผลงาน" + เลือก รพ.สต. ได้ (ใช้หน้าเดียวกับเจ้าหน้าที่)', await visible(q, '[data-admin-tab="achievements"]') && await count(q, '#aaUnits [data-u]') === 7 && await visible(q, '#adminAchSlot #saForm'));
-      await q.click('#aaUnits [data-u="3"]'); await q.waitForTimeout(500);
-      check('ผู้ดูแล › ผลงาน: แสดงผลงานของหน่วยที่เลือก', (await text(q, '#saList')).includes('FEFO') && (await text(q, '#saListTitle')).includes('รพ.สต.') && !(await text(q, '#saList')).includes('ตู้เย็นเก็บยา'));
-      await q.fill('#saTitle', 'ผลงานที่ผู้ดูแลเพิ่ม'); await q.setInputFiles('#saImage', { name: 'a.png', mimeType: 'image/png', buffer: PNG }); await q.click('#saSubmit'); await q.waitForTimeout(800);
+      check('ผู้ดูแล: เมนู "ผลงาน" แสดงผลงานทุก รพ.สต. (ไม่มีแถบเลือกหน่วยด้านบน) + ช่องเลือก รพ.สต. ในฟอร์ม', await visible(q, '[data-admin-tab="achievements"]') && !(await q.$('#aaUnits')) && await visible(q, '#adminAchSlot #saUnit')
+        && (await text(q, '#saList')).includes('FEFO') && (await text(q, '#saList')).includes('ตู้เย็นเก็บยา') && (await text(q, '#saListTitle')).includes('ทุกแห่ง'));
+      await q.fill('#saTitle', 'ผลงานที่ผู้ดูแลเพิ่ม'); await q.click('#saSubmit'); await q.waitForTimeout(300);
+      check('ผู้ดูแล › ผลงาน: ต้องเลือก รพ.สต. ก่อนบันทึก', (await text(q, '#saMsg')).includes('เลือก รพ.สต.'));
+      await q.selectOption('#saUnit', '3'); await q.setInputFiles('#saImage', { name: 'a.png', mimeType: 'image/png', buffer: PNG }); await q.click('#saSubmit'); await q.waitForTimeout(800);
       const ins = (await calls(q, (c) => c.table === 'achievements' && c.op === 'insert'))[0]?.payload || {};
-      check('ผู้ดูแล › ผลงาน: เพิ่มผลงานแทน รพ.สต. ที่เลือกได้ (รูปอยู่โฟลเดอร์หน่วยนั้น)', ins.unit_id === 3 && ins.image_path?.startsWith('achievements/3/') && (await text(q, '#saList')).includes('ผลงานที่ผู้ดูแลเพิ่ม'), JSON.stringify(ins));
+      check('ผู้ดูแล › ผลงาน: เพิ่มผลงานให้ รพ.สต. ที่เลือก (รูปอยู่โฟลเดอร์หน่วยนั้น)', ins.unit_id === 3 && ins.image_path?.startsWith('achievements/3/') && (await text(q, '#saList')).includes('ผลงานที่ผู้ดูแลเพิ่ม'), JSON.stringify(ins));
+      const aid = await q.evaluate(() => window.__db.achievements.find((a) => a.title === 'ผลงานที่ผู้ดูแลเพิ่ม').id);
+      await q.click(`[data-edit="${aid}"]`); await q.waitForTimeout(200);
+      check('ผู้ดูแล › ผลงาน: กดแก้ไขแล้วช่อง รพ.สต. ขึ้นหน่วยเดิม', (await q.inputValue('#saUnit')) === '3');
+      await q.selectOption('#saUnit', '5'); await q.click('#saSubmit'); await q.waitForTimeout(700);
+      const up = (await calls(q, (c) => c.table === 'achievements' && c.op === 'update')).pop()?.payload || {};
+      check('ผู้ดูแล › ผลงาน: เปลี่ยน รพ.สต. ที่ทำผลงานภายหลังได้', up.unit_id === 5 && await q.evaluate((id) => window.__db.achievements.find((a) => a.id === id).unit_id === 5, aid), JSON.stringify(up));
       await q.setViewportSize({ width: 390, height: 844 }); await q.waitForTimeout(200);
-      check('ผู้ดูแล › ผลงาน 390px: ไม่ล้นจอ (เมนูล่างเพิ่มปุ่มผลงาน)', await overflow(q) <= 0);
+      check('ผู้ดูแล › ผลงาน 390px: ไม่ล้นจอ', await overflow(q) <= 0);
       await q.screenshot({ path: path.join(SHOTS, 'admin-ach-390.png') });
       await q.close(); }
     await go(p, '#/admin/news'); await go(p, '#/admin/messages'); await p.waitForTimeout(500);
@@ -635,6 +642,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     const seedRow = await p.evaluate(() => [...document.querySelectorAll('#saList .newsrow')].findIndex((r) => r.textContent.includes('ตู้เย็นเก็บยา')));
     await p.click(`#saList .newsrow:nth-child(${seedRow + 1}) [data-ai-run]`); await p.waitForTimeout(400);
     check('AI ในรายการ: กดให้วิเคราะห์ → ด้านขวาขึ้น "AI กำลังวิเคราะห์…"', (await text(p, `#saList .newsrow:nth-child(${seedRow + 1}) .ai-st`)).includes('กำลังวิเคราะห์'));
+    { const q = await open(null, '#/tracking'); await q.waitForTimeout(700);
+      await q.click('#trkSums a.ach-poster:has-text("ตู้เย็นเก็บยา")'); await q.waitForTimeout(600);
+      check('ผลงาน: กดจากแถวผลงาน → หน้าอ่านแบบข่าว (ชื่อ · รพ.สต. · วันที่ · รายละเอียด · ข้อมาตรฐานที่สอดคล้อง)', await visible(q, '[data-view="achievement"]') && (await text(q, '#acTitle')).includes('ตู้เย็นเก็บยา') && (await text(q, '#acTag')).includes('รพ.สต.') && (await text(q, '#acBody')).includes('2–8') && (await text(q, '#acCrit')).includes('ข้อ 1.3'));
+      await q.screenshot({ path: path.join(SHOTS, 'achievement-1280.png'), fullPage: true });
+      await q.close(); }
+    { const q = await open('staff', '#/staff/achievements'); await q.waitForTimeout(500);
+      const aid = await q.evaluate(() => window.__db.achievements.find((a) => a.title.includes('ตู้เย็นเก็บยา')).id);
+      await q.click(`[data-hide="${aid}"]`); await q.waitForTimeout(400);
+      check('ผลงาน: ระงับการแสดงได้ (ยังไม่ลบ · มีป้าย + ปุ่มแสดงอีกครั้ง)', await q.evaluate((id) => window.__db.achievements.find((a) => a.id === id)?.hidden === true, aid) && (await text(q, '#saList')).includes('ระงับการแสดง') && (await text(q, `[data-hide="${aid}"]`)).includes('แสดงอีกครั้ง'));
+      await go(q, '#/tracking'); await q.waitForTimeout(600);
+      check('ผลงาน: ที่ระงับไว้ไม่ขึ้นหน้าหลัก (ผลการดำเนินงาน)', !(await text(q, '#trkSums')).includes('ตู้เย็นเก็บยา'));
+      await q.close(); }
     { const q = await open('staff', '#/staff/achievements', 390, 844); await q.waitForTimeout(300);
       await (await q.$('#saList')).screenshot({ path: path.join(SHOTS, 'staff-ach-list-390.png') });
       check('ผลงาน 390px: สถานะ AI ไม่ล้นจอ', await overflow(q) <= 0); await q.close(); }

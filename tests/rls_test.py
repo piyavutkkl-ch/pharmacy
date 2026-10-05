@@ -702,5 +702,14 @@ check("staff reads own position", "s2", "select count(*) from staff_roster", eq(
 run("update staff_roster set position='นักวิชาการสาธารณสุข' where role='admin'")
 check("roster position change updates existing summaries (counts follow)", None, f"select participant_positions[1] from visit_summaries where id={sid2}", eq("นักวิชาการสาธารณสุข"))
 
+print("== step 43: hide achievement (not delete) ==")
+check("staff hides own-unit achievement", "s2", "update achievements set hidden=true where title='ผลงานผูกเกณฑ์' returning hidden", eq("t"))
+check("…anon no longer sees it", "anon", "select count(*) from achievements where title='ผลงานผูกเกณฑ์'", eq(0))
+check("…citizen no longer sees it", "c1", "select count(*) from achievements where title='ผลงานผูกเกณฑ์'", eq(0))
+check("…other unit staff no longer sees it", "s1", "select count(*) from achievements where title='ผลงานผูกเกณฑ์'", eq(0))
+check("…own unit staff + admin still see it", "admin", "select count(*) from achievements where title='ผลงานผูกเกณฑ์'", eq(1))
+check("other unit staff cannot unhide", "s1", "update achievements set hidden=false where title='ผลงานผูกเกณฑ์' returning id", rows(0))
+check("admin shows it again", "admin", "update achievements set hidden=false where title='ผลงานผูกเกณฑ์' returning hidden", eq("f"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

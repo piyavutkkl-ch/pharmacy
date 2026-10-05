@@ -4,6 +4,7 @@
 //   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/delivery (+ Health Rider · #/rider เลื่อนไปที่ผลงาน Health Rider) | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
 //   #/summary/<id>     สรุปผลงานเยี่ยมบ้าน (ภาพ A4)
+//   #/achievement/<id> ผลงาน รพ.สต. (หน้าอ่านแบบข่าว)
 //   #/me[/request]     ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่ + ขอสิทธิ์เจ้าหน้าที่ (/request = เปิดฟอร์มคำขอ)
 //   #/staff[/news|criteria|visits|messages[/admin]|rider|achievements|docs|feedback]               เจ้าหน้าที่ รพ.สต.
 //   #/admin[/news|messages[/units]|review|visits|rider|docs|settings[/dose|contacts|staff|delivery|audit|feedback]]  ผู้ดูแล (โรงพยาบาล)
@@ -12,7 +13,7 @@ import { $, $$, esc, toast, errText, busy } from './util.js?v=4.4';
 import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.4';
 import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState } from './pages/news.js?v=4.4';
 import { initDose } from './pages/dose.js?v=4.4';
-import { initTracking, initAchievements, initContacts } from './pages/stats.js?v=4.4';
+import { initTracking, initAchievements, initContacts, showAchievement } from './pages/stats.js?v=4.4';
 import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
 import { bindTheme } from './theme.js?v=4.4';
@@ -84,6 +85,7 @@ async function route() {
   window.scrollTo(0, 0);
   if (a === 'news' && b) { showView('article'); showArticle(b); return; }
   if (a === 'summary' && b) { showView('summary'); showSummary(b); return; }
+  if (a === 'achievement' && b) { showView('achievement'); showAchievement(b); return; }
   if (a === 'login') {
     if (auth.session && auth.profile) { location.replace(ROLE_HOME[auth.profile.role] || '#/'); return; }
     showView('login'); return;
