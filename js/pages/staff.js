@@ -29,7 +29,7 @@ export function showStaff(tab, sub) {
   if (!STAFF_TABS[tab]) tab = 'news';
   const p = auth.profile;
   $('#staffHello').textContent = 'สวัสดี ' + (p.full_name || '');
-  $('#staffUnit').textContent = 'รพ.สต. ' + (p.unit?.name || '');
+  $('#staffUnit').textContent = (p.position ? p.position + ' · ' : '') + 'รพ.สต. ' + (p.unit?.name || '');
   $('#staffViewTitle').textContent = STAFF_TABS[tab];
   setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
@@ -353,4 +353,8 @@ function bindFeedback() {
 }
 
 // แก้ชื่อในหน้าต่างข้อมูลส่วนตัว → คำทักทายหัวหน้าเปลี่ยนตาม
-window.addEventListener('pcps:profile', () => { $('#staffHello').textContent = 'สวัสดี ' + (auth.profile?.full_name || ''); });
+window.addEventListener('pcps:profile', () => {
+  const p = auth.profile; if (!p) return;
+  $('#staffHello').textContent = 'สวัสดี ' + (p.full_name || '');
+  $('#staffUnit').textContent = (p.position ? p.position + ' · ' : '') + 'รพ.สต. ' + (p.unit?.name || '');
+});

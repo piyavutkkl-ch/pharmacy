@@ -161,6 +161,11 @@ function beforeUpdate(table, row, patch) {
   }
   if (table === 'item_status' && isStaff()) row.status = 'submitted';
   if (table === 'visit_summaries') summaryPeople(row);
+  if (table === 'staff_roster' && ('full_name' in patch || 'position' in patch)) {   // แทน sync_roster_to_profile (43_roster_name_sync.sql)
+    const pr = db.profiles.find((p) => String(p.email || '').toLowerCase() === row.email);
+    if (pr && 'full_name' in patch) pr.full_name = row.full_name;
+    if (pr) (db.visit_summaries || []).filter((s) => (s.participant_ids || []).includes(pr.id)).forEach(summaryPeople);
+  }
   return null;
 }
 /** แทน trigger before_summary_people: เก็บเฉพาะผู้ดูแล/เจ้าหน้าที่ + เติมชื่อจาก profiles */

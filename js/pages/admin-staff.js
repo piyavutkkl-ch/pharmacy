@@ -2,7 +2,7 @@
 // ความปลอดภัยจริงอยู่ที่ RLS + trigger ในฐานข้อมูล (เช่น ห้ามลดสิทธิ์ตัวเอง, ต้องเหลือผู้ดูแล ≥ 1 คน)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, initials, toast, errText, busy } from '../util.js?v=4.4';
-import { auth } from '../auth.js?v=4.4';
+import { auth, refreshProfile } from '../auth.js?v=4.4';
 import { loadUnits, unitName } from '../data.js?v=4.4';
 import { initRequestsAdmin } from './staff-request.js?v=4.4';
 import { refreshAdminBadges } from './admin.js?v=4.4';
@@ -117,6 +117,7 @@ async function save(e) {
   if (res.error) { msg(/duplicate|already exists/i.test(res.error.message) ? 'อีเมลนี้มีอยู่ในรายชื่อแล้ว — กด "แก้ไข" ที่รายชื่อด้านล่างแทน' : errText(res.error)); return; }
   if (!res.data?.length) { msg('บันทึกไม่สำเร็จ (ไม่มีสิทธิ์)'); return; }
   toast(editing ? 'บันทึกการแก้ไขแล้ว' : `เพิ่ม ${name} แล้ว — เข้าสู่ระบบด้วย ${email} ได้ทันที`);
+  if ((editing || email) === auth.profile?.email) refreshProfile();   // แก้บัญชีของตัวเอง → ชื่อ/ตำแหน่งบนหัวหน้าและแถบเมนูเปลี่ยนทันที
   resetForm();
   reload();
 }

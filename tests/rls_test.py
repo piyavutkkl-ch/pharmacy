@@ -693,5 +693,14 @@ check("anon reads patient count only (number)", "anon", f"select summary_patient
 check("staff cannot set own position in roster", "s2", "update staff_roster set position='ผอ.' returning email", lambda o: True)
 check("…position unchanged for staff", None, f"select count(*) from staff_roster where position='ผอ.'", eq(0))
 
+print("== step 42: roster name ⇄ profile name ==")
+check("admin renames staff in roster → staff's display name follows", "admin", "update staff_roster set full_name='ชื่อใหม่จากผู้ดูแล' where email=(select email from profiles where id='"+U['s2']+"') returning email", rows(1))
+check("…profile name updated", None, f"select full_name from profiles where id='{U['s2']}'", eq("ชื่อใหม่จากผู้ดูแล"))
+check("staff renames self in profile → roster follows", "s2", f"update profiles set full_name='ชื่อที่ตั้งเอง' where id='{U['s2']}' returning id", rows(1))
+check("…roster name updated", None, f"select full_name from staff_roster where email=(select email from profiles where id='{U['s2']}')", eq("ชื่อที่ตั้งเอง"))
+check("staff reads own position", "s2", "select count(*) from staff_roster", eq(1))
+run("update staff_roster set position='นักวิชาการสาธารณสุข' where role='admin'")
+check("roster position change updates existing summaries (counts follow)", None, f"select participant_positions[1] from visit_summaries where id={sid2}", eq("นักวิชาการสาธารณสุข"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

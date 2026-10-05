@@ -26,7 +26,7 @@ export async function showAdmin(tab, sub) {
   if (tab === 'staff') { location.replace('#/admin/settings/staff'); return; }   // ลิงก์เดิมจากขั้น 4.1
   if (tab === 'feedback') { location.replace('#/admin/settings/feedback'); return; }   // ย้ายไปอยู่ในตั้งค่า
   if (!ADMIN_TABS[tab]) tab = 'news';
-  $('#adminHello').textContent = 'สวัสดี ' + (auth.profile.full_name || '');
+  adminHead();
   $('#adminViewTitle').textContent = ADMIN_TABS[tab];
   setCurrent('data-admin-tab', tab);
   $$('[data-admin-view]').forEach((v) => { v.hidden = v.dataset.adminView !== tab; });
@@ -115,4 +115,9 @@ async function initFeedback() {
 }
 
 // แก้ชื่อในหน้าต่างข้อมูลส่วนตัว → คำทักทายหัวหน้าเปลี่ยนตาม
-window.addEventListener('pcps:profile', () => { $('#adminHello').textContent = 'สวัสดี ' + (auth.profile?.full_name || ''); });
+/** หัวหน้า: ชื่อ + ตำแหน่ง (จากบัญชีเจ้าหน้าที่) */
+function adminHead() {
+  $('#adminHello').textContent = 'สวัสดี ' + (auth.profile?.full_name || '');
+  $('#adminSub').textContent = (auth.profile?.position ? auth.profile.position + ' · ' : '') + 'ผู้ดูแลระบบ · โรงพยาบาลควนกาหลง';
+}
+window.addEventListener('pcps:profile', () => { if (auth.profile) adminHead(); });

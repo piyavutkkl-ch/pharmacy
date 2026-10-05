@@ -224,9 +224,9 @@ export async function mountSummaries(slot, unit) {
       if (e.target.checked) set.add(key); else set.delete(key);
       peopleCount();
     });
-    const { data: ppl, error: pErr } = await sb.rpc('staff_directory');
-    S.people = pErr ? [] : ppl;
   }
+  const { data: ppl, error: pErr } = await sb.rpc('staff_directory');   // โหลดใหม่ทุกครั้งที่เปิดหน้า (แก้ชื่อ/ตำแหน่งในบัญชีเจ้าหน้าที่แล้วขึ้นทันที)
+  S.people = pErr ? (S.people || []) : ppl;
   S.unit = unit;
   reset();
   $('#vsListTitle').textContent = unit === 'all' ? 'สรุปผลงานทุก รพ.สต.' : `สรุปผลงานของ รพ.สต.${unitName(unit)}`;

@@ -40,7 +40,7 @@ privacy.html terms.html  หน้ากฎหมาย (Google ใช้ตร�
 assets/app.css        design tokens (:root สี/เงา/ฟอนต์ + dark mode) + ทุก component — รีดีไซน์ที่ไฟล์นี้
 js/config.js          SUPABASE_URL / SUPABASE_KEY (ค่าสาธารณะ)
 js/supabase.js        client + publicImageUrl()
-js/auth.js            session/profile/role, signIn(), signOut(), ROLE_HOME
+js/auth.js            session/profile/role (+ position จาก staff_roster), signIn(), signOut(), refreshProfile(), ROLE_HOME · ชื่อในบัญชีเจ้าหน้าที่ ⇄ profiles.full_name ซิงก์กัน (43_roster_name_sync.sql)
 js/data.js            ข้อมูลอ้างอิงที่ cache: units, ปีงบ, sortItems() เรียงข้อเกณฑ์
 js/nav.js             เมนูข้าง/เมนูล่างจอ (มือถือ) + ปุ่ม "เพิ่มเติม", setCurrent()
 js/theme.js           ปุ่มโหมดมืด/สว่าง ขวาบน (จำใน localStorage 'pcps_theme' · ค่าเริ่ม = ตามเครื่อง · <head> ใส่ data-theme ก่อนวาดหน้า)

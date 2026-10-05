@@ -489,6 +489,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#rfSubmit'); await p.waitForTimeout(400);
     check('ผู้ดูแล: บัญชีเจ้าหน้าที่มีช่องตำแหน่ง (ใช้นับผู้ลงเยี่ยม)', await p.evaluate(() => window.__db.staff_roster.find((r) => r.email === 'new.staff@gmail.com')?.position === 'เภสัชกร'));
     check('ผู้ดูแล: เพิ่มบัญชีเจ้าหน้าที่ (อีเมลเป็นตัวเล็ก)', await p.evaluate(() => window.__db.staff_roster.some((r) => r.email === 'new.staff@gmail.com')));
+    { const me = await p.evaluate(() => window.__db.staff_roster.find((r) => r.role === 'admin').email);
+      await p.click(`[data-edit="${me}"]`); await p.waitForTimeout(150);
+      await p.fill('#rfName', 'ภก.ชื่อใหม่ ทดสอบ'); await p.fill('#rfPos', 'เภสัชกรชำนาญการ'); await p.click('#rfSubmit'); await p.waitForTimeout(700);
+      check('บัญชีเจ้าหน้าที่: แก้ชื่อ/ตำแหน่งของตัวเอง → หัวหน้า (สวัสดี …) + ตำแหน่ง + แถบเมนูเปลี่ยนทันที', (await text(p, '#adminHello')).includes('ภก.ชื่อใหม่ ทดสอบ') && (await text(p, '#adminSub')).includes('เภสัชกรชำนาญการ') && (await text(p, '#profileBtn')).includes('ภก.ชื่อใหม่ ทดสอบ'));
+      const s2 = await p.evaluate(() => window.__db.staff_roster.find((r) => r.email === 's2@gmail.com').email);
+      await p.click(`[data-edit="${s2}"]`); await p.waitForTimeout(150); await p.fill('#rfPos', 'พยาบาลวิชาชีพชำนาญการ'); await p.click('#rfSubmit'); await p.waitForTimeout(500);
+      await go(p, '#/admin/visits'); await p.waitForTimeout(600);
+      check('บัญชีเจ้าหน้าที่: แก้ตำแหน่งแล้ว รายชื่อผู้ร่วมลงในฟอร์มสรุปผลงานขึ้นตำแหน่งใหม่ทันที', (await text(p, '#vsPeople')).includes('พยาบาลวิชาชีพชำนาญการ') && (await text(p, '#vsPeople')).includes('ภก.ชื่อใหม่ ทดสอบ'));
+      await go(p, '#/admin/settings/staff'); await p.waitForTimeout(400); }
     await go(p, '#/admin/visits'); await p.waitForTimeout(400);
     { const all = await p.evaluate(() => window.__db.patients.length);
       check('ผู้ดูแล: เพิ่มสรุปผลงานเยี่ยมบ้านได้ (ฟอร์มเลือก รพ.สต. ได้ทุกหน่วย)', await visible(p, '#adminSumSlot #vsForm') && await count(p, '#adminSumSlot #vsUnit option') === 7 && (await text(p, '#vsListTitle')).includes('ทุก รพ.สต.'));

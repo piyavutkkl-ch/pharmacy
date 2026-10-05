@@ -15,7 +15,17 @@ async function loadProfile() {
   const { data, error } = await sb.from('profiles')
     .select('id,email,full_name,avatar_url,role,unit_id,phone,address,home_unit_id,unit:units!profiles_unit_id_fkey(name)')
     .eq('id', auth.session.user.id).single();
-  if (error) auth.error = error; else auth.profile = data;
+  if (error) { auth.error = error; return; }
+  if (['staff', 'admin'].includes(data.role)) {   // ตำแหน่งจากบัญชีเจ้าหน้าที่ (ผู้ดูแลตั้ง · อ่านแถวของตัวเองได้)
+    const { data: r } = await sb.from('staff_roster').select('position').eq('email', String(data.email || '').toLowerCase()).maybeSingle();
+    data.position = r?.position || null;
+  }
+  auth.profile = data;
+}
+/** โหลดโปรไฟล์ใหม่ (เช่น ผู้ดูแลแก้ชื่อ/ตำแหน่งของตัวเองในบัญชีเจ้าหน้าที่) → แถบเมนู/คำทักทายอัปเดตตาม */
+export async function refreshProfile() {
+  await loadProfile();
+  window.dispatchEvent(new CustomEvent('pcps:profile'));
 }
 
 export async function initAuth() {
