@@ -30,6 +30,11 @@
   </div>
 </header>
 
+<!-- รายละเอียดการเยี่ยมจากสรุปผลงาน (summaries.js · อ่านอย่างเดียว · ผู้ร่วมลง/เจ้าหน้าที่ รพ.สต. ที่ดูแล/ผู้ดูแล) -->
+<dialog class="pd-dialog sv-dialog" id="svDialog" aria-labelledby="svTitle">
+  <div class="pd-head"><div><h2 id="svTitle">รายละเอียดการเยี่ยม</h2><span class="small muted" id="svSub"></span></div><button type="button" class="pd-x" id="svClose" aria-label="ปิด">×</button></div>
+  <div id="svBody"></div>
+</dialog>
 <dialog class="pd-dialog" id="pdDialog" aria-labelledby="pdTitle">
   <form id="pdForm" class="form-grid" novalidate>
     <div class="full pd-head"><div><h2 id="pdTitle">ข้อมูลส่วนตัว</h2><span class="small muted" id="pdRole"></span></div><button type="button" class="pd-x" id="pdClose" aria-label="ปิด">×</button></div>
@@ -600,6 +605,7 @@
               <div class="field"><label for="rfName">ชื่อ-นามสกุล <span class="req">*</span></label><input id="rfName" class="input" maxlength="120"></div>
               <div class="field"><label for="rfRole">บทบาท</label><select id="rfRole" class="input"><option value="staff">เจ้าหน้าที่ รพ.สต.</option><option value="admin">ผู้ดูแลระบบ (โรงพยาบาล)</option></select></div>
               <div class="field" id="rfUnitWrap"><label for="rfUnit">รพ.สต. ที่สังกัด <span class="req">*</span></label><select id="rfUnit" class="input"></select></div>
+              <div class="field"><label for="rfPos">ตำแหน่ง</label><input id="rfPos" class="input" maxlength="60" placeholder="เช่น เภสัชกร, พยาบาลวิชาชีพ" list="rfPosList"><datalist id="rfPosList"><option value="เภสัชกร"></option><option value="พยาบาลวิชาชีพ"></option><option value="นักวิชาการสาธารณสุข"></option><option value="เจ้าพนักงานสาธารณสุข"></option><option value="แพทย์แผนไทย"></option><option value="ผู้อำนวยการ รพ.สต."></option></datalist></div>
               <div class="field"><label for="rfPhone">เบอร์โทร</label><input id="rfPhone" class="input" type="tel" inputmode="tel" maxlength="20"></div>
               <div class="field" id="rfActiveWrap" hidden><label for="rfActive">สถานะ</label><select id="rfActive" class="input"><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน (เข้าได้แบบประชาชน)</option></select></div>
               <div class="full row-btns" style="align-items:center">

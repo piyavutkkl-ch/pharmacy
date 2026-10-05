@@ -1,10 +1,10 @@
 -- ข้อมูลตัวอย่างสำหรับทดสอบหน้าเว็บ (tests/ui) — ใช้กับฐานข้อมูลทดสอบเท่านั้น ห้ามรันใน Supabase จริง
 -- ผู้ใช้ทดสอบ: admin@hosp.th (ผู้ดูแล) · s2@gmail.com (รพ.สต. 2) · s3@gmail.com (รพ.สต. 3) · c1@gmail.com (ประชาชน มีเบอร์) · c2@gmail.com (ประชาชน ยังไม่กรอกเบอร์)
-insert into public.staff_roster(email, full_name, role, unit_id, phone) values
-  ('admin@hosp.th', 'ภก.ผู้ดูแล ระบบ', 'admin', null, null),
-  ('s2@gmail.com', 'สมศรี ใจดี', 'staff', 2, '0811111111'),
-  ('s3@gmail.com', 'วิชัย ขยัน', 'staff', 3, null),
-  ('wi.new@gmail.com', 'พี่วิ ยังไม่เข้าระบบ', 'staff', 4, null);   -- เพิ่มในบัญชีแล้วแต่ยังไม่เคยเข้าสู่ระบบ
+insert into public.staff_roster(email, full_name, role, unit_id, phone, position) values
+  ('admin@hosp.th', 'ภก.ผู้ดูแล ระบบ', 'admin', null, null, 'เภสัชกร'),
+  ('s2@gmail.com', 'สมศรี ใจดี', 'staff', 2, '0811111111', 'พยาบาลวิชาชีพ'),
+  ('s3@gmail.com', 'วิชัย ขยัน', 'staff', 3, null, null),
+  ('wi.new@gmail.com', 'พี่วิ ยังไม่เข้าระบบ', 'staff', 4, null, 'พยาบาลวิชาชีพ');   -- เพิ่มในบัญชีแล้วแต่ยังไม่เคยเข้าสู่ระบบ
 insert into auth.users(id, email, raw_user_meta_data, raw_app_meta_data) values
   ('00000000-0000-0000-0000-0000000000a1', 'admin@hosp.th', '{"full_name":"Admin"}', '{"provider":"google"}'),
   ('00000000-0000-0000-0000-0000000000b2', 's2@gmail.com', '{"full_name":"S2"}', '{"provider":"google"}'),

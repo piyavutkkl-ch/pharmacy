@@ -30,7 +30,7 @@ function syncRole() { $('#rfUnitWrap').hidden = $('#rfRole').value === 'admin'; 
 async function reload() {
   $('#rosterList').innerHTML = '<div class="skeleton" style="margin:12px 0"></div><div class="skeleton" style="width:70%"></div>';
   const [r, p] = await Promise.all([
-    sb.from('staff_roster').select('email,full_name,role,unit_id,phone,active,created_at').order('role').order('unit_id').order('full_name'),
+    sb.from('staff_roster').select('email,full_name,role,unit_id,phone,position,active,created_at').order('role').order('unit_id').order('full_name'),
     sb.from('profiles').select('email'),
   ]);
   if (r.error) { $('#rosterList').innerHTML = `<p class="empty">โหลดรายชื่อไม่สำเร็จ: ${esc(errText(r.error))}</p>`; return; }
@@ -51,7 +51,7 @@ function render() {
   $('#rosterList').innerHTML = list.length ? list.map((x) => {
     const self = x.email === me;
     return `<div class="roster-row"><span class="avatar">${esc(initials(x.full_name))}</span>`
-      + `<div class="l"><b>${esc(x.full_name)}${self ? ' <span class="small muted">(คุณ)</span>' : ''}</b><span class="small muted">${esc(x.email)}${x.phone ? ' · ' + esc(x.phone) : ''}</span>`
+      + `<div class="l"><b>${esc(x.full_name)}${self ? ' <span class="small muted">(คุณ)</span>' : ''}</b><span class="small muted">${x.position ? esc(x.position) + ' · ' : ''}${esc(x.email)}${x.phone ? ' · ' + esc(x.phone) : ''}</span>`
       + `<div class="meta"><span class="chip c-role">${x.role === 'admin' ? 'ผู้ดูแลระบบ' : 'รพ.สต. ' + esc(unitName(x.unit_id))}</span>`
       + `<span class="chip ${x.active ? 'c-on' : 'c-off'}">${x.active ? 'ใช้งาน' : 'ปิดใช้งาน'}</span>`
       + `<span class="chip c-off">${loggedIn.has(x.email) ? 'เคยเข้าสู่ระบบแล้ว' : 'ยังไม่เคยเข้าสู่ระบบ'}</span></div></div>`
@@ -81,7 +81,7 @@ function startEdit(email) {
   $('#rfEmail').value = x.email; $('#rfEmail').readOnly = true;
   $('#rfName').value = x.full_name; $('#rfRole').value = x.role;
   if (x.unit_id != null) $('#rfUnit').value = String(x.unit_id);
-  $('#rfPhone').value = x.phone || '';
+  $('#rfPhone').value = x.phone || ''; $('#rfPos').value = x.position || '';
   $('#rfActive').value = String(x.active);
   const self = x.email === auth.profile?.email;
   $('#rfActiveWrap').hidden = self; $('#rfRole').disabled = self;
@@ -102,7 +102,7 @@ async function save(e) {
   $('#rfName').setAttribute('aria-invalid', name ? 'false' : 'true');
   if (!okEmail) { msg('กรุณากรอกอีเมลให้ถูกต้อง'); $('#rfEmail').focus(); return; }
   if (!name) { msg('กรุณากรอกชื่อ-นามสกุล'); $('#rfName').focus(); return; }
-  const row = { full_name: name, role, unit_id: role === 'admin' ? null : +$('#rfUnit').value, phone };
+  const row = { full_name: name, role, unit_id: role === 'admin' ? null : +$('#rfUnit').value, phone, position: $('#rfPos').value.trim() || null };
   const btn = $('#rfSubmit');
   busy(btn, true, 'กำลังบันทึก…');
   let res;

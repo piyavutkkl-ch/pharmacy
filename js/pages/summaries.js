@@ -15,13 +15,24 @@ import { fileLink, imageList } from './news-form.js?v=4.4';
 import { smartCover } from '../lightbox.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
-const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others';
+const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others,participant_positions';
 const MAX_IMGS = 7;   // ภาพแรก + gallery ไม่เกิน 6 (visit_summaries_gallery_check)
 const imgsOf = (s) => [s.image_path, ...(s.gallery || [])].filter(Boolean);
 const HINT_IMG = `ภาพสรุป 1 หน้า (เช่น อินโฟกราฟิกจาก Canva) · เลือกได้หลายภาพ ไม่เกิน ${MAX_IMGS} ภาพ · ย่อไม่เกิน A4 อัตโนมัติ · ภาพแรกเป็นภาพหลัก`;
 const label = (s) => `รพ.สต.${unitName(s.unit_id)} · ปีงบประมาณ ${s.fiscal_year}`;
 const dateOf = (s) => thaiDate(s.summary_date || s.created_at);   // วันที่ของผลงาน (ก่อนมีช่องนี้ = วันที่บันทึก)
 const peopleOf = (s) => [...(s.participant_names || []), ...(s.participant_others || [])].join(', ');   // ในระบบ + กรอกเอง
+/** นับผู้ลงเยี่ยมตามตำแหน่ง + ผู้ป่วยที่เยี่ยม → "เภสัชกร 1 ราย · พยาบาลวิชาชีพ 1 ราย · เยี่ยมผู้ป่วย 5 ราย"
+ *  ตำแหน่ง: ผู้ร่วมลงในระบบ = จากบัญชีเจ้าหน้าที่ (positions) · กรอกเอง = ข้อความในวงเล็บท้ายชื่อ "ชื่อ นามสกุล (ตำแหน่ง)" */
+const posOf = (txt) => (String(txt).match(/\(([^()]+)\)\s*$/)?.[1] || '').trim();
+export function countLine(positions, patients) {
+  const m = new Map();
+  positions.forEach((p) => { const k = String(p || '').trim() || 'ไม่ระบุตำแหน่ง'; m.set(k, (m.get(k) || 0) + 1); });
+  const parts = [...m].sort((a, b) => (a[0] === 'ไม่ระบุตำแหน่ง') - (b[0] === 'ไม่ระบุตำแหน่ง') || b[1] - a[1]).map(([k, n]) => `${k} ${n} ราย`);
+  if (patients) parts.push(`เยี่ยมผู้ป่วย ${patients} ราย`);
+  return parts.join(' · ');
+}
+const positionsOf = (s) => [...(s.participant_ids || []).map((_, i) => s.participant_positions?.[i] || ''), ...(s.participant_others || []).map(posOf)];
 const todayIso = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 
 /* ======================= หน้าหลัก ======================= */
@@ -73,7 +84,12 @@ export async function showSummary(id) {
   $('#smTag').textContent = label(s);
   $('#smTitle').textContent = s.title;
   $('#smDate').textContent = 'วันที่ ' + dateOf(s);
-  if (peopleOf(s)) { $('#smPeople').textContent = 'เจ้าหน้าที่ที่ร่วมลง: ' + peopleOf(s); $('#smPeople').hidden = false; }
+  const { data: nPt } = await sb.rpc('summary_patient_count', { p_summary: s.id });
+  const counts = countLine(positionsOf(s), nPt || 0);
+  if (peopleOf(s) || counts) {
+    $('#smPeople').innerHTML = (counts ? `<b class="sm-counts">ลงเยี่ยม: ${esc(counts)}</b>` : '') + (peopleOf(s) ? `<span>เจ้าหน้าที่ที่ร่วมลง: ${esc(peopleOf(s))}</span>` : '');
+    $('#smPeople').hidden = false;
+  }
   const url = publicImageUrl(s.image_path);
   smartCover($('#smCover'), url, s.title);
   const gal = (s.gallery || []).filter(Boolean);   // ภาพเพิ่ม (ใกล้ A4 = ไม่ครอบตัด · กดขยายได้)
@@ -102,13 +118,44 @@ async function showLinkedVisits(id) {
   const box = $('#smVisits'); box.hidden = true; box.innerHTML = '';
   const role = auth.profile?.role;
   if (role !== 'staff' && role !== 'admin') return;   // ประชาชน/ไม่ล็อกอิน: ไม่มีแม้แต่หัวข้อ
-  const { data: links } = await sb.from('summary_visits').select('visit_id').eq('summary_id', id);
-  const rows = await visitRows((links || []).map((l) => l.visit_id));
-  if (!rows.length) return;
-  rows.forEach((r) => audit(r.unit_id, r.patient_id));
-  box.innerHTML = `<h2>รายการเยี่ยมที่เชื่อมโยง (${rows.length})</h2><p class="small muted">เห็นเฉพาะเจ้าหน้าที่และผู้ดูแล · กดเพื่อดูรายละเอียดการเยี่ยม (ทำอะไร ติดตามอะไร) · การเปิดดูถูกบันทึกตาม PDPA</p>`
-    + '<div class="list">' + rows.map((r) => `<a class="li-btn" href="#/${role}/visits/${esc(r.id)}"><span class="l"><b>${esc(r.name)}</b><span class="small muted">เยี่ยมวันที่ ${esc(thaiDate(r.visit_date))}${role === 'admin' ? ' · รพ.สต.' + esc(unitName(r.unit_id)) : ''}</span></span><span aria-hidden="true">›</span></a>`).join('') + '</div>';
+  // ชื่อย่อ/ชื่อเต็ม + สิทธิ์เปิดดู ตัดสินที่ฐานข้อมูล (summary_visit_list · 41_summary_visit_access.sql) · บันทึก PDPA ที่ฐานข้อมูล
+  const { data: rows, error } = await sb.rpc('summary_visit_list', { p_summary: id });
+  if (error || !rows?.length) return;
+  box.innerHTML = `<h2>รายการเยี่ยมที่เชื่อมโยง (${rows.length})</h2><p class="small muted">เห็นเฉพาะเจ้าหน้าที่และผู้ดูแล · ผู้ร่วมลง เจ้าหน้าที่ รพ.สต. ที่ดูแล และผู้ดูแล กดดูรายละเอียดได้ (ทำอะไร ติดตามอะไร) · คนอื่นเห็นชื่อย่อ · การเปิดดูถูกบันทึกตาม PDPA</p>`
+    + '<div class="list">' + rows.map((r) => {
+      const sub = `เยี่ยมวันที่ ${esc(thaiDate(r.visit_date))}${role === 'admin' ? ' · รพ.สต.' + esc(unitName(r.unit_id)) : ''}`;
+      return r.can_open
+        ? `<button type="button" class="li-btn" data-sv-open="${esc(r.visit_id)}"><span class="l"><b>${esc(r.display_name)}</b><span class="small muted">${sub}</span></span><span aria-hidden="true">›</span></button>`
+        : `<div class="li sv-locked"><span class="l"><b>${esc(r.display_name)}</b><span class="small muted">${sub}</span></span><span class="small muted">🔒 เฉพาะผู้ร่วมลง</span></div>`;
+    }).join('') + '</div>';
   box.hidden = false;
+  box.onclick = (e) => { const b = e.target.closest('[data-sv-open]'); if (b) openVisitDetail(id, b.dataset.svOpen); };
+}
+/** หน้าต่างรายละเอียดการเยี่ยม 1 ครั้ง (อ่านอย่างเดียว) · ผู้ดูแล/เจ้าหน้าที่ รพ.สต. ที่ดูแล มีลิงก์ไปหน้าเยี่ยมบ้านด้วย */
+async function openVisitDetail(summaryId, visitId) {
+  const dlg = $('#svDialog');
+  if (!dlg.dataset.bound) {
+    dlg.dataset.bound = '1';
+    $('#svClose').addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', (e) => { if (e.target === dlg || e.target.closest('[data-sv-go]')) dlg.close(); });
+  }
+  $('#svTitle').textContent = 'รายละเอียดการเยี่ยม'; $('#svSub').textContent = ''; $('#svBody').innerHTML = '<div class="skeleton"></div>';
+  if (!dlg.open) dlg.showModal();
+  const { data: v, error } = await sb.rpc('summary_visit_detail', { p_summary: summaryId, p_visit: visitId });
+  if (error) { $('#svBody').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+  $('#svTitle').textContent = v.name;
+  $('#svSub').textContent = `เยี่ยมวันที่ ${thaiDate(v.visit_date)} · รพ.สต.${unitName(v.unit_id)}`;
+  const kv = (k, val) => (val == null || val === '' ? '' : `<dt>${k}</dt><dd>${esc(String(val))}</dd>`);
+  const meds = (v.med_list || []).map((m) => `${m.name || ''}${m.how ? ` [${m.how}]` : ''}${m.qty ? ` (${m.qty} ${m.unit || ''})` : ''}`).filter((x) => x.trim()).join(', ');
+  const drp = v.drps?.length ? `${v.drps.join(', ')}${v.drp_resolved ? ' · แก้ไขสำเร็จ' : ' · ยังไม่แก้ไข'}` : 'ไม่พบ';
+  $('#svBody').innerHTML = '<dl class="kv">'
+    + kv('อายุ', v.age != null ? v.age + ' ปี' : null) + kv('น้ำหนัก', v.weight != null ? v.weight + ' กก.' : null) + kv('ความดัน', v.bp) + kv('DTX', v.dtx)
+    + kv('S', v.subjective) + kv('O', v.objective) + kv('A', v.assessment) + kv('P', v.plan)
+    + kv('ยาที่เหลือ', meds) + kv('ยาเหลือค้าง > 1 เดือน', v.med_excess ? 'ใช่' : null) + kv('หมายเหตุยา', v.med_note)
+    + kv('DRPs', drp) + kv('รายละเอียด DRPs', v.drp_detail) + kv('นัดครั้งถัดไป', v.next_appt ? thaiDate(v.next_appt) : null)
+    + kv('รูปถ่าย', v.photos ? `${v.photos} รูป${v.own ? '' : ' (ดูได้ในหน้าเยี่ยมบ้านของ รพ.สต. ที่ดูแล)'}` : null) + '</dl>'
+    + (v.own ? `<p><a class="btn btn-o btn-sm" data-sv-go href="#/${auth.profile.role}/visits/${esc(visitId)}">เปิดในหน้าเยี่ยมบ้าน</a></p>` : '')
+    + '<p class="small muted">ข้อมูลผู้ป่วย · ใช้เพื่อการดูแลเท่านั้น · การเปิดดูถูกบันทึกตาม PDPA</p>';
 }
 
 /* ======================= เพิ่ม/แก้/ลบ (หน้าเยี่ยมบ้าน) ======================= */
@@ -123,7 +170,7 @@ const FORM = `
       <div class="field"><label for="vsUnit">รพ.สต. <span class="req">*</span></label><select id="vsUnit" class="input"></select></div>
       <div class="field"><label for="vsDate">วันที่ <span class="req">*</span></label><input id="vsDate" class="input" type="date"><span class="small muted" id="vsDateTh"></span></div>
       <div class="field"><label for="vsYear">ปีงบประมาณ</label><select id="vsYear" class="input"></select></div>
-      <div class="field full"><label for="vsPeopleQ">เจ้าหน้าที่ที่ร่วมลง (เลือกได้หลายคน)</label><input id="vsPeopleQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อ"><div class="crit-pick vs-people" id="vsPeople" role="group" aria-label="เจ้าหน้าที่ที่ร่วมลง"></div><span class="small vs-people-n" id="vsPeopleN" aria-live="polite"></span>
+      <div class="field full"><label for="vsPeopleQ">เจ้าหน้าที่ที่ร่วมลง (เลือกได้หลายคน)</label><input id="vsPeopleQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อ"><div class="crit-pick vs-people" id="vsPeople" role="group" aria-label="เจ้าหน้าที่ที่ร่วมลง"></div><span class="small vs-people-n" id="vsPeopleN" aria-live="polite"></span><span class="small vs-counts" id="vsCounts" aria-live="polite"></span>
         <div class="vs-other"><p class="small muted">ไม่มีชื่อในรายการ? กรอกเพิ่มเองได้ (ชื่อ นามสกุล ตำแหน่ง)</p>
           <div class="vs-other-row"><input id="vsOFirst" class="input" maxlength="50" placeholder="ชื่อ" aria-label="ชื่อผู้ร่วมลง"><input id="vsOLast" class="input" maxlength="50" placeholder="นามสกุล" aria-label="นามสกุลผู้ร่วมลง"><input id="vsOPos" class="input" maxlength="45" placeholder="ตำแหน่ง เช่น อสม." aria-label="ตำแหน่งผู้ร่วมลง"><button type="button" class="btn btn-o btn-sm" id="vsOAdd">+ เพิ่มชื่อ</button></div>
           <div class="list vs-other-list" id="vsOthers"></div></div></div>
@@ -219,8 +266,8 @@ function renderPeople() {
   $('#vsPeople').innerHTML = list.map((p) => {
     const g = group(p), head = g !== last ? `<p class="crit-pick-h">${esc(g)}</p>` : '';
     last = g;
-    const on = p.id ? S.picked.has(p.id) : S.pickedNames.has(p.full_name);
-    return head + `<label class="crit-opt"><input type="checkbox" value="${esc(p.id || 'n:' + p.full_name)}"${on ? ' checked' : ''}><span>${esc(p.full_name)}${p.joined === false ? ' <span class="muted small">(ยังไม่เคยเข้าสู่ระบบ)</span>' : ''}</span></label>`;
+    const on = p.id ? S.picked.has(p.id) : S.pickedNames.has(pendingKey(p));
+    return head + `<label class="crit-opt"><input type="checkbox" value="${esc(p.id || 'n:' + pendingKey(p))}"${on ? ' checked' : ''}><span>${esc(p.full_name)}${p.position ? ` <span class="muted small">· ${esc(p.position)}</span>` : ''}${p.joined === false ? ' <span class="muted small">(ยังไม่เคยเข้าสู่ระบบ)</span>' : ''}</span></label>`;
   }).join('') || (q ? `<p class="empty">ไม่พบ "${esc($('#vsPeopleQ').value.trim())}" ในระบบ · <button type="button" class="linklike" data-new-person>กรอกเป็นชื่อใหม่ด้านล่าง</button></p>`
     : '<p class="empty">ยังไม่มีรายชื่อเจ้าหน้าที่ · กรอกชื่อเพิ่มเองด้านล่างได้</p>');
   peopleCount();
@@ -279,6 +326,7 @@ function renderLinks() {
   $('#vsVisits').innerHTML = rows.map((r) => `<div class="li"><span><b>${esc(r.name)}</b> <span class="small muted">· เยี่ยมวันที่ ${esc(thaiDate(r.visit_date))}</span></span>`
     + `<button type="button" class="btn btn-no btn-sm" data-rm-link="${esc(r.id)}" aria-label="ยกเลิกเชื่อมโยง ${esc(r.name)}">ลบ</button></div>`).join('');
   $('#vsVisitBtn').textContent = rows.length ? `+ เชื่อมโยงเพิ่ม (ตอนนี้ ${rows.length} รายการ)` : '+ เชื่อมโยงรายการเยี่ยม';
+  peopleCount();
 }
 /** หลังบันทึกสรุป: เพิ่ม/ลบลิงก์ให้ตรงกับที่เลือก */
 async function syncLinks(summaryId) {
@@ -287,8 +335,15 @@ async function syncLinks(summaryId) {
   if (del.length) { const { error } = await sb.from('summary_visits').delete().eq('summary_id', summaryId).in('visit_id', del); if (error) throw error; }
 }
 
+/** คนในบัญชีเจ้าหน้าที่ที่ยังไม่เคยเข้าระบบ → เก็บเป็นข้อความ "ชื่อ (ตำแหน่ง)" ใน participant_others */
+const pendingKey = (p) => (p.position ? `${p.full_name} (${p.position})` : p.full_name);
 function peopleCount() {
-  const names = [...(S.people || []).filter((p) => S.picked.has(p.id)).map((p) => p.full_name), ...(S.pickedNames || []), ...(S.others || [])];
+  const sys = (S.people || []).filter((p) => p.id && S.picked.has(p.id));
+  const positions = [...sys.map((p) => p.position || ''), ...[...(S.pickedNames || []), ...(S.others || [])].map(posOf)];
+  const nPt = new Set([...(S.links || new Map()).values()].map((r) => r.patient_id)).size;
+  const counts = countLine(positions, nPt);
+  $('#vsCounts').textContent = counts ? `ลงเยี่ยม: ${counts}` : '';
+  const names = [...sys.map((p) => p.full_name), ...(S.pickedNames || []), ...(S.others || [])];
   $('#vsPeopleN').textContent = names.length ? `ร่วมลง ${names.length} คน: ${names.join(', ')}` : '';
 }
 
@@ -304,12 +359,14 @@ async function load() {
   if (a.error) { $('#vsList').innerHTML = `<p class="empty">${esc(errText(a.error))}</p>`; return; }
   const seen = new Set(), data = [...a.data, ...(mine.data || [])].filter((x) => !seen.has(x.id) && seen.add(x.id));
   S.list = data;
+  S.ptCount = new Map((await Promise.all(data.map(async (x) => [x.id, (await sb.rpc('summary_patient_count', { p_summary: x.id })).data || 0]))));
   if (data.length) {   // จำนวนรายการเยี่ยมที่เชื่อมโยง (เห็นเฉพาะที่มีสิทธิ์)
     const { data: ls } = await sb.from('summary_visits').select('summary_id').in('summary_id', data.map((x) => x.id));
     (ls || []).forEach((l) => S.linkCount.set(l.summary_id, (S.linkCount.get(l.summary_id) || 0) + 1));
   }
   $('#vsList').innerHTML = data.length ? data.map((s) => `<div class="da-poster"><img src="${esc(publicImageUrl(s.image_path))}" alt="">`
     + `<div class="l"><b>${esc(s.title)}</b><span class="small muted">วันที่ ${esc(dateOf(s))} · รพ.สต.${esc(unitName(s.unit_id))} · ปีงบประมาณ ${s.fiscal_year} · ${imgsOf(s).length} ภาพ${s.file_path ? ' · มี PDF' : ''}${S.linkCount.get(s.id) ? ` · เชื่อมโยง ${S.linkCount.get(s.id)} รายการเยี่ยม` : ''}</span>`
+    + (countLine(positionsOf(s), S.ptCount.get(s.id)) ? `<span class="small">ลงเยี่ยม: ${esc(countLine(positionsOf(s), S.ptCount.get(s.id)))}</span>` : '')
     + (peopleOf(s) ? `<span class="small muted">ผู้ร่วมลง: ${esc(peopleOf(s))}</span>` : '') + '</div>'
     + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/summary/${s.id}">ดู</a><button type="button" class="btn btn-o btn-sm" data-edit="${s.id}">แก้ไข</button><button type="button" class="btn btn-no btn-sm" data-del="${s.id}">ลบ</button></div></div>`).join('')
     : '<p class="empty">ยังไม่มีสรุปผลงาน · เพิ่มได้จากฟอร์มด้านบน</p>';
@@ -322,7 +379,7 @@ async function onList(e) {
     S.editing = s;
     $('#vsTitle').value = s.title; $('#vsUnit').value = String(s.unit_id); $('#vsBody').value = s.body || '';
     $('#vsDate').value = s.summary_date || String(s.created_at).slice(0, 10); onDate(); $('#vsYear').value = String(s.fiscal_year);
-    const pending = new Set((S.people || []).filter((p) => !p.id).map((p) => p.full_name));   // ชื่อที่เลือกจากรายชื่อตอนยังไม่เข้าระบบ → ติ๊กกลับในรายการ
+    const pending = new Set((S.people || []).filter((p) => !p.id).map(pendingKey));   // ชื่อที่เลือกจากรายชื่อตอนยังไม่เข้าระบบ → ติ๊กกลับในรายการ
     S.picked = new Set(s.participant_ids || []); S.pickedNames = new Set((s.participant_others || []).filter((n) => pending.has(n)));
     $('#vsPeopleQ').value = ''; renderPeople();
     S.others = (s.participant_others || []).filter((n) => !S.pickedNames.has(n)); renderOthers();

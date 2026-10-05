@@ -246,7 +246,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('สรุปผลงาน: เลือกผู้ร่วมลงจากรายชื่อผู้ดูแล + เจ้าหน้าที่ (ตัวเองติ๊กไว้แล้ว · ไม่มีประชาชน)', (await text(p, '#vsPeople')).includes('ผู้ดูแล (โรงพยาบาล)') && await p.isChecked(`#vsPeople input[value="${me}"]`)
       && await p.evaluate(() => [...document.querySelectorAll('#vsPeople input')].every((i) => i.value.startsWith('n:') || ['staff', 'admin'].includes(window.__db.profiles.find((x) => x.id === i.value)?.role))));
     check('สรุปผลงาน: รายชื่อมีคนที่ผู้ดูแลเพิ่มแล้วแต่ยังไม่เคยเข้าสู่ระบบ + ใช้ชื่อในบัญชีเจ้าหน้าที่', (await text(p, '#vsPeople')).includes('พี่วิ ยังไม่เข้าระบบ') && (await text(p, '#vsPeople')).includes('(ยังไม่เคยเข้าสู่ระบบ)') && (await text(p, '#vsPeople')).includes('ภก.ผู้ดูแล ระบบ'));
-    await p.check('#vsPeople input[value="n:พี่วิ ยังไม่เข้าระบบ"]');
+    await p.check('#vsPeople input[value="n:พี่วิ ยังไม่เข้าระบบ (พยาบาลวิชาชีพ)"]');
     await p.check(`#vsPeople input[value="${adm}"]`);
     check('สรุปผลงาน: เลือกได้หลายคน + แสดงจำนวน', (await text(p, '#vsPeopleN')).includes('3 คน') && (await text(p, '#vsPeopleN')).includes('พี่วิ'));
     await p.fill('#vsPeopleQ', 'สมหญิง ทดสอบ'); await p.waitForTimeout(100);
@@ -265,12 +265,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#vsVisitQ', 'ประยูร'); await p.click('#vsVisitRes [data-vpt]'); await p.waitForTimeout(300);
     check('เชื่อมโยงรายการเยี่ยม: เลือกชื่อแล้วเห็นวันที่เยี่ยมแต่ละครั้ง + บันทึกการเข้าถึง (PDPA)', (await text(p, '#vsVisitRes')).includes('เยี่ยมวันที่') && (await calls(p, (c) => c.rpc === 'log_patient_access' && c.args.p_patient)).length >= 1);
     await p.check('#vsVisitRes [data-vv]'); await p.waitForTimeout(100);
+    check('สรุปผลงาน: นับผู้ลงเยี่ยมตามตำแหน่ง + ผู้ป่วยที่เยี่ยม (จากรายชื่อที่แนบ)', (await text(p, '#vsCounts')).includes('พยาบาลวิชาชีพ 2 ราย') && (await text(p, '#vsCounts')).includes('เภสัชกร 1 ราย') && (await text(p, '#vsCounts')).includes('อสม. 1 ราย') && (await text(p, '#vsCounts')).includes('เยี่ยมผู้ป่วย 1 ราย'), await text(p, '#vsCounts'));
     check('เชื่อมโยงรายการเยี่ยม: เลือกแล้วขึ้นในรายการ (ชื่อ · วันที่เยี่ยม) ลบได้', (await text(p, '#vsVisits')).includes('ประยูร') && (await text(p, '#vsVisits')).includes('เยี่ยมวันที่') && await count(p, '#vsVisits [data-rm-link]') === 1);
     const linkedVisit = await p.getAttribute('#vsVisitRes [data-vv]', 'data-vv');
     await p.click('#vsSubmit'); await p.waitForTimeout(600);
     check('เชื่อมโยงรายการเยี่ยม: บันทึกลิงก์กับสรุป + รายการบอกจำนวน', (await calls(p, (c) => c.table === 'summary_visits' && c.op === 'insert')).length === 1 && (await text(p, '#vsList')).includes('เชื่อมโยง 1 รายการเยี่ยม'));
     const vsIns = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert'))[0]?.payload;
-    check('สรุปผลงาน: บันทึกวันที่ + ผู้ร่วมลง 2 คน + รายการแสดงวันที่และชื่อ', vsIns?.summary_date === today && vsIns?.participant_ids?.length === 2 && vsIns.participant_ids.includes(adm) && vsIns.participant_others?.join('|') === 'พี่วิ ยังไม่เข้าระบบ|สมหญิง ทดสอบ (อสม.)' && (await text(p, '#vsList')).includes('วันที่ ') && (await text(p, '#vsList')).includes('ผู้ร่วมลง:'), JSON.stringify(vsIns));
+    check('สรุปผลงาน: บันทึกวันที่ + ผู้ร่วมลง 2 คน + รายการแสดงวันที่และชื่อ', vsIns?.summary_date === today && vsIns?.participant_ids?.length === 2 && vsIns.participant_ids.includes(adm) && vsIns.participant_others?.join('|') === 'พี่วิ ยังไม่เข้าระบบ (พยาบาลวิชาชีพ)|สมหญิง ทดสอบ (อสม.)' && (await text(p, '#vsList')).includes('วันที่ ') && (await text(p, '#vsList')).includes('ผู้ร่วมลง:'), JSON.stringify(vsIns));
     check('สรุปผลงาน: เผยแพร่ได้ (ภาพหลัก + ภาพเพิ่ม 1 · รูปอยู่ summaries/<หน่วย>/)', vsIns?.unit_id === 2 && vsIns?.image_path?.startsWith('summaries/2/') && vsIns?.gallery?.length === 1 && !('file_path' in vsIns) && await count(p, '#vsList .da-poster') === 1, JSON.stringify(vsIns));
     await p.click('#vsList [data-edit]'); await p.waitForTimeout(150);
     check('สรุปผลงาน: แก้ไขแล้วภาพเดิมขึ้นครบ', await count(p, '#vsImagePreview .img-item') === 2 && (await p.inputValue('#vsUnit')) === '2');
@@ -292,12 +293,27 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.screenshot({ path: path.join(SHOTS, 'tracking-poster-1280.png') });
     await p.click('#trackArt .sp-slide.on'); await p.waitForTimeout(400);
     check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + ภาพเพิ่ม + รายละเอียด)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await count(p, '#smGallery .cover') === 1);
+    check('สรุปผลงาน: หน้าอ่านแสดงจำนวนผู้ลงเยี่ยมตามตำแหน่ง + เยี่ยมผู้ป่วย n ราย', (await text(p, '#smPeople')).includes('ลงเยี่ยม:') && (await text(p, '#smPeople')).includes('เภสัชกร 1 ราย') && (await text(p, '#smPeople')).includes('เยี่ยมผู้ป่วย 1 ราย'), await text(p, '#smPeople'));
     check('สรุปผลงาน: หน้าอ่านแสดงวันที่ + เจ้าหน้าที่ที่ร่วมลง', (await text(p, '#smDate')).startsWith('วันที่ ') && (await text(p, '#smPeople')).includes('เจ้าหน้าที่ที่ร่วมลง:') && await visible(p, '#smPeople'));
-    check('สรุปผลงาน: เจ้าหน้าที่เห็น "รายการเยี่ยมที่เชื่อมโยง" (ชื่อ · วันที่เยี่ยม · ลิงก์ไปบันทึก)', await visible(p, '#smVisits') && (await text(p, '#smVisits')).includes('ประยูร') && (await p.getAttribute('#smVisits a', 'href')) === `#/staff/visits/${linkedVisit}`);
+    check('สรุปผลงาน: เจ้าหน้าที่เห็น "รายการเยี่ยมที่เชื่อมโยง" (ชื่อเต็ม · วันที่เยี่ยม · กดดูได้)', await visible(p, '#smVisits') && (await text(p, '#smVisits')).includes('ประยูร ทดสอบ') && await count(p, `#smVisits [data-sv-open="${linkedVisit}"]`) === 1);
     await p.screenshot({ path: path.join(SHOTS, 'summary-1280.png'), fullPage: true });
     { const q = await open(null, `#/summary/${await p.evaluate(() => location.hash.split('/')[2])}`); await q.waitForTimeout(600);
       check('สรุปผลงาน: ประชาชน/ไม่ล็อกอินไม่เห็นรายการเยี่ยม (PDPA)', !(await visible(q, '#smVisits')) && !(await text(q, '[data-view="summary"]')).includes('ประยูร')); await q.close(); }
-    await p.click('#smVisits a'); await p.waitForTimeout(900);
+    { const q = await open('staff3', '#/'); await q.waitForTimeout(300);   // เจ้าหน้าที่ต่าง รพ.สต. ไม่ได้อยู่ในรายชื่อผู้ร่วมลง
+      const sid = await q.evaluate(() => { const d = window.__db, v = d.visits.find((x) => x.unit_id === 2), s3 = d.profiles.find((x) => x.email === 's3@gmail.com');
+        const s = { id: 9901, unit_id: 2, fiscal_year: 2570, title: 'สรุปทดสอบสิทธิ์', body: '', image_path: 'summaries/2/x.webp', gallery: [], summary_date: v.visit_date, participant_ids: [], participant_names: [], participant_others: [], created_at: new Date().toISOString() };
+        d.visit_summaries.push(s); (d.summary_visits ||= []).push({ summary_id: 9901, visit_id: v.id }); window.__s3 = s3.id; return s.id; });
+      await q.evaluate((h) => { location.hash = h; }, `#/summary/${sid}`); await q.waitForTimeout(700);
+      check('สรุปผลงาน: เจ้าหน้าที่ รพ.สต. อื่นเห็นรายการแต่ชื่อจริง**** ไม่แสดงนามสกุล + กดดูไม่ได้', (await text(q, '#smVisits')).includes('ประยูร****') && !(await text(q, '#smVisits')).includes('ทดสอบ') && await count(q, '#smVisits [data-sv-open]') === 0 && (await text(q, '#smVisits')).includes('เฉพาะผู้ร่วมลง'));
+      await q.evaluate(() => { window.__db.visit_summaries.find((x) => x.id === 9901).participant_ids.push(window.__s3); location.hash = '#/'; }); await q.waitForTimeout(300);
+      await q.evaluate(() => { location.hash = '#/summary/9901'; }); await q.waitForTimeout(700);
+      await q.click('#smVisits [data-sv-open]'); await q.waitForTimeout(400);
+      check('สรุปผลงาน: ถูกแนบเป็นผู้ร่วมลงแล้ว → เห็นชื่อเต็ม + เปิดรายละเอียดได้ (ไม่มีลิงก์หน้าเยี่ยมบ้านของหน่วยอื่น)', (await text(q, '#svTitle')).includes('ประยูร ทดสอบ') && (await text(q, '#svBody')).includes('S') && await count(q, '#svBody [data-sv-go]') === 0);
+      await q.close(); }
+    await p.click('#smVisits [data-sv-open]'); await p.waitForTimeout(400);
+    check('สรุปผลงาน: กดชื่อ → หน้าต่างรายละเอียดการเยี่ยม (S/O/A/P · DRPs) + ลิงก์ไปหน้าเยี่ยมบ้าน (หน่วยตัวเอง)', await p.$eval('#svDialog', (d) => d.open) && (await text(p, '#svBody')).includes('DRPs') && (await p.getAttribute('#svBody [data-sv-go]', 'href')) === `#/staff/visits/${linkedVisit}`);
+    await p.screenshot({ path: path.join(SHOTS, 'summary-visit-dialog-1280.png') });
+    await p.click('#svBody [data-sv-go]'); await p.waitForTimeout(900);
     check('สรุปผลงาน: กดลิงก์ → ไปหน้าเยี่ยมบ้าน เปิดผู้ป่วย + ไฮไลต์บันทึกการเยี่ยมนั้น', (await text(p, '#ptPanel')).includes('ประยูร') && await count(p, `#vt-${linkedVisit}.hl`) === 1);
     await go(p, '#/staff/visits'); await p.waitForTimeout(300);
     await p.click('#vsList [data-del]'); await p.waitForTimeout(400);
@@ -469,8 +485,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('คำร้องขอสมัครบัญชีเจ้าหน้าที่: แสดงในตั้งค่า › บัญชีเจ้าหน้าที่ + ตัวเลขบนเมนู', await count(p, '#srList .sr-row') === 1 && (await text(p, '#admSetBadge')) === '1');
     await p.selectOption('#srList .sr-unit', '4'); await p.click('[data-sr-approve]'); await p.waitForTimeout(500);
     check('คำร้อง: อนุมัติแล้วเพิ่มเป็นเจ้าหน้าที่ (เลือก รพ.สต. ได้)', await p.evaluate(() => window.__db.staff_roster.some((r) => r.email === 'c2@gmail.com' && r.unit_id === 4)) && await count(p, '#srList .sr-row') === 0);
-    await p.fill('#rfEmail', 'New.Staff@Gmail.com'); await p.fill('#rfName', 'เจ้าหน้าที่ใหม่'); await p.selectOption('#rfUnit', '4');
+    await p.fill('#rfEmail', 'New.Staff@Gmail.com'); await p.fill('#rfName', 'เจ้าหน้าที่ใหม่'); await p.selectOption('#rfUnit', '4'); await p.fill('#rfPos', 'เภสัชกร');
     await p.click('#rfSubmit'); await p.waitForTimeout(400);
+    check('ผู้ดูแล: บัญชีเจ้าหน้าที่มีช่องตำแหน่ง (ใช้นับผู้ลงเยี่ยม)', await p.evaluate(() => window.__db.staff_roster.find((r) => r.email === 'new.staff@gmail.com')?.position === 'เภสัชกร'));
     check('ผู้ดูแล: เพิ่มบัญชีเจ้าหน้าที่ (อีเมลเป็นตัวเล็ก)', await p.evaluate(() => window.__db.staff_roster.some((r) => r.email === 'new.staff@gmail.com')));
     await go(p, '#/admin/visits'); await p.waitForTimeout(400);
     { const all = await p.evaluate(() => window.__db.patients.length);

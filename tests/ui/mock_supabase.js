@@ -166,7 +166,9 @@ function beforeUpdate(table, row, patch) {
 /** แทน trigger before_summary_people: เก็บเฉพาะผู้ดูแล/เจ้าหน้าที่ + เติมชื่อจาก profiles */
 function summaryPeople(row) {
   const ps = [...new Set(row.participant_ids || [])].map((id) => db.profiles.find((p) => p.id === id && ['staff', 'admin'].includes(p.role))).filter(Boolean);
-  row.participant_ids = ps.map((p) => p.id); row.participant_names = ps.map((p) => p.full_name || 'เจ้าหน้าที่');
+  const ro = (p) => db.staff_roster.find((r) => r.email === String(p.email || '').toLowerCase());
+  row.participant_ids = ps.map((p) => p.id); row.participant_names = ps.map((p) => ro(p)?.full_name || p.full_name || 'เจ้าหน้าที่');
+  row.participant_positions = ps.map((p) => ro(p)?.position || '');
   row.participant_others = (row.participant_others || []).map((x) => String(x).trim().replace(/\s+/g, ' ')).filter(Boolean).map((x) => x.slice(0, 150));
 }
 
@@ -418,10 +420,34 @@ function rpc(name, a = {}) {
     }
     case 'staff_directory': {
       if (!isStaff() && !isAdmin()) return err('ไม่มีสิทธิ์', '42501');
-      const rosterName = (email) => db.staff_roster.find((r) => r.email === String(email || '').toLowerCase())?.full_name;
-      const joined = db.profiles.filter((p) => ['staff', 'admin'].includes(p.role)).map((p) => ({ id: p.id, full_name: rosterName(p.email) || p.full_name || 'เจ้าหน้าที่', role: p.role, unit_id: p.unit_id, joined: true }));
-      const pending = db.staff_roster.filter((r) => r.active && !db.profiles.some((p) => String(p.email || '').toLowerCase() === r.email)).map((r) => ({ id: null, full_name: r.full_name, role: r.role, unit_id: r.unit_id, joined: false }));
+      const ro = (email) => db.staff_roster.find((r) => r.email === String(email || '').toLowerCase());
+      const joined = db.profiles.filter((p) => ['staff', 'admin'].includes(p.role)).map((p) => ({ id: p.id, full_name: ro(p.email)?.full_name || p.full_name || 'เจ้าหน้าที่', role: p.role, unit_id: p.unit_id, joined: true, position: ro(p.email)?.position || null }));
+      const pending = db.staff_roster.filter((r) => r.active && !db.profiles.some((p) => String(p.email || '').toLowerCase() === r.email)).map((r) => ({ id: null, full_name: r.full_name, role: r.role, unit_id: r.unit_id, joined: false, position: r.position || null }));
       return { data: [...joined, ...pending].sort((a, b) => (a.role !== 'admin') - (b.role !== 'admin') || (a.unit_id ?? 0) - (b.unit_id ?? 0) || a.full_name.localeCompare(b.full_name, 'th')), error: null };
+    }
+    /* แทน summary_visit_list/detail (41_summary_visit_access.sql): ทุกเจ้าหน้าที่เห็นรายการ · ชื่อเต็ม/รายละเอียด = ผู้ร่วมลง/หน่วยที่ดูแล/ผู้ดูแล */
+    case 'summary_visit_list': case 'summary_visit_detail': {
+      if (!isStaff() && !isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const s = db.visit_summaries.find((x) => x.id === a.p_summary);
+      const okFor = (v) => isAdmin() || (isStaff() && v.unit_id === ME.unit_id) || (s?.participant_ids || []).includes(ME.id);
+      const links = (db.summary_visits || []).filter((l) => s && l.summary_id === s.id);
+      if (name === 'summary_visit_detail') {
+        const v = links.some((l) => l.visit_id === a.p_visit) && db.visits.find((x) => x.id === a.p_visit);
+        if (!v) return err('ไม่พบรายการเยี่ยมนี้ในสรุปผลงาน', 'P0001');
+        if (!okFor(v)) return err('ไม่มีสิทธิ์ดูรายละเอียด (เฉพาะผู้ร่วมลง เจ้าหน้าที่ รพ.สต. ที่ดูแล และผู้ดูแล)', '42501');
+        const p = db.patients.find((x) => x.id === v.patient_id);
+        return { data: { ...v, name: `${p.first_name} ${p.last_name}`, photos: (v.photo_paths || []).length, own: isAdmin() || (isStaff() && v.unit_id === ME.unit_id) }, error: null };
+      }
+      return { data: links.map((l) => {
+        const v = db.visits.find((x) => x.id === l.visit_id), p = v && db.patients.find((x) => x.id === v.patient_id);
+        if (!p) return null;
+        const ok = okFor(v);
+        return { visit_id: v.id, visit_date: v.visit_date, unit_id: v.unit_id, display_name: ok ? `${p.first_name} ${p.last_name}` : `${p.first_name.trim()}****`, can_open: ok };
+      }).filter(Boolean).sort((x, y) => String(y.visit_date).localeCompare(String(x.visit_date))), error: null };
+    }
+    case 'summary_patient_count': {
+      const vs = (db.summary_visits || []).filter((l) => l.summary_id === a.p_summary).map((l) => db.visits.find((v) => v.id === l.visit_id)?.patient_id).filter(Boolean);
+      return { data: new Set(vs).size, error: null };
     }
     case 'ai_match_link': {
       const r = (db.ai_matches || []).find((x) => x.id === a.p_id && x.user_id === ME?.id), ach = db.achievements.find((x) => x.id === a.p_achievement);
