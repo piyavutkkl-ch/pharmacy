@@ -418,8 +418,10 @@ function rpc(name, a = {}) {
     }
     case 'staff_directory': {
       if (!isStaff() && !isAdmin()) return err('ไม่มีสิทธิ์', '42501');
-      return { data: db.profiles.filter((p) => ['staff', 'admin'].includes(p.role)).map((p) => ({ id: p.id, full_name: p.full_name || 'เจ้าหน้าที่', role: p.role, unit_id: p.unit_id }))
-        .sort((a, b) => (a.role !== 'admin') - (b.role !== 'admin') || (a.unit_id ?? 0) - (b.unit_id ?? 0) || a.full_name.localeCompare(b.full_name, 'th')), error: null };
+      const rosterName = (email) => db.staff_roster.find((r) => r.email === String(email || '').toLowerCase())?.full_name;
+      const joined = db.profiles.filter((p) => ['staff', 'admin'].includes(p.role)).map((p) => ({ id: p.id, full_name: rosterName(p.email) || p.full_name || 'เจ้าหน้าที่', role: p.role, unit_id: p.unit_id, joined: true }));
+      const pending = db.staff_roster.filter((r) => r.active && !db.profiles.some((p) => String(p.email || '').toLowerCase() === r.email)).map((r) => ({ id: null, full_name: r.full_name, role: r.role, unit_id: r.unit_id, joined: false }));
+      return { data: [...joined, ...pending].sort((a, b) => (a.role !== 'admin') - (b.role !== 'admin') || (a.unit_id ?? 0) - (b.unit_id ?? 0) || a.full_name.localeCompare(b.full_name, 'th')), error: null };
     }
     case 'ai_match_link': {
       const r = (db.ai_matches || []).find((x) => x.id === a.p_id && x.user_id === ME?.id), ach = db.achievements.find((x) => x.id === a.p_achievement);

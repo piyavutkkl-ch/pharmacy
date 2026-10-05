@@ -145,7 +145,7 @@ export async function mountSummaries(slot, unit) {
   if (!S || !slot.contains($('#vsForm'))) {
     document.querySelectorAll('[data-sum-slot]').forEach((s) => { if (s !== slot) s.innerHTML = ''; });   // id ในหน้าต้องไม่ซ้ำ
     slot.innerHTML = FORM;
-    S = { unit, list: [], editing: null, people: null, picked: new Set(), others: [], links: new Map(), linksOrig: new Set(), pts: null, openPt: null, img: imageList($('#vsImage'), $('#vsImagePreview'), $('#vsImageNote'), { max: MAX_IMGS, hint: HINT_IMG }) };
+    S = { unit, list: [], editing: null, people: null, picked: new Set(), pickedNames: new Set(), others: [], links: new Map(), linksOrig: new Set(), pts: null, openPt: null, img: imageList($('#vsImage'), $('#vsImagePreview'), $('#vsImageNote'), { max: MAX_IMGS, hint: HINT_IMG }) };
     const years = await loadYears();
     $('#vsYear').innerHTML = [...new Set([...years, CUR_FY])].sort((a, b) => b - a).map((y) => `<option value="${y}">ปีงบประมาณ ${y}</option>`).join('');
     $('#vsUnit').innerHTML = units.map((u) => `<option value="${u.id}">รพ.สต.${esc(u.name)}</option>`).join('');
@@ -173,7 +173,8 @@ export async function mountSummaries(slot, unit) {
     });
     $('#vsPeople').addEventListener('change', (e) => {
       const id = e.target.value; if (!id) return;
-      if (e.target.checked) S.picked.add(id); else S.picked.delete(id);
+      const set = id.startsWith('n:') ? S.pickedNames : S.picked, key = id.startsWith('n:') ? id.slice(2) : id;   // n: = ยังไม่เคยเข้าระบบ (เก็บเป็นชื่อ)
+      if (e.target.checked) set.add(key); else set.delete(key);
       peopleCount();
     });
     const { data: ppl, error: pErr } = await sb.rpc('staff_directory');
@@ -191,7 +192,7 @@ function reset() {
   if (!S) return;
   S.editing = null; $('#vsForm').reset(); S.img.set([]); $('#vsYear').value = String(CUR_FY); $('#vsUnit').value = String(defaultUnit());
   $('#vsDate').value = todayIso(); onDate();
-  S.picked = new Set(auth.profile ? [auth.profile.id] : []); renderPeople();   // ค่าเริ่มต้น = ตัวเองร่วมลง
+  S.picked = new Set(auth.profile ? [auth.profile.id] : []); S.pickedNames = new Set(); renderPeople();   // ค่าเริ่มต้น = ตัวเองร่วมลง
   S.others = []; renderOthers();
   S.links = new Map(); S.linksOrig = new Set(); S.openPt = null; renderLinks();
   $('#vsVisitPick').hidden = true; $('#vsVisitBtn').setAttribute('aria-expanded', 'false'); $('#vsVisitQ').value = '';
@@ -218,7 +219,8 @@ function renderPeople() {
   $('#vsPeople').innerHTML = list.map((p) => {
     const g = group(p), head = g !== last ? `<p class="crit-pick-h">${esc(g)}</p>` : '';
     last = g;
-    return head + `<label class="crit-opt"><input type="checkbox" value="${esc(p.id)}"${S.picked.has(p.id) ? ' checked' : ''}><span>${esc(p.full_name)}</span></label>`;
+    const on = p.id ? S.picked.has(p.id) : S.pickedNames.has(p.full_name);
+    return head + `<label class="crit-opt"><input type="checkbox" value="${esc(p.id || 'n:' + p.full_name)}"${on ? ' checked' : ''}><span>${esc(p.full_name)}${p.joined === false ? ' <span class="muted small">(ยังไม่เคยเข้าสู่ระบบ)</span>' : ''}</span></label>`;
   }).join('') || (q ? `<p class="empty">ไม่พบ "${esc($('#vsPeopleQ').value.trim())}" ในระบบ · <button type="button" class="linklike" data-new-person>กรอกเป็นชื่อใหม่ด้านล่าง</button></p>`
     : '<p class="empty">ยังไม่มีรายชื่อเจ้าหน้าที่ · กรอกชื่อเพิ่มเองด้านล่างได้</p>');
   peopleCount();
@@ -286,7 +288,7 @@ async function syncLinks(summaryId) {
 }
 
 function peopleCount() {
-  const names = [...(S.people || []).filter((p) => S.picked.has(p.id)).map((p) => p.full_name), ...(S.others || [])];
+  const names = [...(S.people || []).filter((p) => S.picked.has(p.id)).map((p) => p.full_name), ...(S.pickedNames || []), ...(S.others || [])];
   $('#vsPeopleN').textContent = names.length ? `ร่วมลง ${names.length} คน: ${names.join(', ')}` : '';
 }
 
@@ -320,8 +322,10 @@ async function onList(e) {
     S.editing = s;
     $('#vsTitle').value = s.title; $('#vsUnit').value = String(s.unit_id); $('#vsBody').value = s.body || '';
     $('#vsDate').value = s.summary_date || String(s.created_at).slice(0, 10); onDate(); $('#vsYear').value = String(s.fiscal_year);
-    S.picked = new Set(s.participant_ids || []); $('#vsPeopleQ').value = ''; renderPeople();
-    S.others = [...(s.participant_others || [])]; renderOthers();
+    const pending = new Set((S.people || []).filter((p) => !p.id).map((p) => p.full_name));   // ชื่อที่เลือกจากรายชื่อตอนยังไม่เข้าระบบ → ติ๊กกลับในรายการ
+    S.picked = new Set(s.participant_ids || []); S.pickedNames = new Set((s.participant_others || []).filter((n) => pending.has(n)));
+    $('#vsPeopleQ').value = ''; renderPeople();
+    S.others = (s.participant_others || []).filter((n) => !S.pickedNames.has(n)); renderOthers();
     S.links = new Map(); S.linksOrig = new Set(); renderLinks();
     sb.from('summary_visits').select('visit_id').eq('summary_id', s.id).then(async ({ data: ls }) => {
       const rows = await visitRows((ls || []).map((l) => l.visit_id));
@@ -366,7 +370,7 @@ async function save(e) {
       const p = await uploadPublicImage(x.blob, folder); done.push(p); paths.push(p);
     }
     const row = { unit_id: unitId, fiscal_year: +$('#vsYear').value, title, body: $('#vsBody').value.trim(), image_path: paths[0], gallery: paths.slice(1),
-      summary_date: $('#vsDate').value, participant_ids: [...S.picked], participant_others: [...S.others], updated_at: new Date().toISOString() };
+      summary_date: $('#vsDate').value, participant_ids: [...S.picked], participant_others: [...new Set([...S.pickedNames, ...S.others])], updated_at: new Date().toISOString() };
     const { data: saved, error } = old ? await sb.from('visit_summaries').update(row).eq('id', old.id).select('id') : await sb.from('visit_summaries').insert(row).select('id');
     if (error) throw error;
     const sid = saved?.[0]?.id ?? old?.id;

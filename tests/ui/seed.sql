@@ -3,7 +3,8 @@
 insert into public.staff_roster(email, full_name, role, unit_id, phone) values
   ('admin@hosp.th', 'ภก.ผู้ดูแล ระบบ', 'admin', null, null),
   ('s2@gmail.com', 'สมศรี ใจดี', 'staff', 2, '0811111111'),
-  ('s3@gmail.com', 'วิชัย ขยัน', 'staff', 3, null);
+  ('s3@gmail.com', 'วิชัย ขยัน', 'staff', 3, null),
+  ('wi.new@gmail.com', 'พี่วิ ยังไม่เข้าระบบ', 'staff', 4, null);   -- เพิ่มในบัญชีแล้วแต่ยังไม่เคยเข้าสู่ระบบ
 insert into auth.users(id, email, raw_user_meta_data, raw_app_meta_data) values
   ('00000000-0000-0000-0000-0000000000a1', 'admin@hosp.th', '{"full_name":"Admin"}', '{"provider":"google"}'),
   ('00000000-0000-0000-0000-0000000000b2', 's2@gmail.com', '{"full_name":"S2"}', '{"provider":"google"}'),

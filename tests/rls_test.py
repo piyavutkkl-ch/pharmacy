@@ -661,5 +661,13 @@ check("admin sees the link", "admin", f"select count(*) from summary_visits wher
 check("other unit staff cannot add link to someone else's summary", "s1", f"insert into summary_visits(summary_id,visit_id) values ({sid},'{vid}')", "deny")
 check("staff removes link", "s2", f"delete from summary_visits where summary_id={sid} returning visit_id", rows(1))
 
+print("== step 39: directory includes roster people not yet logged in ==")
+run("insert into staff_roster(email,full_name,role,unit_id) values ('newbie@gmail.com','พี่ใหม่ ยังไม่เข้า','staff',3) on conflict do nothing")
+check("roster person without login appears (joined=false, no id)", "s2", "select count(*) from staff_directory() where full_name='พี่ใหม่ ยังไม่เข้า' and id is null and not joined", eq(1))
+run("update staff_roster set active=false where email='newbie@gmail.com'")
+check("…inactive roster person not listed", "s2", "select count(*) from staff_directory() where full_name='พี่ใหม่ ยังไม่เข้า'", eq(0))
+check("logged-in staff listed once (no duplicate from roster)", "s2", f"select count(*) from staff_directory() where id='{U['s2']}'", eq(1))
+check("directory has no email column", "s2", "select email from staff_directory()", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
