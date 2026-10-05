@@ -2,7 +2,7 @@
 // มาตรฐาน → criteria.js · เยี่ยมบ้าน → visits.js · ข้อความ → chat.js · เอกสาร → docs.js · Health Rider → rider.js
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, $$, esc, thaiDate, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
-import { sortItems } from '../data.js?v=4.4';
+import { sortItems, loadUnits, unitName } from '../data.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { newsForm, removeNewsFiles } from './news-form.js?v=4.4';
@@ -33,8 +33,8 @@ export function showStaff(tab, sub) {
   $('#staffViewTitle').textContent = STAFF_TABS[tab];
   setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
-  if (!bound) { bound = true; bindNews(); bindAch(); bindFeedback(); }
-  ({ news: loadNews, achievements: loadAch, criteria: initCriteria, visits: () => { initVisits(sub); mountSummaries($('#staffSumSlot'), auth.profile.unit_id); }, messages: () => showMessages(sub), docs: initStaffDocs, feedback: loadFeedback })[tab]();
+  if (!bound) { bound = true; bindNews(); bindFeedback(); }
+  ({ news: loadNews, achievements: () => mountAch($('#staffAchSlot'), auth.profile.unit_id), criteria: initCriteria, visits: () => { initVisits(sub); mountSummaries($('#staffSumSlot'), auth.profile.unit_id); }, messages: () => showMessages(sub), docs: initStaffDocs, feedback: loadFeedback })[tab]();
   refreshBadges();
 }
 
@@ -135,12 +135,23 @@ function bindNews() {
 }
 
 /* ---------------- ผลงาน ---------------- */
-let unitAch = [], editingAch = null;
+let unitAch = [], editingAch = null, achUnit = null, achBound = false;
+
+/** หน้าผลงานของ รพ.สต. unit ลงใน slot — เจ้าหน้าที่ = หน่วยตัวเอง · ผู้ดูแล = หน่วยที่เลือก (admin.js) */
+export async function mountAch(slot, unit) {
+  await loadUnits();
+  const ws = $('#achWs');
+  if (ws.parentNode !== slot) slot.appendChild(ws);
+  if (!achBound) { achBound = true; bindAch(); }
+  if (achUnit !== unit) { achUnit = unit; resetAch(); }
+  $('#saListTitle').textContent = `ผลงานของ รพ.สต.${unitName(unit)}`;
+  return loadAch();
+}
 
 async function loadAch() {
   $('#saList').innerHTML = '<div class="skeleton"></div>';
   const [{ data, error }] = await Promise.all([
-    sb.from('achievements').select('id,title,body,image_path,item_ids,created_at').eq('unit_id', auth.profile.unit_id).order('created_at', { ascending: false }),
+    sb.from('achievements').select('id,title,body,image_path,item_ids,created_at').eq('unit_id', achUnit).order('created_at', { ascending: false }),
     loadCritPick(),
   ]);
   if (error) { $('#saList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
@@ -187,7 +198,7 @@ async function pollAi(id) {
   return data;
 }
 async function pollAchAi() {
-  if ($('[data-staff-view="achievements"]')?.hidden) return;   // ออกจากหน้าแล้ว — หยุดรอ
+  if ($('#achWs').closest('[hidden]')) return;   // ออกจากหน้าแล้ว (เจ้าหน้าที่/ผู้ดูแล) — หยุดรอ
   for (const [aid, m] of aiOf) if (m.status === 'pending') { try { aiOf.set(aid, { ...m, ...await pollAi(m.id) }); } catch { /* ลองรอบหน้า */ } }
   renderAchList();
 }
@@ -318,10 +329,10 @@ function bindAch() {
     try {
       const file = $('#saImage').files[0];
       const row = { title, body: $('#saBody').value.trim() || null, item_ids: [...critPicked] };
-      if (file) row.image_path = await uploadPublicImage(file, `achievements/${auth.profile.unit_id}`);
+      if (file) row.image_path = await uploadPublicImage(file, `achievements/${achUnit}`);
       const res = editingAch
         ? await sb.from('achievements').update(row).eq('id', editingAch.id).select()
-        : await sb.from('achievements').insert({ ...row, unit_id: auth.profile.unit_id }).select();
+        : await sb.from('achievements').insert({ ...row, unit_id: achUnit }).select();
       if (res.error) throw res.error;
       if (res.data?.[0]) await aiAfterSave(res.data[0], editingAch);
       if (file && editingAch?.image_path) removeFiles('public-images', [editingAch.image_path]);

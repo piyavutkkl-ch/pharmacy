@@ -16,10 +16,11 @@ import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
 import { mountRiderEditor } from './rider.js?v=4.4';
 import { mountSummaries } from './summaries.js?v=4.4';
+import { mountAch } from './staff.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', rider: 'Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.', rider: 'Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
 const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster, delivery: initDeliveryAdmin, audit: initAudit, feedback: () => initFeedback() };
 
 export async function showAdmin(tab, sub) {
@@ -35,6 +36,7 @@ export async function showAdmin(tab, sub) {
   if (tab === 'review') return initReview();
   if (tab === 'messages') return showMessages(sub);
   if (tab === 'visits') return showVisits(sub);
+  if (tab === 'achievements') return showAch();
   if (tab === 'rider') return mountRiderEditor($('#adminRiderSlot'));
   if (tab === 'docs') return initAdminDocs();
   if (!SUBS[sub]) sub = 'dose';
@@ -90,6 +92,16 @@ async function showVisits(openVisit = null) {
   $('#avUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; visitUnit = b.dataset.u === ALL ? ALL : +b.dataset.u; showVisits(); };
   mountVisits($('#adminVisitsSlot'), visitUnit, openVisit);
   mountSummaries($('#adminSumSlot'), visitUnit === ALL ? 'all' : visitUnit);   // ผู้ดูแลเพิ่ม/แก้สรุปผลงานได้ทุกหน่วย (เลือก รพ.สต. ในฟอร์ม)
+}
+
+/* ---------- ผลงาน รพ.สต. (ผู้ดูแลเพิ่ม/แก้/ลบแทนหน่วยไหนก็ได้ · ใช้หน้าเดียวกับเจ้าหน้าที่ staff.js mountAch) ---------- */
+let achUnit = null;
+async function showAch() {
+  const units = await loadUnits();
+  if (achUnit == null) achUnit = units[0]?.id ?? null;
+  $('#aaUnits').innerHTML = units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === achUnit}">${esc(u.name)}</button>`).join('');
+  $('#aaUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; achUnit = +b.dataset.u; showAch(); };
+  if (achUnit != null) mountAch($('#adminAchSlot'), achUnit);
 }
 
 /* ---------- ข้อเสนอแนะ ---------- */

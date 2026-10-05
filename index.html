@@ -348,7 +348,7 @@
       </div>
 
       <!-- ผลงาน: เผยแพร่ได้ทันที -->
-      <div data-staff-view="achievements" hidden>
+      <div data-staff-view="achievements" hidden><div id="staffAchSlot"><div id="achWs">
         <div class="panel">
           <h2 id="saFormTitle">เพิ่มผลงาน</h2>
           <p class="small muted">ผลงานของ รพ.สต. จะขึ้นหน้าหลักทันที ไม่ต้องรอผู้ดูแลตรวจ</p>
@@ -360,8 +360,8 @@
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="saSubmit">เผยแพร่ผลงาน</button><button class="btn btn-o btn-sm" type="button" id="saCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="saMsg" aria-live="polite"></span></div>
           </form>
         </div>
-        <div class="panel"><h2>ผลงานของ รพ.สต.</h2><div class="list" id="saList"></div></div>
-      </div>
+        <div class="panel"><h2 id="saListTitle">ผลงานของ รพ.สต.</h2><div class="list" id="saList"></div></div>
+      </div></div></div>
 
       <!-- มาตรฐาน: ส่งหลักฐานรายข้อ -->
       <div data-staff-view="criteria" hidden>
@@ -421,6 +421,7 @@
       <a href="#/admin/news" data-admin-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="admNewsBadge" class="badge num"></span></a>
       <a href="#/admin/messages" data-admin-tab="messages" title="ข้อความ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">ข้อความ</span><span id="admMsgBadge" class="badge num"></span></a>
       <a href="#/admin/visits" data-admin-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
+      <a href="#/admin/achievements" data-admin-tab="achievements" title="ผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">ผลงาน</span></a>
       <div class="more-group" id="adminMore">
         <a href="#/admin/rider" data-admin-tab="rider" title="Health Rider"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg><span class="lbl">Health Rider</span></a>
         <a href="#/admin/review" data-admin-tab="review" title="ตรวจประเมิน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">ตรวจประเมิน</span><span id="admReviewBadge" class="badge num"></span></a>
@@ -492,6 +493,10 @@
       </div>
 
       <!-- เยี่ยมบ้าน: ดูแทน รพ.สต. ใดก็ได้ -->
+      <div data-admin-view="achievements" hidden>
+        <div class="unit-tabs" id="aaUnits" aria-label="เลือก รพ.สต."></div>
+        <div id="adminAchSlot"></div>
+      </div>
       <div data-admin-view="visits" hidden>
         <div class="unit-tabs" id="avUnits" aria-label="เลือก รพ.สต."></div>
         <div id="adminVisitsSlot"></div>

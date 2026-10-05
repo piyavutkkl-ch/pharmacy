@@ -385,6 +385,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#adminInboxSlot .ib-trash-btn'); await p.waitForTimeout(300);
     check('แชท: กู้คืนแล้วกลับเข้ากล่องข้อความ', (await calls(p, (c) => c.rpc === 'trash_conversation' && c.args.p_trash === false)).length === 1 && await count(p, '#adminInboxSlot .ib-list [data-conv]') === 1);
     await p.evaluate(() => { const c = window.__db.conversations.find((x) => x.target_unit == null); c.trashed_at = new Date(Date.now() - 31 * 86400000).toISOString(); });
+    { const q = await open('admin', '#/admin/achievements'); await q.waitForTimeout(600);
+      check('ผู้ดูแล: มีเมนู "ผลงาน" + เลือก รพ.สต. ได้ (ใช้หน้าเดียวกับเจ้าหน้าที่)', await visible(q, '[data-admin-tab="achievements"]') && await count(q, '#aaUnits [data-u]') === 7 && await visible(q, '#adminAchSlot #saForm'));
+      await q.click('#aaUnits [data-u="3"]'); await q.waitForTimeout(500);
+      check('ผู้ดูแล › ผลงาน: แสดงผลงานของหน่วยที่เลือก', (await text(q, '#saList')).includes('FEFO') && (await text(q, '#saListTitle')).includes('รพ.สต.') && !(await text(q, '#saList')).includes('ตู้เย็นเก็บยา'));
+      await q.fill('#saTitle', 'ผลงานที่ผู้ดูแลเพิ่ม'); await q.setInputFiles('#saImage', { name: 'a.png', mimeType: 'image/png', buffer: PNG }); await q.click('#saSubmit'); await q.waitForTimeout(800);
+      const ins = (await calls(q, (c) => c.table === 'achievements' && c.op === 'insert'))[0]?.payload || {};
+      check('ผู้ดูแล › ผลงาน: เพิ่มผลงานแทน รพ.สต. ที่เลือกได้ (รูปอยู่โฟลเดอร์หน่วยนั้น)', ins.unit_id === 3 && ins.image_path?.startsWith('achievements/3/') && (await text(q, '#saList')).includes('ผลงานที่ผู้ดูแลเพิ่ม'), JSON.stringify(ins));
+      await q.setViewportSize({ width: 390, height: 844 }); await q.waitForTimeout(200);
+      check('ผู้ดูแล › ผลงาน 390px: ไม่ล้นจอ (เมนูล่างเพิ่มปุ่มผลงาน)', await overflow(q) <= 0);
+      await q.screenshot({ path: path.join(SHOTS, 'admin-ach-390.png') });
+      await q.close(); }
     await go(p, '#/admin/news'); await go(p, '#/admin/messages'); await p.waitForTimeout(500);
     check('แชท: ห้องในถังเกิน 30 วัน ผู้ดูแลเปิดหน้าแล้วลบถาวรให้เอง', (await calls(p, (c) => c.table === 'conversations' && c.op === 'delete')).length === 1 && !(await p.evaluate(() => window.__db.conversations.some((x) => x.target_unit == null))));
     await go(p, '#/admin/messages/units'); await p.waitForTimeout(400);
@@ -446,7 +457,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     }
     check('ข่าว (ผู้ดูแล): กล่องรอตรวจอยู่ใต้กล่องเขียนข่าว', await p.$eval('[data-admin-view="news"]', (v) => [...v.children].findIndex((c) => c.querySelector('#anForm')) < [...v.children].findIndex((c) => c.querySelector('#anQueue'))));
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));
-    check('เมนูผู้ดูแล: ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,rider,review,docs,settings' && await count(p, '#afList .li') > 0);
+    check('เมนูผู้ดูแล: ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,achievements,rider,review,docs,settings' && await count(p, '#afList .li') > 0);
     await go(p, '#/admin/feedback'); await p.waitForTimeout(250);
     check('ลิงก์เดิม #/admin/feedback ยังเปิดได้ (พาไปตั้งค่า)', (await p.evaluate(() => location.hash)) === '#/admin/settings/feedback');
     await go(p, '#/admin/news');
