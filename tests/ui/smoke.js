@@ -441,6 +441,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const hist0 = await p.evaluate(() => ({ open: document.querySelector('#aiHist').open, n: document.querySelector('#aiLogCount').textContent }));
       await (await p.$('.ai-panel')).screenshot({ path: path.join(SHOTS, 'admin-ai-panel.png') });
       check('ช่อง AI: ประวัติย่อไว้เป็นค่าเริ่มต้น (บอกจำนวนครั้ง) กดเปิดได้', !hist0.open && hist0.n.includes('2'), JSON.stringify(hist0));
+      check('ข่าว (ผู้ดูแล): ข่าวรอตรวจรวมอยู่ในกล่อง AI ด้านบน + ช่อง AI ย่อไว้ (กดเปิดได้)', await p.$eval('#anQueue', (q) => !!q.closest('.ai-panel')) && !(await p.$eval('#aiFold', (d) => d.open)) && !(await p.isVisible('#aiNow')) && await visible(p, '#anQueue')
+        && await p.$eval('[data-admin-view="news"]', (v) => [...v.children].findIndex((c) => c.querySelector('#anQueue')) < [...v.children].findIndex((c) => c.querySelector('#anForm'))));
+      await p.click('#aiFold > summary'); await p.waitForTimeout(150);
       await p.click('#aiHist summary'); await p.waitForTimeout(150);
       check('ช่อง AI: เปิดแล้วเห็นสถานะล่าสุด + ประวัติ (สำเร็จ/ไม่สำเร็จพร้อมสาเหตุ)', await visible(p, '#aiLog') && (await text(p, '#aiStatus')).includes('สร้างข่าวแล้ว') && await count(p, '#aiLog .li') === 2 && (await text(p, '#aiLog')).includes('quota') && (await text(p, '#aiLog')).includes('รอตรวจ'));
       await p.click('#aiAuto'); await p.waitForTimeout(300);
@@ -450,22 +453,22 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ช่อง AI: กด "สร้างข่าวตอนนี้" → ส่งคำสั่ง + แจ้งว่าจะได้ภายใน 1 ชั่วโมง', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert')).some((c) => c.payload.key === 'ai_news_request') && (await text(p, '#aiStatus')).includes('ภายใน 1 ชั่วโมง'));
       check('ช่อง AI: ข่าวจาก AI เข้าคิวรอตรวจพร้อมป้าย AI', (await text(p, '#anQueue')).includes('ช่อง AI') && await count(p, '#anQueue .chip') >= 1);
       await p.click(`#anQueue [data-review="${AI}"]`); await p.waitForTimeout(500);
-      check('ช่อง AI: กล่องตรวจแสดงภาพ 3 ภาพ + อ้างอิงบทความ + ลิงก์ PDF ต้นฉบับ + เตือนให้ตรวจตัวเลข + ปุ่มแก้ไข', await count(p, '#anReview .rv-imgs .cover') === 3 && (await p.getAttribute('#anReview p.small a[href*="ccpe"]', 'href') || '').includes('id=1876')
-        && (await p.getAttribute('#anReview .file-link', 'href') || '').endsWith('showfile.php?file=1876')
-        && (await text(p, '#anReview')).includes('ตรวจตัวเลข') && await visible(p, '#anReview [data-decide="edit"]') && !(await p.$('#anReview [data-decide="fix"]')));
-      await p.click('#anReview [data-decide="edit"]'); await p.waitForTimeout(200);
-      check('ช่อง AI: แก้ไขข้อความ → ข้อมูลขึ้นในฟอร์มด้านบน', (await p.inputValue('#anTitle')).includes('สแตติน') && (await text(p, '#anFormTitle')).includes('รอตรวจ'));
-      check('แก้ข่าว: รูปทั้ง 3 รูปขึ้นในฟอร์ม (รูปหลักมีกรอบ) + ปุ่ม × ทุกรูป', await count(p, '#anImagePreview .img-item') === 3 && await count(p, '#anImagePreview .img-x') === 3
-        && (await p.getAttribute('#anImagePreview .img-item.main img', 'src')).includes('infographic') && await p.$eval('#anImagePreview .img-x', (e) => e.getBoundingClientRect().height >= 44));
-      await (await p.$('#anImagePreview')).screenshot({ path: path.join(SHOTS, 'admin-news-images.png') });
-      await p.click('#anImagePreview [data-rmimg="1"]'); await p.waitForTimeout(150);
-      check('แก้ข่าว: กด × ลบรูปที่ 2 ได้', await count(p, '#anImagePreview .img-item') === 2 && !(await p.$('#anImagePreview img[src*="comic"]')));
-      await p.setInputFiles('#anImage', [{ name: 'n1.png', mimeType: 'image/png', buffer: PNG }, { name: 'n2.png', mimeType: 'image/png', buffer: PNG }]); await p.waitForTimeout(600);
-      check('แก้ข่าว: เลือกหลายรูปเพื่อเพิ่มได้ + แจ้งจำนวน', await count(p, '#anImagePreview .img-item') === 4 && (await text(p, '#anImageNote')).includes('4/7'));
-      await p.click('#anImagePreview [data-rmimg="3"]'); await p.waitForTimeout(150);
-      await p.click('#anImagePreview [data-mainimg="2"]'); await p.waitForTimeout(150);
-      check('แก้ข่าว: ตั้งรูปใหม่เป็นรูปหลักได้', (await p.getAttribute('#anImagePreview .img-item.main img', 'src')).startsWith('blob:'));
-      await p.fill('#anBody', 'แก้โดยเภสัชกรแล้ว'); await p.click('#anSubmit'); await p.waitForTimeout(600);
+      check('ช่อง AI: กด "ตรวจ" → ข่าวขึ้นในกล่องตรวจ/แก้ไขกล่องเดียว (หัวข้อ เนื้อหา ภาพ 3 ภาพ) + อ้างอิงบทความ + ลิงก์ PDF ต้นฉบับ + เตือนให้ตรวจตัวเลข', (await p.inputValue('#aqTitle')).includes('สแตติน') && (await p.inputValue('#aqBody')).length > 20
+        && (await p.getAttribute('#aqInfo p.small a[href*="ccpe"]', 'href') || '').includes('id=1876') && (await p.getAttribute('#aqInfo .file-link', 'href') || '').endsWith('showfile.php?file=1876')
+        && (await text(p, '#aqInfo')).includes('ตรวจตัวเลข') && !(await p.$('#anReview [data-decide="fix"]')) && !(await p.$('#anReview [data-decide="edit"]')));
+      check('กล่องตรวจ: มีปุ่ม อนุมัติ · บันทึก · ไม่ใช้ข่าวนี้ · ปิด อยู่ในกล่อง AI', await visible(p, '#anReview [data-decide="published"]') && await visible(p, '#anReview [data-decide="save"]') && await visible(p, '#anReview [data-decide="rejected"]') && await visible(p, '#anReview [data-decide="close"]') && await p.$eval('#anReview', (r) => !!r.closest('.ai-panel')));
+      check('แก้ข่าว: รูปทั้ง 3 รูปขึ้นในฟอร์ม (รูปหลักมีกรอบ) + ปุ่ม × ทุกรูป', await count(p, '#aqImagePreview .img-item') === 3 && await count(p, '#aqImagePreview .img-x') === 3
+        && (await p.getAttribute('#aqImagePreview .img-item.main img', 'src')).includes('infographic') && await p.$eval('#aqImagePreview .img-x', (e) => e.getBoundingClientRect().height >= 44));
+      await (await p.$('#aqImagePreview')).screenshot({ path: path.join(SHOTS, 'admin-news-images.png') });
+      await p.click('#aqImagePreview [data-rmimg="1"]'); await p.waitForTimeout(150);
+      check('แก้ข่าว: กด × ลบรูปที่ 2 ได้', await count(p, '#aqImagePreview .img-item') === 2 && !(await p.$('#aqImagePreview img[src*="comic"]')));
+      await p.setInputFiles('#aqImage', [{ name: 'n1.png', mimeType: 'image/png', buffer: PNG }, { name: 'n2.png', mimeType: 'image/png', buffer: PNG }]); await p.waitForTimeout(600);
+      check('แก้ข่าว: เลือกหลายรูปเพื่อเพิ่มได้ + แจ้งจำนวน', await count(p, '#aqImagePreview .img-item') === 4 && (await text(p, '#aqImageNote')).includes('4/7'));
+      await p.click('#aqImagePreview [data-rmimg="3"]'); await p.waitForTimeout(150);
+      await p.click('#aqImagePreview [data-mainimg="2"]'); await p.waitForTimeout(150);
+      check('แก้ข่าว: ตั้งรูปใหม่เป็นรูปหลักได้', (await p.getAttribute('#aqImagePreview .img-item.main img', 'src')).startsWith('blob:'));
+      await (await p.$('.ai-panel')).screenshot({ path: path.join(SHOTS, 'admin-news-review-box.png') });
+      await p.fill('#aqBody', 'แก้โดยเภสัชกรแล้ว'); await p.click('#anReview [data-decide="save"]'); await p.waitForTimeout(600);
       const ue = (await calls(p, (c) => c.table === 'news' && c.op === 'update')).map((c) => c.payload).find((x) => x.body === 'แก้โดยเภสัชกรแล้ว') || {};
       check('แก้ข่าว: บันทึกรูปหลักใหม่ + ภาพเพิ่มตามลำดับ + ลบไฟล์รูปที่เอาออก', /^news\/.+\.webp$/.test(ue.image_path || '') && JSON.stringify(ue.gallery) === JSON.stringify(['ai/1876/infographic.jpg', 'ai/1876/clinical.jpg'])
         && (await calls(p, (c) => c.remove === 'public-images')).some((c) => c.paths.includes('ai/1876/comic.jpg') && !c.paths.includes('ai/1876/clinical.jpg')), JSON.stringify(ue));
@@ -479,14 +482,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.screenshot({ path: path.join(SHOTS, 'ai-news-article-1280.png'), fullPage: true });
       await go(p, '#/admin/news'); await p.waitForTimeout(300);
     }
-    check('ข่าว (ผู้ดูแล): กล่องรอตรวจอยู่ใต้กล่องเขียนข่าว', await p.$eval('[data-admin-view="news"]', (v) => [...v.children].findIndex((c) => c.querySelector('#anForm')) < [...v.children].findIndex((c) => c.querySelector('#anQueue'))));
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));
     check('เมนูผู้ดูแล: ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,achievements,rider,review,docs,settings' && await count(p, '#afList .li') > 0);
     await go(p, '#/admin/feedback'); await p.waitForTimeout(250);
     check('ลิงก์เดิม #/admin/feedback ยังเปิดได้ (พาไปตั้งค่า)', (await p.evaluate(() => location.hash)) === '#/admin/settings/feedback');
     await go(p, '#/admin/news');
     await p.click('#anQueue [data-review]'); await p.waitForTimeout(200);
-    await p.click('[data-decide="published"]'); await p.waitForTimeout(400);
+    check('ข่าวจาก รพ.สต.: กล่องตรวจมีปุ่มขอแก้ไข/ไม่ผ่าน + แก้ข้อความได้', await visible(p, '#anReview [data-decide="fix"]') && (await p.inputValue('#aqTitle')).length > 0);
+    await p.click('#anQueue [data-review]'); await p.waitForTimeout(150);
+    check('ข่าวรอตรวจ: กด "ตรวจ" ซ้ำ = ปิดกล่องตรวจ', !(await visible(p, '#anReview')));
+    await p.click('#anQueue [data-review]'); await p.waitForTimeout(200);
+    await p.fill('#aqTitle', 'หัวข้อที่ผู้ดูแลแก้'); await p.click('[data-decide="published"]'); await p.waitForTimeout(400);
+    check('ข่าวรอตรวจ: แก้หัวข้อแล้วกดอนุมัติ → บันทึกข้อความที่แก้พร้อมเผยแพร่', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.title === 'หัวข้อที่ผู้ดูแลแก้' && c.payload.status === 'published'));
     check('ผู้ดูแล: อนุมัติข่าวรอตรวจ → เผยแพร่', await p.evaluate(() => window.__db.news.every((n) => n.status !== 'pending')));
     const pubN = async (pg) => +((await text(pg, '#anCount')).replace(/\D/g, '') || 0);   // จำนวนข่าวเผยแพร่ทั้งหมด (รายการย่อแสดงแค่ 3)
     const pub0 = await pubN(p);

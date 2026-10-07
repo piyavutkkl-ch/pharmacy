@@ -449,13 +449,31 @@
 
       <!-- ข่าว: ตรวจข่าวจากเจ้าหน้าที่ + เขียน/จัดการข่าว -->
       <div data-admin-view="news" hidden>
-        <!-- ช่อง AI: ข่าวจากบทความ CCPE วันละ 1 ข่าว (admin-ai.js · งานจริงใน GitHub Actions ai-news.yml) -->
+        <!-- ข่าวรอตรวจ (รพ.สต. + ช่อง AI) + กล่องตรวจ/แก้ไขในที่เดียว + ช่อง AI (ย่อได้) — admin-news.js / admin-ai.js · งานจริงของช่อง AI ใน GitHub Actions ai-news.yml -->
         <div class="panel ai-panel">
-          <div class="panel-head"><h2>ช่อง AI · ข่าวจากบทความวิชาการ</h2><span class="chip c-sub">วันละ 1 ข่าว</span></div>
-          <p class="small muted">ทุกวันหลัง 06:00 น. ระบบเลือกบทความใหม่ 1 เรื่องจาก <a href="https://ccpe.pharmacycouncil.org/index.php?option=article&amp;subpage=article" target="_blank" rel="noopener">ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม</a> → AI วิเคราะห์ไฟล์บทความ (ดึงข้อเท็จจริงพร้อมเลขหน้า) → เขียนข่าวสั้นอ่านง่าย → ตรวจทานเทียบไฟล์ทีละประโยคและแก้จนไม่พบจุดผิด (ยังพบจุดผิด = รอผู้ดูแลตรวจเสมอ) พร้อมภาพสรุป 3 ภาพจากข้อมูลที่ตรวจแล้ว (อินโฟกราฟิก · การ์ตูน 3 ช่อง · แผนภูมิสำหรับบุคลากร · ไม่ใช้ AI วาดภาพ) อ้างอิงและลิงก์ดาวน์โหลดบทความต้นฉบับ</p>
-          <label class="small ai-auto"><input type="checkbox" id="aiAuto"> เผยแพร่ทันทีโดยไม่ต้องตรวจ (ไม่แนะนำ · ปิดไว้ = ข่าวเข้าคิว "รอตรวจ" ด้านล่าง)</label>
-          <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="aiNow">สร้างข่าวตอนนี้</button><span class="small" id="aiStatus" aria-live="polite"></span></div>
-          <details class="ai-hist" id="aiHist"><summary>ประวัติการทำงาน <span class="num muted" id="aiLogCount"></span></summary><div class="list" id="aiLog"></div></details>
+          <div class="panel-head"><h2>ข่าวรอตรวจ (จาก รพ.สต. และช่อง AI) <span class="num muted" id="anQueueCount"></span></h2></div>
+          <div class="list" id="anQueue"></div>
+          <div class="an-review" id="anReview" hidden>
+            <div class="panel-head"><h3 id="aqHead">ตรวจ/แก้ไขข่าวรอตรวจ</h3><span class="tag" id="aqFrom"></span></div>
+            <div id="aqInfo"></div>
+            <form id="aqForm" class="form-grid" novalidate>
+              <div class="field full"><label for="aqTitle">หัวข้อข่าว <span class="req">*</span></label><input id="aqTitle" class="input" maxlength="200"></div>
+              <div class="field"><label for="aqTag">ประเภท</label><select id="aqTag" class="input"><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></div>
+              <div class="field"><label for="aqImage">รูปประกอบ (เพิ่ม/ลบ/ตั้งรูปหลักได้)</label><input id="aqImage" class="input" type="file" accept="image/*" multiple><span class="small muted" id="aqImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-list" id="aqImagePreview" hidden></div></div>
+              <div class="field full"><label for="aqFile">ไฟล์ PDF แนบ (ถ้ามี · ไม่เกิน 5 MB)</label><input id="aqFile" class="input" type="file" accept="application/pdf,.pdf"><span class="small muted" id="aqFileNote">ผู้อ่านข่าวดาวน์โหลดไฟล์นี้ได้</span></div>
+              <div class="field full"><label for="aqBody">เนื้อหาข่าว <span class="req">*</span></label><textarea id="aqBody" rows="10" maxlength="20000"></textarea></div>
+              <label class="small full"><input type="checkbox" id="aqClosed"> ปิดรับความคิดเห็น</label>
+              <div class="field full"><label for="anComment">ความเห็นถึงผู้ส่ง (จำเป็นเมื่อขอแก้ไขหรือไม่ผ่าน)</label><textarea id="anComment" rows="2" maxlength="1000"></textarea></div>
+              <div class="full row-btns" style="align-items:center" id="aqBtns"></div>
+            </form>
+          </div>
+          <details class="ai-fold" id="aiFold">
+            <summary><span class="ai-fold-t">ช่อง AI · ข่าวจากบทความวิชาการ</span><span class="chip c-sub">วันละ 1 ข่าว</span><span class="small muted ai-fold-hint">กดเพื่อดูการตั้งค่าและประวัติ</span></summary>
+            <p class="small muted">ทุกวันหลัง 06:00 น. ระบบเลือกบทความใหม่ 1 เรื่องจาก <a href="https://ccpe.pharmacycouncil.org/index.php?option=article&amp;subpage=article" target="_blank" rel="noopener">ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม</a> → AI วิเคราะห์ไฟล์บทความ (ดึงข้อเท็จจริงพร้อมเลขหน้า) → เขียนข่าวสั้นอ่านง่าย → ตรวจทานเทียบไฟล์ทีละประโยคและแก้จนไม่พบจุดผิด (ยังพบจุดผิด = รอผู้ดูแลตรวจเสมอ) พร้อมภาพสรุป 3 ภาพจากข้อมูลที่ตรวจแล้ว (อินโฟกราฟิก · การ์ตูน 3 ช่อง · แผนภูมิสำหรับบุคลากร · ไม่ใช้ AI วาดภาพ) อ้างอิงและลิงก์ดาวน์โหลดบทความต้นฉบับ</p>
+            <label class="small ai-auto"><input type="checkbox" id="aiAuto"> เผยแพร่ทันทีโดยไม่ต้องตรวจ (ไม่แนะนำ · ปิดไว้ = ข่าวเข้าคิว "รอตรวจ" ในกล่องนี้)</label>
+            <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="aiNow">สร้างข่าวตอนนี้</button><span class="small" id="aiStatus" aria-live="polite"></span></div>
+            <details class="ai-hist" id="aiHist"><summary>ประวัติการทำงาน <span class="num muted" id="aiLogCount"></span></summary><div class="list" id="aiLog"></div></details>
+          </details>
         </div>
         <div class="panel">
           <h2 id="anFormTitle">เขียนข่าว (เผยแพร่ทันที)</h2>
@@ -469,8 +487,6 @@
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="anSubmit">เผยแพร่ข่าว</button><button class="btn btn-o btn-sm" type="button" id="anCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="anMsg" aria-live="polite"></span></div>
           </form>
         </div>
-        <div class="panel"><h2>ข่าวรอตรวจ (จาก รพ.สต. และช่อง AI) <span class="num muted" id="anQueueCount"></span></h2><div class="list" id="anQueue"></div></div>
-        <div class="panel" id="anReview" hidden></div>
         <div class="panel">
           <div class="panel-head"><h2>ข่าวที่เผยแพร่แล้ว <span class="num muted" id="anCount"></span></h2><button type="button" class="btn btn-o btn-sm" id="anExpand" aria-expanded="false" aria-controls="anList" hidden>ดูทั้งหมด</button></div>
           <div class="an-find" id="anFind" hidden>

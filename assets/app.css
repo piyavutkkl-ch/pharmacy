@@ -665,6 +665,18 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .uc-switch{margin-bottom:12px}
 .ai-panel{border-color:var(--primary);background:linear-gradient(180deg,var(--primary-soft),var(--surface) 140px)}
 .ai-auto{display:flex;align-items:center;gap:8px;min-height:44px}
+/* ข่าวรอตรวจ + กล่องตรวจ/แก้ไข + ช่อง AI (ย่อได้) อยู่ในกล่องเดียว */
+.an-review{margin-top:12px;padding:14px;border:1px solid var(--primary);border-radius:14px;background:var(--surface)}
+.an-review h3{margin:0;font-size:16px}
+#anQueue .li.sel{background:var(--primary-soft);border-radius:10px}
+.ai-fold{margin-top:12px;border-top:1px solid var(--line)}
+.ai-fold > summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:44px;cursor:pointer;list-style:none}
+.ai-fold > summary::-webkit-details-marker{display:none}
+.ai-fold > summary::before{content:'▸';display:inline-block;color:var(--primary);transition:transform .15s}
+.ai-fold[open] > summary::before{transform:rotate(90deg)}
+.ai-fold-t{font-weight:700;font-size:16px}
+.ai-fold[open] .ai-fold-hint{display:none}
+.ai-fold > :not(summary){margin-top:8px}
 .ai-status{flex:1;min-width:0}
 .ai-warn{color:var(--warning);font-weight:600}
 .rv-imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;align-items:start}

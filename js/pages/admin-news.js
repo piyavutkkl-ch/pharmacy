@@ -7,7 +7,6 @@ import { newsForm, removeNewsFiles, fileLink, extFileLink } from './news-form.js
 import { loadNews, renderSlides } from './news.js?v=4.4';
 import { refreshAdminBadges } from './admin.js?v=4.4';
 import { initAiPanel } from './admin-ai.js?v=4.4';
-import { smartCover } from '../lightbox.js?v=4.4';
 
 let queue = [], published = [], trash = [], reviewing = null, editing = null, bound = false;
 const TRASH = ['unpublished', 'deleted', 'rejected'], KEEP_DAYS = 30, DAY = 86_400_000;
@@ -34,37 +33,50 @@ async function loadQueue() {
 
 const from = (n) => (n.ai_generated ? 'ช่อง AI · บทความวิชาการ CCPE' : `${esc(n.author?.full_name || '-')} · รพ.สต. ${esc(unitName(n.unit_id))}`);
 
+/* ---------- กล่องตรวจ = กล่องแก้ไข: กด "ตรวจ" → ข่าวขึ้นในฟอร์ม แก้ได้ทุกช่อง แล้วกดอนุมัติ/บันทึก/ขอแก้ไข/ไม่ผ่าน ---------- */
 function openReview(id) {
   reviewing = queue.find((n) => n.id === id); if (!reviewing) return;
   const n = reviewing, el = $('#anReview');
   el.hidden = false;
-  el.innerHTML = `<div class="panel-head"><h2>${esc(n.title)}</h2><span class="tag">${esc(n.tag)}</span></div>`
-    + `<p class="small muted">ส่งโดย ${from(n)}</p>`
+  $('#aqHead').textContent = 'ตรวจ/แก้ไขข่าวรอตรวจ';
+  $('#aqFrom').textContent = n.ai_generated ? 'ช่อง AI' : 'รพ.สต.';
+  $('#aqInfo').innerHTML = `<p class="small muted">ส่งโดย ${from(n)} · ${esc(thaiDate(n.created_at))}</p>`
     + (n.ai_generated ? '<p class="small ai-warn">ข่าวนี้เขียนโดย AI — ตรวจตัวเลข ชื่อยา และขนาดยาเทียบกับบทความต้นฉบับก่อนเผยแพร่</p>' : '')
-    + ([n.image_path, ...(n.gallery || [])].filter(Boolean).length ? `<div class="rv-imgs">${[n.image_path, ...(n.gallery || [])].filter(Boolean).map(() => '<div class="cover"></div>').join('')}</div>` : '')
-    + `<div class="article-body" style="font-size:15px">${String(n.body).split(/\n+/).map((p) => `<p>${esc(p)}</p>`).join('')}</div>`
     + (n.file_path ? `<div>${fileLink(n)}</div>` : n.source_file_url ? `<div>${extFileLink(n.source_file_url, 'ดาวน์โหลดบทความฉบับเต็ม (PDF)')}</div>` : '')
-    + (n.source_url ? `<p class="small">อ้างอิง: <a href="${esc(n.source_url)}" target="_blank" rel="noopener">${esc(n.source_title || n.source_url)}</a></p>` : '')
-    + '<label for="anComment" class="small" style="font-weight:600">ความเห็นถึงผู้ส่ง (จำเป็นเมื่อขอแก้ไขหรือไม่ผ่าน)</label><textarea id="anComment" rows="2" maxlength="1000"></textarea>'
-    + '<div class="row-btns" style="align-items:center"><button type="button" class="btn btn-ok" data-decide="published">อนุมัติ &amp; เผยแพร่</button>'
-    + (n.ai_generated ? '<button type="button" class="btn btn-o" data-decide="edit">แก้ไขข้อความ</button><button type="button" class="btn btn-no" data-decide="rejected">ไม่ใช้ข่าวนี้</button>'
+    + (n.source_url ? `<p class="small">อ้างอิง: <a href="${esc(n.source_url)}" target="_blank" rel="noopener">${esc(n.source_title || n.source_url)}</a></p>` : '');
+  $('#aqTitle').value = n.title; $('#aqBody').value = n.body; $('#aqClosed').checked = !!n.comments_closed; $('#anComment').value = '';
+  aqKit.edit(n);
+  $('#aqBtns').innerHTML = '<button type="button" class="btn btn-ok" data-decide="published">อนุมัติ &amp; เผยแพร่</button>'
+    + '<button type="button" class="btn btn-o" data-decide="save">บันทึก (ยังไม่เผยแพร่)</button>'
+    + (n.ai_generated ? '<button type="button" class="btn btn-no" data-decide="rejected">ไม่ใช้ข่าวนี้</button>'
       : '<button type="button" class="btn btn-warn" data-decide="fix">ขอแก้ไข</button><button type="button" class="btn btn-no" data-decide="rejected">ไม่ผ่าน</button>')
-    + '<button type="button" class="btn btn-o btn-sm" data-decide="close">ปิด</button><span class="small" id="anDecideMsg" aria-live="polite"></span></div>';
-  el.querySelectorAll('.rv-imgs .cover').forEach((box, i) => smartCover(box, publicImageUrl([n.image_path, ...(n.gallery || [])].filter(Boolean)[i]), n.title));
+    + '<button type="button" class="btn btn-o btn-sm" data-decide="close">ปิด</button><span class="small" id="anDecideMsg" aria-live="polite"></span>';
+  renderQueueSel();
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-function closeReview() { reviewing = null; $('#anReview').hidden = true; $('#anReview').innerHTML = ''; }
+function closeReview() { reviewing = null; $('#anReview').hidden = true; $('#aqForm').reset(); aqKit?.reset(); renderQueueSel(); }
+const renderQueueSel = () => document.querySelectorAll('#anQueue [data-review]').forEach((b) => { const on = b.dataset.review === reviewing?.id; b.textContent = on ? 'กำลังตรวจ' : 'ตรวจ'; b.closest('.li').classList.toggle('sel', on); });
 
+/** บันทึกการแก้ไขในกล่องตรวจ + เปลี่ยนสถานะ (status = null → บันทึกอย่างเดียว ยังรอตรวจ) */
 async function decide(status, btn) {
   if (status === 'close') return closeReview();
-  if (status === 'edit') return editNews(reviewing);   // ข่าว AI: แก้ข้อความในฟอร์มด้านบน แล้วกลับมาอนุมัติ
-  const comment = $('#anComment').value.trim();
-  if (status === 'fix' && !comment || status === 'rejected' && !comment && !reviewing.ai_generated) { $('#anDecideMsg').style.color = 'var(--error)'; $('#anDecideMsg').textContent = 'กรุณาใส่ความเห็นให้ผู้ส่งทราบว่าต้องแก้อะไร'; $('#anComment').focus(); return; }
-  busy(btn, true, 'กำลังบันทึก…');
-  const { error } = await sb.from('news').update({ status, review_comment: comment || null }).eq('id', reviewing.id);
+  const n = reviewing, m = $('#anDecideMsg'), say = (t) => { m.style.color = 'var(--error)'; m.textContent = t; };
+  const title = $('#aqTitle').value.trim(), body = $('#aqBody').value.trim(), comment = $('#anComment').value.trim();
+  if (!title || !body) { say('กรุณากรอกหัวข้อและเนื้อหาข่าว'); return; }
+  if (status === 'fix' && !comment || status === 'rejected' && !comment && !n.ai_generated) { say('กรุณาใส่ความเห็นให้ผู้ส่งทราบว่าต้องแก้อะไร'); $('#anComment').focus(); return; }
+  busy(btn, true, 'กำลังบันทึก…'); m.textContent = '';
+  let up = null;
+  try {
+    up = await aqKit.upload(auth.profile.id);
+    const row = { title, tag: $('#aqTag').value, body, comments_closed: $('#aqClosed').checked, ...up.fields };
+    if (status !== 'save') Object.assign(row, { status, review_comment: comment || null });
+    const { error } = await sb.from('news').update(row).eq('id', n.id);
+    if (error) throw error;
+    removeNewsFiles(n, up.fields);
+  } catch (err) { up?.undo(); busy(btn, false); say(errText(err)); return; }
   busy(btn, false);
-  if (error) { toast(errText(error), 'err'); return; }
-  toast({ published: 'เผยแพร่ข่าวแล้ว', fix: 'ส่งกลับให้แก้ไขแล้ว', rejected: 'บันทึกว่าไม่ผ่านแล้ว' }[status]);
+  toast({ save: 'บันทึกการแก้ไขแล้ว (ยังรอตรวจ)', published: 'เผยแพร่ข่าวแล้ว', fix: 'ส่งกลับให้แก้ไขแล้ว', rejected: n.ai_generated ? 'ไม่ใช้ข่าวนี้แล้ว' : 'บันทึกว่าไม่ผ่านแล้ว' }[status]);
+  if (status === 'save') { await loadQueue(); openReview(n.id); return; }   // ยังอยู่ในกล่องตรวจ กดอนุมัติต่อได้
   closeReview(); loadQueue(); refreshAdminBadges();
   if (status === 'published') { loadPublished(); refreshHome(); }
   if (status === 'rejected') loadTrash();
@@ -136,15 +148,16 @@ function refreshHome() { loadNews(true).then(renderSlides).catch(() => {}); }
 
 function editNews(n) {
   editing = n; $('#anTitle').value = n.title; $('#anBody').value = n.body; $('#anClosed').checked = !!n.comments_closed; anKit.edit(n);
-  $('#anFormTitle').textContent = queue.some((q) => q.id === n.id) ? 'แก้ไขข่าวรอตรวจ (บันทึกแล้วกลับไปกดอนุมัติ)' : 'แก้ไขข่าว';
+  $('#anFormTitle').textContent = 'แก้ไขข่าว';
   $('#anSubmit').textContent = 'บันทึกการแก้ไข'; $('#anCancel').hidden = false;
   $('#anForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-let anKit = null;
+let anKit = null, aqKit = null;
 function bind() {
-  anKit = newsForm('an');
-  $('#anQueue').addEventListener('click', (e) => { const b = e.target.closest('[data-review]'); if (b) openReview(b.dataset.review); });
+  anKit = newsForm('an'); aqKit = newsForm('aq');
+  $('#anQueue').addEventListener('click', (e) => { const b = e.target.closest('[data-review]'); if (!b) return; if (reviewing?.id === b.dataset.review) closeReview(); else openReview(b.dataset.review); });
+  $('#aqForm').addEventListener('submit', (e) => e.preventDefault());
   $('#anReview').addEventListener('click', (e) => { const b = e.target.closest('[data-decide]'); if (b) decide(b.dataset.decide, b); });
   $('#anCancel').addEventListener('click', resetForm);
   $('#anTrash').addEventListener('click', async (e) => {
@@ -197,9 +210,7 @@ function bind() {
       if (res.error) throw res.error;
       if (editing) removeNewsFiles(editing, up.fields);
       toast(editing ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่ข่าวแล้ว');
-      const wasPending = editing && queue.some((q) => q.id === editing.id), id = editing?.id;
       resetForm(); loadPublished(); refreshHome();
-      if (wasPending) { await loadQueue(); openReview(id); }   // ข่าวรอตรวจ: กลับไปที่กล่องตรวจเพื่อกดอนุมัติ
     } catch (err) { up?.undo(); m.style.color = 'var(--error)'; m.textContent = errText(err); }
     finally { busy(btn, false); }
   });
