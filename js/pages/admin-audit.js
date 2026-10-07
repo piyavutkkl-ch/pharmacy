@@ -14,7 +14,7 @@ const FIELDS = {
   first_name: 'ชื่อ', last_name: 'นามสกุล', national_id: 'เลข 13 หลัก', birth_date: 'วันเกิด', hn_hospital: 'HN รพ.', hn_unit: 'HN รพ.สต.',
   coverage: 'สิทธิการรักษา', home_unit_id: 'สังกัด รพ.สต.', phone: 'เบอร์โทร', address: 'ที่อยู่', unit_id: 'รพ.สต.', visit_date: 'วันที่เยี่ยม', age: 'อายุ', weight: 'น้ำหนัก', bp: 'ความดัน', dtx: 'น้ำตาล',
   subjective: 'อาการ (S)', objective: 'ข้อมูลตรวจพบ (O)', med_reconcile: 'Medication reconciliation', med_list: 'รายการยา', med_note: 'หมายเหตุรายการยา', photo_paths: 'รูปถ่าย', med_excess: 'ยาเหลือค้าง', drps: 'DRPs',
-  assessment: 'การประเมิน (A)', drp_detail: 'รายละเอียด DRPs', drp_resolved: 'แก้ DRPs สำเร็จ', plan: 'แผนการดูแล (P)', next_appt: 'นัดครั้งถัดไป', med_until: 'ยาพอถึงวันที่',
+  assessment: 'การประเมิน (A)', drp_detail: 'รายละเอียด DRPs', drp_resolved: 'แก้ DRPs สำเร็จ', plan: 'แผนการดูแล (P)', pulse: 'ชีพจร', next_appt: 'นัดครั้งถัดไป', med_until: 'ยาพอถึงวันที่',
 };
 const ROLE = { admin: 'ผู้ดูแล', staff: 'เจ้าหน้าที่', citizen: 'ประชาชน' };
 

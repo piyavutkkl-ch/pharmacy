@@ -160,7 +160,8 @@ function beforeUpdate(table, row, patch) {
   if (table === 'news' && 'status' in patch) {
     if (['unpublished', 'deleted', 'rejected'].includes(row.status)) { if (prev !== row.status) { row.trashed_at = now(); row.prev_status = prev; } } else row.trashed_at = null;
   }
-  if (table === 'item_status' && isStaff()) row.status = 'submitted';
+  if (table === 'item_status' && !isStaff() && prev !== row.status) { row.trashed_at = null; row.trashed_status = null; }   // ผู้ดูแลตรวจข้อนั้น = ออกจากถัง
+  if (table === 'item_status' && isStaff()) { row.status = 'submitted'; row.trashed_at = null; row.trashed_status = null; }   // ส่งใหม่ = ออกจากถังขยะ
   if (table === 'visit_summaries') summaryPeople(row);
   if (table === 'staff_roster' && ('full_name' in patch || 'position' in patch)) {   // แทน sync_roster_to_profile (43_roster_name_sync.sql)
     const pr = db.profiles.find((p) => String(p.email || '').toLowerCase() === row.email);
@@ -288,6 +289,20 @@ function rpc(name, a = {}) {
       Object.assign(r, { status: 'approved', unit_id: a.p_unit ?? r.unit_id });
       db.staff_roster.push({ email: r.email, full_name: r.full_name, role: 'staff', unit_id: r.unit_id, phone: r.phone, active: true, created_at: now(), updated_at: now() });
       return { data: null, error: null };
+    }
+    case 'trash_item_status': case 'restore_item_status': case 'purge_item_status': {
+      const s = db.item_status.find((x) => x.id === a.p_id);
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      if (!s) return err('ไม่พบรายการ', 'P0001');
+      if (name === 'trash_item_status') {
+        if (s.status !== 'submitted') return err('ยกเลิกได้เฉพาะรายการที่รอตรวจ', 'P0001');
+        Object.assign(s, { trashed_status: s.status, status: 'none', trashed_at: now() }); return { data: null, error: null };
+      }
+      if (!s.trashed_at) return err('ไม่พบรายการในถังขยะ', 'P0001');
+      if (name === 'restore_item_status') { Object.assign(s, { status: s.trashed_status || 'submitted', trashed_at: null, trashed_status: null }); return { data: null, error: null }; }
+      const files = s.evidence_paths || [];
+      Object.assign(s, { detail: null, evidence_paths: [], submitted_at: null, submitted_by: null, trashed_at: null, trashed_status: null });
+      return { data: files, error: null };
     }
     case 'withdraw_item_status': {
       const s = db.item_status.find((x) => x.id === a.p_id);

@@ -229,7 +229,7 @@ function showFormAi(r) {
   if (r.status === 'error') { out.innerHTML = `<p class="small ai-err">${esc(r.note || 'AI วิเคราะห์ไม่สำเร็จ')}</p>`; return; }
   if (!r.matches.length) { out.innerHTML = '<p class="small">AI ไม่พบข้อมาตรฐานที่ตรงกับรายละเอียดนี้ชัดเจน · เลือกเองได้จากรายการด้านล่าง</p>'; return; }
   r.matches.forEach((m) => critPicked.add(m.item_id));
-  $('#saCritQ').value = ''; renderCritPick();
+  $('#saCritQ').value = ''; renderCritPick(); $('#saCritFold').open = true;   // เปิดรายการให้เห็นข้อที่ AI ติ๊ก
   out.innerHTML = `<p class="small"><b>AI แนะนำ ${r.matches.length} ข้อ — ติ๊กให้แล้วในรายการด้านล่าง</b> ตรวจดู/แก้ได้ก่อนกดบันทึก</p><ul class="ai-list">`
     + r.matches.map((m) => `<li><b>ข้อ ${esc(m.item_no)}</b> ${esc(m.reason)}</li>`).join('') + '</ul>';
 }
@@ -269,12 +269,12 @@ function renderCritPick() {
 }
 function critCount() {
   const l = critLabel([...critPicked]);
-  $('#saCritN').textContent = l ? `เลือกแล้ว: ข้อ ${l}` : '';
+  $('#saCritN').textContent = l ? `เลือกแล้ว: ข้อ ${l}` : 'ยังไม่ได้เลือก · กดเพื่อเลือก';
 }
 
 function resetAch() {
   editingAch = null; $('#saForm').reset(); $('#saImageNote').textContent = '';
-  critPicked.clear(); renderCritPick(); formAi = null; $('#saAiOut').innerHTML = '';
+  critPicked.clear(); renderCritPick(); formAi = null; $('#saAiOut').innerHTML = ''; $('#saCritFold').open = false;
   $('#saFormTitle').textContent = 'เพิ่มผลงาน'; $('#saSubmit').textContent = 'เผยแพร่ผลงาน'; $('#saCancel').hidden = true; $('#saMsg').textContent = '';
 }
 

@@ -711,5 +711,26 @@ check("…own unit staff + admin still see it", "admin", "select count(*) from a
 check("other unit staff cannot unhide", "s1", "update achievements set hidden=false where title='ผลงานผูกเกณฑ์' returning id", rows(0))
 check("admin shows it again", "admin", "update achievements set hidden=false where title='ผลงานผูกเกณฑ์' returning hidden", eq("f"))
 
+print("== step 44: visit pulse ==")
+check("staff saves pulse", "s2", "update visits set pulse=78 where unit_id=2 returning pulse", lambda o: '78' in o)
+check("pulse out of range rejected", "s2", "update visits set pulse=400 where unit_id=2", "deny")
+
+print("== step 45: admin cancels review request → trash (30 days) ==")
+fresh = run("select id from criteria_items where fiscal_year = fiscal_year_of(current_date) and id not in (select item_id from item_status where unit_id=2) order by id limit 1")[1]
+tid = check("staff submits an item", "s2", f"insert into item_status(item_id,unit_id,detail,evidence_paths) values ({fresh},2,'รอตรวจ',array['t.pdf']) returning id", rows(1))
+check("staff cannot trash a request", "s2", f"select trash_item_status({tid})", "deny")
+check("citizen cannot trash", "c1", f"select trash_item_status({tid})", "deny")
+check("admin trashes → none + trashed (detail/files kept)", "admin", f"select trash_item_status({tid}); select status||':'||(trashed_at is not null)||':'||trashed_status||':'||detail||':'||array_length(evidence_paths,1) from item_status where id={tid}", eq("none:true:submitted:รอตรวจ:1"))
+check("cannot trash an item that is not waiting", "admin", f"select trash_item_status({tid})", "deny")
+check("staff cannot restore", "s2", f"select restore_item_status({tid})", "deny")
+check("staff cannot set trash fields directly (resubmit clears trash)", "s2", f"update item_status set trashed_at=now(), detail='ส่งใหม่' where id={tid} returning status||':'||(trashed_at is null)", eq("submitted:true"))
+check("admin trashes again", "admin", f"select trash_item_status({tid}); select status from item_status where id={tid}", eq("none"))
+check("admin restores → back to submitted", "admin", f"select restore_item_status({tid}); select status||':'||(trashed_at is null) from item_status where id={tid}", eq("submitted:true"))
+check("admin approving a trashed item clears trash", "admin", f"select trash_item_status({tid}); update item_status set status='approved' where id={tid} returning status||':'||(trashed_at is null)", eq("approved:true"))
+run(f"update item_status set status='submitted' where id={tid}")
+check("staff cannot purge", "s2", f"select purge_item_status({tid})", "deny")
+check("purge only works on trashed items", "admin", f"select purge_item_status({tid})", "deny")
+check("admin purges → files returned, detail/files cleared", "admin", f"select trash_item_status({tid}); select array_to_string(purge_item_status({tid}),','); select coalesce(detail,'-')||':'||cardinality(evidence_paths)||':'||status from item_status where id={tid}", lambda o: 't.pdf' in o and '-:0:none' in o)
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

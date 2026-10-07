@@ -30,7 +30,7 @@ async function load() {
   $('#scList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
   const [ci, st, ach] = await Promise.all([
     sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,sub_label,evidence,evidence_samples,item_no,body,sort').eq('fiscal_year', year).order('sort'),
-    sb.from('item_status').select('id,item_id,status,detail,evidence_paths,review_comment,review_files,submitted_at').eq('unit_id', auth.profile.unit_id),
+    sb.from('item_status').select('id,item_id,status,detail,evidence_paths,review_comment,review_files,submitted_at,trashed_at').eq('unit_id', auth.profile.unit_id),
     sb.from('achievements').select('id,title,image_path,item_ids,created_at').eq('unit_id', auth.profile.unit_id).order('created_at', { ascending: false }),
   ]);
   if (ci.error) { $('#scList').innerHTML = `<p class="empty">${esc(errText(ci.error))}</p>`; return; }
@@ -104,6 +104,7 @@ function box(it, editable) {
     + (st === 'fix' && s.review_comment ? `<p class="small" style="color:var(--warning)"><b>ความเห็นผู้ดูแล:</b> ${esc(s.review_comment)}</p>` : '')
     + (s?.review_files?.length ? `<p class="small" style="font-weight:600">ไฟล์จากผู้ดูแล (กดเพื่อเปิด)</p><div class="fthumbs">${s.review_files.map((p, i) => fileCard('evidence', p, `ไฟล์ผู้ดูแล ${i + 1}`)).join('')}</div>` : '')
     + (st === 'approved' ? '<p class="small" style="color:var(--success)"><b>ผู้ดูแลอนุมัติข้อนี้แล้ว</b></p>' : '')
+    + (s?.trashed_at ? `<p class="small" style="color:var(--warning)"><b>ผู้ดูแลยกเลิกคำขอตรวจนี้แล้ว</b> (${esc(thaiDate(s.trashed_at))}) · แก้ไข/เพิ่มหลักฐานแล้วกดส่งใหม่ได้</p>` : '')
     + (st === 'submitted' ? `<div class="wait-note"><span class="chip c-rev">ส่งแล้ว รอตรวจ</span><span class="small muted">ส่งเมื่อ ${esc(thaiDate(s.submitted_at))} · แก้แล้วกด "ส่งตรวจอีกครั้ง" ได้</span>`
       + (editable ? `<button type="button" class="btn btn-o btn-sm" data-withdraw="${s.id}">ยกเลิกการส่ง</button>` : '') + '</div>' : '')
     + (canEdit

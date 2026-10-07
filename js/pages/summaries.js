@@ -149,10 +149,10 @@ async function openVisitDetail(summaryId, visitId) {
   const meds = (v.med_list || []).map((m) => `${m.name || ''}${m.how ? ` [${m.how}]` : ''}${m.qty ? ` (${m.qty} ${m.unit || ''})` : ''}`).filter((x) => x.trim()).join(', ');
   const drp = v.drps?.length ? `${v.drps.join(', ')}${v.drp_resolved ? ' · แก้ไขสำเร็จ' : ' · ยังไม่แก้ไข'}` : 'ไม่พบ';
   $('#svBody').innerHTML = '<dl class="kv">'
-    + kv('อายุ', v.age != null ? v.age + ' ปี' : null) + kv('น้ำหนัก', v.weight != null ? v.weight + ' กก.' : null) + kv('ความดัน', v.bp) + kv('DTX', v.dtx)
+    + kv('อายุ', v.age != null ? v.age + ' ปี' : null) + kv('น้ำหนัก', v.weight != null ? v.weight + ' กก.' : null) + kv('ความดัน', v.bp) + kv('ชีพจร', v.pulse != null ? v.pulse + ' ครั้ง/นาที' : null) + kv('DTX', v.dtx)
     + kv('S', v.subjective) + kv('O', v.objective) + kv('A', v.assessment) + kv('P', v.plan)
-    + kv('ยาที่เหลือ', meds) + kv('ยาเหลือค้าง > 1 เดือน', v.med_excess ? 'ใช่' : null) + kv('หมายเหตุยา', v.med_note)
-    + kv('DRPs', drp) + kv('รายละเอียด DRPs', v.drp_detail) + kv('นัดครั้งถัดไป', v.next_appt ? thaiDate(v.next_appt) : null)
+    + kv('ยาที่เหลือ', meds) + kv('ยาเหลือค้างที่บ้านเกินวันนัด 1 เดือน', v.med_excess ? 'ใช่' : null) + kv('หมายเหตุยา', v.med_note)
+    + kv('DRPs', drp) + kv('รายละเอียด DRPs', v.drp_detail)
     + kv('รูปถ่าย', v.photos ? `${v.photos} รูป${v.own ? '' : ' (ดูได้ในหน้าเยี่ยมบ้านของ รพ.สต. ที่ดูแล)'}` : null) + '</dl>'
     + (v.own ? `<p><a class="btn btn-o btn-sm" data-sv-go href="#/${auth.profile.role}/visits/${esc(visitId)}">เปิดในหน้าเยี่ยมบ้าน</a></p>` : '')
     + '<p class="small muted">ข้อมูลผู้ป่วย · ใช้เพื่อการดูแลเท่านั้น · การเปิดดูถูกบันทึกตาม PDPA</p>';
@@ -163,17 +163,19 @@ let S = null;   // { unit, list, editing, img }
 
 const FORM = `
   <div class="panel vs-panel">
-    <h2 id="vsFormTitle">เพิ่มสรุปผลงานเยี่ยมบ้าน one page summary</h2>
+    <details class="vs-fold" id="vsFold"><summary><h2 id="vsFormTitle">เพิ่มสรุปผลงานเยี่ยมบ้าน one page summary</h2><span class="small muted vs-fold-hint">กดเพื่อเปิดฟอร์ม</span></summary>
     <p class="small muted">แสดงที่หน้าหลัก › ผลการดำเนินงาน ทันทีที่บันทึก · <b>ห้ามมีชื่อ ใบหน้า หรือข้อมูลที่ระบุตัวผู้ป่วยในภาพ</b></p>
     <form id="vsForm" class="form-grid" novalidate>
       <div class="field"><label for="vsTitle">หัวข้อ <span class="req">*</span></label><input id="vsTitle" class="input" maxlength="200" placeholder="เช่น สรุปผลการเยี่ยมบ้าน ไตรมาส 1"></div>
       <div class="field"><label for="vsUnit">รพ.สต. <span class="req">*</span></label><select id="vsUnit" class="input"></select></div>
       <div class="field"><label for="vsDate">วันที่ <span class="req">*</span></label><input id="vsDate" class="input" type="date"><span class="small muted" id="vsDateTh"></span></div>
       <div class="field"><label for="vsYear">ปีงบประมาณ</label><select id="vsYear" class="input"></select></div>
-      <div class="field full"><label for="vsPeopleQ">เจ้าหน้าที่ที่ร่วมลง (เลือกได้หลายคน)</label><input id="vsPeopleQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อ"><div class="crit-pick vs-people" id="vsPeople" role="group" aria-label="เจ้าหน้าที่ที่ร่วมลง"></div><span class="small vs-people-n" id="vsPeopleN" aria-live="polite"></span><span class="small vs-counts" id="vsCounts" aria-live="polite"></span>
+      <div class="field full"><details class="vs-pfold" id="vsPeopleFold"><summary><span class="lbl-t">เจ้าหน้าที่ที่ร่วมลง (เลือกได้หลายคน)</span><span class="small vs-people-n" id="vsPeopleN" aria-live="polite"></span></summary>
+        <div class="unit-tabs vs-ptabs" id="vsPeopleTabs" aria-label="กรองรายชื่อตาม รพ.สต."></div>
+        <input id="vsPeopleQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อ" aria-label="ค้นหาชื่อเจ้าหน้าที่"><div class="crit-pick vs-people" id="vsPeople" role="group" aria-label="เจ้าหน้าที่ที่ร่วมลง"></div>
         <div class="vs-other"><p class="small muted">ไม่มีชื่อในรายการ? กรอกเพิ่มเองได้ (ชื่อ นามสกุล ตำแหน่ง)</p>
           <div class="vs-other-row"><input id="vsOFirst" class="input" maxlength="50" placeholder="ชื่อ" aria-label="ชื่อผู้ร่วมลง"><input id="vsOLast" class="input" maxlength="50" placeholder="นามสกุล" aria-label="นามสกุลผู้ร่วมลง"><input id="vsOPos" class="input" maxlength="45" placeholder="ตำแหน่ง เช่น อสม." aria-label="ตำแหน่งผู้ร่วมลง"><button type="button" class="btn btn-o btn-sm" id="vsOAdd">+ เพิ่มชื่อ</button></div>
-          <div class="list vs-other-list" id="vsOthers"></div></div></div>
+          <div class="list vs-other-list" id="vsOthers"></div></div></details><span class="small vs-counts" id="vsCounts" aria-live="polite"></span></div>
       <div class="field full"><span class="lbl-t" id="vsVisitL">เชื่อมโยงรายการเยี่ยม</span><p class="small muted vs-hint">ผูกบันทึกการเยี่ยมของผู้ป่วยแต่ละคนใน one page นี้ · เจ้าหน้าที่/ผู้ดูแลกดจากหน้าสรุปไปดูว่าเยี่ยมแล้วทำอะไร ติดตามอะไร (ประชาชนไม่เห็นส่วนนี้)</p>
         <div class="list vs-other-list" id="vsVisits" aria-labelledby="vsVisitL"></div>
         <div><button type="button" class="btn btn-o btn-sm" id="vsVisitBtn" aria-expanded="false" aria-controls="vsVisitPick">+ เชื่อมโยงรายการเยี่ยม</button></div>
@@ -181,8 +183,10 @@ const FORM = `
       <div class="field full"><label for="vsImage">ภาพสรุป (A4) <span class="req">*</span></label><input id="vsImage" class="input" type="file" accept="image/*" multiple><span class="small muted" id="vsImageNote">${HINT_IMG}</span><div class="img-list" id="vsImagePreview" hidden></div></div>
       <div class="field full"><label for="vsBody">รายละเอียด (ถ้ามี)</label><textarea id="vsBody" rows="4" maxlength="5000"></textarea></div>
       <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="vsSubmit">เผยแพร่สรุปผลงาน</button><button class="btn btn-o btn-sm" type="button" id="vsCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="vsMsg" aria-live="polite"></span></div>
-    </form>
-    <h3 class="vs-list-h" id="vsListTitle">สรุปผลงาน</h3>
+    </form></details>
+  </div>
+  <div class="panel vs-panel">
+    <h2 class="vs-list-h" id="vsListTitle">สรุปผลงาน</h2>
     <div class="list" id="vsList"></div>
   </div>`;
 
@@ -201,6 +205,7 @@ export async function mountSummaries(slot, unit) {
     $('#vsList').addEventListener('click', onList);
     $('#vsDate').addEventListener('change', onDate);
     $('#vsPeopleQ').addEventListener('input', renderPeople);
+    $('#vsPeopleTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-pt]'); if (!b) return; S.ptab = b.dataset.pt; renderPeople(); });
     $('#vsOAdd').addEventListener('click', addOther);
     $('#vsVisitBtn').addEventListener('click', toggleVisitPick);
     $('#vsVisitQ').addEventListener('input', renderVisitPick);
@@ -227,7 +232,7 @@ export async function mountSummaries(slot, unit) {
   }
   const { data: ppl, error: pErr } = await sb.rpc('staff_directory');   // โหลดใหม่ทุกครั้งที่เปิดหน้า (แก้ชื่อ/ตำแหน่งในบัญชีเจ้าหน้าที่แล้วขึ้นทันที)
   S.people = pErr ? (S.people || []) : ppl;
-  S.unit = unit;
+  S.unit = unit; S.units = units;
   reset();
   $('#vsListTitle').textContent = unit === 'all' ? 'สรุปผลงานทุก รพ.สต.' : `สรุปผลงานของ รพ.สต.${unitName(unit)}`;
   await load();
@@ -259,8 +264,14 @@ function onDate() {
 /** รายชื่อผู้ดูแล + เจ้าหน้าที่ (staff_directory) แยกกลุ่มตามหน่วย · ค้นหาชื่อได้ · จำที่เลือกไว้ */
 function renderPeople() {
   if (!S?.people) return;
+  // แท็บกรอง: ทั้งหมด · ผู้ดูแล (โรงพยาบาล) · ราย รพ.สต. (กดครั้งเดียวเห็นรายชื่อหน่วยนั้น) — เห็นทีละ ~3 ชื่อ เลื่อนดูต่อ
+  const tab = S.ptab || 'all', inTab = (p) => tab === 'all' || (tab === 'admin' ? p.role === 'admin' : p.role !== 'admin' && String(p.unit_id) === tab);
+  const n = (f) => S.people.filter(f).length;
+  $('#vsPeopleTabs').innerHTML = [['all', 'ทั้งหมด', S.people.length], ['admin', 'ผู้ดูแล (โรงพยาบาล)', n((p) => p.role === 'admin')],
+    ...(S.units || []).map((u) => [String(u.id), `รพ.สต.${u.name}`, n((p) => p.role !== 'admin' && p.unit_id === u.id)])]
+    .map(([k, l, c]) => `<button type="button" data-pt="${k}" aria-current="${tab === k}">${esc(l)} (${c})</button>`).join('');
   const q = $('#vsPeopleQ').value.trim().toLowerCase();
-  const list = S.people.filter((p) => !q || p.full_name.toLowerCase().includes(q));
+  const list = S.people.filter((p) => inTab(p) && (!q || p.full_name.toLowerCase().includes(q)));
   const group = (p) => (p.role === 'admin' ? 'ผู้ดูแล (โรงพยาบาล)' : `รพ.สต.${unitName(p.unit_id)}`);
   let last = null;
   $('#vsPeople').innerHTML = list.map((p) => {
@@ -392,6 +403,7 @@ async function onList(e) {
     });
     S.img.set(imgsOf(s));
     $('#vsFormTitle').textContent = 'แก้ไขสรุปผลงาน'; $('#vsSubmit').textContent = 'บันทึกการแก้ไข'; $('#vsCancel').hidden = false;
+    $('#vsFold').open = true;   // ฟอร์มย่ออยู่ → กดแก้ไขแล้วเปิดให้
     $('#vsForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
@@ -435,7 +447,7 @@ async function save(e) {
     if (old) { const gone = imgsOf(old).filter((p) => !paths.includes(p)); if (gone.length) removeFiles('public-images', gone); }   // ภาพที่กด × ออก
     busy(btn, false);
     toast(old ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่สรุปผลงานแล้ว — แสดงที่หน้าหลัก › ผลการดำเนินงาน');
-    reset(); load();
+    reset(); $('#vsFold').open = false; load();   // บันทึกแล้วย่อฟอร์มกลับ
   } catch (err) {
     busy(btn, false);
     if (done.length) removeFiles('public-images', done);

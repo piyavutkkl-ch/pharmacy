@@ -422,7 +422,24 @@ a.menu-icon-btn{text-decoration:none}
 .sum-poster .sp-bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(18px) brightness(.85);transform:scale(1.05)}
 .sum-poster img{position:relative;display:block;width:100%;height:100%;object-fit:contain}
 .sum-poster .sp-date{position:absolute;left:10px;top:10px;padding:2px 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600}
-.vs-people{max-height:240px}
+.crit-pick.vs-people{max-height:172px}   /* เห็นทีละ ~3 ชื่อ แล้วเลื่อนดูต่อ */
+.vs-pfold > summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:44px;cursor:pointer;list-style:none}
+.vs-pfold > summary::-webkit-details-marker{display:none}
+.vs-pfold > summary::before{content:'▸';display:inline-block;color:var(--primary);transition:transform .15s}
+.vs-pfold[open] > summary::before{transform:rotate(90deg)}
+.vs-pfold[open] > summary{margin-bottom:6px}
+.vs-pfold .vs-ptabs{margin-bottom:8px}
+.vs-pfold > :not(summary) + *{margin-top:6px}
+/* สรุปผลงานเยี่ยมบ้าน: ฟอร์มย่อ/ขยายได้ (ค่าเริ่มต้นย่อ · กดแก้ไขแล้วเปิดเอง) */
+.vs-fold > summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:44px;cursor:pointer;list-style:none}
+.vs-fold > summary::-webkit-details-marker{display:none}
+.vs-fold > summary::before{content:'▸';display:inline-block;color:var(--primary);transition:transform .15s}
+.vs-fold[open] > summary::before{transform:rotate(90deg)}
+.vs-fold > summary h2{margin:0}
+.vs-fold[open] .vs-fold-hint{display:none}
+.vs-fold[open] > summary{margin-bottom:8px}
+.pt-fold{border:1px solid var(--line);border-radius:12px;padding:4px 14px 12px;margin-bottom:12px}
+.pt-fold:not([open]){padding-bottom:4px}
 .vs-hint{margin:0}
 .field .lbl-t{font-size:13px;font-weight:600}
 .vs-visit-pick{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
@@ -661,7 +678,7 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .uc-units{margin-bottom:12px}
 .uc-units .badge{position:static;margin-left:4px}
 .vs-panel{margin-top:16px}
-.vs-list-h{margin:18px 0 4px;font-size:16px}
+.vs-list-h{margin:0 0 8px}
 .hr-import{margin:12px 0;border:1px dashed var(--line);border-radius:12px;padding:10px 14px}
 .hr-import summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}
 .hr-import[open]{display:flex;flex-direction:column;gap:10px}

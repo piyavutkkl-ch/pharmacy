@@ -226,9 +226,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('เยี่ยมบ้าน: รายชื่อผู้ป่วยอยู่บน บันทึกการเยี่ยมอยู่ล่าง (ไม่ซ้อนซ้ายขวา)', await p.evaluate(() => document.querySelector('#ptPanel').getBoundingClientRect().top > document.querySelector('#ptList').getBoundingClientRect().bottom));
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
     const logs = await calls(p, (c) => c.rpc === 'log_patient_access');
+    await p.click('#ptList [data-pt]'); await p.waitForTimeout(200);
+    check('เยี่ยมบ้าน: กดชื่อผู้ป่วยซ้ำ = ย่อข้อมูลผู้ป่วยลง', (await text(p, '#ptPanel')).includes('เลือกผู้ป่วย') && (await p.getAttribute('#ptList [data-pt]', 'aria-expanded')) === 'false');
+    await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
     check('เจ้าหน้าที่: เปิดรายชื่อ + เปิดดูผู้ป่วย ถูกบันทึก (PDPA)', logs.some((c) => c.args.p_unit === 2 && !c.args.p_patient) && logs.some((c) => c.args.p_patient));
     check('เจ้าหน้าที่: มีข้อความแจ้งว่าการเข้าถึงถูกบันทึก', (await text(p, '.pdpa-note')).includes('PDPA'));
+    await p.waitForSelector('#vsFold', { state: 'attached' });
+    check('สรุปผลงาน: ฟอร์มย่อไว้เป็นค่าเริ่มต้น (เห็นแค่หัวข้อ)', !(await p.$eval('#vsFold', (d) => d.open)) && !(await p.isVisible('#vsForm')) && await p.isVisible('#vsFormTitle'));
+    await p.click('#vsFold > summary'); await p.waitForTimeout(150);
     check('เยี่ยมบ้าน: มีฟอร์มสรุปผลงาน one page summary ใต้บันทึกการเยี่ยม (ไม่มีช่อง PDF)', await visible(p, '#staffSumSlot #vsForm') && (await text(p, '#vsFormTitle')).includes('one page summary') && !(await p.$('#vsFile')) && (await text(p, '#vsList')).includes('ยังไม่มีสรุปผลงาน'));
+    check('สรุปผลงาน: รายการสรุปอยู่อีกกล่อง แยกจากฟอร์ม (ย่อฟอร์มแล้วรายการไม่ย่อตาม)', await p.evaluate(() => document.querySelector('#vsList').closest('.panel') !== document.querySelector('#vsFold').closest('.panel')) && await visible(p, '#vsList'));
     check('สรุปผลงาน: ช่องเลือก รพ.สต. ขึ้นหน่วยของตัวเองอัตโนมัติ', (await p.inputValue('#vsUnit')) === '2' && await count(p, '#vsUnit option') === 7);
     await p.click('#vsSubmit'); await p.waitForTimeout(150);
     check('สรุปผลงาน: ไม่ใส่หัวข้อ/ภาพ ถูกเตือน', (await text(p, '#vsMsg')).length > 0);
@@ -242,6 +249,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#vsDate', '2026-09-15'); await p.dispatchEvent('#vsDate', 'change');
     check('สรุปผลงาน: เลือกวันที่แล้วปีงบประมาณเปลี่ยนตาม (ก่อน 1 ต.ค. = ปีงบเดิม)', (await p.inputValue('#vsYear')) === '2569');
     await p.fill('#vsDate', today); await p.dispatchEvent('#vsDate', 'change');
+    check('ผู้ร่วมลง: ย่อไว้ (เห็นสรุปจำนวนที่เลือก) กดแล้วขยาย', !(await p.$eval('#vsPeopleFold', (d) => d.open)) && (await text(p, '#vsPeopleN')).includes('1 คน'));
+    await p.click('#vsPeopleFold > summary'); await p.waitForTimeout(150);
+    await p.click('#vsPeopleTabs [data-pt="2"]'); await p.waitForTimeout(100);
+    check('ผู้ร่วมลง: แท็บแยก รพ.สต. กดครั้งเดียวเห็นรายชื่อหน่วยนั้น', (await text(p, '#vsPeople')).includes('สมศรี') && !(await text(p, '#vsPeople')).includes('ภก.ผู้ดูแล') && await count(p, '#vsPeopleTabs [data-pt]') === 9);
+    check('ผู้ร่วมลง: กล่องรายชื่อสูงพอเห็น ~3 ชื่อ แล้วเลื่อนดูต่อ', await p.$eval('#vsPeople', (e) => parseFloat(getComputedStyle(e).maxHeight) <= 180));
+    await p.click('#vsPeopleTabs [data-pt="all"]'); await p.waitForTimeout(100);
     const me = await p.evaluate(() => window.__db.profiles.find((x) => x.email === 's2@gmail.com').id), adm = await p.evaluate(() => window.__db.profiles.find((x) => x.role === 'admin').id);
     check('สรุปผลงาน: เลือกผู้ร่วมลงจากรายชื่อผู้ดูแล + เจ้าหน้าที่ (ตัวเองติ๊กไว้แล้ว · ไม่มีประชาชน)', (await text(p, '#vsPeople')).includes('ผู้ดูแล (โรงพยาบาล)') && await p.isChecked(`#vsPeople input[value="${me}"]`)
       && await p.evaluate(() => [...document.querySelectorAll('#vsPeople input')].every((i) => i.value.startsWith('n:') || ['staff', 'admin'].includes(window.__db.profiles.find((x) => x.id === i.value)?.role))));
@@ -258,6 +271,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#vsOthers [data-rm-other="1"]'); await p.fill('#vsPeopleQ', ''); await p.waitForTimeout(100);
     check('สรุปผลงาน: กรอกชื่อ นามสกุล ตำแหน่ง เพิ่มเองได้ (ลบได้) + นับรวม', await count(p, '#vsOthers .li') === 1 && (await text(p, '#vsOthers')).includes('สมหญิง ทดสอบ (อสม.)') && (await text(p, '#vsPeopleN')).includes('4 คน'));
     { const q = await open('staff', '#/staff/visits', 390, 844); await q.waitForTimeout(400);
+      await q.click('#vsFold > summary'); await q.click('#vsPeopleFold > summary'); await q.waitForTimeout(150);
+      await (await q.$('#vsPeopleFold')).screenshot({ path: path.join(SHOTS, 'summary-people-tabs-390.png') });
       await (await q.$('.vs-other')).screenshot({ path: path.join(SHOTS, 'summary-people-390.png') });
       check('สรุปผลงาน 390px: ช่องกรอกชื่อเองไม่ล้นจอ', await overflow(q) <= 0); await q.close(); }
     await p.click('#vsVisitBtn'); await p.waitForTimeout(300);
@@ -276,7 +291,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#vsList [data-edit]'); await p.waitForTimeout(150);
     check('สรุปผลงาน: แก้ไขแล้วภาพเดิมขึ้นครบ', await count(p, '#vsImagePreview .img-item') === 2 && (await p.inputValue('#vsUnit')) === '2');
     await p.fill('#vsTitle', 'สรุปเยี่ยมบ้าน ไตรมาส 1 (แก้ไข)'); await p.click('#vsSubmit'); await p.waitForTimeout(400);
-    check('สรุปผลงาน: แก้ไขได้ (ไม่ต้องเลือกภาพใหม่) + ปุ่มกลับเป็น "เผยแพร่"', (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'update')).length === 1 && (await text(p, '#vsList')).includes('(แก้ไข)') && (await text(p, '#vsSubmit')).includes('เผยแพร่'));
+    check('สรุปผลงาน: แก้ไขได้ (ไม่ต้องเลือกภาพใหม่) + ปุ่มกลับเป็น "เผยแพร่"', (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'update')).length === 1 && (await text(p, '#vsList')).includes('(แก้ไข)') && (await p.textContent('#vsSubmit')).includes('เผยแพร่'));
+    check('สรุปผลงาน: บันทึกแล้วฟอร์มย่อกลับ', !(await p.$eval('#vsFold', (d) => d.open)));
+    await p.click('#vsFold > summary'); await p.waitForTimeout(150);
     await p.fill('#vsTitle', 'สรุปให้หน่วยอื่น'); await p.selectOption('#vsUnit', '3'); await p.setInputFiles('#vsImage', { name: 'o.png', mimeType: 'image/png', buffer: PNG }); await p.waitForTimeout(400);
     await p.click('#vsSubmit'); await p.waitForTimeout(500);
     { const o = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert'))[1]?.payload || {};
@@ -514,11 +531,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const s2 = await p.evaluate(() => window.__db.staff_roster.find((r) => r.email === 's2@gmail.com').email);
       await p.click(`[data-edit="${s2}"]`); await p.waitForTimeout(150); await p.fill('#rfPos', 'พยาบาลวิชาชีพชำนาญการ'); await p.click('#rfSubmit'); await p.waitForTimeout(500);
       await go(p, '#/admin/visits'); await p.waitForTimeout(600);
-      check('บัญชีเจ้าหน้าที่: แก้ตำแหน่งแล้ว รายชื่อผู้ร่วมลงในฟอร์มสรุปผลงานขึ้นตำแหน่งใหม่ทันที', (await text(p, '#vsPeople')).includes('พยาบาลวิชาชีพชำนาญการ') && (await text(p, '#vsPeople')).includes('ภก.ชื่อใหม่ ทดสอบ'));
+      check('บัญชีเจ้าหน้าที่: แก้ตำแหน่งแล้ว รายชื่อผู้ร่วมลงในฟอร์มสรุปผลงานขึ้นตำแหน่งใหม่ทันที', (await p.textContent('#vsPeople')).includes('พยาบาลวิชาชีพชำนาญการ') && (await p.textContent('#vsPeople')).includes('ภก.ชื่อใหม่ ทดสอบ'));
       await go(p, '#/admin/settings/staff'); await p.waitForTimeout(400); }
     await go(p, '#/admin/visits'); await p.waitForTimeout(400);
     { const all = await p.evaluate(() => window.__db.patients.length);
-      check('ผู้ดูแล: เพิ่มสรุปผลงานเยี่ยมบ้านได้ (ฟอร์มเลือก รพ.สต. ได้ทุกหน่วย)', await visible(p, '#adminSumSlot #vsForm') && await count(p, '#adminSumSlot #vsUnit option') === 7 && (await text(p, '#vsListTitle')).includes('ทุก รพ.สต.'));
+      check('ผู้ดูแล: เพิ่มสรุปผลงานเยี่ยมบ้านได้ (ฟอร์มเลือก รพ.สต. ได้ทุกหน่วย)', await visible(p, '#adminSumSlot #vsFold') && await count(p, '#adminSumSlot #vsUnit option') === 7 && (await text(p, '#vsListTitle')).includes('ทุก รพ.สต.'));
       check('ผู้ดูแล: เยี่ยมบ้านช่อง "โรงพยาบาลควนกาหลง" รวมทุกชื่อทุก รพ.สต. (ค่าเริ่มต้น)', (await p.getAttribute('#avUnits [data-u="all"]', 'aria-current')) === 'true' && await count(p, '#ptList [data-pt]') === all && all >= 1 && (await text(p, '#ptList')).includes('รพ.สต.')); }
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);   // ช่องรวมทุกชื่อ: บันทึกการเยี่ยมใหม่ได้ (เดิม error smallint "all")
     await p.click('[data-act="add-visit"]'); await p.waitForTimeout(200);
@@ -618,6 +635,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('เมนูเจ้าหน้าที่: "ดาวน์โหลดเอกสาร"', (await text(p, '[data-staff-tab="docs"]')).trim() === 'ดาวน์โหลดเอกสาร');
     const i11 = await itemId(p, '1.1'), i21 = await itemId(p, '2.1.1');
     await go(p, '#/staff/achievements'); await p.waitForTimeout(400);
+    check('ผลงาน: กล่อง "สอดคล้องกับมาตรฐานข้อ" ย่อได้ (ค่าเริ่มต้นย่อ · หัวบอกว่ายังไม่ได้เลือก)', !(await p.isVisible('#saCrit')) && (await p.textContent('#saCritN')).includes('ยังไม่ได้เลือก'));
+    await p.click('#saCritFold > summary'); await p.waitForTimeout(100);
     check('ผลงาน: กล่องเลือกข้อมาตรฐานปีงบปัจจุบัน (ข้อ + รายละเอียด)', await count(p, '#saCrit .crit-opt') > 3 && (await text(p, '#saCrit')).includes('1.1'));
     check('ผลงาน: รายการผลงานบอกข้อมาตรฐานที่ผูกไว้', (await text(p, '#saList')).includes('มาตรฐานข้อ 1.3'));
     check('ผลงาน: รายการบอกสถานะ AI (ยังไม่วิเคราะห์ + ปุ่มให้ AI วิเคราะห์)', (await text(p, '#saList .newsrow')).includes('AI ยังไม่วิเคราะห์') && await count(p, '#saList [data-ai-run]') >= 1);
@@ -641,6 +660,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('AI แนะนำ: ได้ผลแล้วแสดงข้อที่ตรง + เหตุผล + ติ๊กให้อัตโนมัติ', (await text(p, '#saAiOut')).includes('AI แนะนำ') && (await text(p, '#saAiOut')).includes('ข้อ 1.1') && await p.isChecked(`#saCrit input[value="${i11}"]`));
     await (await p.$('#saForm')).screenshot({ path: path.join(SHOTS, 'staff-ach-ai.png') });
     await p.click('#saSubmit'); await p.waitForTimeout(800);
+    check('ผลงาน: บันทึกแล้วกล่องมาตรฐานย่อกลับ', !(await p.$eval('#saCritFold', (d) => d.open)));
     const ai = (await calls(p, (c) => c.table === 'achievements' && c.op === 'insert'))[0]?.payload || {};
     check('ผลงาน: บันทึกข้อมาตรฐานที่เลือก (item_ids) + ไม่ส่งตรวจ (ไม่แตะ item_status)', ai.item_ids?.includes(i11) && ai.item_ids.includes(i21) && (await calls(p, isW)).length === isW0, JSON.stringify(ai));
     check('AI แนะนำ: ผลในฟอร์มผูกกับผลงานที่บันทึก → รายการขึ้น "AI: ตรงกับข้อ 1.1"', (await calls(p, (c) => c.rpc === 'ai_match_link')).length === 1 && (await text(p, '#saList')).includes('AI: ตรงกับข้อ 1.1'));
@@ -682,6 +702,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ผู้ป่วย: ที่อยู่เก็บแยกช่อง + ประกอบเป็นที่อยู่เต็ม', pt.address === 'เลขที่ 12/3 หมู่ 1 ต.ทุ่งนุ้ย อ.ควนกาหลง จ.สตูล 91130' && pt.address_parts?.zip === '91130' && pt.address_parts?.moo === '1', JSON.stringify(pt.address_parts));
     await p.click('[data-act="add-visit"]'); await p.waitForTimeout(150);
     check('เยี่ยมบ้าน: หน่วยยา เม็ด/ขวด/หลอด/(ไม่ระบุ)', (await p.$$eval('#vMeds .med-unit option', (o) => o.map((x) => x.value).join(','))) === 'เม็ด,ขวด,หลอด,(ไม่ระบุ)');
+    check('เยี่ยมบ้าน: ไม่มีช่อง Medication reconciliation / นัดครั้งถัดไป · มีช่องชีพจร · ป้าย "ยาเหลือค้างที่บ้านเกินวันนัด 1 เดือน" (ติ๊กเอง)', !(await p.$('#vRecon')) && !(await p.$('#vNext')) && await visible(p, '#vPulse') && (await text(p, '#vForm')).includes('ยาเหลือค้างที่บ้านเกินวันนัด 1 เดือน'));
+    await p.fill('#vPulse', '78'); await p.check('#vExcess');
     await p.fill('#vO', 'ผิวแห้ง ไม่บวม'); await p.fill('#vA', 'ใช้ยาไม่สม่ำเสมอ'); await p.fill('#vMeds .med-name', 'เมทฟอร์มิน'); await p.fill('#vMeds .med-how', '1 เม็ด หลังอาหารเช้า'); await p.fill('#vMedNote', 'เก็บในตู้เย็น'); await p.check('#vNoDrp');
     await p.setInputFiles('#vPhotos', [img, { ...img, name: 'b.png' }]); await p.waitForTimeout(500);
     check('เยี่ยมบ้าน: เลือกรูปแล้วเห็นตัวอย่าง', await count(p, '#vPhotoList .fthumb img') === 2);
@@ -691,6 +713,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#vForm [type=submit]'); await p.waitForTimeout(600);
     const vi = (await calls(p, (c) => c.table === 'visits' && c.op === 'insert'))[0]?.payload || {};
     check('เยี่ยมบ้าน: มีช่อง O — Objective data และบันทึกได้', vi.objective === 'ผิวแห้ง ไม่บวม');
+    check('เยี่ยมบ้าน: บันทึกชีพจร + ติ๊กยาเหลือค้างเกินวันนัดเอง (ไม่ส่งช่องที่เอาออก)', vi.pulse === 78 && vi.med_excess === true && !('med_reconcile' in vi) && !('next_appt' in vi) && (await text(p, '#ptPanel')).includes('ชีพจร 78') && (await text(p, '#ptPanel')).includes('เกินวันนัด 1 เดือน'), JSON.stringify(vi));
     check('เยี่ยมบ้าน: มีช่อง A — Assessment และบันทึกได้', vi.assessment === 'ใช้ยาไม่สม่ำเสมอ' && (await text(p, '#ptPanel')).includes('A: ใช้ยาไม่สม่ำเสมอ'));
     check('เยี่ยมบ้าน: ใส่วิธีใช้หลังชื่อยาได้ + แสดงในบันทึก', vi.med_list?.[0]?.how === '1 เม็ด หลังอาหารเช้า' && (await text(p, '#ptPanel')).includes('1 เม็ด หลังอาหารเช้า'), JSON.stringify(vi.med_list));
     check('เยี่ยมบ้าน: บันทึกหมายเหตุรายการยา + รูป 2 รูป (ส่วนตัว)', vi.med_note === 'เก็บในตู้เย็น' && vi.photo_paths?.length === 2 && (await calls(p, (c) => c.upload === 'visit-photos')).length === 2, JSON.stringify(vi));
@@ -700,8 +723,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('เยี่ยมบ้าน: จำกัดไม่เกิน 5 รูป', await count(p, '#vPhotoList .fthumb') === 5 && await p.$eval('#vPhotos', (e) => e.disabled));
     await p.click('[data-act="cancel"]'); await p.waitForTimeout(200);
     { const before = await count(p, '#ptList [data-pt]'), pid = await p.evaluate(() => window.__db.patients.find((x) => x.first_name === 'ทดสอบ')?.id);
-      await p.click(`#ptList [data-pt="${pid}"]`); await p.waitForTimeout(300);
+      if ((await p.getAttribute(`#ptList [data-pt="${pid}"]`, 'aria-expanded')) !== 'true') { await p.click(`#ptList [data-pt="${pid}"]`); await p.waitForTimeout(300); }   // กดซ้ำ = ย่อ
       await p.click('[data-act="edit-patient"]'); await p.waitForTimeout(150);
+      await p.fill('#pfPhone', '0812223333');
+      await p.click('[data-edit-visit]'); await p.waitForTimeout(200);
+      check('ผู้ป่วย: กดแก้ไขบันทึกเยี่ยมแล้ว ฟอร์มแก้ไขข้อมูลผู้ป่วยยังค้างอยู่ (ข้อมูลที่พิมพ์ไม่หาย)', await visible(p, '#vForm') && await p.isVisible('#pfPhone') && (await p.inputValue('#pfPhone')) === '0812223333');
+      await p.click('#ptEditFold > summary'); await p.waitForTimeout(100);
+      check('ผู้ป่วย: ย่อฟอร์มแก้ไขข้อมูลเหลือชื่อสั้น ๆ (ฟอร์มบันทึกเยี่ยมยังเปิดอยู่)', !(await p.isVisible('#pfFirst')) && (await p.textContent('#ptEditFold > summary')).includes('ทดสอบ วันเกิด') && await visible(p, '#vForm'));
+      await p.click('#vForm [data-act="cancel"]'); await p.click('#ptEditFold > summary'); await p.waitForTimeout(100);
+      check('ผู้ป่วย: ปิดฟอร์มบันทึกเยี่ยมแล้ว ฟอร์มแก้ไขข้อมูลผู้ป่วยยังอยู่', !(await p.$('#vForm')) && (await p.inputValue('#pfPhone')) === '0812223333');
       check('ผู้ป่วย: แก้ไขแล้วที่อยู่เดิมขึ้นในช่องย่อย', (await p.inputValue('#pfA_tambon')) === 'ทุ่งนุ้ย' && (await p.inputValue('#pfA_no')) === '12/3');
       await p.selectOption('#pfHome', '3'); await p.click('#ptForm [type=submit]'); await p.waitForTimeout(500);
       const tr = (await calls(p, (c) => c.rpc === 'transfer_patient'))[0]?.args || {};
@@ -737,6 +767,31 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ตรวจประเมิน: ขอแก้ไขพร้อมแนบไฟล์กลับ', rv.status === 'fix' && rv.review_files?.length === 1, JSON.stringify(rv));
     await p.click(`#rv-${r4} [data-undo]`); await p.waitForTimeout(400);
     check('ตรวจประเมิน: ย้อนกลับการขอแก้ไขได้', await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 3)?.status === 'submitted', r4));
+    { const st = (id) => p.evaluate((i) => window.__db.item_status.find((x) => x.item_id === i && x.unit_id === 3), id);
+      check('ตรวจประเมิน: รายการรอตรวจมีปุ่ม "ยกเลิกคำขอตรวจ" + ถังขยะด้านล่าง (ว่าง)', await visible(p, `#rv-${r4} [data-trash]`) && (await text(p, '#rvTrash')).includes('ไม่มีรายการ'));
+      await p.click(`#rv-${r4} [data-trash]`); await p.waitForTimeout(400);
+      let s4 = await st(r4);
+      check('ตรวจประเมิน: ยกเลิกคำขอตรวจ → ย้ายไปถังขยะ (สถานะยังไม่ส่ง · รายละเอียด/ไฟล์ยังอยู่ · บอกวันที่เหลือ 30 วัน)', s4.status === 'none' && !!s4.trashed_at && s4.evidence_paths?.length === 1 && (await text(p, '#rvTrash')).includes('2.1.1') && (await text(p, '#rvTrash')).includes('อีก 30 วัน') && (await text(p, `#rv-${r4}`)).includes('ยังไม่ส่ง'), JSON.stringify(s4));
+      await p.screenshot({ path: path.join(SHOTS, 'admin-review-trash-1280.png'), fullPage: true });
+      { const q = await open('staff3', '#/staff/criteria'); await q.waitForTimeout(400);   // คนละหน้า = ฐานข้อมูลจำลองคนละชุด → ตั้งสถานะในถังเอง
+        await q.evaluate((i) => Object.assign(window.__db.item_status.find((x) => x.item_id === i && x.unit_id === 3), { status: 'none', trashed_status: 'submitted', trashed_at: new Date().toISOString() }), r4);
+        await go(q, '#/'); await go(q, '#/staff/criteria');
+        await q.evaluate(() => { document.getElementById('topic-2').open = true; });
+        await q.click(`[data-open="${r4}"]`); await q.waitForTimeout(200);
+        check('เจ้าหน้าที่: เห็นว่าผู้ดูแลยกเลิกคำขอตรวจ + ส่งใหม่ได้', (await text(q, '.crit-editbox')).includes('ผู้ดูแลยกเลิกคำขอตรวจนี้แล้ว') && await visible(q, '#ev-detail'));
+        await q.close(); }
+      await p.click(`#rvTrash [data-restore="${s4.id}"]`); await p.waitForTimeout(400);
+      s4 = await st(r4);
+      check('ตรวจประเมิน: กู้คืนจากถังขยะ → กลับไปรอตรวจ', s4.status === 'submitted' && !s4.trashed_at && (await text(p, '#rvTrash')).includes('ไม่มีรายการ'), JSON.stringify(s4));
+      await p.click(`#rv-${r4} [data-trash]`); await p.waitForTimeout(400);
+      await p.click(`#rvTrash [data-purge="${s4.id}"]`); await p.waitForTimeout(400);
+      s4 = await st(r4);
+      check('ตรวจประเมิน: ลบถาวรจากถังขยะ → ล้างรายละเอียด/ไฟล์ + ลบไฟล์ใน storage', s4.status === 'none' && !s4.trashed_at && !s4.detail && !s4.evidence_paths.length && (await calls(p, (c) => c.remove === 'evidence' && c.paths.some((x) => x.includes('/3/2.1.1/')))).length === 1, JSON.stringify(s4));
+      await p.click(`#rv-${r3} [data-trash]`); await p.waitForTimeout(400);
+      await p.evaluate((i) => { window.__db.item_status.find((x) => x.item_id === i && x.unit_id === 3).trashed_at = new Date(Date.now() - 31 * 86400000).toISOString(); }, r3);
+      await p.click('#rvYears [aria-current="true"]'); await p.waitForTimeout(500);
+      const s3 = await st(r3);
+      check('ตรวจประเมิน: ถังขยะครบ 30 วัน → ลบถาวรให้เอง', !s3.trashed_at && !s3.detail && !s3.evidence_paths.length && (await text(p, '#rvTrash')).includes('ไม่มีรายการ'), JSON.stringify(s3)); }
     await p.click('[data-hideyear="1"]'); await p.waitForTimeout(400);
     check('ปีงบ: ซ่อนปีงบได้ (แสดง "ซ่อนอยู่")', (await text(p, '#rvYears')).includes('ซ่อนอยู่') && await visible(p, '[data-hideyear="0"]'));
     await p.click('[data-hideyear="0"]'); await p.waitForTimeout(400);
