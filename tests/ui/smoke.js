@@ -730,7 +730,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผู้ป่วย: กดแก้ไขบันทึกเยี่ยมแล้ว ฟอร์มแก้ไขข้อมูลผู้ป่วยยังค้างอยู่ (ข้อมูลที่พิมพ์ไม่หาย)', await visible(p, '#vForm') && await p.isVisible('#pfPhone') && (await p.inputValue('#pfPhone')) === '0812223333');
       await p.click('#ptEditFold > summary'); await p.waitForTimeout(100);
       check('ผู้ป่วย: ย่อฟอร์มแก้ไขข้อมูลเหลือชื่อสั้น ๆ (ฟอร์มบันทึกเยี่ยมยังเปิดอยู่)', !(await p.isVisible('#pfFirst')) && (await p.textContent('#ptEditFold > summary')).includes('ทดสอบ วันเกิด') && await visible(p, '#vForm'));
-      await p.click('#vForm [data-act="cancel"]'); await p.click('#ptEditFold > summary'); await p.waitForTimeout(100);
+      await p.click('#ptEditFold > summary'); await p.waitForTimeout(100);
+      await p.click('[data-act="edit-patient"]'); await p.waitForTimeout(100);
+      check('ผู้ป่วย: กด "แก้ไขข้อมูล" ซ้ำ = ย่อฟอร์มแก้ไขลง (กดอีกครั้งขยาย · ข้อมูลไม่หาย)', !(await p.$eval('#ptEditFold', (d) => d.open)) && (await p.inputValue('#pfPhone')) === '0812223333');
+      await p.click('[data-act="edit-patient"]'); await p.waitForTimeout(100);
+      check('ผู้ป่วย: กด "แก้ไขข้อมูล" อีกครั้ง = ขยายฟอร์มกลับ', await p.$eval('#ptEditFold', (d) => d.open) && await p.isVisible('#pfFirst'));
+      await p.click('#vForm [data-act="cancel"]'); await p.waitForTimeout(100);
       check('ผู้ป่วย: ปิดฟอร์มบันทึกเยี่ยมแล้ว ฟอร์มแก้ไขข้อมูลผู้ป่วยยังอยู่', !(await p.$('#vForm')) && (await p.inputValue('#pfPhone')) === '0812223333');
       check('ผู้ป่วย: แก้ไขแล้วที่อยู่เดิมขึ้นในช่องย่อย', (await p.inputValue('#pfA_tambon')) === 'ทุ่งนุ้ย' && (await p.inputValue('#pfA_no')) === '12/3');
       await p.selectOption('#pfHome', '3'); await p.click('#ptForm [type=submit]'); await p.waitForTimeout(500);
@@ -768,6 +773,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click(`#rv-${r4} [data-undo]`); await p.waitForTimeout(400);
     check('ตรวจประเมิน: ย้อนกลับการขอแก้ไขได้', await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 3)?.status === 'submitted', r4));
     { const st = (id) => p.evaluate((i) => window.__db.item_status.find((x) => x.item_id === i && x.unit_id === 3), id);
+      { await p.click('#rvUnits [data-u="2"]'); await p.waitForTimeout(200);
+        const [a11, a12] = [await itemId(p, '1.1'), await itemId(p, '1.2')];
+        check('ตรวจประเมิน: ข้อ "ผ่านแล้ว"/"ต้องแก้ไข" ก็ยกเลิกคำขอตรวจได้ · ข้อที่ยังไม่ส่งไม่มีปุ่ม', await visible(p, `#rv-${a11} [data-trash]`) && await visible(p, `#rv-${a12} [data-trash]`) && await count(p, '#rvBody .crit-item [data-trash]') === 2);
+        await p.click(`[data-open="${a12}"]`); await p.waitForTimeout(150);
+        check('ตรวจประเมิน: ปุ่มยกเลิกคำขอตรวจอยู่ในกล่องตรวจด้วย', await visible(p, '.crit-editbox [data-trash]'));
+        await p.click('.crit-editbox [data-trash]'); await p.waitForTimeout(400);
+        check('ตรวจประเมิน: ยกเลิกข้อ "ต้องแก้ไข" → ถังขยะ ปุ่มกู้คืนบอกสถานะเดิม', (await text(p, '#rvTrash')).includes('กู้คืน (ต้องแก้ไข)'));
+        await p.click('#rvTrash [data-restore]'); await p.waitForTimeout(400);
+        check('ตรวจประเมิน: กู้คืน → กลับเป็น "ต้องแก้ไข"', await p.evaluate((i) => window.__db.item_status.find((x) => x.item_id === i && x.unit_id === 2)?.status === 'fix', a12));
+        await p.click('#rvUnits [data-u="3"]'); await p.waitForTimeout(200); }
       check('ตรวจประเมิน: รายการรอตรวจมีปุ่ม "ยกเลิกคำขอตรวจ" + ถังขยะด้านล่าง (ว่าง)', await visible(p, `#rv-${r4} [data-trash]`) && (await text(p, '#rvTrash')).includes('ไม่มีรายการ'));
       await p.click(`#rv-${r4} [data-trash]`); await p.waitForTimeout(400);
       let s4 = await st(r4);

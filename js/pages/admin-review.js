@@ -67,7 +67,7 @@ function renderUnit() {
     return head + `<div class="crit-item" id="rv-${it.id}"><span class="ci-no">${esc(it.item_no)}</span><span class="ci-text">${esc(it.body)}</span>`
       + (nAch ? `<span class="chip c-role" title="ผลงานที่แนบเป็นหลักฐาน">ผลงาน ${nAch}</span>` : '') + `<span class="chip ${cls}">${label}</span>`
       + (s === 'approved' || s === 'fix' ? undoBtn(it, 'ย้อนกลับ') : '')
-      + (s === 'submitted' ? trashBtn(it) : '')
+      + (s !== 'none' ? trashBtn(it) : '')
       + `<button type="button" class="btn btn-o btn-sm" data-open="${it.id}">${openId === it.id ? 'ปิด' : 'ตรวจ'}</button></div>` + (openId === it.id ? reviewBox(it) : '');
   }).join('');
   $('#rvBody').innerHTML = `<div class="panel"><div class="panel-head"><h2>รพ.สต. ${esc(u?.name || '')} · ปีงบ ${year}</h2><b class="num" style="font-size:20px">${cnt.approved}/${items.length} คะแนน</b></div>`
@@ -83,13 +83,13 @@ const trashBtn = (it) => `<button type="button" class="btn btn-no btn-sm" data-t
 function trashPanel() {
   const list = rows.filter((r) => r.unit_id === unit && r.trashed_at).sort((a, b) => b.trashed_at.localeCompare(a.trashed_at));
   return `<div class="panel"><h2>ถังขยะ · รายการขอตรวจที่ยกเลิก <span class="num muted">(${list.length})</span></h2>`
-    + `<p class="small muted">กู้คืนได้ภายใน ${KEEP_DAYS} วัน (กลับไปรอตรวจ) หลังจากนั้นระบบลบรายละเอียดและไฟล์ของคำขอนั้นให้เอง · รพ.สต. ส่งใหม่ได้ตลอด</p>`
+    + `<p class="small muted">กู้คืนได้ภายใน ${KEEP_DAYS} วัน (กลับเป็นสถานะเดิม) หลังจากนั้นระบบลบรายละเอียดและไฟล์ของคำขอนั้นให้เอง · รพ.สต. ส่งใหม่ได้ตลอด</p>`
     + '<div class="list" id="rvTrash">' + (list.length ? list.map((r) => {
       const it = items.find((x) => x.id === r.item_id);
       const left = Math.max(0, KEEP_DAYS - Math.floor((Date.now() - new Date(r.trashed_at)) / DAY));
       return `<div class="li"><div class="l"><b>ข้อ ${esc(it?.item_no || '')} ${esc(it?.body || '')}</b>`
         + `<span class="small muted">${r.submitter?.full_name ? `ส่งโดย ${esc(r.submitter.full_name)} · ` : ''}ยกเลิกเมื่อ ${esc(thaiDate(r.trashed_at))} · ไฟล์ ${(r.evidence_paths || []).length} · ลบถาวรในอีก ${left} วัน</span></div>`
-        + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-restore="${r.id}">กู้คืน (กลับไปรอตรวจ)</button><button type="button" class="btn btn-no btn-sm" data-purge="${r.id}">ลบถาวร</button></div></div>`;
+        + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-restore="${r.id}">กู้คืน (${ST[r.trashed_status || 'submitted'][0]})</button><button type="button" class="btn btn-no btn-sm" data-purge="${r.id}">ลบถาวร</button></div></div>`;
     }).join('') : '<p class="empty">ไม่มีรายการในถังขยะ</p>') + '</div></div>';
 }
 async function purgeExpired() {
@@ -134,7 +134,7 @@ function reviewBox(it) {
     + '<div class="review-actions">'
     + (s !== 'approved' ? `<button type="button" class="btn btn-ok btn-sm" data-set="approved" data-item="${it.id}">ผ่าน (1 คะแนน)</button>` : '')
     + (s !== 'fix' ? `<button type="button" class="btn btn-warn btn-sm" data-set="fix" data-item="${it.id}">ขอแก้ไข</button>` : '')
-    + (s === 'approved' ? undoBtn(it, 'ย้อนกลับ (ยกเลิกการให้ผ่าน)') : s === 'fix' ? undoBtn(it, 'ย้อนกลับ (ยกเลิกการขอแก้ไข)') : s === 'submitted' ? trashBtn(it) : '')
+    + (s === 'approved' ? undoBtn(it, 'ย้อนกลับ (ยกเลิกการให้ผ่าน)') : s === 'fix' ? undoBtn(it, 'ย้อนกลับ (ยกเลิกการขอแก้ไข)') : '') + (s !== 'none' ? trashBtn(it) : '')
     + '<span class="small" id="rvMsg" aria-live="polite"></span></div></div>';
 }
 
@@ -372,7 +372,7 @@ function bind() {
     const o = e.target.closest('[data-open]'); if (o) { const id = +o.dataset.open; openId = openId === id ? null : id; render(); return; }
     const s = e.target.closest('[data-set]'); if (s) { setStatus(+s.dataset.item, s.dataset.set, s); return; }
     const tr = e.target.closest('[data-trash]'); if (tr) { trashAct('trash_item_status', +tr.dataset.trash, tr, 'ยกเลิกคำขอตรวจแล้ว · ย้ายไปถังขยะ (กู้คืนได้ 30 วัน)'); return; }
-    const rt = e.target.closest('[data-restore]'); if (rt) { trashAct('restore_item_status', +rt.dataset.restore, rt, 'กู้คืนแล้ว · กลับไปรอตรวจ'); return; }
+    const rt = e.target.closest('[data-restore]'); if (rt) { trashAct('restore_item_status', +rt.dataset.restore, rt, 'กู้คืนแล้ว · กลับเป็นสถานะเดิม'); return; }
     const pg = e.target.closest('[data-purge]'); if (pg) { trashAct('purge_item_status', +pg.dataset.purge, pg, 'ลบถาวรแล้ว'); return; }
     const fl = e.target.closest('[data-file]'); if (fl) { try { await openPrivateFile(fl); } catch (err) { toast(errText(err), 'err'); } return; }
     const al = e.target.closest('[data-achlink]'); if (al) { openLightbox(al.dataset.achlink, al.dataset.title); return; }

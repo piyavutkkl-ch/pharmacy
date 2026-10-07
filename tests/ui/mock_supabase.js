@@ -295,7 +295,7 @@ function rpc(name, a = {}) {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
       if (!s) return err('ไม่พบรายการ', 'P0001');
       if (name === 'trash_item_status') {
-        if (s.status !== 'submitted') return err('ยกเลิกได้เฉพาะรายการที่รอตรวจ', 'P0001');
+        if (s.status === 'none') return err('ข้อนี้ยังไม่มีคำขอตรวจ', 'P0001');
         Object.assign(s, { trashed_status: s.status, status: 'none', trashed_at: now() }); return { data: null, error: null };
       }
       if (!s.trashed_at) return err('ไม่พบรายการในถังขยะ', 'P0001');

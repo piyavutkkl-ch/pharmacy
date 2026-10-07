@@ -1,7 +1,7 @@
 -- =====================================================================
 --  ขั้นที่ 46: ผู้ดูแลยกเลิกรายการขอตรวจ (หลักฐานเกณฑ์มาตรฐาน) → ถังขยะ เก็บ 30 วัน · รันซ้ำได้
 --   ยกเลิก = สถานะกลับเป็น "ยังไม่ส่ง" + จำไว้ใน trashed_at/trashed_status (รายละเอียด/ไฟล์ยังอยู่)
---   กู้คืน = กลับเป็นสถานะเดิม (รอตรวจ) · ลบถาวร (ครบ 30 วัน หรือกดเอง) = ล้างรายละเอียด/ไฟล์ของคำขอนั้น
+--   กู้คืน = กลับเป็นสถานะเดิม (รอตรวจ/ต้องแก้ไข/ผ่านแล้ว) · ลบถาวร (ครบ 30 วัน หรือกดเอง) = ล้างรายละเอียด/ไฟล์ของคำขอนั้น
 --   เจ้าหน้าที่ส่งใหม่ หรือผู้ดูแลตรวจข้อนั้น → ออกจากถังเอง
 -- =====================================================================
 
@@ -54,7 +54,7 @@ begin
   return new;
 end $$;
 
--- ยกเลิกรายการขอตรวจ (เฉพาะข้อที่รอตรวจ) → ถังขยะ
+-- ยกเลิกรายการขอตรวจ (รอตรวจ/ต้องแก้ไข/ผ่านแล้ว) → ถังขยะ · กู้คืนแล้วกลับเป็นสถานะเดิม
 create or replace function public.trash_item_status(p_id bigint)
 returns void language plpgsql security definer
 set search_path = ''
@@ -64,11 +64,11 @@ begin
   if not public.is_admin() then raise exception 'ไม่มีสิทธิ์' using errcode = '42501'; end if;
   select * into s from public.item_status where id = p_id;
   if not found then raise exception 'ไม่พบรายการ'; end if;
-  if s.status <> 'submitted' then raise exception 'ยกเลิกได้เฉพาะรายการที่รอตรวจ'; end if;
+  if s.status = 'none' then raise exception 'ข้อนี้ยังไม่มีคำขอตรวจ'; end if;
   update public.item_status set trashed_status = s.status, status = 'none', trashed_at = now(), updated_at = now() where id = p_id;
 end $$;
 
--- กู้คืนจากถังขยะ → สถานะเดิม (รอตรวจ)
+-- กู้คืนจากถังขยะ → สถานะเดิม
 create or replace function public.restore_item_status(p_id bigint)
 returns void language plpgsql security definer
 set search_path = ''

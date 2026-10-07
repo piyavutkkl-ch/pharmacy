@@ -281,8 +281,10 @@ function bind() {
       ptEdit = false; renderInfo(); return;
     }
     if (act === 'edit-patient') {
-      if (ptEdit) $('#ptEditFold').open = true; else { ptEdit = true; renderInfo(); }
-      $('#pfFirst').focus(); return;
+      if (!ptEdit) { ptEdit = true; renderInfo(); $('#pfFirst').focus(); return; }
+      const f = $('#ptEditFold'); f.open = !f.open;   // กดซ้ำ = ย่อ/ขยายฟอร์มแก้ไข
+      if (f.open) $('#pfFirst').focus();
+      return;
     }
     if (act === 'add-visit') { openVisitForm(null); return; }
     if (act === 'add-med') { $('#vMeds').insertAdjacentHTML('beforeend', medRow()); $('#vMeds .med-row:last-child .med-name').focus(); return; }
