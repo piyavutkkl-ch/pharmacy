@@ -465,7 +465,7 @@
               <div class="field full aq-tools" id="aqTools" hidden>
                 <details class="ai-fold" id="aqCheckFold">
                   <summary><span class="ai-fold-t">ตรวจกับความเข้าใจของฉัน</span><span class="small muted ai-fold-hint">AI เทียบประเด็นของคุณกับข่าวและ PDF ต้นฉบับ</span></summary>
-                  <p class="small muted">หลังอ่านบทความ (หรือทำแบบทดสอบของ CCPE) ด้วยตัวเองแล้ว พิมพ์ประเด็นที่คุณเข้าใจ บรรทัดละ 1 ประเด็น ด้วยคำของคุณเอง (ไม่ต้องพิมพ์ข้อสอบ) · ข้อความนี้ไม่ถูกบันทึกและไม่แสดงในข่าว</p>
+                  <p class="small muted">หลังอ่านบทความ (หรือทำแบบทดสอบของ CCPE) ด้วยตัวเองแล้ว พิมพ์ประเด็นที่คุณเข้าใจ บรรทัดละ 1 ประเด็น ด้วยคำของคุณเอง (ไม่ต้องพิมพ์ข้อสอบ) · ข้อความนี้ไม่ถูกบันทึกและไม่แสดงในข่าว · ถ้าจะตั้งคำถามพร้อมตัวเลือก ใช้ช่อง "พิมพ์คำถามพร้อมตัวเลือกเอง" ใน "แบบทดสอบสำหรับผู้อ่าน" ด้านล่าง</p>
                   <label for="aqNotes" class="sr-only">ประเด็นที่เข้าใจ</label>
                   <textarea id="aqNotes" rows="4" maxlength="3000" placeholder="เช่น ห้ามใช้ยานี้ในหญิงตั้งครรภ์&#10;ต้องติดตามค่าไตทุก 3 เดือน"></textarea>
                   <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="aqCheckBtn">ให้ AI ตรวจ</button></div>
@@ -474,6 +474,13 @@
                 <details class="ai-fold" id="aqQuizFold">
                   <summary><span class="ai-fold-t">แบบทดสอบสำหรับผู้อ่าน</span><span class="small vs-people-n" id="aqQuizN"></span></summary>
                   <p class="small muted">ตั้งคำถามและคำตอบที่ถูกเอง (ไม่ใช่ข้อสอบของสภาเภสัชกรรม) → AI ตรวจกับ PDF ลองตอบเอง และสร้างตัวเลือกที่ผิดให้ · แก้ได้ทุกช่อง · แสดงท้ายข่าวเมื่อเผยแพร่</p>
+                  <details class="aq-bulk" id="aqBulkFold">
+                    <summary>พิมพ์คำถามพร้อมตัวเลือกเอง (ใส่ (ถูก) ท้ายข้อที่ถูก)</summary>
+                    <p class="small muted">บรรทัดแรกเป็นคำถาม ตามด้วยตัวเลือกบรรทัดละข้อ (ขึ้นต้น ก. ข. ค. ง.) ใส่ <b>(ถูก)</b> ท้ายข้อที่ถูก · หลายข้อเว้นบรรทัดคั่น · กดเพิ่มแล้ว AI จะตรวจกับ PDF เรียบเรียงตัวเลือกให้อ่านง่ายขึ้น และแจ้งพร้อมเหตุผลถ้าคิดว่าเฉลยผิด</p>
+                    <label for="aqBulk" class="sr-only">คำถามพร้อมตัวเลือก</label>
+                    <textarea id="aqBulk" rows="6" maxlength="6000" placeholder="1. ยาสแตตินแบบทาอาจช่วยเรื่องใด&#10;ก. ลดไขมันในเลือด&#10;ข. ช่วยให้แผลหายเร็วขึ้น (ถูก)&#10;ค. รักษาสิวอักเสบ"></textarea>
+                    <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-o btn-sm" id="aqBulkAdd">เพิ่มเข้ารายการคำถาม</button><span class="small" id="aqBulkMsg" aria-live="polite"></span></div>
+                  </details>
                   <div class="aq-quiz" id="aqQuiz"></div>
                   <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="aqQuizAdd">+ เพิ่มคำถาม</button><button type="button" class="btn btn-o btn-sm" id="aqQuizBtn">ให้ AI ตรวจกับ PDF + สร้างตัวเลือก</button></div>
                   <div id="aqQuizOut" aria-live="polite"></div>

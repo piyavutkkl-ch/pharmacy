@@ -484,7 +484,8 @@ function rpc(name, a = {}) {
       if (!items.length) return err(quiz ? 'กรุณาพิมพ์คำถามและคำตอบที่ถูกอย่างน้อย 1 ข้อ' : 'กรุณาพิมพ์ประเด็นที่เข้าใจอย่างน้อย 1 บรรทัด', 'P0001');
       if (quiz && items.some((x) => !String(x.q || '').trim() || !String(x.a || '').trim())) return err('ทุกข้อต้องมีทั้งคำถามและคำตอบที่ถูก', 'P0001');
       const row = { id: newId('ai_news_checks'), user_id: ME.id, news_id: n.id, kind: quiz ? 'quiz' : 'notes', points: items.length, status: 'pending', result: null, note: null, created_at: now(), polls: 0,
-        _fake: quiz ? { pdf_read: true, items: items.map((x, i) => { const bad = /ผิด/.test(x.a); return { n: i + 1, ai_answer: bad ? 'คำตอบตามบทความ' : x.a, match: bad ? 'no' : 'yes', page: i + 2, explain: `บทความหน้า ${i + 2} อธิบายไว้`, distractors: ['ตัวเลือก ก', 'ตัวเลือก ข', 'ตัวเลือก ค'] }; }) }
+        _fake: quiz ? { pdf_read: true, items: items.map((x, i) => { const bad = /ผิด/.test(x.a); return { n: i + 1, ai_answer: bad ? 'คำตอบตามบทความ' : x.a, match: bad ? 'no' : 'yes', page: i + 2, explain: bad ? `บทความหน้า ${i + 2} เขียนต่างจากเฉลยนี้` : `บทความหน้า ${i + 2} อธิบายไว้`,
+            answer_rewrite: bad ? '' : x.a.replace(/\s+/g, ' ') + ' (เรียบเรียงแล้ว)', distractors: [...(x.w || []).map((w) => w + ' (เรียบเรียง)'), 'ตัวเลือก ก', 'ตัวเลือก ข', 'ตัวเลือก ค'].slice(0, 3) }; }) }
           : { pdf_read: true, items: items.map((_, i) => ({ n: i + 1, verdict: i === items.length - 1 && items.length > 1 ? 'missing' : 'correct', page: i + 2, explain: 'ตรงกับบทความ', fix: i === items.length - 1 && items.length > 1 ? 'ประเด็นนี้ควรเพิ่มในข่าว' : '' })),
               summary: 'ข่าวถูกต้องเป็นส่วนใหญ่ ขาด 1 ประเด็น', body: String(a.p_body || n.body) + '\nใจความสำคัญจากบทความ\n• ประเด็นที่เพิ่มจาก PDF (หน้า 2)' } };
       (db.ai_news_checks ||= []).push(row); return { data: row.id, error: null };

@@ -92,7 +92,9 @@ begin
   if n.id is null then raise exception 'ไม่พบข่าวนี้'; end if;
   if coalesce(n.source_file_url, '') !~ '^https://' then raise exception 'ข่าวนี้ไม่มีไฟล์ PDF ต้นฉบับให้ตรวจเทียบ'; end if;
   if jsonb_typeof(p_items) <> 'array' then raise exception 'รูปแบบคำถามไม่ถูกต้อง'; end if;
-  select count(*), string_agg(format('%s. คำถาม: %s%sคำตอบของผู้ตั้งคำถาม: %s', i, left(btrim(e->>'q'), 300), E'\n   ', left(btrim(e->>'a'), 200)), E'\n' order by i)
+  select count(*), string_agg(format('%s. คำถาม: %s%sคำตอบของผู้ตั้งคำถาม: %s%s', i, left(btrim(e->>'q'), 300), E'\n   ', left(btrim(e->>'a'), 200),
+           coalesce(E'\n   ตัวเลือกที่ผิดที่ผู้ตั้งคำถามร่างไว้: ' || (select string_agg(left(btrim(w), 200), ' | ') from jsonb_array_elements_text(case when jsonb_typeof(e->'w') = 'array' then e->'w' else '[]' end) w where btrim(w) <> ''), '')),
+         E'\n' order by i)
     into cnt, qs
     from jsonb_array_elements(p_items) with ordinality t(e, i)
    where btrim(coalesce(e->>'q', '')) <> '' and btrim(coalesce(e->>'a', '')) <> '';
@@ -114,9 +116,11 @@ begin
     || '1) ai_answer = ลองตอบคำถามเองจากบทความเท่านั้น (สั้น ๆ) ก่อนดูคำตอบของผู้ตั้ง' || E'\n'
     || '2) match = "yes" ถ้าคำตอบของผู้ตั้งถูกต้องตามบทความ · "no" ถ้าบทความเขียนต่างออกไป · "not_found" ถ้าบทความไม่มีข้อมูลนี้ · page = เลขหน้าที่ใช้ตอบ' || E'\n'
     || '3) explain = คำอธิบายสั้นสำหรับผู้อ่าน ภาษาเข้าใจง่าย อ้างจากบทความ (ไม่เกิน 2 ประโยค)' || E'\n'
-    || '4) distractors = ตัวเลือกที่ผิด 3 ข้อ ความยาวและรูปแบบใกล้เคียงคำตอบที่ถูก ฟังดูเป็นไปได้ แต่ผิดชัดเจนตามบทความ (ห้ามกำกวม ห้ามถูกบางส่วน ห้ามซ้ำกัน)' || E'\n'
+    || '4) answer_rewrite = คำตอบของผู้ตั้งคำถามที่เรียบเรียงให้อ่านง่ายขึ้น (ความหมายเดิม ห้ามเปลี่ยนสาระ) · ถ้า match ไม่ใช่ "yes" ให้ explain บอกเหตุผลว่าทำไมคิดว่าเฉลยผิด (บทความเขียนว่าอะไร หน้าไหน)' || E'\n'
+    || '5) distractors = ตัวเลือกที่ผิด 3 ข้อ: ถ้าผู้ตั้งคำถามร่างไว้แล้ว ให้ใช้ของเขาเป็นหลัก (เรียงตามเดิม เรียบเรียงให้อ่านง่ายขึ้นได้ ความหมายเดิม) แล้วค่อยแต่งเพิ่มให้ครบ 3 ข้อ · ถ้าตัวเลือกที่เขาร่างไว้ข้อไหนจริง ๆ แล้วถูกตามบทความ ให้บอกใน explain'
+    || ' · ตัวเลือกที่ผิดต้องความยาว/รูปแบบใกล้เคียงคำตอบที่ถูก ฟังดูเป็นไปได้ แต่ผิดชัดเจนตามบทความ (ห้ามกำกวม ห้ามถูกบางส่วน ห้ามซ้ำกัน)' || E'\n'
     || 'ถ้าเปิดอ่าน PDF ไม่ได้ ให้ pdf_read=false และ items ว่าง' || E'\n'
-    || 'ตอบเป็น JSON เท่านั้น: {"pdf_read": true, "items": [{"n": <เลขข้อ>, "ai_answer": "...", "match": "yes|no|not_found", "page": <เลขหน้าหรือ null>, "explain": "...", "distractors": ["...", "...", "..."]}]}' || E'\n\n'
+    || 'ตอบเป็น JSON เท่านั้น: {"pdf_read": true, "items": [{"n": <เลขข้อ>, "ai_answer": "...", "match": "yes|no|not_found", "page": <เลขหน้าหรือ null>, "explain": "...", "answer_rewrite": "...", "distractors": ["...", "...", "..."]}]}' || E'\n\n'
     || 'หัวข้อข่าว: ' || n.title || E'\n' || qs;
   model := coalesce((select nullif(btrim(t.body), '') from public.site_texts t where t.key = 'ai_match_model'), 'gemini-flash-latest');
   req := net.http_post(
@@ -157,6 +161,7 @@ begin
                      'match', case when e->>'match' in ('yes', 'no', 'not_found') then e->>'match' else 'not_found' end,
                      'page', case when e->>'page' ~ '^\d{1,4}$' then (e->>'page')::int end,
                      'explain', left(coalesce(e->>'explain', ''), 600),
+                     'answer_rewrite', left(coalesce(e->>'answer_rewrite', ''), 200),
                      'distractors', coalesce((select jsonb_agg(left(btrim(d), 200)) from jsonb_array_elements_text(case when jsonb_typeof(e->'distractors') = 'array' then e->'distractors' else '[]' end) d where btrim(d) <> ''), '[]'))
                      order by (e->>'n')::int), '[]')
               into items from jsonb_array_elements(coalesce(j->'items', '[]')) e where e->>'n' ~ '^\d{1,2}$' and (e->>'n')::int between 1 and r.points;

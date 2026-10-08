@@ -499,7 +499,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       { const qa = (await calls(p, (x) => x.rpc === 'ai_news_quiz_start'))[0]?.args || {};
         check('แบบทดสอบ: AI ตรวจคำถาม/คำตอบของผู้ดูแลกับ PDF + ลองตอบ → ข้อที่ไม่ตรงขึ้นเตือนให้แก้เอง', qa.p_items?.length === 2 && qa.p_items[1].a === 'ผิด ควรบดเอง'
           && await count(p, '#aqQuiz .aq-ai .aq-ok') === 1 && await count(p, '#aqQuiz .aq-ai .aq-bad') === 1 && (await text(p, '#aqQuiz')).includes('AI ลองตอบจาก PDF') && (await text(p, '#aqQuizOut')).includes('1 ข้อ'), JSON.stringify(qa)); }
-      check('แบบทดสอบ: AI สร้างตัวเลือกที่ผิดให้ช่องที่ว่าง (ของเดิมที่ตั้งไว้ไม่ถูกทับ)', (await p.inputValue('#aqQuiz [data-i="1"][data-w="0"]')) === 'ตัวเลือก ก' && (await p.inputValue('#aqQuiz [data-i="0"][data-w="0"]')) === 'ลดไขมันในเลือดได้ทันที');
+      check('แบบทดสอบ: AI สร้างตัวเลือกที่ผิดให้ช่องที่ว่าง + เรียบเรียงตัวเลือก/เฉลยที่ผู้ดูแลร่างให้อ่านง่ายขึ้น', (await p.inputValue('#aqQuiz [data-i="1"][data-w="0"]')) === 'ตัวเลือก ก'
+        && (await p.inputValue('#aqQuiz [data-i="0"][data-w="0"]')) === 'ลดไขมันในเลือดได้ทันที (เรียบเรียง)' && (await p.inputValue('#aqQuiz [data-i="0"][data-k="a"]')) === 'ช่วยให้แผลหายเร็วขึ้น (เรียบเรียงแล้ว)');
+      check('แบบทดสอบ: เฉลยไม่ตรงกับ PDF → แจ้งพร้อมเหตุผล + เฉลยเดิมไม่ถูกเปลี่ยน', (await text(p, '#aqQuiz .aq-q:nth-child(2) .aq-ai')).includes('เหตุผล:') && (await p.inputValue('#aqQuiz [data-i="1"][data-k="a"]')) === 'ผิด ควรบดเอง');
+      await p.click('#aqBulkFold > summary');
+      await p.fill('#aqBulk', '1. แผลแบบใดที่บทความศึกษา\nก. แผลเบาหวาน\nข. แผลไฟไหม้'); await p.click('#aqBulkAdd');
+      check('พิมพ์คำถามพร้อมตัวเลือกเอง: ไม่ได้ใส่ (ถูก) → แจ้งให้ใส่', (await text(p, '#aqBulkMsg')).includes('(ถูก)') && await count(p, '#aqQuiz .aq-q') === 2);
+      await p.fill('#aqBulk', '1. แผลแบบใดที่บทความศึกษา\nก. แผลเบาหวาน (ถูก)\nข. แผลไฟไหม้\nค. แผลผ่าตัด\n\n2. ควรทายาวันละกี่ครั้ง\nก) วันละครั้ง\nข) ตามแพทย์สั่ง (ถูก)'); await p.click('#aqBulkAdd');
+      check('พิมพ์คำถามพร้อมตัวเลือกเอง: แยกเป็นคำถาม/เฉลย/ตัวเลือกผิด เข้ารายการ (2 ข้อ)', await count(p, '#aqQuiz .aq-q') === 4 && (await p.inputValue('#aqQuiz [data-i="2"][data-k="a"]')) === 'แผลเบาหวาน'
+        && (await p.inputValue('#aqQuiz [data-i="2"][data-w="1"]')) === 'แผลผ่าตัด' && (await p.inputValue('#aqQuiz [data-i="3"][data-k="q"]')) === 'ควรทายาวันละกี่ครั้ง' && (await p.inputValue('#aqQuiz [data-i="3"][data-k="a"]')) === 'ตามแพทย์สั่ง');
+      await (await p.$('#aqQuizFold')).screenshot({ path: path.join(SHOTS, 'admin-news-quiz-bulk.png') });
+      await p.click('#aqQuiz [data-rmq="3"]'); await p.click('#aqQuiz [data-rmq="2"]'); await p.waitForTimeout(100);
       await p.fill('#aqQuiz [data-i="1"][data-k="a"]', 'ไม่ควร ให้ใช้ยาตามแพทย์สั่ง');
       check('แบบทดสอบ: แก้คำตอบแล้วผลตรวจเดิมหายไป (ต้องตรวจใหม่)', await count(p, '#aqQuiz .aq-ai .aq-bad') === 0);
       await (await p.$('#aqQuizFold')).screenshot({ path: path.join(SHOTS, 'admin-news-quiz.png') });
@@ -528,7 +538,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('หน้าอ่านข่าว AI: ป้าย "สรุปโดย AI" + ภาพเพิ่ม 2 ภาพ + อ้างอิงบทความต้นฉบับ + ปุ่มดาวน์โหลด PDF ต้นฉบับ', await visible(p, '#arAi') && await count(p, '#arCover .car-slide .cover') === 3 && (await text(p, '#arCover .car-n')) === '1/3' && (await p.getAttribute('#arSource a', 'href')).includes('ccpe.pharmacycouncil.org') && await visible(p, '#arFile .file-link') && (await p.getAttribute('#arFile a', 'href')).endsWith('showfile.php?file=1876') && (await p.getAttribute('#arFile a', 'target')) === '_blank');
       await p.screenshot({ path: path.join(SHOTS, 'ai-news-article-1280.png'), fullPage: true });
       check('หน้าอ่านข่าว: แบบทดสอบท้ายข่าว 2 ข้อ (ตัวเลือก 4 ตัว)', await visible(p, '#arQuiz') && await count(p, '#arQuiz .rq') === 2 && await count(p, '#arQuiz .rq:first-of-type .rq-opt') === 4);
-      await p.click('#arQuiz .rq[data-q="0"] .rq-opt:text-is("ช่วยให้แผลหายเร็วขึ้น")'); await p.waitForTimeout(100);
+      await p.click('#arQuiz .rq[data-q="0"] .rq-opt:text-is("ช่วยให้แผลหายเร็วขึ้น (เรียบเรียงแล้ว)")'); await p.waitForTimeout(100);
       await p.click('#arQuiz .rq[data-q="1"] .rq-opt:text-is("ตัวเลือก ก")'); await p.waitForTimeout(100);
       check('หน้าอ่านข่าว: กดตอบแล้วรู้ผลทันที (ถูก/ผิด + เฉลย + คำอธิบาย + หน้า) + คะแนนรวม', (await text(p, '#arQuiz .rq[data-q="0"] .rq-res')).includes('ถูกต้อง') && (await text(p, '#arQuiz .rq[data-q="1"] .rq-res')).includes('ไม่ควร ให้ใช้ยาตามแพทย์สั่ง')
         && await count(p, '#arQuiz .rq-opt.right') === 2 && await count(p, '#arQuiz .rq-opt.wrong') === 1 && (await text(p, '#arQuiz .rq-score')).includes('1 จาก 2'));
