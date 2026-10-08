@@ -772,5 +772,18 @@ run(f"update news set status='published' where id='{nid}'")
 check("news_quiz: readers see it once news is published", "anon", f"select count(*) from news_quiz where news_id='{nid}'", eq(1))
 check("news_quiz: anon cannot change", "anon", f"update news_quiz set answer='x' where news_id='{nid}' returning id", "deny")
 
+print("== step 47: AI readiness (pg_net queue privileges) ==")
+ITEM2 = '[{"q":"ยานี้ใช้รักษาอะไร","a":"แผลเบาหวาน","w":["แผลไฟไหม้"]}]'
+check("ai_key() not callable from the web", "admin", "select public.ai_key()", "deny")
+check("migration revoked web access to the pg_net queue", None, "select (has_table_privilege('authenticated','net.http_request_queue','select') or has_table_privilege('anon','net.http_request_queue','select'))::text", eq("false"))
+run("grant select on net.http_request_queue to authenticated")
+check("queue readable but schema net NOT exposed via API → AI still works", "admin", f"select ai_news_quiz_start('{nid}', '{ITEM2}')", lambda o: o.strip().isdigit())
+check("AI match also works in that case", "admin", "select ai_match_start('มีคำสั่งแต่งตั้งคณะกรรมการเภสัชกรรมและการบำบัดระดับอำเภอ')", lambda o: o.strip().isdigit())
+run("do $$ begin if not exists (select 1 from pg_roles where rolname='authenticator') then create role authenticator noinherit; end if; end $$")
+run("alter role authenticator set pgrst.db_schemas = 'public, graphql_public, net'")
+ok_, out_ = run(f"select ai_news_quiz_start('{nid}', '{ITEM2}')", "admin")
+check("schema net exposed via API + queue readable → refuse (key would leak) with clear reason", None, "select 1", lambda o: not ok_ and 'schema net' in out_)
+run("alter role authenticator reset pgrst.db_schemas"); run("revoke select on net.http_request_queue from authenticated")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
