@@ -119,6 +119,9 @@ function renderNav() {
   } else {
     nav.innerHTML = '<a href="#/" data-route="home">หน้าหลัก</a><a href="#/login" class="cta" data-route="login">เข้าสู่ระบบ</a>';
   }
+  // ปุ่ม "แชทสอบถามเรื่องยา" หน้าแรก: ผู้ดูแล/เจ้าหน้าที่ = ไปหน้า "ข้อความ" ในระบบงาน · ประชาชน/ไม่ล็อกอิน = แชทถาม รพ.สต.
+  const role = auth.session && auth.profile?.role;
+  $('#homeChatLink').setAttribute('href', role === 'admin' ? '#/admin/messages' : role === 'staff' ? '#/staff/messages' : '#/me');
   setNavCurrent((location.hash.replace(/^#\/?/, '').split('/')[0]) || 'home');
 }
 function setNavCurrent(r) {

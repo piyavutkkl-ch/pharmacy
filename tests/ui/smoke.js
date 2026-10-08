@@ -177,6 +177,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     /* ================= แชทแบบไม่ต้องล็อกอิน ================= */
     p = await open(null, '', 390, 844);
     check('หน้าแรก: ปุ่มแชทสอบถามเรื่องยา (ไม่ต้องล็อกอิน)', (await p.getAttribute('#homeChatLink', 'href')) === '#/me');
+    { const q = await open('admin', '#/'); await q.waitForTimeout(400);
+      check('หน้าแรก (ผู้ดูแล): ปุ่มแชทสอบถามเรื่องยา → หน้าข้อความของผู้ดูแล', (await q.getAttribute('#homeChatLink', 'href')) === '#/admin/messages');
+      await q.click('#homeChatLink'); await q.waitForTimeout(500);
+      check('หน้าแรก (ผู้ดูแล): กดแล้วเปิดกล่องข้อความ', (await q.evaluate(() => location.hash)) === '#/admin/messages' && await visible(q, '[data-admin-view="messages"]'));
+      await q.close(); }
+    { const q = await open('staff', '#/'); await q.waitForTimeout(400);
+      check('หน้าแรก (เจ้าหน้าที่): ปุ่มแชทสอบถามเรื่องยา → หน้าข้อความของเจ้าหน้าที่', (await q.getAttribute('#homeChatLink', 'href')) === '#/staff/messages');
+      await q.close(); }
     await go(p, '#/me'); await p.waitForTimeout(400);
     check('แชทไม่ล็อกอิน: เปิดได้ + ช่องชื่อเล่น + ซ่อนข้อมูลส่วนตัว/ปุ่มแนบรูป', await visible(p, '#meGuest') && await visible(p, '#meGuestName') && !(await visible(p, '#meForm')) && !(await visible(p, '#meAttach')) && !(await visible(p, '#srPanel')) && await overflow(p) <= 0);
     await p.fill('#meInput', 'สวัสดีค่ะ'); await p.click('#meSend'); await p.waitForTimeout(200);
@@ -313,6 +321,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผลการดำเนินงาน: กรอบโปสเตอร์ 10:7 แสดงภาพสรุปผลงานเยี่ยมบ้าน (กดไปหน้าอ่านได้)', r.poster && r.img && Math.abs(r.ratio - 10 / 7) < 0.05 && r.href.startsWith('#/summary/'), JSON.stringify(r)); }
     check('ผลการดำเนินงาน: โปสเตอร์สรุปผลงานแสดงวันที่', /25\d\d/.test(await text(p, '#trackArt .sp-slide.on .sp-date')));
     await p.screenshot({ path: path.join(SHOTS, 'tracking-poster-1280.png') });
+    { const n0 = await text(p, '#trackArt .sp-count'), tot = n0.split('/')[1];
+      await p.click('#trackArt .sp-next'); await p.waitForTimeout(150);
+      const n1 = await text(p, '#trackArt .sp-count');
+      await p.click('#trackArt .sp-prev'); await p.waitForTimeout(150);
+      check('ผลการดำเนินงาน: โปสเตอร์สรุปผลงานกด ‹ › เลือกดูภาพได้เอง (ปุ่มสูง ≥ 44px)', n0 === `1/${tot}` && n1 === `2/${tot}` && (await text(p, '#trackArt .sp-count')) === `1/${tot}` && await p.$eval('#trackArt .sp-next', (b) => b.getBoundingClientRect().height >= 44), `${n0} ${n1}`); }
     await p.click('#trackArt .sp-slide.on'); await p.waitForTimeout(400);
     check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + ภาพเพิ่ม + รายละเอียด)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await count(p, '#smCover .car-slide .cover') === 2);
     check('สรุปผลงาน: หลายภาพแสดงแบบเลื่อนซ้าย-ขวา (ปุ่ม ‹ › + ตัวนับ 1/2) ไม่เรียงยาวลงมา', (await text(p, '#smCover .car-n')) === '1/2' && await p.$eval('#smCover .car-track', (t) => t.scrollWidth > t.clientWidth && t.getBoundingClientRect().height < 1200) && await p.isDisabled('#smCover .prev'));

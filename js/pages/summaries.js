@@ -60,17 +60,28 @@ export function renderSummaryPoster(box, list, fallback) {
   box.innerHTML = list.map((s, i) => `<a class="sp-slide${i ? '' : ' on'}" href="#/summary/${s.id}" aria-label="${esc(s.title)} — ${esc(label(s))} · ${esc(dateOf(s))}"${i ? ' tabindex="-1"' : ''}>`
     + `<span class="sp-bg" style="background-image:url('${esc(publicImageUrl(s.image_path))}')"></span><img src="${esc(publicImageUrl(s.image_path))}" alt="${esc(s.title)}" loading="lazy">`
     + `<span class="sp-date num">${esc(dateOf(s))}</span></a>`).join('')
-    + (list.length > 1 ? `<span class="sp-count num" aria-live="polite">1/${list.length}</span>` : '');
-  if (list.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    + (list.length > 1 ? `<span class="sp-count num" aria-live="polite">1/${list.length}</span>`
+      + '<button type="button" class="car-btn sp-prev" aria-label="ภาพก่อนหน้า">‹</button><button type="button" class="car-btn sp-next" aria-label="ภาพถัดไป">›</button>' : '');
+  if (list.length < 2) return;
   let i = 0;
-  posterTimer = setInterval(() => {
-    if (!box.isConnected || box.closest('[hidden]')) { clearInterval(posterTimer); return; }
+  const show = (n) => {   // กด ‹ › หรือเปลี่ยนเองทุก 5 วินาที (วนรอบ)
     const slides = box.querySelectorAll('.sp-slide');
     slides[i].classList.remove('on'); slides[i].tabIndex = -1;
-    i = (i + 1) % slides.length;
+    i = (n + slides.length) % slides.length;
     slides[i].classList.add('on'); slides[i].removeAttribute('tabindex');
     box.querySelector('.sp-count').textContent = `${i + 1}/${slides.length}`;
-  }, 5000);
+  };
+  const auto = () => {
+    clearInterval(posterTimer); posterTimer = null;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    posterTimer = setInterval(() => {
+      if (!box.isConnected || box.closest('[hidden]')) { clearInterval(posterTimer); return; }
+      show(i + 1);
+    }, 5000);
+  };
+  box.querySelector('.sp-prev').addEventListener('click', () => { show(i - 1); auto(); });   // กดเองแล้วเริ่มนับเวลาใหม่
+  box.querySelector('.sp-next').addEventListener('click', () => { show(i + 1); auto(); });
+  auto();
 }
 
 /* ======================= หน้าอ่าน #/summary/<id> ======================= */
