@@ -1,13 +1,9 @@
 -- =====================================================================
---  ขั้นที่ 47: ผู้ดูแล "ตรวจข่าว AI กับความเข้าใจของฉัน" — รันต่อจาก 46 · รันซ้ำได้ · เพิ่มอย่างเดียว
---   ผู้ดูแลอ่านบทความ/ทำแบบทดสอบ CCPE ด้วยตัวเองก่อน แล้วพิมพ์ประเด็นที่เข้าใจ (บรรทัดละ 1 ประเด็น · คำของตัวเอง)
---   → ฐานข้อมูลเรียก Gemini (ฟรี · pg_net · คีย์ใน Vault เหมือน 37_ai_match.sql) ให้อ่าน PDF ต้นฉบับจากลิงก์ (url_context)
---     เทียบ ประเด็น ↔ ข่าว ↔ PDF ทีละข้อ (ถูก/ผิด/ไม่ได้พูดถึง + หน้า) และร่างข่าวฉบับแก้จาก PDF
---   ข้อความที่ผู้ดูแลพิมพ์ "ไม่ถูกเก็บ" ในตารางนี้ (เก็บแค่จำนวนประเด็น + ผลตรวจที่ตัดข้อความประเด็นออกแล้ว) · ไม่แสดงในข่าว
---   ai_news_checks อ่านได้เฉพาะผู้ดูแล · เขียนผ่านฟังก์ชันเท่านั้น · ผู้ดูแลคนละ 30 ครั้ง/วัน
---   + แบบทดสอบสำหรับผู้อ่าน (news_quiz · ไม่ใช่ข้อสอบของสภาเภสัชกรรม): ผู้ดูแลตั้งคำถาม + คำตอบที่ถูกเอง
---     → ai_news_quiz_start: AI อ่าน PDF แล้วลองตอบเอง · บอกว่าคำตอบของผู้ดูแลตรงกับ PDF ไหม (หน้า) · สร้างตัวเลือกหลอก 3 ข้อ
---     → ผู้ดูแลแก้/ยืนยัน → บันทึกลง news_quiz → แสดงท้ายข่าวที่เผยแพร่ (ผู้อ่านกดตอบ รู้ผล + คำอธิบาย)
+--  ขั้นที่ 47: แบบทดสอบท้ายข่าวสำหรับผู้อ่าน (ข่าวช่อง AI) — รันต่อจาก 46 · รันซ้ำได้ · เพิ่มอย่างเดียว
+--   news_quiz: ผู้ดูแลตั้งคำถาม + เฉลยเอง (ไม่ใช่ข้อสอบของสภาเภสัชกรรม) → แสดงท้ายข่าวที่เผยแพร่ (ผู้อ่านกดตอบ รู้ผล + คำอธิบาย)
+--   ai_news_quiz_start/poll: ฐานข้อมูลเรียก Gemini (ฟรี · pg_net · คีย์ใน Vault เหมือน 37_ai_match.sql) ให้อ่านบทความต้นฉบับ
+--     แล้วลองตอบเอง · บอกว่าเฉลยของผู้ดูแลตรงกับบทความไหม (หน้า + เหตุผล) · เรียบเรียง/เติมตัวเลือกที่ผิดให้ครบ 3 ข้อ
+--   ai_news_checks = คำขอ/ผลของ AI · อ่านได้เฉพาะผู้ดูแล · เขียนผ่านฟังก์ชันเท่านั้น · ผู้ดูแลคนละ 30 ครั้ง/วัน
 --   + news_sources: ข้อความที่ถอดจาก PDF ต้นฉบับ (ช่อง AI ถอดเก็บไว้ตอนสร้างข่าว · tools/ai_news/run.mjs) — อ่านได้เฉพาะผู้ดูแล
 --     มีข้อความแล้ว = ส่งข้อความให้ AI ตรวจเลย (เร็ว ไม่ต้องเปิด PDF ซ้ำ) · ยังไม่มี = ให้ AI เปิดอ่าน PDF จากลิงก์ (url_context)
 -- =====================================================================
@@ -48,12 +44,11 @@ create table if not exists public.ai_news_checks (
   id          bigint generated always as identity primary key,
   user_id     uuid default auth.uid() references public.profiles(id) on delete set null,
   news_id     uuid not null references public.news(id) on delete cascade,
-  kind        text not null default 'notes' check (kind in ('notes', 'quiz')),
+  kind        text not null default 'quiz' check (kind in ('quiz')),
   points      smallint not null,
   request_id  bigint,
   status      text not null default 'pending' check (status in ('pending', 'done', 'error')),
-  result      jsonb,   -- notes: {pdf_read, summary, body, items:[{n, verdict, page, explain, fix}]} (ไม่มีข้อความประเด็นของผู้ดูแล)
-                       -- quiz:  {pdf_read, items:[{n, ai_answer, match, page, explain, distractors[]}]}
+  result      jsonb,                       -- quiz:  {pdf_read, items:[{n, ai_answer, match, page, explain, distractors[]}]}
   note        text,
   created_at  timestamptz not null default now(),
   done_at     timestamptz
@@ -66,54 +61,6 @@ create policy anc_read on public.ai_news_checks for select to authenticated usin
 revoke all on public.ai_news_checks from anon, authenticated;
 grant select on public.ai_news_checks to authenticated;
 grant all on public.ai_news_checks to service_role;
-
-/** เริ่มตรวจ (ผู้ดูแล) → id · p_body = เนื้อข่าวที่กำลังแก้ในกล่องตรวจ (ยังไม่บันทึกก็ได้) · p_notes = ประเด็นบรรทัดละข้อ (ไม่เก็บ) */
-create or replace function public.ai_news_check_start(p_news uuid, p_notes text, p_body text default null)
-returns bigint language plpgsql security definer
-set search_path = ''
-as $$
-declare n public.news; k text; model text; prompt text; req bigint; new_id bigint; lines text[]; pts int; ev record;
-begin
-  if not public.is_admin() then raise exception 'ไม่มีสิทธิ์'; end if;
-  select * into n from public.news where id = p_news;
-  if n.id is null then raise exception 'ไม่พบข่าวนี้'; end if;
-  if coalesce(n.source_file_url, '') !~ '^https://' then raise exception 'ข่าวนี้ไม่มีไฟล์ PDF ต้นฉบับให้ตรวจเทียบ'; end if;
-  select array_agg(l) into lines from (select left(btrim(x), 300) l from regexp_split_to_table(coalesce(p_notes, ''), E'\n') x where btrim(x) <> '' limit 15) t;
-  pts := coalesce(array_length(lines, 1), 0);
-  if pts = 0 then raise exception 'กรุณาพิมพ์ประเด็นที่เข้าใจอย่างน้อย 1 บรรทัด'; end if;
-  p_body := left(coalesce(nullif(btrim(p_body), ''), n.body), 20000);
-  if (select count(*) from public.ai_news_checks c where c.user_id = auth.uid() and c.created_at > now() - interval '1 day') >= 30 then
-    raise exception 'ใช้ AI ตรวจข่าวครบ 30 ครั้งของวันนี้แล้ว กรุณาลองใหม่พรุ่งนี้';
-  end if;
-  if to_regclass('net.http_request_queue') is null or has_table_privilege('authenticated', 'net.http_request_queue', 'select')
-     or has_table_privilege('anon', 'net.http_request_queue', 'select') then
-    raise exception 'ระบบ AI ยังไม่พร้อมใช้งาน';
-  end if;
-  select s.decrypted_secret into k from vault.decrypted_secrets s where s.name = 'gemini_api_key' limit 1;
-  if coalesce(k, '') = '' then raise exception 'ระบบ AI ยังไม่พร้อมใช้งาน (ยังไม่ได้ตั้งคีย์)'; end if;
-
-  select * into ev from public.ai_news_evidence(n.id, n.source_file_url);
-  prompt := 'คุณเป็นเภสัชกรผู้ตรวจข่าวความรู้เรื่องยาก่อนเผยแพร่ ' || ev.intro
-    || 'ด้านล่างมี "ประเด็นที่ผู้ตรวจเข้าใจ" (เภสัชกรอ่านบทความมาแล้ว · มีเลขข้อ) และ "ข่าว"' || E'\n'
-    || 'ทำทีละประเด็น: (1) หาในบทความว่าประเด็นนี้ถูกต้องตามบทความไหม ระบุเลขหน้า (2) ดูว่าข่าวเขียนเรื่องนี้ถูก ผิด หรือไม่ได้พูดถึง' || E'\n'
-    || 'verdict: "correct" = ข่าวเขียนถูกตามบทความ · "wrong" = ข่าวเขียนไม่ตรงบทความ · "missing" = ข่าวไม่ได้พูดถึง · "unsupported" = บทความไม่ได้เขียนแบบที่ผู้ตรวจเข้าใจ (บอกว่าบทความเขียนว่าอะไร)' || E'\n'
-    || 'explain = เหตุผลสั้น ๆ ภาษาไทยอ้างจากบทความ · fix = ข้อความที่ควรใช้ในข่าว (เขียนจากบทความ ด้วยภาษาที่ประชาชนเข้าใจ) หรือ "" ถ้าไม่ต้องแก้' || E'\n'
-    || 'แล้วร่าง body = ข่าวทั้งฉบับที่แก้แล้ว: คงโครงและบรรทัดเดิม แก้เฉพาะจุดที่ผิด · ประเด็นที่ขาดให้เพิ่มในหัวข้อ "ใจความสำคัญจากบทความ" (บรรทัดละข้อ ขึ้นต้น "• " ท้ายข้อใส่ (หน้า n)) วางก่อนบรรทัด "ข้อควรรู้" · คงบรรทัดหมายเหตุ AI ท้ายข่าว' || E'\n'
-    || 'ห้ามคัดลอกถ้อยคำของผู้ตรวจลงข่าว ห้ามเขียนเป็นคำถาม-คำตอบ ทุกข้อความต้องมาจากบทความ ห้ามเดา · ถ้าเปิดอ่าน PDF ไม่ได้ ให้ pdf_read=false และ items ว่าง' || E'\n'
-    || 'ตอบเป็น JSON เท่านั้น: {"pdf_read": true, "items": [{"n": <เลขข้อ>, "verdict": "correct|wrong|missing|unsupported", "page": <เลขหน้าหรือ null>, "explain": "...", "fix": "..."}], "summary": "สรุป 1-2 ประโยค", "body": "ข่าวฉบับแก้"}' || E'\n\n'
-    || 'ประเด็นที่ผู้ตรวจเข้าใจ:' || E'\n' || (select string_agg(i || '. ' || lines[i], E'\n') from generate_subscripts(lines, 1) i) || E'\n\n'
-    || 'ข่าว (หัวข้อ: ' || n.title || '):' || E'\n' || p_body;
-  model := coalesce((select nullif(btrim(t.body), '') from public.site_texts t where t.key = 'ai_match_model'), 'gemini-flash-latest');
-  req := net.http_post(
-    url := 'https://generativelanguage.googleapis.com/v1beta/models/' || model || ':generateContent',
-    body := jsonb_build_object('contents', jsonb_build_array(jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', prompt)))),
-                               'generationConfig', jsonb_build_object('temperature', 0))
-            || case when ev.tools is null then '{}'::jsonb else jsonb_build_object('tools', ev.tools) end,   -- มีข้อความ PDF ในระบบ = ไม่ต้องให้ AI เปิดลิงก์
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-goog-api-key', k),
-    timeout_milliseconds := 180000);
-  insert into public.ai_news_checks (user_id, news_id, points, request_id) values (auth.uid(), n.id, pts, req) returning id into new_id;
-  return new_id;
-end $$;
 
 /** แบบทดสอบสำหรับผู้อ่าน: p_items = [{"q": คำถาม, "a": คำตอบที่ถูก}] (1–10 ข้อ) → AI ตรวจกับ PDF + ลองตอบ + สร้างตัวเลือกหลอก */
 create or replace function public.ai_news_quiz_start(p_news uuid, p_items jsonb)
@@ -191,7 +138,7 @@ begin
           j := substring(txt from position('{' in txt) for length(txt) - position('{' in txt) - position('}' in reverse(txt)) + 2)::jsonb;
           if not coalesce((j->>'pdf_read')::boolean, true) then
             update public.ai_news_checks set status = 'error', note = 'AI เปิดอ่านไฟล์ PDF ต้นฉบับไม่ได้ กรุณาลองใหม่ภายหลัง', done_at = now() where id = r.id returning * into r;
-          elsif r.kind = 'quiz' then
+          else
             select coalesce(jsonb_agg(jsonb_build_object('n', (e->>'n')::int,
                      'ai_answer', left(coalesce(e->>'ai_answer', ''), 400),
                      'match', case when e->>'match' in ('yes', 'no', 'not_found') then e->>'match' else 'not_found' end,
@@ -202,15 +149,6 @@ begin
                      order by (e->>'n')::int), '[]')
               into items from jsonb_array_elements(coalesce(j->'items', '[]')) e where e->>'n' ~ '^\d{1,2}$' and (e->>'n')::int between 1 and r.points;
             update public.ai_news_checks set status = 'done', done_at = now(), result = jsonb_build_object('pdf_read', true, 'items', items)
-             where id = r.id returning * into r;
-          else
-            select coalesce(jsonb_agg(jsonb_build_object('n', (e->>'n')::int,
-                     'verdict', case when e->>'verdict' in ('correct', 'wrong', 'missing', 'unsupported') then e->>'verdict' else 'missing' end,
-                     'page', case when e->>'page' ~ '^\d{1,4}$' then (e->>'page')::int end,
-                     'explain', left(coalesce(e->>'explain', ''), 600), 'fix', left(coalesce(e->>'fix', ''), 800)) order by (e->>'n')::int), '[]')
-              into items from jsonb_array_elements(coalesce(j->'items', '[]')) e where e->>'n' ~ '^\d{1,2}$' and (e->>'n')::int between 1 and r.points;
-            update public.ai_news_checks set status = 'done', done_at = now(),
-                   result = jsonb_build_object('pdf_read', true, 'items', items, 'summary', left(coalesce(j->>'summary', ''), 600), 'body', left(coalesce(j->>'body', ''), 20000))
              where id = r.id returning * into r;
           end if;
         exception when others then
@@ -252,7 +190,7 @@ create policy nq_admin on public.news_quiz for all to authenticated using (publi
 grant select on public.news_quiz to anon, authenticated;
 grant insert, update, delete on public.news_quiz to authenticated;
 
-revoke execute on function public.ai_news_check_start(uuid, text, text), public.ai_news_quiz_start(uuid, jsonb), public.ai_news_check_poll(bigint) from public, anon;
-grant execute on function public.ai_news_check_start(uuid, text, text), public.ai_news_quiz_start(uuid, jsonb), public.ai_news_check_poll(bigint) to authenticated;
+revoke execute on function public.ai_news_quiz_start(uuid, jsonb), public.ai_news_check_poll(bigint) from public, anon;
+grant execute on function public.ai_news_quiz_start(uuid, jsonb), public.ai_news_check_poll(bigint) to authenticated;
 
 select 'ok' as step_47_ai_news_check;

@@ -481,23 +481,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         && (await p.getAttribute('#aqInfo p.small a[href*="ccpe"]', 'href') || '').includes('id=1876') && (await p.getAttribute('#aqInfo .file-link', 'href') || '').endsWith('showfile.php?file=1876')
         && (await text(p, '#aqInfo')).includes('ตรวจตัวเลข') && !(await p.$('#anReview [data-decide="fix"]')) && !(await p.$('#anReview [data-decide="edit"]')));
       check('กล่องตรวจ: มีปุ่ม อนุมัติ · บันทึก · ไม่ใช้ข่าวนี้ · ปิด อยู่ในกล่อง AI', await visible(p, '#anReview [data-decide="published"]') && await visible(p, '#anReview [data-decide="save"]') && await visible(p, '#anReview [data-decide="rejected"]') && await visible(p, '#anReview [data-decide="close"]') && await p.$eval('#anReview', (r) => !!r.closest('.ai-panel')));
-      check('กล่องตรวจข่าว AI: มีเครื่องมือ "ตรวจกับความเข้าใจของฉัน" + "แบบทดสอบสำหรับผู้อ่าน" (ย่อไว้) + โหลดคำถามที่บันทึกไว้ (กล่องข้อความ + ฉบับที่จะเผยแพร่ ติ๊ก ✓ ข้อที่ถูก)', await visible(p, '#aqTools') && !(await p.$eval('#aqCheckFold', (d) => d.open))
+      check('กล่องตรวจข่าว AI: มี "แบบทดสอบสำหรับผู้อ่าน" (ย่อไว้) + โหลดคำถามที่บันทึกไว้ (กล่องข้อความ + ฉบับที่จะเผยแพร่ ติ๊ก ✓ ข้อที่ถูก)', await visible(p, '#aqTools') && !(await p.$eval('#aqQuizFold', (d) => d.open))
         && (await p.textContent('#aqQuizN')).includes('1/1') && await count(p, '#aqQuiz .aq-q') === 1 && (await p.inputValue('#aqQ0')).includes('ช่วยให้แผลหายเร็วขึ้น (ถูก)')
         && await count(p, '#aqQuiz [data-i="0"][data-f="opt"]') === 4 && await p.isChecked('#aqQuiz [data-i="0"][data-f="ok"][data-k="0"]'));
       check('กล่องตรวจข่าว AI: บอกว่ามีข้อความจาก PDF ในระบบแล้ว (AI ตรวจได้เร็ว)', (await text(p, '#aqSrc')).includes('12 หน้า'));
-      await p.click('#aqCheckFold > summary'); await p.waitForTimeout(100);
-      await p.fill('#aqNotes [data-note="0"]', 'ห้ามบดยาเม็ดมาทาแผลเอง'); await p.click('#aqNoteAdd'); await p.fill('#aqNotes [data-note="1"]', 'ใช้ในแผลเบาหวาน');
-      await p.click('#aqNoteAdd');
-      check('ตรวจกับความเข้าใจของฉัน: 1 กล่อง = 1 ประเด็น เพิ่มกล่องได้', await count(p, '#aqNotes [data-note]') === 3);
-      await p.click('#aqNotes [data-rmnote="2"]');
-      check('ตรวจกับความเข้าใจของฉัน: ลบกล่องได้ (ข้อความในกล่องอื่นยังอยู่)', await count(p, '#aqNotes [data-note]') === 2 && (await p.inputValue('#aqNotes [data-note="1"]')) === 'ใช้ในแผลเบาหวาน');
-      await p.click('#aqCheckBtn'); await p.waitForTimeout(3600);
-      { const c = (await calls(p, (x) => x.rpc === 'ai_news_check_start'))[0]?.args || {};
-        check('ตรวจกับความเข้าใจของฉัน: ส่งประเด็น + เนื้อข่าวที่กำลังแก้ → ผลทีละข้อ (✅ ถูก / ⚠️ ยังไม่ได้พูดถึง + หน้า) + สรุป', c.p_news === AI && c.p_notes.split('\n').length === 2 && (c.p_body || '').includes('สแตติน')
-          && await count(p, '#aqCheckOut .aq-check li') === 2 && await count(p, '#aqCheckOut li.aq-ok') === 1 && await count(p, '#aqCheckOut li.aq-warn') === 1 && (await text(p, '#aqCheckOut')).includes('หน้า 2') && (await text(p, '#aqCheckOut')).includes('ห้ามบดยาเม็ด'), JSON.stringify(c)); }
-      await p.click('#aqCheckOut [data-usedraft]'); await p.waitForTimeout(150);
-      check('ตรวจกับความเข้าใจของฉัน: กด "ใช้ร่างนี้" → ร่างข่าวฉบับแก้ (เพิ่มใจความสำคัญจาก PDF) ขึ้นในช่องเนื้อหา', (await p.inputValue('#aqBody')).includes('ใจความสำคัญจากบทความ'));
-      await (await p.$('#aqCheckFold')).screenshot({ path: path.join(SHOTS, 'admin-news-check.png') });
+      check('กล่องตรวจข่าว AI: เอาส่วน "ตรวจกับความเข้าใจของฉัน" ออกแล้ว', !(await p.$('#aqCheckFold')) && !(await p.$('#aqNotes')));
       await p.click('#aqQuizFold > summary'); await p.click('#aqQuizAdd'); await p.waitForTimeout(100);
       await p.fill('#aqQ1', 'ควรบดยาเม็ดมาทาแผลเองไหม\nก. บดได้ไม่ผิด (ถูก)');
       check('แบบทดสอบ: 1 กล่องข้อความ = 1 ข้อ → ขึ้นฉบับที่จะเผยแพร่ (คำถาม + ตัวเลือก + ติ๊ก ✓ ข้อที่ถูก)', (await p.inputValue('#aqQuiz [data-i="1"][data-f="q"]')) === 'ควรบดยาเม็ดมาทาแผลเองไหม'

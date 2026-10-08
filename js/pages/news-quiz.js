@@ -1,14 +1,12 @@
-// ข่าวช่อง AI: เครื่องมือในกล่องตรวจของผู้ดูแล + แบบทดสอบท้ายข่าวสำหรับผู้อ่าน (47_ai_news_check.sql)
-//   ① ตรวจกับความเข้าใจของฉัน: ผู้ดูแลพิมพ์ประเด็นที่เข้าใจ (1 กล่อง = 1 ประเด็น · เพิ่ม/ลบกล่องได้ · ไม่บันทึก) → ai_news_check_start/poll
-//      → AI เทียบ ประเด็น ↔ ข่าว ↔ PDF ต้นฉบับ ทีละข้อ (ถูก/ผิด/ไม่ได้พูดถึง + หน้า) + ร่างข่าวฉบับแก้ (กดใช้แทนเนื้อข่าวได้)
-//   ② แบบทดสอบสำหรับผู้อ่าน (news_quiz · ผู้ดูแลตั้งคำถาม + คำตอบที่ถูกเอง ไม่ใช่ข้อสอบของสภาเภสัชกรรม)
-//      → ai_news_quiz_start/poll: AI ลองตอบจาก PDF + บอกว่าคำตอบของผู้ดูแลตรงกับ PDF ไหม + สร้างตัวเลือกที่ผิด 3 ข้อ
-//      → บันทึกพร้อมข่าว (saveQuiz) → หน้าอ่านข่าวแสดงท้ายข่าว renderReaderQuiz() (กดตอบ รู้ผล + คำอธิบาย)
+// ข่าวช่อง AI: แบบทดสอบท้ายข่าวสำหรับผู้อ่าน (47_ai_news_check.sql · news_quiz · ผู้ดูแลตั้งคำถาม/เฉลยเอง ไม่ใช่ข้อสอบของสภาเภสัชกรรม)
+//   กล่องตรวจของผู้ดูแล: กล่องข้อความละ 1 ข้อ → "ฉบับที่จะเผยแพร่" (แก้ได้ · ติ๊ก ✓ ข้อที่ถูก)
+//   → ai_news_quiz_start/poll: AI ลองตอบจาก PDF (ข้อความที่ถอดเก็บไว้ใน news_sources หรือเปิดลิงก์) + บอกว่าเฉลยตรงกับ PDF ไหม + เรียบเรียง/เติมตัวเลือกที่ผิด
+//   → บันทึกพร้อมข่าว (saveQuiz) → หน้าอ่านข่าวแสดงท้ายข่าว renderReaderQuiz() (กดตอบ รู้ผล + คำอธิบาย)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText, busy } from '../util.js?v=4.4';
 
 const MAX_Q = 10, WRONG = 3;
-let news = null, quiz = [], draft = null, bound = false;
+let news = null, quiz = [], bound = false;
 const SPIN = '<span class="spin" aria-hidden="true"></span>';
 const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
 async function poll(id) {
@@ -25,8 +23,8 @@ async function poll(id) {
 /** เปิดข่าวในกล่องตรวจ: แสดงเครื่องมือเฉพาะข่าวที่มี PDF ต้นฉบับ + โหลดแบบทดสอบที่บันทึกไว้ */
 export async function openQuizTools(n) {
   if (!bound) { bound = true; bind(); }
-  news = n; draft = null; quiz = [];
-  renderNotes(['']); $('#aqCheckOut').innerHTML = ''; $('#aqQuizOut').innerHTML = '';
+  news = n; quiz = [];
+  $('#aqQuizOut').innerHTML = '';
   $('#aqTools').hidden = !n?.source_file_url;
   if ($('#aqTools').hidden) return;
   $('#aqQuiz').innerHTML = '<div class="skeleton"></div>'; $('#aqSrc').textContent = '';
@@ -40,19 +38,9 @@ export async function openQuizTools(n) {
   quiz = (data || []).map((x) => { const text = toText({ q: x.question, a: x.answer, wrong: x.choices || [], explain: x.explain || '', pos: 0 }); return { ...blank(), text, f: parseQuizItem(text), page: x.page }; });
   renderQuiz();
 }
-export function closeQuizTools() { news = null; quiz = []; draft = null; }
+export function closeQuizTools() { news = null; quiz = []; }
 
 function bind() {
-  $('#aqCheckBtn').addEventListener('click', runCheck);
-  $('#aqNoteAdd').addEventListener('click', () => {
-    const v = noteValues(true);
-    if (v.length >= MAX_NOTES) { toast(`ใส่ได้ไม่เกิน ${MAX_NOTES} ประเด็น`, 'err'); return; }
-    renderNotes([...v, '']); $(`#aqNotes [data-note="${v.length}"]`)?.focus();
-  });
-  $('#aqNotes').addEventListener('click', (e) => {
-    const d = e.target.closest('[data-rmnote]'); if (!d) return;
-    const v = noteValues(true); v.splice(+d.dataset.rmnote, 1); renderNotes(v.length ? v : ['']);
-  });
   $('#aqQuizAdd').addEventListener('click', () => {
     if (quiz.length >= MAX_Q) { toast(`ตั้งคำถามได้ไม่เกิน ${MAX_Q} ข้อ`, 'err'); return; }
     quiz.push(blank()); renderQuiz();
@@ -65,50 +53,9 @@ function bind() {
     const d = e.target.closest('[data-rmq]'); if (!d) return;
     quiz.splice(+d.dataset.rmq, 1); renderQuiz();
   });
-  $('#aqCheckOut').addEventListener('click', (e) => {
-    if (!e.target.closest('[data-usedraft]') || !draft) return;
-    if (!confirm('ใช้ร่างข่าวฉบับแก้ของ AI แทนเนื้อข่าวในช่อง "เนื้อหาข่าว"?\nตรวจดูอีกครั้งก่อนกดบันทึก/อนุมัติ')) return;
-    $('#aqBody').value = draft; toast('ใส่ร่างข่าวฉบับแก้แล้ว · ตรวจดูแล้วกดบันทึกหรืออนุมัติ');
-    $('#aqBody').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
 }
 
-/* ---------- ① ตรวจกับความเข้าใจของฉัน: 1 กล่องข้อความ = 1 ประเด็น (เพิ่ม/ลบกล่องได้) ---------- */
-const MAX_NOTES = 15;
-const noteValues = (keepEmpty = false) => [...document.querySelectorAll('#aqNotes [data-note]')].map((t) => (keepEmpty ? t.value : t.value.replace(/\s+/g, ' ').trim())).filter((v) => keepEmpty || v);
-function renderNotes(vals) {
-  $('#aqNotes').innerHTML = vals.map((v, i) => `<div class="aq-note"><label class="sr-only" for="aqNote${i}">ประเด็นที่ ${i + 1}</label>`
-    + `<textarea id="aqNote${i}" rows="2" maxlength="300" data-note="${i}" placeholder="${i ? 'ประเด็นถัดไป' : 'เช่น ห้ามใช้ยานี้ในหญิงตั้งครรภ์'}">${esc(v)}</textarea>`
-    + `<button type="button" class="btn btn-no btn-sm" data-rmnote="${i}" aria-label="ลบประเด็นที่ ${i + 1}">ลบ</button></div>`).join('');
-}
-const VERDICT = { correct: ['✅', 'ข่าวเขียนถูก', 'ok'], wrong: ['❌', 'ข่าวเขียนผิด', 'bad'], missing: ['⚠️', 'ข่าวยังไม่ได้พูดถึง', 'warn'], unsupported: ['❓', 'บทความไม่ได้เขียนแบบนี้', 'warn'] };
-async function runCheck() {
-  const notes = noteValues().slice(0, MAX_NOTES), out = $('#aqCheckOut'), btn = $('#aqCheckBtn');
-  if (!notes.length) { out.innerHTML = '<p class="small ai-err">กรุณาพิมพ์ประเด็นที่เข้าใจอย่างน้อย 1 ข้อ</p>'; $('#aqNote0')?.focus(); return; }
-  const n = news; busy(btn, true, 'AI กำลังตรวจ…'); draft = null;
-  out.innerHTML = `<p class="small muted">${SPIN}AI กำลังอ่าน PDF ต้นฉบับและเทียบกับข่าว กรุณารอสักครู่ (ประมาณ 30 วินาที – 2 นาที)</p>`;
-  try {
-    const { data: id, error } = await sb.rpc('ai_news_check_start', { p_news: n.id, p_notes: notes.join('\n'), p_body: $('#aqBody').value });
-    if (error) throw error;
-    const r = await poll(id);
-    if (news !== n) return;
-    if (r.status !== 'done') { out.innerHTML = `<p class="small ai-err">${esc(r.note || 'AI ตรวจไม่สำเร็จ')}</p>`; return; }
-    const items = r.result?.items || [];
-    draft = String(r.result?.body || '').trim() || null;
-    out.innerHTML = '<ul class="aq-check">' + notes.map((t, i) => {
-      const it = items.find((x) => x.n === i + 1);
-      const [ic, label, cls] = VERDICT[it?.verdict] || ['❔', 'AI ไม่ได้ตอบข้อนี้', 'warn'];
-      return `<li class="aq-${cls}"><b>${ic} ${esc(t)}</b><span class="small">${label}${it?.page ? ` · บทความหน้า ${it.page}` : ''}</span>`
-        + (it?.explain ? `<span class="small muted">${esc(it.explain)}</span>` : '') + (it?.fix ? `<span class="small">ควรเขียนว่า: ${esc(it.fix)}</span>` : '') + '</li>';
-    }).join('') + '</ul>'
-      + (r.result?.summary ? `<p class="small"><b>สรุป:</b> ${esc(r.result.summary)}</p>` : '')
-      + (draft ? `<details class="aq-draft"><summary>ดูร่างข่าวฉบับแก้ (เขียนจาก PDF)</summary><div class="aq-draft-body">${esc(draft)}</div></details>`
-        + '<div class="row-btns"><button type="button" class="btn btn-p btn-sm" data-usedraft="1">ใช้ร่างนี้แทนเนื้อข่าว</button></div>' : '');
-  } catch (err) { out.innerHTML = `<p class="small ai-err">${esc(errText(err))}</p>`; }
-  finally { busy(btn, false); }
-}
-
-/* ---------- ② แบบทดสอบสำหรับผู้อ่าน: 1 กล่องข้อความ = 1 ข้อ (ฝั่งผู้ดูแล) + ฉบับที่จะเผยแพร่ (ฝั่ง AI · แก้ได้ · ติ๊ก ✓ หน้าข้อที่ถูก) ----------
+/* ---------- แบบทดสอบสำหรับผู้อ่าน: 1 กล่องข้อความ = 1 ข้อ (ฝั่งผู้ดูแล) + ฉบับที่จะเผยแพร่ (ฝั่ง AI · แก้ได้ · ติ๊ก ✓ หน้าข้อที่ถูก) ----------
    กล่องข้อความ: บรรทัดแรก = คำถาม · ตัวเลือกบรรทัดละข้อ (ก. ข. ค. ง.) · "(ถูก)" ท้ายข้อที่ถูก · "อธิบาย: …" (ถ้ามี)
    วางหลายข้อในกล่องเดียว (เว้นบรรทัดคั่น) → แยกเป็นหลายกล่องให้เอง
    ฉบับที่จะเผยแพร่ = อ่านจากกล่องข้อความ → กด "ให้ AI ตรวจกับ PDF" แล้ว AI เรียบเรียง/เติมตัวเลือก · บันทึกจากฉบับนี้ */

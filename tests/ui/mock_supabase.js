@@ -472,22 +472,19 @@ function rpc(name, a = {}) {
       const vs = (db.summary_visits || []).filter((l) => l.summary_id === a.p_summary).map((l) => db.visits.find((v) => v.id === l.visit_id)?.patient_id).filter(Boolean);
       return { data: new Set(vs).size, error: null };
     }
-    /* แทน ai_news_check_start / ai_news_quiz_start / ai_news_check_poll (47_ai_news_check.sql): ตอบ "รอ" 1 รอบก่อนได้ผล (ของจริงใช้ Gemini อ่าน PDF)
-       ตรวจประเด็น: ทุกข้อ "ถูก" ยกเว้นข้อสุดท้าย "ข่าวยังไม่ได้พูดถึง" + ร่างข่าวเพิ่มใจความ · แบบทดสอบ: คำตอบที่มีคำว่า "ผิด" = ไม่ตรงกับ PDF */
-    case 'ai_news_check_start': case 'ai_news_quiz_start': {
+    /* แทน ai_news_quiz_start / ai_news_check_poll (47_ai_news_check.sql): ตอบ "รอ" 1 รอบก่อนได้ผล (ของจริงใช้ Gemini อ่านบทความ)
+       เฉลยที่มีคำว่า "ผิด" = AI คิดว่าไม่ตรงกับ PDF · ตัวเลือกที่ผู้ดูแลร่าง = เรียบเรียง + เติมให้ครบ 3 */
+    case 'ai_news_quiz_start': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
       const n = db.news.find((x) => x.id === a.p_news);
       if (!n) return err('ไม่พบข่าวนี้', 'P0001');
       if (!/^https:\/\//.test(n.source_file_url || '')) return err('ข่าวนี้ไม่มีไฟล์ PDF ต้นฉบับให้ตรวจเทียบ', 'P0001');
-      const quiz = name === 'ai_news_quiz_start';
-      const items = quiz ? (a.p_items || []) : String(a.p_notes || '').split('\n').map((x) => x.trim()).filter(Boolean);
-      if (!items.length) return err(quiz ? 'กรุณาพิมพ์คำถามและคำตอบที่ถูกอย่างน้อย 1 ข้อ' : 'กรุณาพิมพ์ประเด็นที่เข้าใจอย่างน้อย 1 บรรทัด', 'P0001');
-      if (quiz && items.some((x) => !String(x.q || '').trim() || !String(x.a || '').trim())) return err('ทุกข้อต้องมีทั้งคำถามและคำตอบที่ถูก', 'P0001');
-      const row = { id: newId('ai_news_checks'), user_id: ME.id, news_id: n.id, kind: quiz ? 'quiz' : 'notes', points: items.length, status: 'pending', result: null, note: null, created_at: now(), polls: 0,
-        _fake: quiz ? { pdf_read: true, items: items.map((x, i) => { const bad = /ผิด/.test(x.a); return { n: i + 1, ai_answer: bad ? 'คำตอบตามบทความ' : x.a, match: bad ? 'no' : 'yes', page: i + 2, explain: bad ? `บทความหน้า ${i + 2} เขียนต่างจากเฉลยนี้` : `บทความหน้า ${i + 2} อธิบายไว้`,
-            answer_rewrite: bad ? '' : x.a.replace(/\s+/g, ' ') + ' (เรียบเรียงแล้ว)', distractors: [...(x.w || []).map((w) => w + ' (เรียบเรียง)'), 'ตัวเลือก ก', 'ตัวเลือก ข', 'ตัวเลือก ค'].slice(0, 3) }; }) }
-          : { pdf_read: true, items: items.map((_, i) => ({ n: i + 1, verdict: i === items.length - 1 && items.length > 1 ? 'missing' : 'correct', page: i + 2, explain: 'ตรงกับบทความ', fix: i === items.length - 1 && items.length > 1 ? 'ประเด็นนี้ควรเพิ่มในข่าว' : '' })),
-              summary: 'ข่าวถูกต้องเป็นส่วนใหญ่ ขาด 1 ประเด็น', body: String(a.p_body || n.body) + '\nใจความสำคัญจากบทความ\n• ประเด็นที่เพิ่มจาก PDF (หน้า 2)' } };
+      const items = a.p_items || [];
+      if (!items.length) return err('กรุณาพิมพ์คำถามและคำตอบที่ถูกอย่างน้อย 1 ข้อ', 'P0001');
+      if (items.some((x) => !String(x.q || '').trim() || !String(x.a || '').trim())) return err('ทุกข้อต้องมีทั้งคำถามและคำตอบที่ถูก', 'P0001');
+      const row = { id: newId('ai_news_checks'), user_id: ME.id, news_id: n.id, kind: 'quiz', points: items.length, status: 'pending', result: null, note: null, created_at: now(), polls: 0,
+        _fake: { pdf_read: true, items: items.map((x, i) => { const bad = /ผิด/.test(x.a); return { n: i + 1, ai_answer: bad ? 'คำตอบตามบทความ' : x.a, match: bad ? 'no' : 'yes', page: i + 2, explain: bad ? `บทความหน้า ${i + 2} เขียนต่างจากเฉลยนี้` : `บทความหน้า ${i + 2} อธิบายไว้`,
+            answer_rewrite: bad ? '' : x.a.replace(/\s+/g, ' ') + ' (เรียบเรียงแล้ว)', distractors: [...(x.w || []).map((w) => w + ' (เรียบเรียง)'), 'ตัวเลือก ก', 'ตัวเลือก ข', 'ตัวเลือก ค'].slice(0, 3) }; }) } };
       (db.ai_news_checks ||= []).push(row); return { data: row.id, error: null };
     }
     case 'ai_news_check_poll': {
