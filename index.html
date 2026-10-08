@@ -232,6 +232,7 @@
   <div class="article-body" id="arBody"></div>
   <p class="ar-source small" id="arSource" hidden></p>
   <div id="arFile" hidden></div>
+  <section class="panel ar-quiz" id="arQuiz" hidden></section>
   <div class="row-btns" style="align-items:center">
     <button type="button" class="btn btn-o btn-sm" id="arLikeBtn" aria-pressed="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
@@ -461,6 +462,23 @@
               <div class="field full"><label for="aqFile">ไฟล์ PDF แนบ (ถ้ามี · ไม่เกิน 5 MB)</label><input id="aqFile" class="input" type="file" accept="application/pdf,.pdf"><span class="small muted" id="aqFileNote">ผู้อ่านข่าวดาวน์โหลดไฟล์นี้ได้</span></div>
               <div class="field full"><label for="aqBody">เนื้อหาข่าว <span class="req">*</span></label><textarea id="aqBody" rows="10" maxlength="20000"></textarea></div>
               <label class="small full"><input type="checkbox" id="aqClosed"> ปิดรับความคิดเห็น</label>
+              <div class="field full aq-tools" id="aqTools" hidden>
+                <details class="ai-fold" id="aqCheckFold">
+                  <summary><span class="ai-fold-t">ตรวจกับความเข้าใจของฉัน</span><span class="small muted ai-fold-hint">AI เทียบประเด็นของคุณกับข่าวและ PDF ต้นฉบับ</span></summary>
+                  <p class="small muted">หลังอ่านบทความ (หรือทำแบบทดสอบของ CCPE) ด้วยตัวเองแล้ว พิมพ์ประเด็นที่คุณเข้าใจ บรรทัดละ 1 ประเด็น ด้วยคำของคุณเอง (ไม่ต้องพิมพ์ข้อสอบ) · ข้อความนี้ไม่ถูกบันทึกและไม่แสดงในข่าว</p>
+                  <label for="aqNotes" class="sr-only">ประเด็นที่เข้าใจ</label>
+                  <textarea id="aqNotes" rows="4" maxlength="3000" placeholder="เช่น ห้ามใช้ยานี้ในหญิงตั้งครรภ์&#10;ต้องติดตามค่าไตทุก 3 เดือน"></textarea>
+                  <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="aqCheckBtn">ให้ AI ตรวจ</button></div>
+                  <div id="aqCheckOut" aria-live="polite"></div>
+                </details>
+                <details class="ai-fold" id="aqQuizFold">
+                  <summary><span class="ai-fold-t">แบบทดสอบสำหรับผู้อ่าน</span><span class="small vs-people-n" id="aqQuizN"></span></summary>
+                  <p class="small muted">ตั้งคำถามและคำตอบที่ถูกเอง (ไม่ใช่ข้อสอบของสภาเภสัชกรรม) → AI ตรวจกับ PDF ลองตอบเอง และสร้างตัวเลือกที่ผิดให้ · แก้ได้ทุกช่อง · แสดงท้ายข่าวเมื่อเผยแพร่</p>
+                  <div class="aq-quiz" id="aqQuiz"></div>
+                  <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="aqQuizAdd">+ เพิ่มคำถาม</button><button type="button" class="btn btn-o btn-sm" id="aqQuizBtn">ให้ AI ตรวจกับ PDF + สร้างตัวเลือก</button></div>
+                  <div id="aqQuizOut" aria-live="polite"></div>
+                </details>
+              </div>
               <div class="field full"><label for="anComment">ความเห็นถึงผู้ส่ง (จำเป็นเมื่อขอแก้ไขหรือไม่ผ่าน)</label><textarea id="anComment" rows="2" maxlength="1000"></textarea></div>
               <div class="full row-btns" style="align-items:center" id="aqBtns"></div>
             </form>

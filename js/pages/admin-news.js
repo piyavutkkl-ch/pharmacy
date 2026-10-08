@@ -7,6 +7,7 @@ import { newsForm, removeNewsFiles, fileLink, extFileLink } from './news-form.js
 import { loadNews, renderSlides } from './news.js?v=4.4';
 import { refreshAdminBadges } from './admin.js?v=4.4';
 import { initAiPanel } from './admin-ai.js?v=4.4';
+import { openQuizTools, closeQuizTools, quizProblem, saveQuiz } from './news-quiz.js?v=4.4';
 
 let queue = [], published = [], trash = [], reviewing = null, editing = null, bound = false;
 const TRASH = ['unpublished', 'deleted', 'rejected'], KEEP_DAYS = 30, DAY = 86_400_000;
@@ -45,7 +46,7 @@ function openReview(id) {
     + (n.file_path ? `<div>${fileLink(n)}</div>` : n.source_file_url ? `<div>${extFileLink(n.source_file_url, 'ดาวน์โหลดบทความฉบับเต็ม (PDF)')}</div>` : '')
     + (n.source_url ? `<p class="small">อ้างอิง: <a href="${esc(n.source_url)}" target="_blank" rel="noopener">${esc(n.source_title || n.source_url)}</a></p>` : '');
   $('#aqTitle').value = n.title; $('#aqBody').value = n.body; $('#aqClosed').checked = !!n.comments_closed; $('#anComment').value = '';
-  aqKit.edit(n);
+  aqKit.edit(n); openQuizTools(n);   // ข่าวที่มี PDF ต้นฉบับ: ตรวจกับความเข้าใจของฉัน + แบบทดสอบสำหรับผู้อ่าน
   $('#aqBtns').innerHTML = '<button type="button" class="btn btn-ok" data-decide="published">อนุมัติ &amp; เผยแพร่</button>'
     + '<button type="button" class="btn btn-o" data-decide="save">บันทึก (ยังไม่เผยแพร่)</button>'
     + (n.ai_generated ? '<button type="button" class="btn btn-no" data-decide="rejected">ไม่ใช้ข่าวนี้</button>'
@@ -54,7 +55,7 @@ function openReview(id) {
   renderQueueSel();
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-function closeReview() { reviewing = null; $('#anReview').hidden = true; $('#aqForm').reset(); aqKit?.reset(); renderQueueSel(); }
+function closeReview() { reviewing = null; closeQuizTools(); $('#anReview').hidden = true; $('#aqForm').reset(); aqKit?.reset(); renderQueueSel(); }
 const renderQueueSel = () => document.querySelectorAll('#anQueue [data-review]').forEach((b) => { const on = b.dataset.review === reviewing?.id; b.textContent = on ? 'กำลังตรวจ' : 'ตรวจ'; b.closest('.li').classList.toggle('sel', on); });
 
 /** บันทึกการแก้ไขในกล่องตรวจ + เปลี่ยนสถานะ (status = null → บันทึกอย่างเดียว ยังรอตรวจ) */
@@ -64,9 +65,12 @@ async function decide(status, btn) {
   const title = $('#aqTitle').value.trim(), body = $('#aqBody').value.trim(), comment = $('#anComment').value.trim();
   if (!title || !body) { say('กรุณากรอกหัวข้อและเนื้อหาข่าว'); return; }
   if (status === 'fix' && !comment || status === 'rejected' && !comment && !n.ai_generated) { say('กรุณาใส่ความเห็นให้ผู้ส่งทราบว่าต้องแก้อะไร'); $('#anComment').focus(); return; }
+  const keepQuiz = status === 'save' || status === 'published', qp = keepQuiz && quizProblem();
+  if (qp) { say(qp); $('#aqQuizFold').open = true; return; }
   busy(btn, true, 'กำลังบันทึก…'); m.textContent = '';
   let up = null;
   try {
+    if (keepQuiz) await saveQuiz(n.id);   // ก่อนบันทึกข่าว: ถ้าบันทึกแบบทดสอบไม่ได้ ข่าวยังไม่เปลี่ยน
     up = await aqKit.upload(auth.profile.id);
     const row = { title, tag: $('#aqTag').value, body, comments_closed: $('#aqClosed').checked, ...up.fields };
     if (status !== 'save') Object.assign(row, { status, review_comment: comment || null });

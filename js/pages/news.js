@@ -4,6 +4,7 @@ import { $, esc, thaiDate, art, toast, errText, busy, deviceToken } from '../uti
 import { auth } from '../auth.js?v=4.4';
 import { fileLink, extFileLink } from './news-form.js?v=4.4';
 import { imageCarousel } from '../lightbox.js?v=4.4';
+import { renderReaderQuiz } from './news-quiz.js?v=4.4';
 
 let news = null;          // cache ข่าวที่เผยแพร่แล้ว
 const ANON_MAX = 15;      // ไม่ได้ login: ความคิดเห็นยาวได้ไม่เกิน 15 ตัวอักษร (ตรงกับ comment_news_anon ในฐานข้อมูล)
@@ -100,6 +101,7 @@ export async function showArticle(id) {
   $('#arBody').innerHTML = String(n.body || '').split(/\n{1,}/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
   $('#arFile').innerHTML = n.file_path ? fileLink(n) : n.source_file_url ? extFileLink(n.source_file_url, 'ดาวน์โหลดบทความฉบับเต็ม (PDF)') : ''; $('#arFile').hidden = !n.file_path && !n.source_file_url;
   $('#arAi').hidden = !n.ai_generated;
+  renderReaderQuiz($('#arQuiz'), n.id).catch(() => {});   // แบบทดสอบท้ายข่าว (ผู้ดูแลตั้ง · ถ้ามี)
   if (n.source_url) {
     $('#arSource').innerHTML = `อ้างอิง: <a href="${esc(n.source_url)}" target="_blank" rel="noopener">${esc(n.source_title || 'บทความต้นฉบับ')}</a>`
       + (n.ai_generated ? ' · ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม' : '');

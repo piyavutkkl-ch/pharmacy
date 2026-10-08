@@ -12,7 +12,7 @@ window.__calls = [];
 window.__channels = [];
 const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
-const NUMERIC_ID = new Set(['ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
+const NUMERIC_ID = new Set(['ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
 /* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
 db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
@@ -40,6 +40,8 @@ function visible(t, r) {
     case 'item_status': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'summary_visits': { const v = db.visits.find((x) => x.id === r.visit_id); return !!v && visible('visits', v); }
     case 'achievements': return !r.hidden || isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
+    case 'news_quiz': return isAdmin() || db.news.some((n) => n.id === r.news_id && n.status === 'published');
+    case 'ai_news_checks': return isAdmin();
     case 'ai_matches': return isAdmin() || (ME && r.user_id === ME.id) || (isStaff() && r.unit_id === ME.unit_id);
     case 'feedback': return isAdmin() || (ME && r.author_id === ME.id);
     case 'staff_requests': return isAdmin() || (ME && r.user_id === ME.id);
@@ -469,6 +471,30 @@ function rpc(name, a = {}) {
     case 'summary_patient_count': {
       const vs = (db.summary_visits || []).filter((l) => l.summary_id === a.p_summary).map((l) => db.visits.find((v) => v.id === l.visit_id)?.patient_id).filter(Boolean);
       return { data: new Set(vs).size, error: null };
+    }
+    /* แทน ai_news_check_start / ai_news_quiz_start / ai_news_check_poll (47_ai_news_check.sql): ตอบ "รอ" 1 รอบก่อนได้ผล (ของจริงใช้ Gemini อ่าน PDF)
+       ตรวจประเด็น: ทุกข้อ "ถูก" ยกเว้นข้อสุดท้าย "ข่าวยังไม่ได้พูดถึง" + ร่างข่าวเพิ่มใจความ · แบบทดสอบ: คำตอบที่มีคำว่า "ผิด" = ไม่ตรงกับ PDF */
+    case 'ai_news_check_start': case 'ai_news_quiz_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const n = db.news.find((x) => x.id === a.p_news);
+      if (!n) return err('ไม่พบข่าวนี้', 'P0001');
+      if (!/^https:\/\//.test(n.source_file_url || '')) return err('ข่าวนี้ไม่มีไฟล์ PDF ต้นฉบับให้ตรวจเทียบ', 'P0001');
+      const quiz = name === 'ai_news_quiz_start';
+      const items = quiz ? (a.p_items || []) : String(a.p_notes || '').split('\n').map((x) => x.trim()).filter(Boolean);
+      if (!items.length) return err(quiz ? 'กรุณาพิมพ์คำถามและคำตอบที่ถูกอย่างน้อย 1 ข้อ' : 'กรุณาพิมพ์ประเด็นที่เข้าใจอย่างน้อย 1 บรรทัด', 'P0001');
+      if (quiz && items.some((x) => !String(x.q || '').trim() || !String(x.a || '').trim())) return err('ทุกข้อต้องมีทั้งคำถามและคำตอบที่ถูก', 'P0001');
+      const row = { id: newId('ai_news_checks'), user_id: ME.id, news_id: n.id, kind: quiz ? 'quiz' : 'notes', points: items.length, status: 'pending', result: null, note: null, created_at: now(), polls: 0,
+        _fake: quiz ? { pdf_read: true, items: items.map((x, i) => { const bad = /ผิด/.test(x.a); return { n: i + 1, ai_answer: bad ? 'คำตอบตามบทความ' : x.a, match: bad ? 'no' : 'yes', page: i + 2, explain: `บทความหน้า ${i + 2} อธิบายไว้`, distractors: ['ตัวเลือก ก', 'ตัวเลือก ข', 'ตัวเลือก ค'] }; }) }
+          : { pdf_read: true, items: items.map((_, i) => ({ n: i + 1, verdict: i === items.length - 1 && items.length > 1 ? 'missing' : 'correct', page: i + 2, explain: 'ตรงกับบทความ', fix: i === items.length - 1 && items.length > 1 ? 'ประเด็นนี้ควรเพิ่มในข่าว' : '' })),
+              summary: 'ข่าวถูกต้องเป็นส่วนใหญ่ ขาด 1 ประเด็น', body: String(a.p_body || n.body) + '\nใจความสำคัญจากบทความ\n• ประเด็นที่เพิ่มจาก PDF (หน้า 2)' } };
+      (db.ai_news_checks ||= []).push(row); return { data: row.id, error: null };
+    }
+    case 'ai_news_check_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.ai_news_checks || []).find((x) => x.id === a.p_id);
+      if (!r) return err('ไม่พบรายการนี้', 'P0001');
+      if (r.status === 'pending' && ++r.polls >= 2) Object.assign(r, { status: 'done', result: r._fake, done_at: now() });
+      return { data: { id: r.id, kind: r.kind, status: r.status, result: r.result, note: r.note, points: r.points }, error: null };
     }
     case 'ai_match_link': {
       const r = (db.ai_matches || []).find((x) => x.id === a.p_id && x.user_id === ME?.id), ach = db.achievements.find((x) => x.id === a.p_achievement);

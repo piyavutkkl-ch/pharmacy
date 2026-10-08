@@ -481,6 +481,28 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         && (await p.getAttribute('#aqInfo p.small a[href*="ccpe"]', 'href') || '').includes('id=1876') && (await p.getAttribute('#aqInfo .file-link', 'href') || '').endsWith('showfile.php?file=1876')
         && (await text(p, '#aqInfo')).includes('ตรวจตัวเลข') && !(await p.$('#anReview [data-decide="fix"]')) && !(await p.$('#anReview [data-decide="edit"]')));
       check('กล่องตรวจ: มีปุ่ม อนุมัติ · บันทึก · ไม่ใช้ข่าวนี้ · ปิด อยู่ในกล่อง AI', await visible(p, '#anReview [data-decide="published"]') && await visible(p, '#anReview [data-decide="save"]') && await visible(p, '#anReview [data-decide="rejected"]') && await visible(p, '#anReview [data-decide="close"]') && await p.$eval('#anReview', (r) => !!r.closest('.ai-panel')));
+      check('กล่องตรวจข่าว AI: มีเครื่องมือ "ตรวจกับความเข้าใจของฉัน" + "แบบทดสอบสำหรับผู้อ่าน" (ย่อไว้) + โหลดคำถามที่บันทึกไว้', await visible(p, '#aqTools') && !(await p.$eval('#aqCheckFold', (d) => d.open)) && (await p.textContent('#aqQuizN')).includes('1 ข้อ') && await count(p, '#aqQuiz .aq-q') === 1);
+      await p.click('#aqCheckFold > summary'); await p.waitForTimeout(100);
+      await p.fill('#aqNotes', 'ห้ามบดยาเม็ดมาทาแผลเอง\nใช้ในแผลเบาหวาน'); await p.click('#aqCheckBtn'); await p.waitForTimeout(3600);
+      { const c = (await calls(p, (x) => x.rpc === 'ai_news_check_start'))[0]?.args || {};
+        check('ตรวจกับความเข้าใจของฉัน: ส่งประเด็น + เนื้อข่าวที่กำลังแก้ → ผลทีละข้อ (✅ ถูก / ⚠️ ยังไม่ได้พูดถึง + หน้า) + สรุป', c.p_news === AI && c.p_notes.split('\n').length === 2 && (c.p_body || '').includes('สแตติน')
+          && await count(p, '#aqCheckOut .aq-check li') === 2 && await count(p, '#aqCheckOut li.aq-ok') === 1 && await count(p, '#aqCheckOut li.aq-warn') === 1 && (await text(p, '#aqCheckOut')).includes('หน้า 2') && (await text(p, '#aqCheckOut')).includes('ห้ามบดยาเม็ด'), JSON.stringify(c)); }
+      await p.click('#aqCheckOut [data-usedraft]'); await p.waitForTimeout(150);
+      check('ตรวจกับความเข้าใจของฉัน: กด "ใช้ร่างนี้" → ร่างข่าวฉบับแก้ (เพิ่มใจความสำคัญจาก PDF) ขึ้นในช่องเนื้อหา', (await p.inputValue('#aqBody')).includes('ใจความสำคัญจากบทความ'));
+      await (await p.$('#aqCheckFold')).screenshot({ path: path.join(SHOTS, 'admin-news-check.png') });
+      await p.click('#aqQuizFold > summary'); await p.click('#aqQuizAdd'); await p.waitForTimeout(100);
+      await p.fill('#aqQuiz [data-i="1"][data-k="q"]', 'ควรบดยาเม็ดมาทาแผลเองไหม'); await p.fill('#aqQuiz [data-i="1"][data-k="a"]', 'ผิด ควรบดเอง');
+      await p.click('#aqQuizAdd'); await p.waitForTimeout(100);
+      await p.click('#anReview [data-decide="save"]'); await p.waitForTimeout(300);
+      check('แบบทดสอบ: ข้อที่ยังไม่ครบ → บันทึกไม่ได้ + บอกข้อที่ต้องแก้', (await text(p, '#anDecideMsg')).includes('ข้อ 2') && !(await calls(p, (c) => c.table === 'news_quiz' && c.op === 'insert')).length);
+      await p.click('#aqQuiz [data-rmq="2"]'); await p.click('#aqQuizBtn'); await p.waitForTimeout(3600);
+      { const qa = (await calls(p, (x) => x.rpc === 'ai_news_quiz_start'))[0]?.args || {};
+        check('แบบทดสอบ: AI ตรวจคำถาม/คำตอบของผู้ดูแลกับ PDF + ลองตอบ → ข้อที่ไม่ตรงขึ้นเตือนให้แก้เอง', qa.p_items?.length === 2 && qa.p_items[1].a === 'ผิด ควรบดเอง'
+          && await count(p, '#aqQuiz .aq-ai .aq-ok') === 1 && await count(p, '#aqQuiz .aq-ai .aq-bad') === 1 && (await text(p, '#aqQuiz')).includes('AI ลองตอบจาก PDF') && (await text(p, '#aqQuizOut')).includes('1 ข้อ'), JSON.stringify(qa)); }
+      check('แบบทดสอบ: AI สร้างตัวเลือกที่ผิดให้ช่องที่ว่าง (ของเดิมที่ตั้งไว้ไม่ถูกทับ)', (await p.inputValue('#aqQuiz [data-i="1"][data-w="0"]')) === 'ตัวเลือก ก' && (await p.inputValue('#aqQuiz [data-i="0"][data-w="0"]')) === 'ลดไขมันในเลือดได้ทันที');
+      await p.fill('#aqQuiz [data-i="1"][data-k="a"]', 'ไม่ควร ให้ใช้ยาตามแพทย์สั่ง');
+      check('แบบทดสอบ: แก้คำตอบแล้วผลตรวจเดิมหายไป (ต้องตรวจใหม่)', await count(p, '#aqQuiz .aq-ai .aq-bad') === 0);
+      await (await p.$('#aqQuizFold')).screenshot({ path: path.join(SHOTS, 'admin-news-quiz.png') });
       check('แก้ข่าว: รูปทั้ง 3 รูปขึ้นในฟอร์ม (รูปหลักมีกรอบ) + ปุ่ม × ทุกรูป', await count(p, '#aqImagePreview .img-item') === 3 && await count(p, '#aqImagePreview .img-x') === 3
         && (await p.getAttribute('#aqImagePreview .img-item.main img', 'src')).includes('infographic') && await p.$eval('#aqImagePreview .img-x', (e) => e.getBoundingClientRect().height >= 44));
       await (await p.$('#aqImagePreview')).screenshot({ path: path.join(SHOTS, 'admin-news-images.png') });
@@ -496,6 +518,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const ue = (await calls(p, (c) => c.table === 'news' && c.op === 'update')).map((c) => c.payload).find((x) => x.body === 'แก้โดยเภสัชกรแล้ว') || {};
       check('แก้ข่าว: บันทึกรูปหลักใหม่ + ภาพเพิ่มตามลำดับ + ลบไฟล์รูปที่เอาออก', /^news\/.+\.webp$/.test(ue.image_path || '') && JSON.stringify(ue.gallery) === JSON.stringify(['ai/1876/infographic.jpg', 'ai/1876/clinical.jpg'])
         && (await calls(p, (c) => c.remove === 'public-images')).some((c) => c.paths.includes('ai/1876/comic.jpg') && !c.paths.includes('ai/1876/clinical.jpg')), JSON.stringify(ue));
+      check('แบบทดสอบ: บันทึกพร้อมข่าว 2 ข้อ (คำถาม/คำตอบ/ตัวเลือกผิด/หน้า)', await p.evaluate((id) => { const q = window.__db.news_quiz.filter((x) => x.news_id === id).sort((a, b) => a.sort - b.sort); return q.length === 2 && q[1].answer === 'ไม่ควร ให้ใช้ยาตามแพทย์สั่ง' && q[1].choices.length === 3 && q[1].page === 3; }, AI));
       check('ช่อง AI: บันทึกแล้วยังรอตรวจ + กลับไปที่กล่องตรวจ', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.body === 'แก้โดยเภสัชกรแล้ว' && !('status' in c.payload)) && await visible(p, '#anReview [data-decide="published"]'));
       await p.click('#anReview [data-decide="published"]'); await p.waitForTimeout(500);
       check('ช่อง AI: อนุมัติแล้วเผยแพร่', (await calls(p, (c) => c.table === 'news' && c.op === 'update')).some((c) => c.payload.status === 'published'));
@@ -504,6 +527,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('หน้าอ่านข่าว: เนื้อข่าวเต็มความกว้างกรอบข่าว (ไม่เว้นว่างด้านขวา)', Math.abs(arW[0] - arW[1]) <= 2, JSON.stringify(arW));
       check('หน้าอ่านข่าว AI: ป้าย "สรุปโดย AI" + ภาพเพิ่ม 2 ภาพ + อ้างอิงบทความต้นฉบับ + ปุ่มดาวน์โหลด PDF ต้นฉบับ', await visible(p, '#arAi') && await count(p, '#arCover .car-slide .cover') === 3 && (await text(p, '#arCover .car-n')) === '1/3' && (await p.getAttribute('#arSource a', 'href')).includes('ccpe.pharmacycouncil.org') && await visible(p, '#arFile .file-link') && (await p.getAttribute('#arFile a', 'href')).endsWith('showfile.php?file=1876') && (await p.getAttribute('#arFile a', 'target')) === '_blank');
       await p.screenshot({ path: path.join(SHOTS, 'ai-news-article-1280.png'), fullPage: true });
+      check('หน้าอ่านข่าว: แบบทดสอบท้ายข่าว 2 ข้อ (ตัวเลือก 4 ตัว)', await visible(p, '#arQuiz') && await count(p, '#arQuiz .rq') === 2 && await count(p, '#arQuiz .rq:first-of-type .rq-opt') === 4);
+      await p.click('#arQuiz .rq[data-q="0"] .rq-opt:text-is("ช่วยให้แผลหายเร็วขึ้น")'); await p.waitForTimeout(100);
+      await p.click('#arQuiz .rq[data-q="1"] .rq-opt:text-is("ตัวเลือก ก")'); await p.waitForTimeout(100);
+      check('หน้าอ่านข่าว: กดตอบแล้วรู้ผลทันที (ถูก/ผิด + เฉลย + คำอธิบาย + หน้า) + คะแนนรวม', (await text(p, '#arQuiz .rq[data-q="0"] .rq-res')).includes('ถูกต้อง') && (await text(p, '#arQuiz .rq[data-q="1"] .rq-res')).includes('ไม่ควร ให้ใช้ยาตามแพทย์สั่ง')
+        && await count(p, '#arQuiz .rq-opt.right') === 2 && await count(p, '#arQuiz .rq-opt.wrong') === 1 && (await text(p, '#arQuiz .rq-score')).includes('1 จาก 2'));
+      await (await p.$('#arQuiz')).screenshot({ path: path.join(SHOTS, 'news-reader-quiz.png') });
       await p.click('#arCover .next'); await p.waitForTimeout(700);
       check('หน้าอ่านข่าว: หลายภาพกด › เลื่อนไปภาพถัดไป + ปุ่มขยายภาพยังใช้ได้', (await text(p, '#arCover .car-n')) === '2/3');
       await p.click('#arCover .car-slide:nth-child(3)'); await p.waitForTimeout(700);
