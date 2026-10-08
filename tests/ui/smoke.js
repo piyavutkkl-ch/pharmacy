@@ -551,6 +551,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('หน้าอ่านข่าว 390px: กรอบเลื่อนภาพไม่ล้นจอ + ปุ่มสูง ≥ 44px', await overflow(p) <= 0 && await p.$eval('#arCover .next', (b) => b.getBoundingClientRect().height >= 44));
       await p.setViewportSize({ width: 1280, height: 900 });
       await go(p, '#/admin/news'); await p.waitForTimeout(300);
+      await p.click(`#anList [data-quiz="${AI}"]`); await p.waitForTimeout(400);
+      check('ข่าวที่เผยแพร่แล้ว (มี PDF ต้นฉบับ): ปุ่ม "แบบทดสอบ" → กล่องตรวจ (แบบทดสอบเปิดไว้ · โหลดข้อที่บันทึก · มีแค่ปุ่มบันทึก ไม่มีอนุมัติ/ความเห็นถึงผู้ส่ง)', await visible(p, '#anReview') && (await text(p, '#aqHead')).includes('เผยแพร่แล้ว')
+        && await p.$eval('#aqQuizFold', (d) => d.open) && await count(p, '#aqQuiz .aq-q') === 2 && !(await p.$('#anReview [data-decide="published"]')) && !(await p.isVisible('#anComment')));
+      check('ข่าวที่ไม่มี PDF ต้นฉบับ: ไม่มีปุ่มแบบทดสอบ', await count(p, '#anList [data-quiz]') === 1);
+      await p.click('#aqQuizAdd'); await p.fill('#aqQ2', 'ข้อใหม่หลังเผยแพร่\nก. ถูกต้อง (ถูก)\nข. ไม่ถูก');
+      await p.click('#anReview [data-decide="save"]'); await p.waitForTimeout(700);
+      check('ข่าวที่เผยแพร่แล้ว: บันทึกแบบทดสอบเพิ่มได้ (3 ข้อ) + ข่าวยังเผยแพร่อยู่ + กล่องยังเปิดแก้ต่อได้', await p.evaluate((id) => window.__db.news_quiz.filter((x) => x.news_id === id).length === 3 && window.__db.news.find((n) => n.id === id).status === 'published', AI)
+        && await visible(p, '#anReview') && (await text(p, '#aqHead')).includes('เผยแพร่แล้ว') && await count(p, '#aqQuiz .aq-q') === 3);
+      await (await p.$('.ai-panel')).screenshot({ path: path.join(SHOTS, 'admin-news-published-quiz.png') });
+      await p.click('#anReview [data-decide="close"]'); await p.waitForTimeout(150);
+      check('ข่าวที่เผยแพร่แล้ว: ปิดกล่องได้', !(await visible(p, '#anReview')));
     }
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));
     check('เมนูผู้ดูแล: ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,achievements,rider,review,docs,settings' && await count(p, '#afList .li') > 0);

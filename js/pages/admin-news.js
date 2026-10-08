@@ -9,7 +9,7 @@ import { refreshAdminBadges } from './admin.js?v=4.4';
 import { initAiPanel } from './admin-ai.js?v=4.4';
 import { openQuizTools, closeQuizTools, quizProblem, saveQuiz } from './news-quiz.js?v=4.4';
 
-let queue = [], published = [], trash = [], reviewing = null, editing = null, bound = false;
+let queue = [], published = [], trash = [], reviewing = null, reviewFrom = 'queue', editing = null, bound = false;   // reviewFrom: queue = ข่าวรอตรวจ · published = ข่าวที่เผยแพร่แล้ว (แบบทดสอบ/แก้ไข)
 const TRASH = ['unpublished', 'deleted', 'rejected'], KEEP_DAYS = 30, DAY = 86_400_000;
 const TRASH_LABEL = { unpublished: ['หยุดเผยแพร่', 'c-off'], deleted: ['ลบแล้ว', 'c-del'], rejected: ['ไม่ผ่าน', 'c-fix'] };
 
@@ -29,24 +29,34 @@ async function loadQueue() {
     + (n.ai_generated ? '<span class="chip c-sub">AI</span>' : '')
     + `<button type="button" class="btn btn-p btn-sm" data-review="${n.id}">ตรวจ</button></div>`).join('')
     : '<p class="empty">ไม่มีข่าวรอตรวจ</p>';
-  if (reviewing && !queue.some((n) => n.id === reviewing.id)) closeReview();
+  if (reviewing && reviewFrom === 'queue' && !queue.some((n) => n.id === reviewing.id)) closeReview();
 }
 
 const from = (n) => (n.ai_generated ? 'ช่อง AI · บทความวิชาการ CCPE' : `${esc(n.author?.full_name || '-')} · รพ.สต. ${esc(unitName(n.unit_id))}`);
 
 /* ---------- กล่องตรวจ = กล่องแก้ไข: กด "ตรวจ" → ข่าวขึ้นในฟอร์ม แก้ได้ทุกช่อง แล้วกดอนุมัติ/บันทึก/ขอแก้ไข/ไม่ผ่าน ---------- */
-function openReview(id) {
-  reviewing = queue.find((n) => n.id === id); if (!reviewing) return;
-  const n = reviewing, el = $('#anReview');
+/** เปิดข่าวในกล่องตรวจ · src = 'queue' (ข่าวรอตรวจ) หรือ 'published' (ข่าวที่เผยแพร่แล้ว: ทำแบบทดสอบ/แก้ไข · บันทึกแล้วยังเผยแพร่อยู่) */
+function openReview(id, src = 'queue') {
+  reviewing = (src === 'published' ? published : queue).find((n) => n.id === id); if (!reviewing) return;
+  reviewFrom = src;
+  const n = reviewing, el = $('#anReview'), pub = src === 'published';
   el.hidden = false;
-  $('#aqHead').textContent = 'ตรวจ/แก้ไขข่าวรอตรวจ';
-  $('#aqFrom').textContent = n.ai_generated ? 'ช่อง AI' : 'รพ.สต.';
-  $('#aqInfo').innerHTML = `<p class="small muted">ส่งโดย ${from(n)} · ${esc(thaiDate(n.created_at))}</p>`
+  $('#aqHead').textContent = pub ? 'แบบทดสอบ/แก้ไขข่าวที่เผยแพร่แล้ว' : 'ตรวจ/แก้ไขข่าวรอตรวจ';
+  $('#aqFrom').textContent = pub ? 'เผยแพร่แล้ว' : n.ai_generated ? 'ช่อง AI' : 'รพ.สต.';
+  $('#aqInfo').innerHTML = (pub ? `<p class="small muted">เผยแพร่เมื่อ ${esc(thaiDate(n.published_at))} · บันทึกแล้วข่าวยังเผยแพร่อยู่ (แบบทดสอบขึ้นท้ายข่าวทันที)</p>` : `<p class="small muted">ส่งโดย ${from(n)} · ${esc(thaiDate(n.created_at))}</p>`)
     + (n.ai_generated ? '<p class="small ai-warn">ข่าวนี้เขียนโดย AI — ตรวจตัวเลข ชื่อยา และขนาดยาเทียบกับบทความต้นฉบับก่อนเผยแพร่</p>' : '')
     + (n.file_path ? `<div>${fileLink(n)}</div>` : n.source_file_url ? `<div>${extFileLink(n.source_file_url, 'ดาวน์โหลดบทความฉบับเต็ม (PDF)')}</div>` : '')
     + (n.source_url ? `<p class="small">อ้างอิง: <a href="${esc(n.source_url)}" target="_blank" rel="noopener">${esc(n.source_title || n.source_url)}</a></p>` : '');
   $('#aqTitle').value = n.title; $('#aqBody').value = n.body; $('#aqClosed').checked = !!n.comments_closed; $('#anComment').value = '';
-  aqKit.edit(n); openQuizTools(n);   // ข่าวที่มี PDF ต้นฉบับ: ตรวจกับความเข้าใจของฉัน + แบบทดสอบสำหรับผู้อ่าน
+  aqKit.edit(n); openQuizTools(n);   // ข่าวที่มี PDF ต้นฉบับ: แบบทดสอบสำหรับผู้อ่าน
+  $('#anComment').closest('.field').hidden = pub;
+  if (pub) {
+    $('#aqBtns').innerHTML = '<button type="button" class="btn btn-p" data-decide="save">บันทึก (ข่าวยังเผยแพร่อยู่)</button>'
+      + '<button type="button" class="btn btn-o btn-sm" data-decide="close">ปิด</button><span class="small" id="anDecideMsg" aria-live="polite"></span>';
+    $('#aqQuizFold').open = true;
+    renderQueueSel(); el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   $('#aqBtns').innerHTML = '<button type="button" class="btn btn-ok" data-decide="published">อนุมัติ &amp; เผยแพร่</button>'
     + '<button type="button" class="btn btn-o" data-decide="save">บันทึก (ยังไม่เผยแพร่)</button>'
     + (n.ai_generated ? '<button type="button" class="btn btn-no" data-decide="rejected">ไม่ใช้ข่าวนี้</button>'
@@ -55,7 +65,7 @@ function openReview(id) {
   renderQueueSel();
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-function closeReview() { reviewing = null; closeQuizTools(); $('#anReview').hidden = true; $('#aqForm').reset(); aqKit?.reset(); renderQueueSel(); }
+function closeReview() { reviewing = null; reviewFrom = 'queue'; closeQuizTools(); $('#anReview').hidden = true; $('#aqForm').reset(); aqKit?.reset(); renderQueueSel(); }
 const renderQueueSel = () => document.querySelectorAll('#anQueue [data-review]').forEach((b) => { const on = b.dataset.review === reviewing?.id; b.textContent = on ? 'กำลังตรวจ' : 'ตรวจ'; b.closest('.li').classList.toggle('sel', on); });
 
 /** บันทึกการแก้ไขในกล่องตรวจ + เปลี่ยนสถานะ (status = null → บันทึกอย่างเดียว ยังรอตรวจ) */
@@ -79,6 +89,9 @@ async function decide(status, btn) {
     removeNewsFiles(n, up.fields);
   } catch (err) { up?.undo(); busy(btn, false); say(errText(err)); return; }
   busy(btn, false);
+  if (reviewFrom === 'published') {   // ข่าวที่เผยแพร่แล้ว: ยังเผยแพร่อยู่ · กล่องเปิดค้างไว้ แก้ต่อได้
+    toast('บันทึกแล้ว · ข่าวยังเผยแพร่อยู่'); await loadPublished(); refreshHome(); openReview(n.id, 'published'); return;
+  }
   toast({ save: 'บันทึกการแก้ไขแล้ว (ยังรอตรวจ)', published: 'เผยแพร่ข่าวแล้ว', fix: 'ส่งกลับให้แก้ไขแล้ว', rejected: n.ai_generated ? 'ไม่ใช้ข่าวนี้แล้ว' : 'บันทึกว่าไม่ผ่านแล้ว' }[status]);
   if (status === 'save') { await loadQueue(); openReview(n.id); return; }   // ยังอยู่ในกล่องตรวจ กดอนุมัติต่อได้
   closeReview(); loadQueue(); refreshAdminBadges();
@@ -87,7 +100,7 @@ async function decide(status, btn) {
 }
 
 async function loadPublished() {
-  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,gallery,file_path,file_name,comments_closed,view_count,published_at,unit_id').eq('status', 'published').order('published_at', { ascending: false });
+  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,gallery,file_path,file_name,comments_closed,view_count,published_at,created_at,unit_id,ai_generated,source_url,source_title,source_file_url').eq('status', 'published').order('published_at', { ascending: false });
   if (error) { $('#anList').innerHTML = `<p class="empty">โหลดข่าวไม่สำเร็จ: ${esc(errText(error))}</p>`; return; }
   published = data;
   renderPublished();
@@ -110,7 +123,7 @@ function renderPublished() {
   $('#anFound').textContent = pubOpen && (q || day) ? `พบ ${filtered.length} ข่าว` : '';
   $('#anList').innerHTML = rows.length ? rows.map((n) => `<div class="newsrow"><div class="thumb2">${n.image_path ? `<img src="${esc(publicImageUrl(n.image_path))}" alt="" loading="lazy">` : ''}</div>`
     + `<div class="l"><b>${esc(n.title)}</b><span class="small muted">${esc(n.tag)} · ${esc(thaiDate(n.published_at))} · ${n.view_count.toLocaleString('th-TH')} ผู้เข้าชม${n.unit_id != null ? ' · จาก รพ.สต. ' + esc(unitName(n.unit_id)) : ''}${n.comments_closed ? ' · ปิดความคิดเห็น' : ''}</span></div>`
-    + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/news/${n.id}">ดู</a><button type="button" class="btn btn-o btn-sm" data-edit="${n.id}">แก้ไข</button><button type="button" class="btn btn-o btn-sm" data-unpub="${n.id}">หยุดเผยแพร่</button><button type="button" class="btn btn-no btn-sm" data-del="${n.id}">ลบ</button></div></div>`).join('')
+    + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/news/${n.id}">ดู</a>${n.source_file_url ? `<button type="button" class="btn btn-o btn-sm" data-quiz="${n.id}">แบบทดสอบ</button>` : ''}<button type="button" class="btn btn-o btn-sm" data-edit="${n.id}">แก้ไข</button><button type="button" class="btn btn-o btn-sm" data-unpub="${n.id}">หยุดเผยแพร่</button><button type="button" class="btn btn-no btn-sm" data-del="${n.id}">ลบ</button></div></div>`).join('')
     : `<p class="empty">${published.length ? 'ไม่พบข่าวที่ตรงกับคำค้น/วันที่' : 'ยังไม่มีข่าวที่เผยแพร่'}</p>`;
 }
 
@@ -185,6 +198,8 @@ function bind() {
   $('#anDate').addEventListener('change', renderPublished);
   $('#anFindClear').addEventListener('click', () => { $('#anSearch').value = ''; $('#anDate').value = ''; renderPublished(); });
   $('#anList').addEventListener('click', async (e) => {
+    const qz = e.target.closest('[data-quiz]');
+    if (qz) { openReview(qz.dataset.quiz, 'published'); return; }   // ทำแบบทดสอบท้ายข่าวให้ข่าวที่เผยแพร่แล้ว
     const ed = e.target.closest('[data-edit]');
     if (ed) {
       const n = published.find((x) => x.id === ed.dataset.edit); if (!n) return;
