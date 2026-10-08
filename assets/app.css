@@ -431,13 +431,20 @@ a.menu-icon-btn{text-decoration:none}
 .vs-pfold .vs-ptabs{margin-bottom:8px}
 .vs-pfold > :not(summary) + *{margin-top:6px}
 /* สรุปผลงานเยี่ยมบ้าน: ฟอร์มย่อ/ขยายได้ (ค่าเริ่มต้นย่อ · กดแก้ไขแล้วเปิดเอง) */
-.vs-fold > summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:44px;cursor:pointer;list-style:none}
+.vs-fold > summary{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:10px;row-gap:2px;min-height:44px;cursor:pointer;list-style:none}
+.vs-fold > summary > :not(:first-child){grid-column:2}
 .vs-fold > summary::-webkit-details-marker{display:none}
 .vs-fold > summary::before{content:'▸';display:inline-block;color:var(--primary);transition:transform .15s}
 .vs-fold[open] > summary::before{transform:rotate(90deg)}
 .vs-fold > summary h2{margin:0}
 .vs-fold[open] .vs-fold-hint{display:none}
 .vs-fold[open] > summary{margin-bottom:8px}
+.pt-listpanel{position:relative}
+.pt-listfold > summary{padding-right:150px}
+@media (max-width:640px){.pt-listfold > summary{padding-right:136px}}
+.pt-listpanel > .pt-add{position:absolute;top:24px;right:24px}
+.pt-listfold > * + *{margin-top:12px}
+.pt-listfold[open] > summary{margin-bottom:0}
 .pt-fold{border:1px solid var(--line);border-radius:12px;padding:4px 14px 12px;margin-bottom:12px}
 .pt-fold:not([open]){padding-bottom:4px}
 .vs-hint{margin:0}

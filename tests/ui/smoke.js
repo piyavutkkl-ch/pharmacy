@@ -227,6 +227,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
     const logs = await calls(p, (c) => c.rpc === 'log_patient_access');
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(200);
+    await p.click('#ptListFold > summary'); await p.waitForTimeout(100);
+    check('เยี่ยมบ้าน: รายชื่อผู้ป่วยย่อได้ (ปุ่มเพิ่มผู้ป่วยยังอยู่)', !(await p.isVisible('#ptList')) && !(await p.isVisible('#ptSearch')) && await visible(p, '#ptAddBtn') && (await p.textContent('#ptListFold > summary')).includes('ผู้ป่วยในความดูแล'));
+    await (await p.$('.pt-listpanel')).screenshot({ path: path.join(SHOTS, 'staff-visits-list-folded.png') });
+    await p.click('#ptListFold > summary'); await p.waitForTimeout(100);
+    check('เยี่ยมบ้าน: กดอีกครั้งรายชื่อกลับมา', await p.isVisible('#ptList'));
     check('เยี่ยมบ้าน: กดชื่อผู้ป่วยซ้ำ = ย่อข้อมูลผู้ป่วยลง', (await text(p, '#ptPanel')).includes('เลือกผู้ป่วย') && (await p.getAttribute('#ptList [data-pt]', 'aria-expanded')) === 'false');
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
     check('เจ้าหน้าที่: เปิดรายชื่อ + เปิดดูผู้ป่วย ถูกบันทึก (PDPA)', logs.some((c) => c.args.p_unit === 2 && !c.args.p_patient) && logs.some((c) => c.args.p_patient));

@@ -33,12 +33,15 @@ const maskId = (id) => (id ? `x-xxxx-xxxxx-${id.slice(10, 12)}-${id.slice(12)}` 
 const age = (dob) => { if (!dob) return ''; const d = new Date(dob), n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n < new Date(n.getFullYear(), d.getMonth(), d.getDate())) a--; return a; };
 
 const WS_HTML = `<div class="visits-stack">
-  <div class="panel">
-    <div class="panel-head"><h2>ผู้ป่วยในความดูแล <span class="num muted" id="ptCount"></span></h2><button type="button" class="btn btn-p btn-sm" id="ptAddBtn">+ เพิ่มผู้ป่วย</button></div>
-    <label for="ptSearch" class="sr-only">ค้นหาผู้ป่วย</label>
-    <input id="ptSearch" class="input" type="search" placeholder="ค้นหาชื่อ / HN / เลข 13 หลัก">
-    <div class="list" id="ptList"></div>
-    <p class="small muted pdpa-note">การเปิดดู เพิ่ม แก้ไข และลบข้อมูลผู้ป่วยถูกบันทึกไว้ตาม PDPA</p>
+  <div class="panel pt-listpanel">
+    <details class="vs-fold pt-listfold" id="ptListFold" open>
+      <summary><h2>ผู้ป่วยในความดูแล <span class="num muted" id="ptCount"></span></h2><span class="small muted vs-fold-hint">ย่อไว้ · กดเพื่อดูรายชื่อ</span></summary>
+      <label for="ptSearch" class="sr-only">ค้นหาผู้ป่วย</label>
+      <input id="ptSearch" class="input" type="search" placeholder="ค้นหาชื่อ / HN / เลข 13 หลัก">
+      <div class="list" id="ptList"></div>
+      <p class="small muted pdpa-note">การเปิดดู เพิ่ม แก้ไข และลบข้อมูลผู้ป่วยถูกบันทึกไว้ตาม PDPA</p>
+    </details>
+    <button type="button" class="btn btn-p btn-sm pt-add" id="ptAddBtn">+ เพิ่มผู้ป่วย</button>
   </div>
   <div class="panel" id="ptPanel"></div>
 </div>`;
