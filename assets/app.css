@@ -681,7 +681,24 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .ai-warn{color:var(--warning);font-weight:600}
 .rv-imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;align-items:start}
 .rv-imgs .cover.smart.portrait{width:100%}
-.ar-gallery{display:flex;flex-direction:column;gap:20px}
+/* หลายภาพ = ภาพหลักกลางกรอบ ภาพข้างโผล่ซ้าย-ขวาแบบจาง/เบลอ (lightbox.js imageCarousel) */
+.carousel{position:relative;--cw:72%}
+.car-track{position:relative;display:flex;align-items:center;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:4px calc((100% - var(--cw)) / 2);overscroll-behavior-x:contain}
+.car-track::-webkit-scrollbar{display:none}
+.car-slide{flex:0 0 var(--cw);scroll-snap-align:center;scroll-snap-stop:always;min-width:0;transition:opacity .25s,filter .25s,transform .25s}
+.car-slide:not(.on){opacity:.4;filter:blur(2px) saturate(.6);transform:scale(.92);cursor:pointer}
+.car-slide .cover.smart.portrait{width:100%}
+.car-slide:not(.on) .zoom-btn{display:none}
+.car-btn{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--primary);box-shadow:var(--shadow);font-size:28px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0 0 4px;z-index:2}
+.car-btn:hover{background:var(--primary-soft)}
+.car-btn:disabled{opacity:0;pointer-events:none}
+.car-btn.prev{left:4px}.car-btn.next{right:4px}
+.car-dots{display:flex;justify-content:center;gap:2px;margin-top:6px}
+.car-dots button{width:28px;height:28px;border:0;background:none;padding:0;display:grid;place-items:center;cursor:pointer}
+.car-dots button::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--line)}
+.car-dots button.on::before{background:var(--primary);width:22px;border-radius:999px}
+.car-n{position:absolute;top:12px;left:50%;transform:translateX(-50%);padding:2px 10px;border-radius:999px;background:rgba(15,22,27,.62);color:#fff;font-size:13px;font-weight:600;z-index:2}
+@media (max-width:640px){.carousel{--cw:80%}.car-track{gap:8px}}
 .ar-source{padding:12px 16px;border-left:4px solid var(--primary);background:var(--sunken);border-radius:0 12px 12px 0;overflow-wrap:anywhere}
 .ib-head:has(.ib-acts){display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
 .ib-trash-btn{margin-left:auto}

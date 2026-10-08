@@ -309,7 +309,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ผลการดำเนินงาน: โปสเตอร์สรุปผลงานแสดงวันที่', /25\d\d/.test(await text(p, '#trackArt .sp-slide.on .sp-date')));
     await p.screenshot({ path: path.join(SHOTS, 'tracking-poster-1280.png') });
     await p.click('#trackArt .sp-slide.on'); await p.waitForTimeout(400);
-    check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + ภาพเพิ่ม + รายละเอียด)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await count(p, '#smGallery .cover') === 1);
+    check('สรุปผลงาน: กดเข้าไปเป็นหน้าแบบข่าว (ภาพเต็ม + ภาพเพิ่ม + รายละเอียด)', await visible(p, '[data-view="summary"]') && (await text(p, '#smTitle')).includes('(แก้ไข)') && (await text(p, '#smTag')).includes('ทุ่งนุ้ย') && await count(p, '#smBody p') === 2 && await count(p, '#smCover .car-slide .cover') === 2);
+    check('สรุปผลงาน: หลายภาพแสดงแบบเลื่อนซ้าย-ขวา (ปุ่ม ‹ › + ตัวนับ 1/2) ไม่เรียงยาวลงมา', (await text(p, '#smCover .car-n')) === '1/2' && await p.$eval('#smCover .car-track', (t) => t.scrollWidth > t.clientWidth && t.getBoundingClientRect().height < 1200) && await p.isDisabled('#smCover .prev'));
+    check('สรุปผลงาน: ภาพหลักอยู่กลาง ภาพถัดไปโผล่ด้านขวาแบบจาง/เบลอ', await p.$eval('#smCover', (c) => { const [a, b] = c.querySelectorAll('.car-slide'), t = c.querySelector('.car-track').getBoundingClientRect(), r = b.getBoundingClientRect(); return a.classList.contains('on') && !b.classList.contains('on') && +getComputedStyle(b).opacity < 0.6 && getComputedStyle(b).filter.includes('blur') && r.left < t.right && r.right > t.right; }));
+    await p.click('#smCover .next'); await p.waitForTimeout(700);
+    check('สรุปผลงาน: กด › ไปภาพถัดไป (ตัวนับ 2/2 · ปุ่ม › หาย)', (await text(p, '#smCover .car-n')) === '2/2' && await p.$eval('#smCover .car-track', (t) => t.scrollLeft > 10) && await p.isDisabled('#smCover .next'));
+    await p.click('#smCover .prev'); await p.waitForTimeout(700);
+    check('สรุปผลงาน: กด ‹ กลับภาพแรก', (await text(p, '#smCover .car-n')) === '1/2');
     check('สรุปผลงาน: หน้าอ่านแสดงจำนวนผู้ลงเยี่ยมตามตำแหน่ง + เยี่ยมผู้ป่วย n ราย', (await text(p, '#smPeople')).includes('ลงเยี่ยม:') && (await text(p, '#smPeople')).includes('เภสัชกร 1 ราย') && (await text(p, '#smPeople')).includes('เยี่ยมผู้ป่วย 1 ราย'), await text(p, '#smPeople'));
     check('สรุปผลงาน: หน้าอ่านแสดงวันที่ + เจ้าหน้าที่ที่ร่วมลง', (await text(p, '#smDate')).startsWith('วันที่ ') && (await text(p, '#smPeople')).includes('เจ้าหน้าที่ที่ร่วมลง:') && await visible(p, '#smPeople'));
     check('สรุปผลงาน: เจ้าหน้าที่เห็น "รายการเยี่ยมที่เชื่อมโยง" (ชื่อเต็ม · วันที่เยี่ยม · กดดูได้)', await visible(p, '#smVisits') && (await text(p, '#smVisits')).includes('ประยูร ทดสอบ') && await count(p, `#smVisits [data-sv-open="${linkedVisit}"]`) === 1);
@@ -478,8 +484,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await go(p, '#/news/' + AI); await p.waitForTimeout(500);
       const arW = await p.evaluate(() => [document.querySelector('#arBody').getBoundingClientRect().width, document.querySelector('#arBody').parentElement.getBoundingClientRect().width]);
       check('หน้าอ่านข่าว: เนื้อข่าวเต็มความกว้างกรอบข่าว (ไม่เว้นว่างด้านขวา)', Math.abs(arW[0] - arW[1]) <= 2, JSON.stringify(arW));
-      check('หน้าอ่านข่าว AI: ป้าย "สรุปโดย AI" + ภาพเพิ่ม 2 ภาพ + อ้างอิงบทความต้นฉบับ + ปุ่มดาวน์โหลด PDF ต้นฉบับ', await visible(p, '#arAi') && await count(p, '#arGallery .cover') === 2 && (await p.getAttribute('#arSource a', 'href')).includes('ccpe.pharmacycouncil.org') && await visible(p, '#arFile .file-link') && (await p.getAttribute('#arFile a', 'href')).endsWith('showfile.php?file=1876') && (await p.getAttribute('#arFile a', 'target')) === '_blank');
+      check('หน้าอ่านข่าว AI: ป้าย "สรุปโดย AI" + ภาพเพิ่ม 2 ภาพ + อ้างอิงบทความต้นฉบับ + ปุ่มดาวน์โหลด PDF ต้นฉบับ', await visible(p, '#arAi') && await count(p, '#arCover .car-slide .cover') === 3 && (await text(p, '#arCover .car-n')) === '1/3' && (await p.getAttribute('#arSource a', 'href')).includes('ccpe.pharmacycouncil.org') && await visible(p, '#arFile .file-link') && (await p.getAttribute('#arFile a', 'href')).endsWith('showfile.php?file=1876') && (await p.getAttribute('#arFile a', 'target')) === '_blank');
       await p.screenshot({ path: path.join(SHOTS, 'ai-news-article-1280.png'), fullPage: true });
+      await p.click('#arCover .next'); await p.waitForTimeout(700);
+      check('หน้าอ่านข่าว: หลายภาพกด › เลื่อนไปภาพถัดไป + ปุ่มขยายภาพยังใช้ได้', (await text(p, '#arCover .car-n')) === '2/3');
+      await p.click('#arCover .car-slide:nth-child(3)'); await p.waitForTimeout(700);
+      check('หน้าอ่านข่าว: กดภาพข้าง ๆ = เลื่อนภาพนั้นมากลาง (ยังไม่เปิดภาพเต็มจอ)', (await text(p, '#arCover .car-n')) === '3/3' && !(await p.$eval('dialog.lightbox', (d) => d.open).catch(() => false)));
+      await (await p.$('#arCover')).screenshot({ path: path.join(SHOTS, 'news-carousel-1280.png') });
+      await p.setViewportSize({ width: 390, height: 844 }); await go(p, '#/'); await go(p, '#/news/' + AI); await p.waitForTimeout(700);
+      await p.screenshot({ path: path.join(SHOTS, 'news-carousel-390.png') });
+      check('หน้าอ่านข่าว 390px: กรอบเลื่อนภาพไม่ล้นจอ + ปุ่มสูง ≥ 44px', await overflow(p) <= 0 && await p.$eval('#arCover .next', (b) => b.getBoundingClientRect().height >= 44));
+      await p.setViewportSize({ width: 1280, height: 900 });
       await go(p, '#/admin/news'); await p.waitForTimeout(300);
     }
     check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));

@@ -1,6 +1,7 @@
 // แสดงรูปแบบฉลาด + กดขยายดูภาพเต็ม (ใช้ในหน้าอ่านข่าว / สรุปผลงานเยี่ยมบ้าน)
 //   smartCover(box, src, alt): สัดส่วนใกล้เคียง A4 (แนวตั้ง–จัตุรัส–แนวนอน) → แสดงทั้งภาพไม่ครอบตัด
 //                              ยาว/กว้างกว่า A4 มาก → ครอบตัดให้พอดีกรอบ A4 (แนวตั้งหรือแนวนอน) แต่กดดูภาพเต็มได้
+//   imageCarousel(box, srcs, alt): หลายภาพ → เลื่อน/ปัดซ้าย-ขวา + ปุ่ม ‹ › + ตัวนับ (ภาพเดียว = smartCover ตามเดิม)
 //   openLightbox(src, alt):    ภาพเต็มจอ · กดที่ภาพ = สลับดูขนาดจริง (เลื่อนดูได้) · ปิดด้วย Esc/ปุ่ม/คลิกพื้นหลัง
 import { esc } from './util.js?v=4.4';
 
@@ -28,6 +29,47 @@ export function smartCover(box, src, alt = '') {
     if (img.complete && img.naturalWidth) done();
     else { img.addEventListener('load', done, { once: true }); img.addEventListener('error', () => resolve('error'), { once: true }); }
   });
+}
+
+/** หลายภาพในกรอบเดียว: ภาพหลักอยู่กลาง ภาพข้าง ๆ โผล่ซ้าย-ขวาแบบจาง/เบลอ (บอกว่ามีหลายภาพ)
+ *  กด ‹ › / กดภาพข้าง / ปัด / ลูกศรคีย์บอร์ด = เปลี่ยนภาพ · กดภาพกลาง = ขยายเต็มจอ (smartCover) */
+export function imageCarousel(box, srcs, alt = '') {
+  const list = srcs.filter(Boolean);
+  if (list.length <= 1) return list.length ? smartCover(box, list[0], alt) : Promise.resolve(null);
+  box.className = 'carousel'; box.removeAttribute('style');
+  box.innerHTML = `<div class="car-track" tabindex="0" role="group" aria-roledescription="carousel" aria-label="${esc(alt)} · ${list.length} ภาพ เลื่อนซ้าย-ขวาได้">`
+    + list.map((_, i) => `<div class="car-slide" aria-label="ภาพที่ ${i + 1} จาก ${list.length}"><div class="cover"></div></div>`).join('') + '</div>'
+    + '<button type="button" class="car-btn prev" aria-label="ภาพก่อนหน้า">‹</button><button type="button" class="car-btn next" aria-label="ภาพถัดไป">›</button>'
+    + `<div class="car-dots">${list.map((_, i) => `<button type="button" data-i="${i}" aria-label="ไปภาพที่ ${i + 1}"></button>`).join('')}</div><span class="car-n num" aria-live="polite"></span>`;
+  const track = box.querySelector('.car-track'), slides = [...track.children];
+  let at = 0;
+  const cur = () => {   // ภาพที่อยู่กลางกรอบมากที่สุด
+    const mid = track.scrollLeft + track.clientWidth / 2;
+    let best = 0, dist = Infinity;
+    slides.forEach((sl, i) => { const d = Math.abs(sl.offsetLeft + sl.offsetWidth / 2 - mid); if (d < dist) { dist = d; best = i; } });
+    return best;
+  };
+  const go = (i, smooth = true) => {
+    const sl = slides[Math.max(0, Math.min(list.length - 1, i))];
+    track.scrollTo({ left: sl.offsetLeft - (track.clientWidth - sl.offsetWidth) / 2, behavior: smooth ? 'smooth' : 'auto' });
+  };
+  const show = () => {
+    at = cur();
+    box.querySelector('.car-n').textContent = `${at + 1}/${list.length}`;
+    slides.forEach((sl, k) => { sl.classList.toggle('on', k === at); sl.setAttribute('aria-hidden', String(k !== at)); });
+    box.querySelectorAll('.car-dots button').forEach((d, k) => d.classList.toggle('on', k === at));
+    box.querySelector('.prev').disabled = at === 0; box.querySelector('.next').disabled = at === list.length - 1;
+  };
+  box.querySelector('.prev').addEventListener('click', () => go(at - 1));
+  box.querySelector('.next').addEventListener('click', () => go(at + 1));
+  box.querySelector('.car-dots').addEventListener('click', (e) => { const d = e.target.closest('[data-i]'); if (d) go(+d.dataset.i); });
+  slides.forEach((sl, i) => sl.addEventListener('click', (e) => { if (i !== at) { e.preventDefault(); e.stopPropagation(); go(i); } }, true));   // ภาพข้าง = เลื่อนมากลาง (ยังไม่ขยาย)
+  track.addEventListener('scroll', show, { passive: true });
+  track.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') { e.preventDefault(); go(at - 1); } if (e.key === 'ArrowRight') { e.preventDefault(); go(at + 1); } });
+  const ready = Promise.all(slides.map((sl, i) => smartCover(sl.firstChild, list[i], `${alt} — ภาพที่ ${i + 1}`)));
+  requestAnimationFrame(() => { go(0, false); show(); });
+  ready.then(() => { go(at, false); show(); });   // ขนาดภาพเปลี่ยนหลังโหลด → จัดภาพปัจจุบันกลางกรอบอีกครั้ง
+  return ready;
 }
 
 let dlg = null;

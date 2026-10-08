@@ -45,7 +45,7 @@ js/data.js            ข้อมูลอ้างอิงที่ cache: un
 js/nav.js             เมนูข้าง/เมนูล่างจอ (มือถือ) + ปุ่ม "เพิ่มเติม", setCurrent()
 js/theme.js           ปุ่มโหมดมืด/สว่าง ขวาบน (จำใน localStorage 'pcps_theme' · ค่าเริ่ม = ตามเครื่อง · <head> ใส่ data-theme ก่อนวาดหน้า)
 js/util.js            esc, fiscalYearOf, thaiDate, toast, busy, errText, art(), deviceToken() (รหัสเครื่อง localStorage 'pcps_device')
-js/lightbox.js        smartCover() รูปหน้าอ่านข่าว/สรุปผลงาน: ใกล้ A4 (แนวตั้ง–แนวนอน) ไม่ครอบตัด · ยาว/กว้างกว่า A4 มากครอบตัด · openLightbox() ภาพเต็มจอ/ขนาดจริง
+js/lightbox.js        smartCover() รูปหน้าอ่านข่าว/สรุปผลงาน: ใกล้ A4 (แนวตั้ง–แนวนอน) ไม่ครอบตัด · ยาว/กว้างกว่า A4 มากครอบตัด · imageCarousel() หลายภาพ (หน้าอ่านข่าว/สรุปผลงาน): ภาพหลักกลาง ภาพข้างจาง/เบลอ กด ‹ › หรือกดภาพข้างเพื่อเปลี่ยน · openLightbox() ภาพเต็มจอ/ขนาดจริง
 js/profile.js         หน้าต่างข้อมูลส่วนตัว (กดชื่อบนแถบเมนู · ทุกบทบาท) openProfile(), saveMyProfile() → เหตุการณ์ 'pcps:profile'
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
 js/pages/news.js      สไลด์ข่าว, รายการข่าว, หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น — ไม่ login ก็ได้: ถูกใจผ่าน like_news_anon, ความเห็น ≤15 ตัวอักษรผ่าน comment_news_anon · รหัสเครื่อง localStorage 'pcps_device' · ผู้ดูแลลบความเห็นได้)

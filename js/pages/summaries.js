@@ -12,7 +12,7 @@ import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { paras } from './delivery.js?v=4.4';
 import { fileLink, imageList } from './news-form.js?v=4.4';
-import { smartCover } from '../lightbox.js?v=4.4';
+import { imageCarousel } from '../lightbox.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others,participant_positions';
@@ -76,7 +76,7 @@ export function renderSummaryPoster(box, list, fallback) {
 /* ======================= หน้าอ่าน #/summary/<id> ======================= */
 export async function showSummary(id) {
   $('#smTitle').textContent = 'กำลังโหลด…';
-  $('#smTag').textContent = ''; $('#smDate').textContent = ''; $('#smPeople').hidden = true; $('#smBody').innerHTML = ''; $('#smCover').innerHTML = ''; $('#smCover').className = 'cover'; $('#smFile').hidden = true; $('#smGallery').innerHTML = ''; $('#smGallery').hidden = true;
+  $('#smTag').textContent = ''; $('#smDate').textContent = ''; $('#smPeople').hidden = true; $('#smBody').innerHTML = ''; $('#smCover').innerHTML = ''; $('#smCover').className = 'cover'; $('#smFile').hidden = true;
   await loadUnits();
   const { data: s, error } = await sb.from('visit_summaries').select(COLS).eq('id', +id || 0).maybeSingle();
   if (error || !s) { $('#smTitle').textContent = 'ไม่พบสรุปผลงานนี้'; $('#smBody').innerHTML = '<p class="muted">อาจถูกลบไปแล้ว</p>'; return; }
@@ -90,13 +90,7 @@ export async function showSummary(id) {
     $('#smPeople').innerHTML = (counts ? `<b class="sm-counts">ลงเยี่ยม: ${esc(counts)}</b>` : '') + (peopleOf(s) ? `<span>เจ้าหน้าที่ที่ร่วมลง: ${esc(peopleOf(s))}</span>` : '');
     $('#smPeople').hidden = false;
   }
-  const url = publicImageUrl(s.image_path);
-  smartCover($('#smCover'), url, s.title);
-  const gal = (s.gallery || []).filter(Boolean);   // ภาพเพิ่ม (ใกล้ A4 = ไม่ครอบตัด · กดขยายได้)
-  if (gal.length) {
-    $('#smGallery').innerHTML = gal.map(() => '<div class="cover"></div>').join(''); $('#smGallery').hidden = false;
-    $('#smGallery').querySelectorAll('.cover').forEach((box, i) => smartCover(box, publicImageUrl(gal[i]), `${s.title} — ภาพที่ ${i + 2}`));
-  }
+  imageCarousel($('#smCover'), imgsOf(s).map(publicImageUrl), s.title);   // หลายภาพ = เลื่อนซ้าย-ขวา · กดขยายได้
   $('#smBody').innerHTML = paras(s.body);
   $('#smFile').innerHTML = s.file_path ? fileLink(s) : ''; $('#smFile').hidden = !s.file_path;
   showLinkedVisits(s.id);
