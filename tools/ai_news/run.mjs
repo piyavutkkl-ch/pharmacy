@@ -5,6 +5,8 @@
 //                                          ① วิเคราะห์ PDF ดึงข้อเท็จจริงพร้อมข้อความอ้างอิง/หน้า → ② เขียนข่าวจากข้อเท็จจริงนั้นเท่านั้น
 //                                          → ③ ตรวจทานเทียบ PDF ทีละประโยค แก้จุดที่ไม่ตรง (สูงสุด 3 รอบ) · ยังพบจุดผิด = เข้าคิวรอผู้ดูแลตรวจเสมอ
 //                                          → ภาพแม่แบบ 3 ภาพจากข้อมูลที่ตรวจแล้ว (templates.mjs: อินโฟกราฟิก · การ์ตูน 3 ช่อง · แผนภูมิสำหรับบุคลากร) → บันทึกข่าว
+//                                          → ถอดข้อความ PDF เก็บใน news_sources (pdftotext ถ้ามี · ภาษาไทยเพี้ยน/ไม่มี = Gemini ถอด) ให้ผู้ดูแลตรวจข่าว/แบบทดสอบได้เร็ว
+//                                            ไม่ต้องให้ AI เปิด PDF ซ้ำ (47_ai_news_check.sql) · ข่าว AI เดิมที่ยังไม่มี = เติมให้รอบละ 2 ข่าว
 //   รุ่น AI: รุ่น pro (วิเคราะห์ละเอียดกว่า) ก่อน → โควตาฟรีหมด = รุ่น flash
 //   node tools/ai_news/run.mjs --offline <fixtures> <out>   ทดสอบในเครื่องโดยไม่ใช้เน็ต/ฐานข้อมูลจริง (tests/ai_news/run.sh)
 //
@@ -13,6 +15,8 @@
 //   repo เป็นสาธารณะ: ห้าม log ค่าลับ · log ได้แค่ชื่อ/รหัสบทความ (ข้อมูลสาธารณะอยู่แล้ว)
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { infographic, comic, clinical, SIZES } from './templates.mjs';
 
@@ -187,6 +191,59 @@ const VERIFY_PROMPT = (a, draft) => `คุณเป็นเภสัชกร�
 ข่าวที่ต้องตรวจ:
 ${JSON.stringify(draft)}`;
 
+/* ---------------- ถอดข้อความ PDF (เก็บไว้ให้ผู้ดูแลตรวจข่าว/แบบทดสอบ · ห้าม log เนื้อหา) ---------------- */
+const MAX_SRC = 280_000;
+const TRANSCRIBE_PROMPT = `ถอดข้อความทั้งหมดใน PDF ที่แนบตามต้นฉบับทุกตัวอักษร ทุกหน้า (รวมตาราง หัวข้อ เชิงอรรถ) ห้ามสรุป ห้ามแปล ห้ามเพิ่มความเห็น
+ขึ้นต้นแต่ละหน้าด้วยบรรทัด [หน้า n] (n = เลขหน้าใน PDF) · ตารางให้เขียนแถวละบรรทัด คั่นช่องด้วย " | " · ตอบเป็นข้อความล้วน`;
+/** pdftotext (ถ้ามีในเครื่อง · เร็ว ไม่ใช้โควตา) → ไม่มี/ภาษาไทยเพี้ยน = ให้ Gemini ถอด → { body, pages, method } */
+export function cleanPdfText(raw) {
+  const pages = String(raw).split('\f').map((t) => t.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim());
+  const body = pages.map((t, i) => (t ? `[หน้า ${i + 1}]\n${t}` : '')).filter(Boolean).join('\n\n');
+  const thai = (body.match(/[\u0E00-\u0E7F]/g) || []).length;
+  const broken = (body.match(/(^|\s)[\u0E31\u0E33-\u0E3A\u0E47-\u0E4E]/gm) || []).length + (body.match(/\uFFFD/g) || []).length * 5;   // สระ/วรรณยุกต์ลอย = ฟอนต์ถอดไม่ได้
+  const ok = body.length > 500 && thai > 200 && broken < thai / 50;
+  return { ok, body: body.slice(0, MAX_SRC), pages: pages.filter(Boolean).length };
+}
+async function pdfText(pdf, pdfPart, models) {
+  if (!OFFLINE) {
+    const f = path.join(os.tmpdir(), `ccpe-${process.pid}-${Date.now()}.pdf`);
+    try {
+      fs.writeFileSync(f, pdf);
+      const r = cleanPdfText(execFileSync('pdftotext', ['-enc', 'UTF-8', f, '-'], { maxBuffer: 64 << 20, stdio: ['ignore', 'pipe', 'ignore'] }).toString('utf8'));
+      if (r.ok) return { body: r.body, pages: r.pages, method: 'pdftotext' };
+      log('pdftotext ถอดภาษาไทยไม่ครบ → ให้ AI ถอด');
+    } catch { log('ไม่มี pdftotext → ให้ AI ถอด'); } finally { fs.rmSync(f, { force: true }); }
+  }
+  const quick = [...models.filter((n) => !/pro/.test(n)), ...models.filter((n) => /pro/.test(n))];   // งานถอดข้อความใช้รุ่น flash ก่อน (เก็บโควตา pro)
+  const j = await gemini(quick, { contents: [{ parts: [pdfPart, { text: TRANSCRIBE_PROMPT }] }], generationConfig: { temperature: 0, maxOutputTokens: 65536 } }, { step: 'transcribe' });
+  const body = textOf(j).trim();
+  if (body.length < 200) throw new Error('ถอดข้อความจาก PDF ไม่ได้');
+  return { body: body.slice(0, MAX_SRC), pages: (body.match(/^\[หน้า \d+\]/gm) || []).length || null, method: 'gemini' };
+}
+async function downloadPdf(url) {
+  const r = await fetch(url);
+  if (!r.ok || !/pdf/i.test(r.headers.get('content-type') || '')) throw new Error(`ดาวน์โหลด PDF ไม่ได้ (HTTP ${r.status})`);
+  const pdf = Buffer.from(await r.arrayBuffer());
+  if (pdf.length > MAX_PDF) throw new Error(`PDF ใหญ่เกิน ${MAX_PDF / 1048576} MB`);
+  return pdf;
+}
+/** ข่าว AI เดิมที่ยังไม่มีข้อความ PDF ในระบบ → ถอดเติมให้ (รอบละไม่เกิน n ข่าว · ไม่สำเร็จก็ไม่เป็นไร) */
+async function backfillSources(db, models, n = 2) {
+  if (OFFLINE) return;
+  try {
+    const news = await db.get('news?select=id,source_file_url&ai_generated=eq.true&source_file_url=not.is.null&order=created_at.desc&limit=20');
+    const have = new Set((await db.get('news_sources?select=news_id')).map((x) => x.news_id));
+    for (const x of news.filter((y) => !have.has(y.id)).slice(0, n)) {
+      try {
+        const pdf = await downloadPdf(x.source_file_url);
+        const src = await pdfText(pdf, { inlineData: { mimeType: 'application/pdf', data: pdf.toString('base64') } }, models);
+        await db.upsert('news_sources', { news_id: x.id, body: src.body, pages: src.pages, method: src.method });
+        log('เติมข้อความ PDF ให้ข่าวเดิม:', x.id, src.method, src.pages, 'หน้า');
+      } catch (e) { log('เติมข้อความ PDF ไม่สำเร็จ:', x.id, String(e.message).slice(0, 120)); }
+    }
+  } catch (e) { log('ตรวจข้อความ PDF ของข่าวเดิมไม่ได้:', String(e.message).slice(0, 120)); }
+}
+
 /* ---------------- ภาพ ---------------- */
 function loadPlaywright() {
   const req = createRequire(path.join(ROOT, 'tests/ui/package.json'));
@@ -247,7 +304,11 @@ async function main() {
 
   const done = new Set(logs.filter((l) => l.status !== 'error').map((l) => l.article_id));
   const ids = parseListing(await fetchText(LIST_URL)).filter((id) => !done.has(id)).slice(0, CANDIDATES);
-  if (!ids.length) { await status(db, { status: 'skipped', note: 'ยังไม่มีบทความใหม่ใน CCPE' }); log('ไม่มีบทความใหม่'); return; }
+  if (!ids.length) {
+    await status(db, { status: 'skipped', note: 'ยังไม่มีบทความใหม่ใน CCPE' }); log('ไม่มีบทความใหม่');
+    try { await backfillSources(db, (await pickModels()).text); } catch { /* ไม่เป็นไร */ }
+    return;
+  }
   const arts = [];
   for (const id of ids) { try { const a = parseDetail(await fetchText(detailUrl(id)), id); if (a.title) arts.push(a); } catch (e) { log('ข้าม', id, e.message); } }
   if (!arts.length) throw new Error('อ่านหน้ารายละเอียดบทความไม่ได้ (หน้าเว็บ CCPE อาจเปลี่ยนรูปแบบ)');
@@ -270,11 +331,7 @@ async function main() {
   try {
     let pdf;
     if (OFFLINE) pdf = fs.readFileSync(path.join(OFFLINE.dir, 'article.pdf'));
-    else {
-      const r = await fetch(art.pdf);
-      if (!r.ok || !/pdf/i.test(r.headers.get('content-type') || '')) throw new Error(`ดาวน์โหลด PDF ไม่ได้ (HTTP ${r.status})`);
-      pdf = Buffer.from(await r.arrayBuffer());
-    }
+    else pdf = await downloadPdf(art.pdf);
     if (pdf.length > MAX_PDF) throw new Error(`PDF ใหญ่เกิน ${MAX_PDF / 1048576} MB`);
     const pdfPart = { inlineData: { mimeType: 'application/pdf', data: pdf.toString('base64') } };
     const ask = async (text, step, temperature) => jsonOf(await gemini(models.text, { contents: [{ parts: [pdfPart, { text }] }], generationConfig: { responseMimeType: 'application/json', temperature } }, { step }));
@@ -321,14 +378,19 @@ async function main() {
       image_path: paths.infographic, gallery: [paths.comic, paths.clinical], ai_generated: true,
       source_url: art.url, source_file_url: art.pdf, source_title: clip(`${art.title}${art.authors ? ' — ' + art.authors : ''}`, 300),
     };
-    if (OFFLINE) { fs.writeFileSync(path.join(OFFLINE.out, 'news.json'), JSON.stringify({ article: art, row, facts, check: { rounds, fixed, left } }, null, 2)); log('offline: บันทึกที่', OFFLINE.out); return; }
+    // ข้อความ PDF เก็บไว้ให้ผู้ดูแลตรวจข่าว/แบบทดสอบ (ไม่สำเร็จ = ข่าวยังสร้างได้ · AI ตรวจจะเปิด PDF จากลิงก์แทน)
+    let src = null;
+    try { src = await pdfText(pdf, pdfPart, models.text); log('ถอดข้อความ PDF:', src.method, src.pages ?? '-', 'หน้า'); } catch (e) { log('ถอดข้อความ PDF ไม่ได้:', String(e.message).slice(0, 120)); }
+    if (OFFLINE) { fs.writeFileSync(path.join(OFFLINE.out, 'news.json'), JSON.stringify({ article: art, row, facts, check: { rounds, fixed, left }, source: src }, null, 2)); log('offline: บันทึกที่', OFFLINE.out); return; }
     const [news] = await db.insert('news', row);
+    if (src) await db.upsert('news_sources', { news_id: news.id, body: src.body, pages: src.pages, method: src.method }).catch((e) => log('บันทึกข้อความ PDF ไม่ได้:', String(e.message).slice(0, 120)));
     await status(db, { article_id: art.id, title: clip(art.title, 300), news_id: news.id, status: 'done', note: `${row.status === 'published' ? 'เผยแพร่อัตโนมัติ' : 'รอผู้ดูแลตรวจ'} · AI วิเคราะห์ ${facts.facts.length} ข้อเท็จจริง · ตรวจทาน ${rounds} รอบ แก้ ${fixed} จุด${left !== 0 ? ` · ยังมีจุดที่ควรตรวจ ${Math.max(left, 1)} จุด` : ''}` });
     log('สร้างข่าวแล้ว:', news.id, row.status);
+    await backfillSources(db, models.text);
   } catch (e) {
     await status(db, { article_id: art.id, title: clip(art.title, 300), status: 'error', note: clip(e.message, 900) });
     throw e;
   }
 }
 
-main().catch((e) => { console.log(`::error::${String(e.message).slice(0, 300)}`); process.exit(1); });
+if (!process.env.AI_NEWS_IMPORT_ONLY) main().catch((e) => { console.log(`::error::${String(e.message).slice(0, 300)}`); process.exit(1); });   // AI_NEWS_IMPORT_ONLY = ทดสอบฟังก์ชันย่อย

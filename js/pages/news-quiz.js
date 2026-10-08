@@ -1,5 +1,5 @@
 // ข่าวช่อง AI: เครื่องมือในกล่องตรวจของผู้ดูแล + แบบทดสอบท้ายข่าวสำหรับผู้อ่าน (47_ai_news_check.sql)
-//   ① ตรวจกับความเข้าใจของฉัน: ผู้ดูแลพิมพ์ประเด็นที่เข้าใจ (บรรทัดละข้อ · ไม่บันทึก) → ai_news_check_start/poll
+//   ① ตรวจกับความเข้าใจของฉัน: ผู้ดูแลพิมพ์ประเด็นที่เข้าใจ (1 กล่อง = 1 ประเด็น · เพิ่ม/ลบกล่องได้ · ไม่บันทึก) → ai_news_check_start/poll
 //      → AI เทียบ ประเด็น ↔ ข่าว ↔ PDF ต้นฉบับ ทีละข้อ (ถูก/ผิด/ไม่ได้พูดถึง + หน้า) + ร่างข่าวฉบับแก้ (กดใช้แทนเนื้อข่าวได้)
 //   ② แบบทดสอบสำหรับผู้อ่าน (news_quiz · ผู้ดูแลตั้งคำถาม + คำตอบที่ถูกเอง ไม่ใช่ข้อสอบของสภาเภสัชกรรม)
 //      → ai_news_quiz_start/poll: AI ลองตอบจาก PDF + บอกว่าคำตอบของผู้ดูแลตรงกับ PDF ไหม + สร้างตัวเลือกที่ผิด 3 ข้อ
@@ -26,34 +26,41 @@ async function poll(id) {
 export async function openQuizTools(n) {
   if (!bound) { bound = true; bind(); }
   news = n; draft = null; quiz = [];
-  $('#aqNotes').value = ''; $('#aqCheckOut').innerHTML = ''; $('#aqQuizOut').innerHTML = '';
+  renderNotes(['']); $('#aqCheckOut').innerHTML = ''; $('#aqQuizOut').innerHTML = '';
   $('#aqTools').hidden = !n?.source_file_url;
   if ($('#aqTools').hidden) return;
-  $('#aqQuiz').innerHTML = '<div class="skeleton"></div>';
+  $('#aqQuiz').innerHTML = '<div class="skeleton"></div>'; $('#aqSrc').textContent = '';
+  sb.from('news_sources').select('pages,method').eq('news_id', n.id).maybeSingle().then(({ data: src }) => {   // ข้อความ PDF ที่ช่อง AI ถอดเก็บไว้
+    if (news === n) $('#aqSrc').textContent = src ? `📄 มีข้อความจาก PDF ต้นฉบับในระบบแล้ว${src.pages ? ` (${src.pages} หน้า)` : ''} · AI ตรวจได้เร็ว ไม่ต้องเปิด PDF ซ้ำ`
+      : '📄 ยังไม่มีข้อความจาก PDF ในระบบ · AI จะเปิดอ่าน PDF จากลิงก์ (ช้ากว่า) · ระบบจะถอดเก็บให้ในรอบทำข่าวถัดไป';
+  }, () => {});
   const { data, error } = await sb.from('news_quiz').select('question,answer,choices,explain,page,sort').eq('news_id', n.id).order('sort');
   if (news !== n) return;
   if (error) { $('#aqQuiz').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
-  quiz = (data || []).map((x) => ({ q: x.question, a: x.answer, wrong: [...(x.choices || []), '', '', ''].slice(0, WRONG), explain: x.explain || '', page: x.page, ai: null }));
+  quiz = (data || []).map((x) => { const text = toText({ q: x.question, a: x.answer, wrong: x.choices || [], explain: x.explain || '', pos: 0 }); return { ...blank(), text, f: parseQuizItem(text), page: x.page }; });
   renderQuiz();
 }
 export function closeQuizTools() { news = null; quiz = []; draft = null; }
 
 function bind() {
   $('#aqCheckBtn').addEventListener('click', runCheck);
+  $('#aqNoteAdd').addEventListener('click', () => {
+    const v = noteValues(true);
+    if (v.length >= MAX_NOTES) { toast(`ใส่ได้ไม่เกิน ${MAX_NOTES} ประเด็น`, 'err'); return; }
+    renderNotes([...v, '']); $(`#aqNotes [data-note="${v.length}"]`)?.focus();
+  });
+  $('#aqNotes').addEventListener('click', (e) => {
+    const d = e.target.closest('[data-rmnote]'); if (!d) return;
+    const v = noteValues(true); v.splice(+d.dataset.rmnote, 1); renderNotes(v.length ? v : ['']);
+  });
   $('#aqQuizAdd').addEventListener('click', () => {
     if (quiz.length >= MAX_Q) { toast(`ตั้งคำถามได้ไม่เกิน ${MAX_Q} ข้อ`, 'err'); return; }
-    quiz.push({ q: '', a: '', wrong: ['', '', ''], explain: '', page: null, ai: null }); renderQuiz();
-    $(`#aqQuiz [data-i="${quiz.length - 1}"][data-k="q"]`)?.focus();
+    quiz.push(blank()); renderQuiz();
+    $(`#aqQ${quiz.length - 1}`)?.focus();
   });
   $('#aqQuizBtn').addEventListener('click', runQuiz);
-  $('#aqBulkAdd').addEventListener('click', addBulk);
-  $('#aqQuiz').addEventListener('input', (e) => {
-    const el = e.target, i = +el.dataset.i, it = quiz[i]; if (!it) return;
-    if (el.dataset.k === 'w') it.wrong[+el.dataset.w] = el.value;
-    else it[el.dataset.k] = el.value;
-    if (el.dataset.k === 'q' || el.dataset.k === 'a') { it.ai = null; el.closest('.aq-q').querySelector('.aq-ai').innerHTML = ''; }   // แก้แล้ว = ผลตรวจเดิมใช้ไม่ได้
-    quizCount();
-  });
+  $('#aqQuiz').addEventListener('input', onQuizInput);
+  $('#aqQuiz').addEventListener('change', onQuizChange);
   $('#aqQuiz').addEventListener('click', (e) => {
     const d = e.target.closest('[data-rmq]'); if (!d) return;
     quiz.splice(+d.dataset.rmq, 1); renderQuiz();
@@ -66,11 +73,18 @@ function bind() {
   });
 }
 
-/* ---------- ① ตรวจกับความเข้าใจของฉัน ---------- */
+/* ---------- ① ตรวจกับความเข้าใจของฉัน: 1 กล่องข้อความ = 1 ประเด็น (เพิ่ม/ลบกล่องได้) ---------- */
+const MAX_NOTES = 15;
+const noteValues = (keepEmpty = false) => [...document.querySelectorAll('#aqNotes [data-note]')].map((t) => (keepEmpty ? t.value : t.value.replace(/\s+/g, ' ').trim())).filter((v) => keepEmpty || v);
+function renderNotes(vals) {
+  $('#aqNotes').innerHTML = vals.map((v, i) => `<div class="aq-note"><label class="sr-only" for="aqNote${i}">ประเด็นที่ ${i + 1}</label>`
+    + `<textarea id="aqNote${i}" rows="2" maxlength="300" data-note="${i}" placeholder="${i ? 'ประเด็นถัดไป' : 'เช่น ห้ามใช้ยานี้ในหญิงตั้งครรภ์'}">${esc(v)}</textarea>`
+    + `<button type="button" class="btn btn-no btn-sm" data-rmnote="${i}" aria-label="ลบประเด็นที่ ${i + 1}">ลบ</button></div>`).join('');
+}
 const VERDICT = { correct: ['✅', 'ข่าวเขียนถูก', 'ok'], wrong: ['❌', 'ข่าวเขียนผิด', 'bad'], missing: ['⚠️', 'ข่าวยังไม่ได้พูดถึง', 'warn'], unsupported: ['❓', 'บทความไม่ได้เขียนแบบนี้', 'warn'] };
 async function runCheck() {
-  const notes = $('#aqNotes').value.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 15), out = $('#aqCheckOut'), btn = $('#aqCheckBtn');
-  if (!notes.length) { out.innerHTML = '<p class="small ai-err">กรุณาพิมพ์ประเด็นที่เข้าใจอย่างน้อย 1 บรรทัด</p>'; $('#aqNotes').focus(); return; }
+  const notes = noteValues().slice(0, MAX_NOTES), out = $('#aqCheckOut'), btn = $('#aqCheckBtn');
+  if (!notes.length) { out.innerHTML = '<p class="small ai-err">กรุณาพิมพ์ประเด็นที่เข้าใจอย่างน้อย 1 ข้อ</p>'; $('#aqNote0')?.focus(); return; }
   const n = news; busy(btn, true, 'AI กำลังตรวจ…'); draft = null;
   out.innerHTML = `<p class="small muted">${SPIN}AI กำลังอ่าน PDF ต้นฉบับและเทียบกับข่าว กรุณารอสักครู่ (ประมาณ 30 วินาที – 2 นาที)</p>`;
   try {
@@ -94,111 +108,157 @@ async function runCheck() {
   finally { busy(btn, false); }
 }
 
-/* ---------- ② แบบทดสอบสำหรับผู้อ่าน ---------- */
-const MATCH = { yes: ['✅', 'คำตอบตรงกับ PDF', 'ok'], no: ['❌', 'คำตอบไม่ตรงกับ PDF — แก้คำถามหรือคำตอบแล้วกดตรวจใหม่', 'bad'], not_found: ['⚠️', 'ไม่พบข้อมูลนี้ในบทความ', 'warn'] };
-function quizCount() {
-  const ok = quiz.filter((x) => x.q.trim() && x.a.trim()).length;
-  $('#aqQuizN').textContent = quiz.length ? `${ok} ข้อ` : 'ยังไม่มีคำถาม';
+/* ---------- ② แบบทดสอบสำหรับผู้อ่าน: 1 กล่องข้อความ = 1 ข้อ (ฝั่งผู้ดูแล) + ฉบับที่จะเผยแพร่ (ฝั่ง AI · แก้ได้ · ติ๊ก ✓ หน้าข้อที่ถูก) ----------
+   กล่องข้อความ: บรรทัดแรก = คำถาม · ตัวเลือกบรรทัดละข้อ (ก. ข. ค. ง.) · "(ถูก)" ท้ายข้อที่ถูก · "อธิบาย: …" (ถ้ามี)
+   วางหลายข้อในกล่องเดียว (เว้นบรรทัดคั่น) → แยกเป็นหลายกล่องให้เอง
+   ฉบับที่จะเผยแพร่ = อ่านจากกล่องข้อความ → กด "ให้ AI ตรวจกับ PDF" แล้ว AI เรียบเรียง/เติมตัวเลือก · บันทึกจากฉบับนี้ */
+const MATCH = { yes: ['✅', 'เฉลยตรงกับ PDF', 'ok'], no: ['❌', 'AI คิดว่าเฉลยไม่ตรงกับ PDF — ตรวจแล้วแก้เอง', 'bad'], not_found: ['⚠️', 'ไม่พบข้อมูลนี้ในบทความ', 'warn'] };
+const CHOICE = /^\s*(?:[ก-ฮ]|[a-dA-D])\s*[.)]\s*|^\s*[-•*]\s+/, RIGHT = /\s*\((?:ถูก|ถูกต้อง|เฉลย|correct|✓|✔)\)\s*$/i, EXPLAIN = /^\s*(?:อธิบาย|คำอธิบาย)\s*[:：]\s*/;
+const LETTERS = ['ก', 'ข', 'ค', 'ง'], OPTS = WRONG + 1;
+/** ข้อความ → [{ q, opts:[{t, ok}], explain, raw[] }] (หลายข้อคั่นด้วยบรรทัดว่าง) */
+function splitBlocks(text) {
+  const qs = [];
+  let cur = null;
+  for (const raw of String(text).split('\n')) {
+    const line = raw.trim();
+    if (!line) { if (cur?.opts.length) cur = null; continue; }
+    if (cur && EXPLAIN.test(line)) { cur.explain = line.replace(EXPLAIN, '').trim(); cur.raw.push(line); continue; }
+    if (cur && CHOICE.test(line)) { const t = line.replace(CHOICE, '').trim(); cur.opts.push({ t: t.replace(RIGHT, '').trim(), ok: RIGHT.test(t) }); cur.raw.push(line); continue; }
+    if (cur && !cur.opts.length) { cur.q += ' ' + line; cur.raw.push(line); continue; }   // คำถามยาวหลายบรรทัด
+    cur = { q: line.replace(/^(?:ข้อ\s*)?\d+\s*[.)]\s*/, ''), opts: [], explain: '', raw: [line] }; qs.push(cur);
+  }
+  return qs;
 }
-function aiLine(it) {
-  if (!it.ai) return '';
+/** ข้อความ 1 ข้อ → ฉบับที่จะเผยแพร่ { q, opts:[{t, ok}] (4 ช่อง), explain } หรือ { error } */
+export function parseQuizItem(text) {
+  const [x, more] = splitBlocks(text);
+  if (!x) return { error: 'พิมพ์คำถามและตัวเลือก' };
+  if (more) return { error: 'กล่องนี้มีมากกว่า 1 ข้อ' };
+  const opts = x.opts.filter((o) => o.t).map((o) => ({ t: o.t.slice(0, 200), ok: o.ok }));
+  if (!opts.length) return { error: 'ยังไม่มีตัวเลือก (ขึ้นต้นบรรทัดด้วย ก. ข. ค.)' };
+  if (opts.filter((o) => o.ok).length !== 1) return { error: 'ใส่ (ถูก) ท้ายตัวเลือกที่ถูก 1 ข้อ' };
+  if (opts.length > OPTS) return { error: `ตัวเลือกได้ไม่เกิน ${OPTS} ข้อ` };
+  return { q: x.q.slice(0, 300), opts: pad(opts), explain: x.explain.slice(0, 600) };
+}
+const pad = (opts) => [...opts, ...Array(OPTS).fill(0).map(() => ({ t: '', ok: false }))].slice(0, OPTS);
+/** ฉบับที่จะเผยแพร่ → { q, a, wrong[], explain, pos } หรือ { error } */
+function finalOf(f) {
+  if (!f) return { error: 'ยังไม่มีฉบับที่จะเผยแพร่ (พิมพ์ในกล่องข้อความให้ครบก่อน)' };
+  const q = f.q.trim(), right = f.opts.findIndex((o) => o.ok && o.t.trim());
+  if (!q) return { error: 'ยังไม่มีคำถาม' };
+  if (right < 0) return { error: 'ติ๊ก ✓ หน้าตัวเลือกที่ถูก 1 ข้อ' };
+  const a = f.opts[right].t.trim(), wrong = [...new Set(f.opts.filter((o, k) => k !== right).map((o) => o.t.trim()).filter((t) => t && t !== a))];
+  return { q, a, wrong, explain: f.explain.trim(), pos: f.opts.slice(0, right).filter((o) => o.t.trim()).length };
+}
+/** สร้างข้อความในกล่อง (ข้อที่บันทึกไว้แล้ว) */
+function toText({ q, a, wrong, explain, pos = 0 }) {
+  const opts = [...wrong]; opts.splice(Math.min(pos, opts.length), 0, `${a} (ถูก)`);
+  return [q, ...opts.map((o, k) => `${LETTERS[k] || k + 1}. ${o}`), explain ? `อธิบาย: ${explain}` : ''].filter(Boolean).join('\n');
+}
+const blank = () => ({ text: '', f: null, page: null, ai: null });
+function quizCount() {
+  const ok = quiz.filter((x) => !finalOf(x.f).error).length;
+  $('#aqQuizN').textContent = quiz.length ? `${ok}/${quiz.length} ข้อพร้อม` : 'ยังไม่มีคำถาม';
+}
+function statusLine(it) {
+  if (!it.text.trim() && !it.f) return '';
+  const p = parseQuizItem(it.text);
+  if (!it.ai) return p.error && it.text.trim() ? `<span class="small aq-warn">⚠️ ${esc(p.error)}</span>` : '';
   const [ic, label, cls] = MATCH[it.ai.match] || MATCH.not_found;
   return `<span class="small aq-${cls}">${ic} ${label}${it.ai.page ? ` (บทความหน้า ${it.ai.page})` : ''}</span>`
     + (it.ai.ai_answer ? `<span class="small muted">AI ลองตอบจาก PDF: ${esc(it.ai.ai_answer)}</span>` : '')
     + (it.ai.match !== 'yes' && it.ai.explain ? `<span class="small">เหตุผล: ${esc(it.ai.explain)}</span>` : '');
 }
+function finalHtml(it, i) {
+  if (!it.f) return '';
+  return `<p class="small aq-final-h">${it.ai ? 'ฉบับที่จะเผยแพร่ (AI ตรวจและเรียบเรียงแล้ว)' : 'ฉบับที่จะเผยแพร่ (อ่านจากกล่องข้อความ · กด "ให้ AI ตรวจกับ PDF" เพื่อตรวจและเรียบเรียง)'} · แก้ได้ทุกช่อง · ติ๊ก ✓ หน้าข้อที่ถูก</p>`
+    + `<label class="sr-only" for="aqF${i}q">คำถามข้อ ${i + 1}</label><input id="aqF${i}q" class="input aq-fq" maxlength="300" data-i="${i}" data-f="q" value="${esc(it.f.q)}">`
+    + it.f.opts.map((o, k) => `<div class="aq-opt"><label class="aq-tick" title="ข้อที่ถูก"><input type="radio" name="aqOk${i}" data-i="${i}" data-f="ok" data-k="${k}"${o.ok ? ' checked' : ''} aria-label="ตัวเลือก ${LETTERS[k]} เป็นข้อที่ถูก"><span aria-hidden="true">✓</span></label>`
+      + `<input class="input" maxlength="200" data-i="${i}" data-f="opt" data-k="${k}" value="${esc(o.t)}" placeholder="ตัวเลือก ${LETTERS[k]}${k ? ' (ว่างได้)' : ''}" aria-label="ตัวเลือก ${LETTERS[k]} ของข้อ ${i + 1}"></div>`).join('')
+    + `<label class="sr-only" for="aqF${i}e">คำอธิบายเฉลยข้อ ${i + 1}</label><input id="aqF${i}e" class="input" maxlength="600" data-i="${i}" data-f="explain" value="${esc(it.f.explain)}" placeholder="คำอธิบายเฉลย (ถ้ามี)">`;
+}
+const PH = 'ยาสแตตินแบบทาอาจช่วยเรื่องใด\nก. ลดไขมันในเลือด\nข. ช่วยให้แผลหายเร็วขึ้น (ถูก)\nค. รักษาสิวอักเสบ\nอธิบาย: (ถ้ามี)';
 function renderQuiz() {
-  $('#aqQuiz').innerHTML = quiz.length ? quiz.map((it, i) => `<div class="aq-q">`
+  $('#aqQuiz').innerHTML = quiz.length ? quiz.map((it, i) => `<div class="aq-q" data-card="${i}">`
     + `<div class="aq-q-head"><b>ข้อ ${i + 1}</b><button type="button" class="btn btn-no btn-sm" data-rmq="${i}">ลบข้อนี้</button></div>`
-    + `<label class="small">คำถาม<input class="input" maxlength="300" data-i="${i}" data-k="q" value="${esc(it.q)}" placeholder="เช่น ยาทาสแตตินอาจช่วยเรื่องใด"></label>`
-    + `<label class="small">คำตอบที่ถูก<input class="input" maxlength="200" data-i="${i}" data-k="a" value="${esc(it.a)}"></label>`
-    + `<div class="aq-ai">${aiLine(it)}</div>`
-    + `<fieldset class="aq-wrong"><legend class="small">ตัวเลือกที่ผิด (AI สร้างให้ · แก้ได้)</legend>${it.wrong.map((w, k) => `<input class="input" maxlength="200" data-i="${i}" data-k="w" data-w="${k}" value="${esc(w)}" aria-label="ตัวเลือกที่ผิด ${k + 1} ของข้อ ${i + 1}">`).join('')}</fieldset>`
-    + `<label class="small">คำอธิบายเฉลย (ถ้ามี)<input class="input" maxlength="600" data-i="${i}" data-k="explain" value="${esc(it.explain)}"></label>`
-    + '</div>').join('') : '<p class="empty">ยังไม่มีคำถาม · กด "+ เพิ่มคำถาม"</p>';
+    + `<label class="sr-only" for="aqQ${i}">คำถามและตัวเลือกข้อ ${i + 1}</label><textarea id="aqQ${i}" class="aq-qtext" rows="6" maxlength="2000" data-i="${i}" data-f="text" placeholder="${esc(PH)}">${esc(it.text)}</textarea>`
+    + `<div class="aq-ai">${statusLine(it)}</div><div class="aq-final">${finalHtml(it, i)}</div></div>`).join('')
+    : '<p class="empty">ยังไม่มีคำถาม · กด "+ เพิ่มคำถาม"</p>';
   quizCount();
+}
+function onQuizInput(e) {
+  const el = e.target, i = +el.dataset.i, it = quiz[i]; if (!it) return;
+  const f = el.dataset.f, card = el.closest('.aq-q');
+  if (f === 'text') {   // แก้กล่องข้อความ → อ่านใหม่ (ผลตรวจเดิมใช้ไม่ได้)
+    it.text = el.value; it.ai = null;
+    const p = parseQuizItem(it.text);
+    if (!p.error) it.f = p; else if (!it.text.trim()) it.f = null;
+    card.querySelector('.aq-ai').innerHTML = statusLine(it); card.querySelector('.aq-final').innerHTML = finalHtml(it, i);
+  } else if (it.f) {
+    if (f === 'q') it.f.q = el.value;
+    else if (f === 'explain') it.f.explain = el.value;
+    else if (f === 'opt') it.f.opts[+el.dataset.k].t = el.value;
+    else if (f === 'ok') it.f.opts.forEach((o, k) => { o.ok = k === +el.dataset.k; });
+  }
+  quizCount();
+}
+/** วางหลายข้อในกล่องเดียว → แยกเป็นหลายกล่อง */
+function onQuizChange(e) {
+  if (e.target.dataset.f !== 'text') return;
+  const i = +e.target.dataset.i, it = quiz[i]; if (!it) return;
+  const parts = splitBlocks(it.text).map((b) => b.raw.join('\n'));
+  if (parts.length < 2) return;
+  if (quiz.length - 1 + parts.length > MAX_Q) { toast(`ตั้งคำถามได้ไม่เกิน ${MAX_Q} ข้อ`, 'err'); return; }
+  quiz.splice(i, 1, ...parts.map((t) => { const p = parseQuizItem(t); return { ...blank(), text: t, f: p.error ? null : p }; }));
+  renderQuiz(); toast(`แยกเป็น ${parts.length} ข้อแล้ว`);
 }
 async function runQuiz() {
   const out = $('#aqQuizOut'), btn = $('#aqQuizBtn');
-  const idx = quiz.map((x, i) => (x.q.trim() && x.a.trim() ? i : -1)).filter((i) => i >= 0);
-  if (!idx.length) { out.innerHTML = '<p class="small ai-err">กรุณาพิมพ์คำถามและคำตอบที่ถูกอย่างน้อย 1 ข้อ</p>'; return; }
-  if (idx.length !== quiz.length) { out.innerHTML = '<p class="small ai-err">ทุกข้อต้องมีทั้งคำถามและคำตอบที่ถูก (หรือลบข้อที่ว่างออก)</p>'; return; }
+  if (!quiz.length) { out.innerHTML = '<p class="small ai-err">กรุณาเพิ่มคำถามอย่างน้อย 1 ข้อ</p>'; return; }
+  const fs = quiz.map((x) => finalOf(x.f)), bad = fs.findIndex((p) => p.error);
+  if (bad >= 0) { out.innerHTML = `<p class="small ai-err">ข้อ ${bad + 1}: ${esc(fs[bad].error)} (หรือลบข้อนี้)</p>`; $(`#aqQ${bad}`)?.focus(); return; }
   const n = news; busy(btn, true, 'AI กำลังตรวจ…');
-  out.innerHTML = `<p class="small muted">${SPIN}AI กำลังอ่าน PDF ลองตอบ และสร้างตัวเลือก กรุณารอสักครู่ (ประมาณ 30 วินาที – 2 นาที)</p>`;
+  out.innerHTML = `<p class="small muted">${SPIN}AI กำลังอ่าน PDF ตรวจเฉลย และเรียบเรียงตัวเลือก กรุณารอสักครู่ (ประมาณ 30 วินาที – 2 นาที)</p>`;
   try {
-    const { data: id, error } = await sb.rpc('ai_news_quiz_start', { p_news: n.id, p_items: quiz.map((x) => ({ q: x.q.trim(), a: x.a.trim(), w: x.wrong.map((w) => w.trim()).filter(Boolean) })) });
+    const { data: id, error } = await sb.rpc('ai_news_quiz_start', { p_news: n.id, p_items: fs.map((p) => ({ q: p.q, a: p.a, w: p.wrong })) });
     if (error) throw error;
     const r = await poll(id);
     if (news !== n) return;
     if (r.status !== 'done') { out.innerHTML = `<p class="small ai-err">${esc(r.note || 'AI ตรวจไม่สำเร็จ')}</p>`; return; }
     (r.result?.items || []).forEach((x) => {
-      const it = quiz[x.n - 1]; if (!it) return;
-      it.ai = x;
-      const ds = (x.distractors || []).filter((d) => d && d !== it.a);
-      // ตัวเลือกที่ผู้ดูแลร่างเอง = AI เรียบเรียงให้อ่านง่ายขึ้น (ลำดับเดิม) · ช่องที่ว่าง = AI แต่งเพิ่ม · แก้ต่อเองได้ทุกช่อง
-      const own = it.wrong.filter((w) => w.trim()).length;
-      it.wrong = it.wrong.map((w, k) => (own && k < own ? ds[k] || w : w.trim() || ds[k] || ds.find((d) => !it.wrong.includes(d)) || ''));
-      if (x.match === 'yes' && x.answer_rewrite) it.a = x.answer_rewrite;   // เฉลยตรงกับ PDF → ใช้ถ้อยคำที่อ่านง่ายขึ้น
-      if (!it.explain.trim() && x.explain) it.explain = x.explain;
-      if (x.page) it.page = x.page;
+      const it = quiz[x.n - 1], p = fs[x.n - 1]; if (!it || p.error) return;
+      // ตัวเลือกที่ผู้ดูแลพิมพ์ = AI เรียบเรียงให้อ่านง่ายขึ้น (ลำดับเดิม) · ไม่ครบ = AI เติม · เฉลยตรงกับ PDF = ใช้ถ้อยคำที่อ่านง่ายขึ้น · ไม่ตรง = ไม่แก้เฉลย (ผู้ดูแลแก้เอง)
+      const ds = (x.distractors || []).filter((d) => d && d !== p.a);
+      const wrong = [...p.wrong.map((w, k) => ds[k] || w), ...ds.slice(p.wrong.length)].slice(0, WRONG);
+      const a = x.match === 'yes' && x.answer_rewrite ? x.answer_rewrite : p.a, opts = wrong.map((t) => ({ t, ok: false }));
+      opts.splice(Math.min(p.pos, opts.length), 0, { t: a, ok: true });
+      it.f = { q: p.q, opts: pad(opts), explain: p.explain || x.explain || '' };
+      it.ai = x; if (x.page) it.page = x.page;
     });
     renderQuiz();
-    const bad = quiz.filter((x) => x.ai && x.ai.match !== 'yes').length;
-    out.innerHTML = `<p class="small">${bad ? `⚠️ มี ${bad} ข้อที่ AI ตอบไม่ตรงหรือหาในบทความไม่พบ — ตรวจและแก้เอง` : '✅ ทุกข้อตรงกับ PDF'} · ตัวเลือกที่ผิดใส่ให้แล้ว (แก้ได้) · บันทึกพร้อมข่าวเมื่อกดบันทึก/อนุมัติ</p>`;
+    const nBad = quiz.filter((x) => x.ai && x.ai.match !== 'yes').length;
+    out.innerHTML = `<p class="small">${nBad ? `⚠️ มี ${nBad} ข้อที่ AI คิดว่าเฉลยไม่ตรงหรือหาในบทความไม่พบ — ดูเหตุผลแล้วแก้เอง` : '✅ ทุกข้อเฉลยตรงกับ PDF'} · AI เรียบเรียงตัวเลือกใน "ฉบับที่จะเผยแพร่" แล้ว (แก้ต่อได้) · บันทึกพร้อมข่าวเมื่อกดบันทึก/อนุมัติ</p>`;
   } catch (err) { out.innerHTML = `<p class="small ai-err">${esc(errText(err))}</p>`; }
   finally { busy(btn, false); }
-}
-
-/* พิมพ์คำถามพร้อมตัวเลือกเอง: คำถาม 1 บรรทัด + ตัวเลือก (ก. ข. … หรือ - •) · "(ถูก)" ท้ายข้อที่ถูก · หลายข้อเว้นบรรทัด */
-const CHOICE = /^\s*(?:[ก-ฮ]|[a-dA-D])\s*[.)]\s*|^\s*[-•*]\s+/, RIGHT = /\s*\((?:ถูก|ถูกต้อง|เฉลย|correct|✓|✔)\)\s*$/i;
-export function parseQuizText(text) {
-  const qs = [];
-  let cur = null;
-  for (const raw of String(text).split('\n')) {
-    const line = raw.trim();
-    if (!line) { cur = null; continue; }
-    if (CHOICE.test(line) && cur) { const t = line.replace(CHOICE, '').trim(); cur.opts.push({ t: t.replace(RIGHT, '').trim(), ok: RIGHT.test(t) }); continue; }
-    if (cur && !cur.opts.length) { cur.q += ' ' + line; continue; }   // คำถามยาวหลายบรรทัด
-    cur = { q: line.replace(/^(?:ข้อ\s*)?\d+\s*[.)]\s*/, ''), opts: [] }; qs.push(cur);
-  }
-  const errors = [], items = [];
-  qs.forEach((x, i) => {
-    const right = x.opts.filter((o) => o.ok), wrong = x.opts.filter((o) => !o.ok && o.t);
-    const name = `ข้อ ${i + 1} (${x.q.slice(0, 30)}${x.q.length > 30 ? '…' : ''})`;
-    if (right.length !== 1) errors.push(`${name}: ใส่ (ถูก) ท้ายตัวเลือกที่ถูก 1 ข้อ`);
-    else if (!wrong.length) errors.push(`${name}: ต้องมีตัวเลือกที่ผิดอย่างน้อย 1 ข้อ`);
-    else if (wrong.length > WRONG) errors.push(`${name}: ตัวเลือกที่ผิดได้ไม่เกิน ${WRONG} ข้อ`);
-    else items.push({ q: x.q.slice(0, 300), a: right[0].t.slice(0, 200), wrong: [...wrong.map((o) => o.t.slice(0, 200)), '', '', ''].slice(0, WRONG), explain: '', page: null, ai: null, own: true });
-  });
-  return { items, errors };
-}
-function addBulk() {
-  const m = $('#aqBulkMsg'), { items, errors } = parseQuizText($('#aqBulk').value);
-  const say = (t, err) => { m.className = 'small' + (err ? ' ai-err' : ''); m.textContent = t; };
-  if (!items.length && !errors.length) { say('กรุณาพิมพ์คำถามพร้อมตัวเลือกก่อน', true); return; }
-  if (errors.length) { say(errors.join(' · '), true); return; }
-  if (quiz.length + items.length > MAX_Q) { say(`รวมแล้วเกิน ${MAX_Q} ข้อ (มีอยู่ ${quiz.length} ข้อ)`, true); return; }
-  quiz.push(...items); renderQuiz(); $('#aqBulk').value = '';
-  say(`เพิ่ม ${items.length} ข้อแล้ว · กด "ให้ AI ตรวจกับ PDF" เพื่อตรวจเฉลยและเรียบเรียงตัวเลือก`);
 }
 
 /** ตรวจความครบก่อนบันทึก → ข้อความผิดพลาด หรือ null */
 export function quizProblem() {
   if (!news?.source_file_url) return null;
   for (const [i, x] of quiz.entries()) {
-    if (!x.q.trim() || !x.a.trim()) return `แบบทดสอบข้อ ${i + 1}: กรุณาพิมพ์ทั้งคำถามและคำตอบที่ถูก (หรือลบข้อนี้)`;
-    if (!x.wrong.some((w) => w.trim())) return `แบบทดสอบข้อ ${i + 1}: ยังไม่มีตัวเลือกที่ผิด (กด "ให้ AI ตรวจกับ PDF + สร้างตัวเลือก" หรือพิมพ์เอง)`;
+    const p = finalOf(x.f);
+    if (p.error) return `แบบทดสอบข้อ ${i + 1}: ${p.error} (หรือลบข้อนี้)`;
+    if (!p.wrong.length) return `แบบทดสอบข้อ ${i + 1}: ยังไม่มีตัวเลือกที่ผิด (พิมพ์เอง หรือกด "ให้ AI ตรวจกับ PDF" ให้เติม)`;
   }
   return null;
 }
-/** บันทึกแบบทดสอบของข่าว (แทนที่ของเดิมทั้งชุด) */
+/** บันทึกแบบทดสอบของข่าว (แทนที่ของเดิมทั้งชุด) จาก "ฉบับที่จะเผยแพร่" */
 export async function saveQuiz(newsId) {
   if (!news?.source_file_url || news.id !== newsId) return;
   const del = await sb.from('news_quiz').delete().eq('news_id', newsId);
   if (del.error) throw del.error;
   if (!quiz.length) return;
-  const rows = quiz.map((x, i) => ({ news_id: newsId, sort: i + 1, question: x.q.trim(), answer: x.a.trim(),
-    choices: [...new Set(x.wrong.map((w) => w.trim()).filter((w) => w && w !== x.a.trim()))], explain: x.explain.trim() || null, page: x.page || null }));
+  const rows = quiz.map((x, i) => { const p = finalOf(x.f); return { news_id: newsId, sort: i + 1, question: p.q, answer: p.a, choices: p.wrong, explain: p.explain || null, page: x.page || null }; });
   const { error } = await sb.from('news_quiz').insert(rows);
   if (error) throw error;
 }

@@ -98,6 +98,7 @@ insert into public.news(id, title, tag, body, status, ai_generated, source_url, 
    'งานวิจัยพบว่ายาสแตตินแบบทาอาจช่วยให้แผลหายเร็วขึ้น' || chr(10) || 'ข้อควรรู้' || chr(10) || '• อย่าบดยาเม็ดมาทาแผลเอง',
    'pending', true, 'https://ccpe.pharmacycouncil.org/index.php?option=article_detail&subpage=article_detail&id=1876', 'https://ccpe.pharmacycouncil.org/showfile.php?file=1876',
    'ยาทาสแตตินกับการสมานแผล — ภก.ทดสอบ ตัวอย่าง', 'ai/1876/infographic.jpg', array['ai/1876/comic.jpg', 'ai/1876/clinical.jpg']);
+insert into public.news_sources(news_id, body, pages, method) values ('00000000-0000-0000-0000-0000000a1001', '[หน้า 1]' || chr(10) || 'ยาทาสแตตินกับการสมานแผล (ข้อความสมมติ)', 12, 'pdftotext');
 insert into public.news_quiz(news_id, sort, question, answer, choices, explain, page) values
   ('00000000-0000-0000-0000-0000000a1001', 1, 'ยาสแตตินแบบทาอาจช่วยเรื่องใด', 'ช่วยให้แผลหายเร็วขึ้น', '["ลดไขมันในเลือดได้ทันที", "รักษาสิวอักเสบ", "แก้ปวดศีรษะ"]', 'บทความสรุปว่าอาจช่วยสมานแผล', 2);
 insert into public.ai_news_log(article_id, title, news_id, status, note, created_at) values

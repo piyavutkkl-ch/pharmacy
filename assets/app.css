@@ -697,13 +697,26 @@ span.aq-ok{color:var(--success)}span.aq-bad{color:var(--error)}span.aq-warn{colo
 .aq-draft summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600;color:var(--primary)}
 .aq-draft-body{white-space:pre-wrap;font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);max-height:360px;overflow:auto}
 .aq-quiz{display:flex;flex-direction:column;gap:12px}
+.aq-notes{display:flex;flex-direction:column;gap:8px}
+.aq-note{display:flex;gap:8px;align-items:flex-start}
+.aq-note textarea{flex:1;min-width:0}
+.aq-note .btn{min-height:44px}
+.aq-qtext{width:100%;font-family:inherit}
+.aq-final:empty{display:none}
+.aq-final{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:10px;border:1px dashed var(--primary);background:var(--primary-soft)}
+.aq-final-h{margin:0;font-weight:600;color:var(--primary)}
+.aq-opt{display:flex;gap:8px;align-items:center}
+.aq-opt .input{flex:1;min-width:0}
+.aq-tick{display:inline-grid;place-items:center;width:44px;height:44px;flex:none;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;position:relative}
+.aq-tick input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.aq-tick span{font-size:20px;color:var(--faint)}
+.aq-tick:has(input:checked){border-color:var(--success);background:color-mix(in srgb,var(--success) 16%,var(--surface))}
+.aq-tick:has(input:checked) span{color:var(--success);font-weight:700}
+.aq-tick:has(input:focus-visible){outline:2px solid var(--primary);outline-offset:2px}
 .aq-q{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
-.aq-q label{display:flex;flex-direction:column;gap:4px;font-weight:600}
 .aq-q-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .aq-ai{display:flex;flex-direction:column;gap:2px}
 .aq-ai:empty{display:none}
-.aq-wrong{border:0;padding:0;margin:0;display:grid;gap:6px}
-.aq-wrong legend{font-weight:600;padding:0;margin-bottom:4px}
 /* แบบทดสอบท้ายข่าว (หน้าอ่านข่าว) */
 .ar-quiz h2{margin:0}
 .rq{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-top:1px solid var(--line)}

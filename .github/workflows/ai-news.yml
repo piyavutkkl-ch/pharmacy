@@ -38,7 +38,7 @@ jobs:
         run: |
           cd tests/ui && npm install --no-audit --no-fund --loglevel=error
           npx playwright install --with-deps chromium >/dev/null
-          sudo apt-get install -y -qq fonts-noto-color-emoji fonts-thai-tlwg >/dev/null 2>&1 || true
+          sudo apt-get install -y -qq fonts-noto-color-emoji fonts-thai-tlwg poppler-utils >/dev/null 2>&1 || true   # poppler-utils = pdftotext ถอดข้อความ PDF (ไม่ใช้โควตา AI)
       - name: สร้างข่าวจากบทความ
         if: steps.check.outputs.run == 'true'
         env:

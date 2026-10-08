@@ -40,12 +40,27 @@ d2 = json.load(open(os.path.join(out, 'issues', 'news.json')))
 check('ai-news: ตรวจทานครบ 3 รอบยังพบจุดผิด → ไม่เผยแพร่อัตโนมัติ (รอผู้ดูแลตรวจ)', d2['row']['status'] == 'pending' and d2['check']['rounds'] == 3 and d2['check']['left'] > 0, d2['check'])
 d3 = json.load(open(os.path.join(out, 'auto', 'news.json')))
 check('ai-news: เปิดเผยแพร่อัตโนมัติ + ตรวจทานผ่าน → เผยแพร่ทันที', d3['row']['status'] == 'published' and d3['check']['left'] == 0)
+sv = d.get('source') or {}
+check('ai-news: ถอดข้อความ PDF เก็บไว้ (แบ่งตาม [หน้า n]) ให้ผู้ดูแลตรวจข่าว/แบบทดสอบได้เร็ว', sv.get('method') == 'gemini' and sv.get('pages') == 2 and sv.get('body', '').startswith('[หน้า 1]') and 'อย่าบดยาเม็ด' in sv.get('body', ''), {k: v for k, v in sv.items() if k != 'body'})
 src = open(os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs')).read()
 check('ai-news: ไม่มีโค้ดเรียก AI วาดภาพ (Gemini image / Cloudflare / Pollinations)', not any(x in src for x in ('pollinations', 'cloudflare', 'responseModalities')))
 for k, want in (('infographic', (1240, 1754)), ('comic', (1754, 1240)), ('clinical', (1240, None))):
     p = os.path.join(out, k + '.jpg'); sz = jpeg_size(p) if os.path.exists(p) else None
     good = sz and sz[0] == want[0] and (sz[1] == want[1] if want[1] else 1240 <= sz[1] <= 1754)
     check(f'ai-news: ภาพแม่แบบ {k} กว้าง {want[0]} สัดส่วนไม่เกิน A4 ไม่เกิน 1 MB', good and os.path.getsize(p) <= 1_000_000, sz)
+import subprocess
+js = "import('" + os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs') + "')"
+probe = r'''
+const good = 'ยาสแตตินแบบทาอาจช่วยให้แผลหายเร็วขึ้น ควรปรึกษาแพทย์หรือเภสัชกรก่อนใช้ยา '.repeat(12);
+const bad = 'ย า ส แ ต ต ิ น แ บ บ ท ำ อ ำ จ ช ่ ว ย '.repeat(40);
+'''
+check_js = probe + "const m = await import(process.argv[1]); const a = m.cleanPdfText(good + '\\f' + good), b = m.cleanPdfText(bad);" \
+  + "console.log(JSON.stringify({ ok: a.ok, pages: a.pages, head: a.body.slice(0, 8), bad: b.ok }));"
+import json as _j
+out = subprocess.run(['node', '--input-type=module', '-e', check_js, os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs')], capture_output=True, text=True, env={**os.environ, 'AI_NEWS_IMPORT_ONLY': '1'})
+try: r = _j.loads(out.stdout.strip().splitlines()[-1])
+except Exception: r = {'err': out.stderr[-300:]}
+check('ai-news: pdftotext ภาษาไทยดี → ใช้ได้ (แบ่งหน้า) · สระ/วรรณยุกต์ลอย (ฟอนต์ถอดไม่ได้) → ส่งให้ AI ถอดแทน', r.get('ok') is True and r.get('pages') == 2 and r.get('head') == '[หน้า 1]' and r.get('bad') is False, r)
 print(f'ai-news: {n[0]} passed, {n[1]} failed')
 sys.exit(0 if ok else 1)
 PY

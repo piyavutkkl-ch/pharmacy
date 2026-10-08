@@ -41,7 +41,7 @@ function visible(t, r) {
     case 'summary_visits': { const v = db.visits.find((x) => x.id === r.visit_id); return !!v && visible('visits', v); }
     case 'achievements': return !r.hidden || isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'news_quiz': return isAdmin() || db.news.some((n) => n.id === r.news_id && n.status === 'published');
-    case 'ai_news_checks': return isAdmin();
+    case 'ai_news_checks': case 'news_sources': return isAdmin();
     case 'ai_matches': return isAdmin() || (ME && r.user_id === ME.id) || (isStaff() && r.unit_id === ME.unit_id);
     case 'feedback': return isAdmin() || (ME && r.author_id === ME.id);
     case 'staff_requests': return isAdmin() || (ME && r.user_id === ME.id);

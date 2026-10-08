@@ -8,7 +8,41 @@
 --   + แบบทดสอบสำหรับผู้อ่าน (news_quiz · ไม่ใช่ข้อสอบของสภาเภสัชกรรม): ผู้ดูแลตั้งคำถาม + คำตอบที่ถูกเอง
 --     → ai_news_quiz_start: AI อ่าน PDF แล้วลองตอบเอง · บอกว่าคำตอบของผู้ดูแลตรงกับ PDF ไหม (หน้า) · สร้างตัวเลือกหลอก 3 ข้อ
 --     → ผู้ดูแลแก้/ยืนยัน → บันทึกลง news_quiz → แสดงท้ายข่าวที่เผยแพร่ (ผู้อ่านกดตอบ รู้ผล + คำอธิบาย)
+--   + news_sources: ข้อความที่ถอดจาก PDF ต้นฉบับ (ช่อง AI ถอดเก็บไว้ตอนสร้างข่าว · tools/ai_news/run.mjs) — อ่านได้เฉพาะผู้ดูแล
+--     มีข้อความแล้ว = ส่งข้อความให้ AI ตรวจเลย (เร็ว ไม่ต้องเปิด PDF ซ้ำ) · ยังไม่มี = ให้ AI เปิดอ่าน PDF จากลิงก์ (url_context)
 -- =====================================================================
+
+create table if not exists public.news_sources (
+  news_id     uuid primary key references public.news(id) on delete cascade,
+  body        text not null check (char_length(body) <= 300000),
+  pages       smallint,
+  method      text,   -- pdftotext | gemini
+  created_at  timestamptz not null default now()
+);
+alter table public.news_sources enable row level security;
+drop policy if exists nsrc_read on public.news_sources;
+create policy nsrc_read on public.news_sources for select to authenticated using (public.is_admin());
+revoke all on public.news_sources from anon, authenticated;
+grant select on public.news_sources to authenticated;
+grant all on public.news_sources to service_role;
+
+/** หลักฐานที่ให้ AI ใช้: ข้อความ PDF ที่ถอดเก็บไว้ (ถ้ามี) หรือให้เปิดอ่านจากลิงก์ → (ข้อความนำใน prompt, tools) */
+create or replace function public.ai_news_evidence(p_news uuid, p_url text, out intro text, out tools jsonb)
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare src text;
+begin
+  select s.body into src from public.news_sources s where s.news_id = p_news;
+  if coalesce(btrim(src), '') <> '' then
+    intro := 'หลักฐานเดียวที่ใช้ได้คือบทความต้นฉบับ (ถอดข้อความจาก PDF ไว้แล้ว แบ่งตาม [หน้า n]) ด้านล่างนี้:' || E'\n<<<บทความ\n' || left(src, 150000) || E'\nบทความ>>>\n';
+    tools := null;
+  else
+    intro := 'หลักฐานเดียวที่ใช้ได้คือบทความต้นฉบับ PDF ที่ลิงก์นี้ (เปิดอ่านทุกหน้าด้วยเครื่องมืออ่าน URL): ' || p_url || E'\n';
+    tools := jsonb_build_array(jsonb_build_object('url_context', '{}'::jsonb));
+  end if;
+end $$;
+revoke execute on function public.ai_news_evidence(uuid, text) from public, anon, authenticated;
 
 create table if not exists public.ai_news_checks (
   id          bigint generated always as identity primary key,
@@ -38,7 +72,7 @@ create or replace function public.ai_news_check_start(p_news uuid, p_notes text,
 returns bigint language plpgsql security definer
 set search_path = ''
 as $$
-declare n public.news; k text; model text; prompt text; req bigint; new_id bigint; lines text[]; pts int;
+declare n public.news; k text; model text; prompt text; req bigint; new_id bigint; lines text[]; pts int; ev record;
 begin
   if not public.is_admin() then raise exception 'ไม่มีสิทธิ์'; end if;
   select * into n from public.news where id = p_news;
@@ -58,7 +92,8 @@ begin
   select s.decrypted_secret into k from vault.decrypted_secrets s where s.name = 'gemini_api_key' limit 1;
   if coalesce(k, '') = '' then raise exception 'ระบบ AI ยังไม่พร้อมใช้งาน (ยังไม่ได้ตั้งคีย์)'; end if;
 
-  prompt := 'คุณเป็นเภสัชกรผู้ตรวจข่าวความรู้เรื่องยาก่อนเผยแพร่ หลักฐานเดียวที่ใช้ได้คือบทความต้นฉบับ PDF ที่ลิงก์นี้ (เปิดอ่านทุกหน้าด้วยเครื่องมืออ่าน URL): ' || n.source_file_url || E'\n'
+  select * into ev from public.ai_news_evidence(n.id, n.source_file_url);
+  prompt := 'คุณเป็นเภสัชกรผู้ตรวจข่าวความรู้เรื่องยาก่อนเผยแพร่ ' || ev.intro
     || 'ด้านล่างมี "ประเด็นที่ผู้ตรวจเข้าใจ" (เภสัชกรอ่านบทความมาแล้ว · มีเลขข้อ) และ "ข่าว"' || E'\n'
     || 'ทำทีละประเด็น: (1) หาในบทความว่าประเด็นนี้ถูกต้องตามบทความไหม ระบุเลขหน้า (2) ดูว่าข่าวเขียนเรื่องนี้ถูก ผิด หรือไม่ได้พูดถึง' || E'\n'
     || 'verdict: "correct" = ข่าวเขียนถูกตามบทความ · "wrong" = ข่าวเขียนไม่ตรงบทความ · "missing" = ข่าวไม่ได้พูดถึง · "unsupported" = บทความไม่ได้เขียนแบบที่ผู้ตรวจเข้าใจ (บอกว่าบทความเขียนว่าอะไร)' || E'\n'
@@ -72,8 +107,8 @@ begin
   req := net.http_post(
     url := 'https://generativelanguage.googleapis.com/v1beta/models/' || model || ':generateContent',
     body := jsonb_build_object('contents', jsonb_build_array(jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', prompt)))),
-                               'tools', jsonb_build_array(jsonb_build_object('url_context', '{}'::jsonb)),
-                               'generationConfig', jsonb_build_object('temperature', 0)),
+                               'generationConfig', jsonb_build_object('temperature', 0))
+            || case when ev.tools is null then '{}'::jsonb else jsonb_build_object('tools', ev.tools) end,   -- มีข้อความ PDF ในระบบ = ไม่ต้องให้ AI เปิดลิงก์
     headers := jsonb_build_object('Content-Type', 'application/json', 'x-goog-api-key', k),
     timeout_milliseconds := 180000);
   insert into public.ai_news_checks (user_id, news_id, points, request_id) values (auth.uid(), n.id, pts, req) returning id into new_id;
@@ -85,7 +120,7 @@ create or replace function public.ai_news_quiz_start(p_news uuid, p_items jsonb)
 returns bigint language plpgsql security definer
 set search_path = ''
 as $$
-declare n public.news; k text; model text; prompt text; req bigint; new_id bigint; qs text; cnt int;
+declare n public.news; k text; model text; prompt text; req bigint; new_id bigint; qs text; cnt int; ev record;
 begin
   if not public.is_admin() then raise exception 'ไม่มีสิทธิ์'; end if;
   select * into n from public.news where id = p_news;
@@ -111,7 +146,8 @@ begin
   select s.decrypted_secret into k from vault.decrypted_secrets s where s.name = 'gemini_api_key' limit 1;
   if coalesce(k, '') = '' then raise exception 'ระบบ AI ยังไม่พร้อมใช้งาน (ยังไม่ได้ตั้งคีย์)'; end if;
 
-  prompt := 'คุณเป็นเภสัชกรผู้ช่วยทำแบบทดสอบความรู้สำหรับผู้อ่านข่าว (ประชาชนและเจ้าหน้าที่ รพ.สต.) หลักฐานเดียวคือบทความต้นฉบับ PDF ที่ลิงก์นี้ (เปิดอ่านทุกหน้าด้วยเครื่องมืออ่าน URL): ' || n.source_file_url || E'\n'
+  select * into ev from public.ai_news_evidence(n.id, n.source_file_url);
+  prompt := 'คุณเป็นเภสัชกรผู้ช่วยทำแบบทดสอบความรู้สำหรับผู้อ่านข่าว (ประชาชนและเจ้าหน้าที่ รพ.สต.) ' || ev.intro
     || 'ผู้ดูแลตั้งคำถามพร้อมคำตอบที่ถูกไว้ด้านล่าง ทำทีละข้อ:' || E'\n'
     || '1) ai_answer = ลองตอบคำถามเองจากบทความเท่านั้น (สั้น ๆ) ก่อนดูคำตอบของผู้ตั้ง' || E'\n'
     || '2) match = "yes" ถ้าคำตอบของผู้ตั้งถูกต้องตามบทความ · "no" ถ้าบทความเขียนต่างออกไป · "not_found" ถ้าบทความไม่มีข้อมูลนี้ · page = เลขหน้าที่ใช้ตอบ' || E'\n'
@@ -126,8 +162,8 @@ begin
   req := net.http_post(
     url := 'https://generativelanguage.googleapis.com/v1beta/models/' || model || ':generateContent',
     body := jsonb_build_object('contents', jsonb_build_array(jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', prompt)))),
-                               'tools', jsonb_build_array(jsonb_build_object('url_context', '{}'::jsonb)),
-                               'generationConfig', jsonb_build_object('temperature', 0.3)),
+                               'generationConfig', jsonb_build_object('temperature', 0.3))
+            || case when ev.tools is null then '{}'::jsonb else jsonb_build_object('tools', ev.tools) end,   -- มีข้อความ PDF ในระบบ = ไม่ต้องให้ AI เปิดลิงก์
     headers := jsonb_build_object('Content-Type', 'application/json', 'x-goog-api-key', k),
     timeout_milliseconds := 180000);
   insert into public.ai_news_checks (user_id, news_id, kind, points, request_id) values (auth.uid(), n.id, 'quiz', cnt, req) returning id into new_id;

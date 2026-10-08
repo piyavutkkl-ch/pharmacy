@@ -481,9 +481,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         && (await p.getAttribute('#aqInfo p.small a[href*="ccpe"]', 'href') || '').includes('id=1876') && (await p.getAttribute('#aqInfo .file-link', 'href') || '').endsWith('showfile.php?file=1876')
         && (await text(p, '#aqInfo')).includes('ตรวจตัวเลข') && !(await p.$('#anReview [data-decide="fix"]')) && !(await p.$('#anReview [data-decide="edit"]')));
       check('กล่องตรวจ: มีปุ่ม อนุมัติ · บันทึก · ไม่ใช้ข่าวนี้ · ปิด อยู่ในกล่อง AI', await visible(p, '#anReview [data-decide="published"]') && await visible(p, '#anReview [data-decide="save"]') && await visible(p, '#anReview [data-decide="rejected"]') && await visible(p, '#anReview [data-decide="close"]') && await p.$eval('#anReview', (r) => !!r.closest('.ai-panel')));
-      check('กล่องตรวจข่าว AI: มีเครื่องมือ "ตรวจกับความเข้าใจของฉัน" + "แบบทดสอบสำหรับผู้อ่าน" (ย่อไว้) + โหลดคำถามที่บันทึกไว้', await visible(p, '#aqTools') && !(await p.$eval('#aqCheckFold', (d) => d.open)) && (await p.textContent('#aqQuizN')).includes('1 ข้อ') && await count(p, '#aqQuiz .aq-q') === 1);
+      check('กล่องตรวจข่าว AI: มีเครื่องมือ "ตรวจกับความเข้าใจของฉัน" + "แบบทดสอบสำหรับผู้อ่าน" (ย่อไว้) + โหลดคำถามที่บันทึกไว้ (กล่องข้อความ + ฉบับที่จะเผยแพร่ ติ๊ก ✓ ข้อที่ถูก)', await visible(p, '#aqTools') && !(await p.$eval('#aqCheckFold', (d) => d.open))
+        && (await p.textContent('#aqQuizN')).includes('1/1') && await count(p, '#aqQuiz .aq-q') === 1 && (await p.inputValue('#aqQ0')).includes('ช่วยให้แผลหายเร็วขึ้น (ถูก)')
+        && await count(p, '#aqQuiz [data-i="0"][data-f="opt"]') === 4 && await p.isChecked('#aqQuiz [data-i="0"][data-f="ok"][data-k="0"]'));
+      check('กล่องตรวจข่าว AI: บอกว่ามีข้อความจาก PDF ในระบบแล้ว (AI ตรวจได้เร็ว)', (await text(p, '#aqSrc')).includes('12 หน้า'));
       await p.click('#aqCheckFold > summary'); await p.waitForTimeout(100);
-      await p.fill('#aqNotes', 'ห้ามบดยาเม็ดมาทาแผลเอง\nใช้ในแผลเบาหวาน'); await p.click('#aqCheckBtn'); await p.waitForTimeout(3600);
+      await p.fill('#aqNotes [data-note="0"]', 'ห้ามบดยาเม็ดมาทาแผลเอง'); await p.click('#aqNoteAdd'); await p.fill('#aqNotes [data-note="1"]', 'ใช้ในแผลเบาหวาน');
+      await p.click('#aqNoteAdd');
+      check('ตรวจกับความเข้าใจของฉัน: 1 กล่อง = 1 ประเด็น เพิ่มกล่องได้', await count(p, '#aqNotes [data-note]') === 3);
+      await p.click('#aqNotes [data-rmnote="2"]');
+      check('ตรวจกับความเข้าใจของฉัน: ลบกล่องได้ (ข้อความในกล่องอื่นยังอยู่)', await count(p, '#aqNotes [data-note]') === 2 && (await p.inputValue('#aqNotes [data-note="1"]')) === 'ใช้ในแผลเบาหวาน');
+      await p.click('#aqCheckBtn'); await p.waitForTimeout(3600);
       { const c = (await calls(p, (x) => x.rpc === 'ai_news_check_start'))[0]?.args || {};
         check('ตรวจกับความเข้าใจของฉัน: ส่งประเด็น + เนื้อข่าวที่กำลังแก้ → ผลทีละข้อ (✅ ถูก / ⚠️ ยังไม่ได้พูดถึง + หน้า) + สรุป', c.p_news === AI && c.p_notes.split('\n').length === 2 && (c.p_body || '').includes('สแตติน')
           && await count(p, '#aqCheckOut .aq-check li') === 2 && await count(p, '#aqCheckOut li.aq-ok') === 1 && await count(p, '#aqCheckOut li.aq-warn') === 1 && (await text(p, '#aqCheckOut')).includes('หน้า 2') && (await text(p, '#aqCheckOut')).includes('ห้ามบดยาเม็ด'), JSON.stringify(c)); }
@@ -491,27 +499,29 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ตรวจกับความเข้าใจของฉัน: กด "ใช้ร่างนี้" → ร่างข่าวฉบับแก้ (เพิ่มใจความสำคัญจาก PDF) ขึ้นในช่องเนื้อหา', (await p.inputValue('#aqBody')).includes('ใจความสำคัญจากบทความ'));
       await (await p.$('#aqCheckFold')).screenshot({ path: path.join(SHOTS, 'admin-news-check.png') });
       await p.click('#aqQuizFold > summary'); await p.click('#aqQuizAdd'); await p.waitForTimeout(100);
-      await p.fill('#aqQuiz [data-i="1"][data-k="q"]', 'ควรบดยาเม็ดมาทาแผลเองไหม'); await p.fill('#aqQuiz [data-i="1"][data-k="a"]', 'ผิด ควรบดเอง');
-      await p.click('#aqQuizAdd'); await p.waitForTimeout(100);
+      await p.fill('#aqQ1', 'ควรบดยาเม็ดมาทาแผลเองไหม\nก. บดได้ไม่ผิด (ถูก)');
+      check('แบบทดสอบ: 1 กล่องข้อความ = 1 ข้อ → ขึ้นฉบับที่จะเผยแพร่ (คำถาม + ตัวเลือก + ติ๊ก ✓ ข้อที่ถูก)', (await p.inputValue('#aqQuiz [data-i="1"][data-f="q"]')) === 'ควรบดยาเม็ดมาทาแผลเองไหม'
+        && (await p.inputValue('#aqQuiz [data-i="1"][data-f="opt"][data-k="0"]')) === 'บดได้ไม่ผิด' && await p.isChecked('#aqQuiz [data-i="1"][data-f="ok"][data-k="0"]'));
+      await p.click('#aqQuizAdd'); await p.fill('#aqQ2', 'คำถามที่ยังไม่เสร็จ'); await p.waitForTimeout(100);
+      check('แบบทดสอบ: กล่องที่ยังไม่มีตัวเลือก → บอกว่าขาดอะไร', (await text(p, '#aqQuiz .aq-q:nth-child(3) .aq-ai')).includes('ยังไม่มีตัวเลือก'));
       await p.click('#anReview [data-decide="save"]'); await p.waitForTimeout(300);
       check('แบบทดสอบ: ข้อที่ยังไม่ครบ → บันทึกไม่ได้ + บอกข้อที่ต้องแก้', (await text(p, '#anDecideMsg')).includes('ข้อ 2') && !(await calls(p, (c) => c.table === 'news_quiz' && c.op === 'insert')).length);
-      await p.click('#aqQuiz [data-rmq="2"]'); await p.click('#aqQuizBtn'); await p.waitForTimeout(3600);
-      { const qa = (await calls(p, (x) => x.rpc === 'ai_news_quiz_start'))[0]?.args || {};
-        check('แบบทดสอบ: AI ตรวจคำถาม/คำตอบของผู้ดูแลกับ PDF + ลองตอบ → ข้อที่ไม่ตรงขึ้นเตือนให้แก้เอง', qa.p_items?.length === 2 && qa.p_items[1].a === 'ผิด ควรบดเอง'
-          && await count(p, '#aqQuiz .aq-ai .aq-ok') === 1 && await count(p, '#aqQuiz .aq-ai .aq-bad') === 1 && (await text(p, '#aqQuiz')).includes('AI ลองตอบจาก PDF') && (await text(p, '#aqQuizOut')).includes('1 ข้อ'), JSON.stringify(qa)); }
-      check('แบบทดสอบ: AI สร้างตัวเลือกที่ผิดให้ช่องที่ว่าง + เรียบเรียงตัวเลือก/เฉลยที่ผู้ดูแลร่างให้อ่านง่ายขึ้น', (await p.inputValue('#aqQuiz [data-i="1"][data-w="0"]')) === 'ตัวเลือก ก'
-        && (await p.inputValue('#aqQuiz [data-i="0"][data-w="0"]')) === 'ลดไขมันในเลือดได้ทันที (เรียบเรียง)' && (await p.inputValue('#aqQuiz [data-i="0"][data-k="a"]')) === 'ช่วยให้แผลหายเร็วขึ้น (เรียบเรียงแล้ว)');
-      check('แบบทดสอบ: เฉลยไม่ตรงกับ PDF → แจ้งพร้อมเหตุผล + เฉลยเดิมไม่ถูกเปลี่ยน', (await text(p, '#aqQuiz .aq-q:nth-child(2) .aq-ai')).includes('เหตุผล:') && (await p.inputValue('#aqQuiz [data-i="1"][data-k="a"]')) === 'ผิด ควรบดเอง');
-      await p.click('#aqBulkFold > summary');
-      await p.fill('#aqBulk', '1. แผลแบบใดที่บทความศึกษา\nก. แผลเบาหวาน\nข. แผลไฟไหม้'); await p.click('#aqBulkAdd');
-      check('พิมพ์คำถามพร้อมตัวเลือกเอง: ไม่ได้ใส่ (ถูก) → แจ้งให้ใส่', (await text(p, '#aqBulkMsg')).includes('(ถูก)') && await count(p, '#aqQuiz .aq-q') === 2);
-      await p.fill('#aqBulk', '1. แผลแบบใดที่บทความศึกษา\nก. แผลเบาหวาน (ถูก)\nข. แผลไฟไหม้\nค. แผลผ่าตัด\n\n2. ควรทายาวันละกี่ครั้ง\nก) วันละครั้ง\nข) ตามแพทย์สั่ง (ถูก)'); await p.click('#aqBulkAdd');
-      check('พิมพ์คำถามพร้อมตัวเลือกเอง: แยกเป็นคำถาม/เฉลย/ตัวเลือกผิด เข้ารายการ (2 ข้อ)', await count(p, '#aqQuiz .aq-q') === 4 && (await p.inputValue('#aqQuiz [data-i="2"][data-k="a"]')) === 'แผลเบาหวาน'
-        && (await p.inputValue('#aqQuiz [data-i="2"][data-w="1"]')) === 'แผลผ่าตัด' && (await p.inputValue('#aqQuiz [data-i="3"][data-k="q"]')) === 'ควรทายาวันละกี่ครั้ง' && (await p.inputValue('#aqQuiz [data-i="3"][data-k="a"]')) === 'ตามแพทย์สั่ง');
-      await (await p.$('#aqQuizFold')).screenshot({ path: path.join(SHOTS, 'admin-news-quiz-bulk.png') });
+      await p.fill('#aqQ2', '1. แผลแบบใดที่บทความศึกษา\nก. แผลเบาหวาน (ถูก)\nข. แผลไฟไหม้\nค. แผลผ่าตัด\n\n2. ควรทายาวันละกี่ครั้ง\nก) วันละครั้ง\nข) ตามแพทย์สั่ง (ถูก)');
+      await p.dispatchEvent('#aqQ2', 'change'); await p.waitForTimeout(150);
+      check('แบบทดสอบ: วางหลายข้อในกล่องเดียว → แยกเป็นกล่องละข้อให้เอง', await count(p, '#aqQuiz .aq-q') === 4 && (await p.inputValue('#aqQuiz [data-i="2"][data-f="opt"][data-k="0"]')) === 'แผลเบาหวาน'
+        && (await p.inputValue('#aqQuiz [data-i="2"][data-f="opt"][data-k="2"]')) === 'แผลผ่าตัด' && (await p.inputValue('#aqQuiz [data-i="3"][data-f="q"]')) === 'ควรทายาวันละกี่ครั้ง' && await p.isChecked('#aqQuiz [data-i="3"][data-f="ok"][data-k="1"]'));
+      await (await p.$('#aqQuizFold')).screenshot({ path: path.join(SHOTS, 'admin-news-quiz-boxes.png') });
       await p.click('#aqQuiz [data-rmq="3"]'); await p.click('#aqQuiz [data-rmq="2"]'); await p.waitForTimeout(100);
-      await p.fill('#aqQuiz [data-i="1"][data-k="a"]', 'ไม่ควร ให้ใช้ยาตามแพทย์สั่ง');
-      check('แบบทดสอบ: แก้คำตอบแล้วผลตรวจเดิมหายไป (ต้องตรวจใหม่)', await count(p, '#aqQuiz .aq-ai .aq-bad') === 0);
+      await p.click('#aqQuizBtn'); await p.waitForTimeout(3600);
+      { const qa = (await calls(p, (x) => x.rpc === 'ai_news_quiz_start'))[0]?.args || {};
+        check('แบบทดสอบ: AI ตรวจเฉลยของผู้ดูแลกับ PDF + ลองตอบ → ข้อที่ไม่ตรงขึ้นเตือนพร้อมเหตุผล', qa.p_items?.length === 2 && qa.p_items[1].a === 'บดได้ไม่ผิด' && qa.p_items[0].w.length === 3
+          && await count(p, '#aqQuiz .aq-ai .aq-ok') === 1 && await count(p, '#aqQuiz .aq-ai .aq-bad') === 1 && (await text(p, '#aqQuiz')).includes('AI ลองตอบจาก PDF') && (await text(p, '#aqQuiz .aq-q:nth-child(2) .aq-ai')).includes('เหตุผล:') && (await text(p, '#aqQuizOut')).includes('1 ข้อ'), JSON.stringify(qa)); }
+      check('แบบทดสอบ: AI เรียบเรียงตัวเลือก/เฉลยที่ตรง PDF + เติมตัวเลือกให้ครบ ในฉบับที่จะเผยแพร่ (กล่องข้อความเดิมไม่เปลี่ยน · เฉลยที่ไม่ตรงไม่ถูกแก้)',
+        (await p.inputValue('#aqQuiz [data-i="0"][data-f="opt"][data-k="0"]')) === 'ช่วยให้แผลหายเร็วขึ้น (เรียบเรียงแล้ว)' && (await p.inputValue('#aqQuiz [data-i="0"][data-f="opt"][data-k="1"]')) === 'ลดไขมันในเลือดได้ทันที (เรียบเรียง)'
+        && (await p.inputValue('#aqQuiz [data-i="1"][data-f="opt"][data-k="0"]')) === 'บดได้ไม่ผิด' && (await p.inputValue('#aqQuiz [data-i="1"][data-f="opt"][data-k="1"]')) === 'ตัวเลือก ก' && (await p.inputValue('#aqQ1')).includes('บดได้ไม่ผิด (ถูก)'));
+      await p.fill('#aqQuiz [data-i="1"][data-f="opt"][data-k="0"]', 'ไม่ควร ให้ใช้ยาตามแพทย์สั่ง');
+      await p.check('#aqQuiz [data-i="1"][data-f="ok"][data-k="1"]'); await p.check('#aqQuiz [data-i="1"][data-f="ok"][data-k="0"]');
+      check('แบบทดสอบ: แก้ในฉบับที่จะเผยแพร่ได้ + ติ๊ก ✓ เปลี่ยนข้อที่ถูกได้ (ผลตรวจ AI ยังอยู่)', await p.isChecked('#aqQuiz [data-i="1"][data-f="ok"][data-k="0"]') && !(await p.isChecked('#aqQuiz [data-i="1"][data-f="ok"][data-k="1"]')) && await count(p, '#aqQuiz .aq-ai .aq-bad') === 1);
       await (await p.$('#aqQuizFold')).screenshot({ path: path.join(SHOTS, 'admin-news-quiz.png') });
       check('แก้ข่าว: รูปทั้ง 3 รูปขึ้นในฟอร์ม (รูปหลักมีกรอบ) + ปุ่ม × ทุกรูป', await count(p, '#aqImagePreview .img-item') === 3 && await count(p, '#aqImagePreview .img-x') === 3
         && (await p.getAttribute('#aqImagePreview .img-item.main img', 'src')).includes('infographic') && await p.$eval('#aqImagePreview .img-x', (e) => e.getBoundingClientRect().height >= 44));
