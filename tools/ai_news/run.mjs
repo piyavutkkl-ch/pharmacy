@@ -318,6 +318,9 @@ async function main() {
   // รุ่น flash ที่ใช้ได้จริงกับคีย์นี้ → ให้ช่อง "AI แนะนำข้อมาตรฐาน" ในฐานข้อมูลใช้ตาม (37_ai_match.sql · ค่าเริ่ม gemini-flash-latest)
   const fast = models.text.find((n) => !/pro|lite/.test(n));
   if (fast && !OFFLINE) await db.upsert('site_texts', { key: 'ai_match_model', body: fast }).catch((e) => log('บันทึกรุ่น AI ไม่ได้:', e.message.slice(0, 120)));
+  // รุ่นสำรองเมื่อรุ่นแรกไม่ว่าง (503 ฯลฯ) — ฐานข้อมูลลองต่อให้เอง (49_ai_retry.sql)
+  const spare = models.text.filter((n) => !/pro/.test(n)).join(',');
+  if (spare && !OFFLINE) await db.upsert('site_texts', { key: 'ai_match_models', body: spare }).catch((e) => log('บันทึกรุ่นสำรองไม่ได้:', e.message.slice(0, 120)));
   const quick = [...models.text.filter((n) => !/pro/.test(n)), ...models.text.filter((n) => /pro/.test(n))];   // งานเลือกบทความใช้รุ่น flash (เก็บโควตา pro ไว้วิเคราะห์)
   let art = arts[0];
   if (arts.length > 1) {

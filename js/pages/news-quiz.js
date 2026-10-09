@@ -10,7 +10,7 @@ let news = null, quiz = [], bound = false;
 const SPIN = '<span class="spin" aria-hidden="true"></span>';
 const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
 async function poll(id) {
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 150; i++) {   // AI ไม่ว่าง → ฐานข้อมูลส่งใหม่ด้วยรุ่นสำรองเอง (49_ai_retry.sql) จึงรอได้นานขึ้น
     const { data, error } = await sb.rpc('ai_news_check_poll', { p_id: id });
     if (error) throw error;
     if (data.status !== 'pending') return data;
