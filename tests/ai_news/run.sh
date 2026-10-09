@@ -60,6 +60,13 @@ import json as _j
 out = subprocess.run(['node', '--input-type=module', '-e', check_js, os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs')], capture_output=True, text=True, env={**os.environ, 'AI_NEWS_IMPORT_ONLY': '1'})
 try: r = _j.loads(out.stdout.strip().splitlines()[-1])
 except Exception: r = {'err': out.stderr[-300:]}
+js2 = "const m = await import(process.argv[1]); const bad = { candidates: [{ content: { parts: [{ text: '{\"a\": \"ยา \"X\" ดี\"}' }] } }] }, good = { candidates: [{ content: { parts: [{ text: '```json {\"a\": 1} ```' }] } }] };" \
+  + "let n = 0; const r1 = await m.askJson(async () => (n++ ? good : bad)); let err = ''; try { await m.askJson(async () => bad, 2); } catch (e) { err = e.message; }" \
+  + "console.log(JSON.stringify({ r1, n, err }));"
+o2 = subprocess.run(['node', '--input-type=module', '-e', js2, os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs')], capture_output=True, text=True, env={**os.environ, 'AI_NEWS_IMPORT_ONLY': '1'})
+try: r2 = _j.loads(o2.stdout.strip().splitlines()[-1])
+except Exception: r2 = {'err': o2.stderr[-300:]}
+check('ai-news: AI ตอบ JSON ไม่สมบูรณ์ → ถามใหม่ (ไม่ล้มทั้งรอบ) · ผิดครบทุกครั้ง → แจ้งเหตุผลภาษาไทย', r2.get('r1') == {'a': 1} and r2.get('n') == 2 and 'JSON ไม่สมบูรณ์ 2 ครั้ง' in r2.get('err', ''), r2)
 check('ai-news: pdftotext ภาษาไทยดี → ใช้ได้ (แบ่งหน้า) · สระ/วรรณยุกต์ลอย (ฟอนต์ถอดไม่ได้) → ส่งให้ AI ถอดแทน', r.get('ok') is True and r.get('pages') == 2 and r.get('head') == '[หน้า 1]' and r.get('bad') is False, r)
 print(f'ai-news: {n[0]} passed, {n[1]} failed')
 sys.exit(0 if ok else 1)

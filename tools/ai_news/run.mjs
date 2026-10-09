@@ -106,6 +106,7 @@ async function gemini(models, body, { waits = [15_000, 45_000], step = 'write' }
       if (r.ok) return j;
       last = new Error(`Gemini ${model} HTTP ${r.status}: ${(j.error?.message || '').slice(0, 160)}`);
       if (r.status === 429 && /quota|exhausted|per day|limit: 0/i.test(j.error?.message || '')) { deadModels.add(model); break; }
+      if (r.status === 404) { deadModels.add(model); break; }   // รุ่นเลิกให้บริการ/ไม่เปิดให้คีย์นี้ → ไม่ลองซ้ำในขั้นถัดไป
       if (![0, 429, 500, 502, 503, 504].includes(r.status) || i === waits.length) break;   // 4xx อื่น = รุ่นนี้ใช้ไม่ได้ → รุ่นถัดไป
       log(`${model} ไม่ว่าง (HTTP ${r.status}) รอ ${waits[i] / 1000} วินาทีแล้วลองใหม่`);
       await sleep(waits[i]);
@@ -135,6 +136,16 @@ async function pickModels() {
 }
 const textOf = (j) => (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
 const jsonOf = (j) => { const t = textOf(j).replace(/^```(?:json)?\s*|\s*```$/g, '').trim(); return JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); };
+/** ถาม AI แล้วอ่าน JSON · AI ตอบ JSON ไม่สมบูรณ์ (เช่น มีเครื่องหมายคำพูดในข้อความ) → ถามใหม่ ≤ tries ครั้ง (ไม่ล้มทั้งรอบ) */
+export async function askJson(call, tries = 3) {
+  for (let i = 0; ; i++) {
+    const j = await call(i);
+    try { return jsonOf(j); } catch (e) {
+      if (i + 1 >= tries) throw new Error(`AI ตอบรูปแบบ JSON ไม่สมบูรณ์ ${tries} ครั้ง (${String(e.message).slice(0, 80)})`);
+      log(`AI ตอบรูปแบบ JSON ไม่สมบูรณ์ (${String(e.message).slice(0, 80)}) ถามใหม่ครั้งที่ ${i + 2}`);
+    }
+  }
+}
 
 const PICK_PROMPT = (arts) => `คุณเป็นเภสัชกรงานปฐมภูมิของโรงพยาบาลชุมชน เลือก "1 บทความ" ที่เหมาะที่สุดสำหรับทำข่าวความรู้เรื่องยาให้ประชาชนและเจ้าหน้าที่ รพ.สต. อ่าน
 (เรื่องใกล้ตัว ใช้ได้จริงในชุมชน เช่น การใช้ยา โรคเรื้อรัง ความปลอดภัยด้านยา · หลีกเลี่ยงเรื่องสถิติ/การวิจัย/กฎหมายล้วน ถ้ามีตัวเลือกอื่น)
@@ -316,16 +327,19 @@ async function main() {
   const models = await pickModels();
   log('รุ่น AI:', models.text.join(', '));
   // รุ่น flash ที่ใช้ได้จริงกับคีย์นี้ → ให้ช่อง "AI แนะนำข้อมาตรฐาน" ในฐานข้อมูลใช้ตาม (37_ai_match.sql · ค่าเริ่ม gemini-flash-latest)
-  const fast = models.text.find((n) => !/pro|lite/.test(n));
-  if (fast && !OFFLINE) await db.upsert('site_texts', { key: 'ai_match_model', body: fast }).catch((e) => log('บันทึกรุ่น AI ไม่ได้:', e.message.slice(0, 120)));
-  // รุ่นสำรองเมื่อรุ่นแรกไม่ว่าง (503 ฯลฯ) — ฐานข้อมูลลองต่อให้เอง (49_ai_retry.sql)
-  const spare = models.text.filter((n) => !/pro/.test(n)).join(',');
-  if (spare && !OFFLINE) await db.upsert('site_texts', { key: 'ai_match_models', body: spare }).catch((e) => log('บันทึกรุ่นสำรองไม่ได้:', e.message.slice(0, 120)));
+  //   + รุ่นสำรองเมื่อรุ่นแรกไม่ว่าง (503 ฯลฯ) ฐานข้อมูลลองต่อให้เอง (49_ai_retry.sql) · ไม่รวมรุ่นที่รอบนี้พบว่าใช้ไม่ได้ (404/โควตาหมด) → บันทึกซ้ำตอนจบรอบ
+  const saveModels = async () => {
+    if (OFFLINE) return;
+    const live = models.text.filter((n) => !/pro/.test(n) && !deadModels.has(n)), fast = live.find((n) => !/lite/.test(n));
+    if (fast) await db.upsert('site_texts', { key: 'ai_match_model', body: fast }).catch((e) => log('บันทึกรุ่น AI ไม่ได้:', e.message.slice(0, 120)));
+    if (live.length) await db.upsert('site_texts', { key: 'ai_match_models', body: live.join(',') }).catch((e) => log('บันทึกรุ่นสำรองไม่ได้:', e.message.slice(0, 120)));
+  };
+  await saveModels();
   const quick = [...models.text.filter((n) => !/pro/.test(n)), ...models.text.filter((n) => /pro/.test(n))];   // งานเลือกบทความใช้รุ่น flash (เก็บโควตา pro ไว้วิเคราะห์)
   let art = arts[0];
   if (arts.length > 1) {
     try {
-      const pick = jsonOf(await gemini(quick, { contents: [{ parts: [{ text: PICK_PROMPT(arts) }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, { step: 'pick' }));
+      const pick = await askJson(() => gemini(quick, { contents: [{ parts: [{ text: PICK_PROMPT(arts) }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, { step: 'pick' }), 2);
       art = arts.find((a) => a.id === +pick.id) || art;
       log('เลือกบทความ', art.id, '-', clip(pick.reason, 120));
     } catch (e) { log('เลือกบทความไม่ได้ ใช้บทความล่าสุด:', e.message.slice(0, 120)); }
@@ -337,7 +351,7 @@ async function main() {
     else pdf = await downloadPdf(art.pdf);
     if (pdf.length > MAX_PDF) throw new Error(`PDF ใหญ่เกิน ${MAX_PDF / 1048576} MB`);
     const pdfPart = { inlineData: { mimeType: 'application/pdf', data: pdf.toString('base64') } };
-    const ask = async (text, step, temperature) => jsonOf(await gemini(models.text, { contents: [{ parts: [pdfPart, { text }] }], generationConfig: { responseMimeType: 'application/json', temperature } }, { step }));
+    const ask = (text, step, temperature) => askJson((i) => gemini(models.text, { contents: [{ parts: [pdfPart, { text }] }], generationConfig: { responseMimeType: 'application/json', temperature: temperature + i * 0.1 } }, { step }));
     // ① วิเคราะห์ PDF → ข้อเท็จจริงพร้อมข้อความอ้างอิง/หน้า
     const facts = await ask(ANALYZE_PROMPT(art), 'analyze', 0);
     if (!(facts.facts || []).length) throw new Error('AI วิเคราะห์บทความไม่ได้ (ไม่พบข้อเท็จจริงในไฟล์)');
@@ -393,7 +407,7 @@ async function main() {
   } catch (e) {
     await status(db, { article_id: art.id, title: clip(art.title, 300), status: 'error', note: clip(e.message, 900) });
     throw e;
-  }
+  } finally { await saveModels(); }
 }
 
 if (!process.env.AI_NEWS_IMPORT_ONLY) main().catch((e) => { console.log(`::error::${String(e.message).slice(0, 300)}`); process.exit(1); });   // AI_NEWS_IMPORT_ONLY = ทดสอบฟังก์ชันย่อย
