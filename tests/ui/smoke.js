@@ -624,6 +624,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/visits'); await p.waitForTimeout(400);
     { const all = await p.evaluate(() => window.__db.patients.length);
       check('ผู้ดูแล: เพิ่มสรุปผลงานเยี่ยมบ้านได้ (ฟอร์มเลือก รพ.สต. ได้ทุกหน่วย)', await visible(p, '#adminSumSlot #vsFold') && await count(p, '#adminSumSlot #vsUnit option') === 7 && (await text(p, '#vsListTitle')).includes('ทุก รพ.สต.'));
+      if (!(await p.$eval('#vsFold', (d) => d.open))) { await p.click('#vsFold > summary'); await p.waitForTimeout(150); }
+      await p.fill('#vsTitle', 'สรุป รพ.สต.ควนกาหลง'); await p.selectOption('#vsUnit', '0'); await p.setInputFiles('#vsImage', { name: 'k.png', mimeType: 'image/png', buffer: PNG }); await p.waitForTimeout(400);
+      await p.click('#vsSubmit'); await p.waitForTimeout(500);
+      { const o = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert')).pop()?.payload || {};
+        check('ผู้ดูแล: สรุปผลงานเลือก "รพ.สต.ควนกาหลง" (รหัส 0) บันทึกได้', o.unit_id === 0 && o.title === 'สรุป รพ.สต.ควนกาหลง' && !(await text(p, '#vsMsg')).includes('กรุณาเลือก'), JSON.stringify(o) + (await text(p, '#vsMsg'))); }
+      await p.evaluate(() => { const r = window.__db.visit_summaries; const i = r.findIndex((x) => x.title === 'สรุป รพ.สต.ควนกาหลง'); if (i >= 0) r.splice(i, 1); });
       check('ผู้ดูแล: เยี่ยมบ้านช่อง "โรงพยาบาลควนกาหลง" รวมทุกชื่อทุก รพ.สต. (ค่าเริ่มต้น)', (await p.getAttribute('#avUnits [data-u="all"]', 'aria-current')) === 'true' && await count(p, '#ptList [data-pt]') === all && all >= 1 && (await text(p, '#ptList')).includes('รพ.สต.')); }
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);   // ช่องรวมทุกชื่อ: บันทึกการเยี่ยมใหม่ได้ (เดิม error smallint "all")
     await p.click('[data-act="add-visit"]'); await p.waitForTimeout(200);

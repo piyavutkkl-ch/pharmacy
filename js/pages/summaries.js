@@ -428,7 +428,7 @@ async function save(e) {
   const msg = $('#vsMsg'), title = $('#vsTitle').value.trim(), old = S.editing, unitId = +$('#vsUnit').value;
   msg.style.color = 'var(--error)';
   if (!title) { msg.textContent = 'กรุณาใส่หัวข้อ'; return; }
-  if (!unitId) { msg.textContent = 'กรุณาเลือก รพ.สต.'; return; }
+  if ($('#vsUnit').value === '' || Number.isNaN(unitId)) { msg.textContent = 'กรุณาเลือก รพ.สต.'; return; }   // รพ.สต.ควนกาหลง = id 0
   if (!$('#vsDate').value) { msg.textContent = 'กรุณาใส่วันที่'; return; }
   await S.img.ready();
   if (!S.img.items().length) { msg.textContent = 'กรุณาเลือกภาพสรุปอย่างน้อย 1 ภาพ'; return; }

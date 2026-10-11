@@ -91,7 +91,7 @@ function renderList() {
 
 /** บันทึกการเปิดดู (ไม่รอผล · ไม่ขวางการใช้งานถ้าบันทึกไม่สำเร็จ) */
 function logAccess(patientId = null) {
-  if (!unit) return;   // ผู้ดูแลยังไม่ได้เลือก รพ.สต.
+  if (unit == null) return;   // ผู้ดูแลยังไม่ได้เลือก รพ.สต. (รพ.สต.ควนกาหลง = id 0 ต้องบันทึกด้วย)
   if (unit === ALL && !patientId) { [...new Set(patients.map((p) => p.unit_id))].forEach((u) => auditRpc(u, null)); return; }   // รายชื่อรวม = บันทึกทุกหน่วยที่เห็น
   auditRpc(unit === ALL ? patients.find((p) => p.id === patientId)?.unit_id : unit, patientId);
 }

@@ -342,7 +342,7 @@ function bindAch() {
     try {
       const file = $('#saImage').files[0];
       const unit = achUnit === ALL_UNITS ? +$('#saUnit').value : achUnit;   // ผู้ดูแล: หน่วยที่เลือกในฟอร์ม (เปลี่ยนภายหลังได้)
-      if (!unit) throw new Error('กรุณาเลือก รพ.สต. ที่ทำผลงานนี้');
+      if (unit == null || Number.isNaN(unit) || (achUnit === ALL_UNITS && $('#saUnit').value === '')) throw new Error('กรุณาเลือก รพ.สต. ที่ทำผลงานนี้');   // รพ.สต.ควนกาหลง = id 0
       const row = { title, body: $('#saBody').value.trim() || null, item_ids: [...critPicked], ...(achUnit === ALL_UNITS ? { unit_id: unit } : {}) };
       if (file) row.image_path = await uploadPublicImage(file, `achievements/${unit}`);
       const res = editingAch
