@@ -34,8 +34,20 @@ export function showStaff(tab, sub) {
   setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindFeedback(); }
-  ({ news: loadNews, achievements: () => mountAch($('#staffAchSlot'), auth.profile.unit_id), criteria: initCriteria, visits: () => { initVisits(sub); mountSummaries($('#staffSumSlot'), auth.profile.unit_id); }, messages: () => showMessages(sub), docs: initStaffDocs, feedback: loadFeedback })[tab]();
+  ({ news: loadNews, achievements: () => mountAch($('#staffAchSlot'), auth.profile.unit_id), criteria: initCriteria, visits: () => showVisitTab(sub), messages: () => showMessages(sub), docs: initStaffDocs, feedback: loadFeedback })[tab]();
   refreshBadges();
+}
+
+/** เยี่ยมบ้าน: รายชื่อผู้ป่วย (#/staff/visits[/<visit id>]) หรือ One page summary (#/staff/visits/summary) — แยกช่องกัน */
+export function visitTabs(sw, listSlot, sumSlot, sub) {
+  const sum = sub === 'summary';
+  sw.querySelectorAll('[data-vt]').forEach((a) => { if ((a.dataset.vt === 'summary') === sum) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  listSlot.hidden = sum; sumSlot.hidden = !sum;
+  return sum;
+}
+function showVisitTab(sub) {
+  if (visitTabs($('#vtStaffSwitch'), $('#staffVisitsSlot'), $('#staffSumSlot'), sub)) mountSummaries($('#staffSumSlot'), auth.profile.unit_id);
+  else initVisits(sub);
 }
 
 /** ข้อความ: จากประชาชน (#/staff/messages) หรือ คุยกับผู้ดูแล (#/staff/messages/admin) */

@@ -404,7 +404,13 @@
       </div>
 
       <!-- เยี่ยมบ้าน (หน้าจอจาก visits.js ใช้ร่วมกับผู้ดูแล) -->
-      <div data-staff-view="visits" hidden><div id="staffVisitsSlot"></div><div id="staffSumSlot" data-sum-slot></div></div>
+      <div data-staff-view="visits" hidden>
+        <div class="unit-tabs uc-switch" id="vtStaffSwitch" aria-label="เลือกหน้าเยี่ยมบ้าน">
+          <a class="tab-link" href="#/staff/visits" data-vt="list">รายชื่อผู้ป่วยเยี่ยมบ้าน</a>
+          <a class="tab-link" href="#/staff/visits/summary" data-vt="summary">One page summary</a>
+        </div>
+        <div id="staffVisitsSlot"></div><div id="staffSumSlot" data-sum-slot hidden></div>
+      </div>
 
       <!-- เอกสารดาวน์โหลด -->
       <!-- ข้อความจากประชาชนถึง รพ.สต. นี้ (real-time) -->
@@ -555,8 +561,12 @@
       </div>
       <div data-admin-view="visits" hidden>
         <div class="unit-tabs" id="avUnits" aria-label="เลือก รพ.สต."></div>
+        <div class="unit-tabs uc-switch" id="vtAdminSwitch" aria-label="เลือกหน้าเยี่ยมบ้าน">
+          <a class="tab-link" href="#/admin/visits" data-vt="list">รายชื่อผู้ป่วยเยี่ยมบ้าน</a>
+          <a class="tab-link" href="#/admin/visits/summary" data-vt="summary">One page summary</a>
+        </div>
         <div id="adminVisitsSlot"></div>
-        <div id="adminSumSlot" data-sum-slot></div>
+        <div id="adminSumSlot" data-sum-slot hidden></div>
       </div>
 
       <!-- Health Rider: กรอก/นำเข้าตัวเลขผลงานทุก รพ.สต. + ข้อความแนะนำ (rider.js) -->

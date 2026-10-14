@@ -244,10 +244,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);
     check('เจ้าหน้าที่: เปิดรายชื่อ + เปิดดูผู้ป่วย ถูกบันทึก (PDPA)', logs.some((c) => c.args.p_unit === 2 && !c.args.p_patient) && logs.some((c) => c.args.p_patient));
     check('เจ้าหน้าที่: มีข้อความแจ้งว่าการเข้าถึงถูกบันทึก', (await text(p, '.pdpa-note')).includes('PDPA'));
+    check('เยี่ยมบ้าน: แยกช่อง "รายชื่อผู้ป่วยเยี่ยมบ้าน" กับ "One page summary" (หน้ารายชื่อไม่มีฟอร์มสรุป)', (await p.getAttribute('#vtStaffSwitch [data-vt="list"]', 'aria-current')) === 'page' && !(await p.isVisible('#staffSumSlot')) && !(await p.isVisible('#vsFold')));
+    await p.click('#vtStaffSwitch [data-vt="summary"]'); await p.waitForTimeout(500);
+    check('เยี่ยมบ้าน › One page summary: ฟอร์ม + รายการสรุปอยู่ในช่องนี้ (ไม่มีรายชื่อผู้ป่วย)', (await p.getAttribute('#vtStaffSwitch [data-vt="summary"]', 'aria-current')) === 'page' && !(await p.isVisible('#ptList')) && await p.evaluate(() => location.hash === '#/staff/visits/summary'));
     await p.waitForSelector('#vsFold', { state: 'attached' });
     check('สรุปผลงาน: ฟอร์มย่อไว้เป็นค่าเริ่มต้น (เห็นแค่หัวข้อ)', !(await p.$eval('#vsFold', (d) => d.open)) && !(await p.isVisible('#vsForm')) && await p.isVisible('#vsFormTitle'));
     await p.click('#vsFold > summary'); await p.waitForTimeout(150);
-    check('เยี่ยมบ้าน: มีฟอร์มสรุปผลงาน one page summary ใต้บันทึกการเยี่ยม (ไม่มีช่อง PDF)', await visible(p, '#staffSumSlot #vsForm') && (await text(p, '#vsFormTitle')).includes('one page summary') && !(await p.$('#vsFile')) && (await text(p, '#vsList')).includes('ยังไม่มีสรุปผลงาน'));
+    check('สรุปผลงาน: กล่องแนบรายชื่อเยี่ยมบ้าน อยู่บนกล่องแนบรายชื่อเจ้าหน้าที่ (ติ๊กเปิด/ปิด · เจ้าหน้าที่ติ๊กไว้ก่อน)', await p.evaluate(() => document.querySelector('#vsVisitOn').getBoundingClientRect().top < document.querySelector('#vsPeopleOn').getBoundingClientRect().top) && !(await p.isChecked('#vsVisitOn')) && await p.isChecked('#vsPeopleOn') && !(await p.isVisible('#vsVisitBtn')) && await p.isVisible('#vsPeopleFold'));
+    check('เยี่ยมบ้าน: มีฟอร์มสรุปผลงาน one page summary (ไม่มีช่อง PDF)', await visible(p, '#staffSumSlot #vsForm') && (await text(p, '#vsFormTitle')).includes('one page summary') && !(await p.$('#vsFile')) && (await text(p, '#vsList')).includes('ยังไม่มีสรุปผลงาน'));
     check('สรุปผลงาน: รายการสรุปอยู่อีกกล่อง แยกจากฟอร์ม (ย่อฟอร์มแล้วรายการไม่ย่อตาม)', await p.evaluate(() => document.querySelector('#vsList').closest('.panel') !== document.querySelector('#vsFold').closest('.panel')) && await visible(p, '#vsList'));
     check('สรุปผลงาน: ช่องเลือก รพ.สต. ขึ้นหน่วยของตัวเองอัตโนมัติ', (await p.inputValue('#vsUnit')) === '2' && await count(p, '#vsUnit option') === 7);
     await p.click('#vsSubmit'); await p.waitForTimeout(150);
@@ -283,11 +287,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#vsOFirst', 'ลบทิ้ง'); await p.press('#vsOFirst', 'Enter');
     await p.click('#vsOthers [data-rm-other="1"]'); await p.fill('#vsPeopleQ', ''); await p.waitForTimeout(100);
     check('สรุปผลงาน: กรอกชื่อ นามสกุล ตำแหน่ง เพิ่มเองได้ (ลบได้) + นับรวม', await count(p, '#vsOthers .li') === 1 && (await text(p, '#vsOthers')).includes('สมหญิง ทดสอบ (อสม.)') && (await text(p, '#vsPeopleN')).includes('4 คน'));
-    { const q = await open('staff', '#/staff/visits', 390, 844); await q.waitForTimeout(400);
+    { const q = await open('staff', '#/staff/visits/summary', 390, 844); await q.waitForTimeout(400);
       await q.click('#vsFold > summary'); await q.click('#vsPeopleFold > summary'); await q.waitForTimeout(150);
       await (await q.$('#vsPeopleFold')).screenshot({ path: path.join(SHOTS, 'summary-people-tabs-390.png') });
       await (await q.$('.vs-other')).screenshot({ path: path.join(SHOTS, 'summary-people-390.png') });
       check('สรุปผลงาน 390px: ช่องกรอกชื่อเองไม่ล้นจอ', await overflow(q) <= 0); await q.close(); }
+    await p.check('#vsVisitOn'); await p.waitForTimeout(100);
     await p.click('#vsVisitBtn'); await p.waitForTimeout(300);
     check('เชื่อมโยงรายการเยี่ยม: กดแล้วค้นหาชื่อผู้ป่วยได้ (รายชื่อผู้ป่วยของหน่วย)', await visible(p, '#vsVisitPick') && (await text(p, '#vsVisitRes')).includes('ประยูร'));
     await p.fill('#vsVisitQ', 'ประยูร'); await p.click('#vsVisitRes [data-vpt]'); await p.waitForTimeout(300);
@@ -296,7 +301,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('สรุปผลงาน: นับผู้ลงเยี่ยมตามตำแหน่ง + ผู้ป่วยที่เยี่ยม (จากรายชื่อที่แนบ)', (await text(p, '#vsCounts')).includes('พยาบาลวิชาชีพ 2 ราย') && (await text(p, '#vsCounts')).includes('เภสัชกร 1 ราย') && (await text(p, '#vsCounts')).includes('อสม. 1 ราย') && (await text(p, '#vsCounts')).includes('เยี่ยมผู้ป่วย 1 ราย'), await text(p, '#vsCounts'));
     check('เชื่อมโยงรายการเยี่ยม: เลือกแล้วขึ้นในรายการ (ชื่อ · วันที่เยี่ยม) ลบได้', (await text(p, '#vsVisits')).includes('ประยูร') && (await text(p, '#vsVisits')).includes('เยี่ยมวันที่') && await count(p, '#vsVisits [data-rm-link]') === 1);
     const linkedVisit = await p.getAttribute('#vsVisitRes [data-vv]', 'data-vv');
-    await p.click('#vsSubmit'); await p.waitForTimeout(600);
+    let achN0 = 0;
+    check('สรุปผลงาน: ช่องบันทึกเป็นผลงานตามมาตรฐานข้อ (ติ๊กเปิด)', !(await p.isVisible('#vsCrit')));
+    await p.check('#vsCritOn'); await p.waitForTimeout(400);
+    const critId = await p.getAttribute('#vsCrit input[type=checkbox]', 'value');
+    await p.check(`#vsCrit input[value="${critId}"]`); await p.waitForTimeout(100);
+    check('สรุปผลงาน: เลือกข้อมาตรฐานได้ + บอกข้อที่เลือก', (await text(p, '#vsCritN')).includes('เลือกแล้ว: ข้อ'));
+    await p.click('#vsSubmit'); await p.waitForTimeout(800);
+    { const a = (await calls(p, (c) => c.table === 'achievements' && c.op === 'insert')).pop()?.payload || {};
+      const link = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'update')).pop()?.payload || {};
+      achN0 = (await calls(p, (c) => c.table === 'achievements' && c.op === 'insert')).length;
+      check('สรุปผลงาน: บันทึกเป็นผลงานของ รพ.สต. นั้นในข้อที่เลือก (ภาพเดียวกัน) + จำผลงานไว้ในสรุป', a.unit_id === 2 && (a.item_ids || []).map(String).includes(critId) && String(a.image_path || '').startsWith('summaries/2/') && !!link.achievement_id, JSON.stringify(a) + JSON.stringify(link)); }
     check('เชื่อมโยงรายการเยี่ยม: บันทึกลิงก์กับสรุป + รายการบอกจำนวน', (await calls(p, (c) => c.table === 'summary_visits' && c.op === 'insert')).length === 1 && (await text(p, '#vsList')).includes('เชื่อมโยง 1 รายการเยี่ยม'));
     const vsIns = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert'))[0]?.payload;
     check('สรุปผลงาน: บันทึกวันที่ + ผู้ร่วมลง 2 คน + รายการแสดงวันที่และชื่อ', vsIns?.summary_date === today && vsIns?.participant_ids?.length === 2 && vsIns.participant_ids.includes(adm) && vsIns.participant_others?.join('|') === 'พี่วิ ยังไม่เข้าระบบ (พยาบาลวิชาชีพ)|สมหญิง ทดสอบ (อสม.)' && (await text(p, '#vsList')).includes('วันที่ ') && (await text(p, '#vsList')).includes('ผู้ร่วมลง:'), JSON.stringify(vsIns));
@@ -304,7 +319,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#vsList [data-edit]'); await p.waitForTimeout(150);
     check('สรุปผลงาน: แก้ไขแล้วภาพเดิมขึ้นครบ', await count(p, '#vsImagePreview .img-item') === 2 && (await p.inputValue('#vsUnit')) === '2');
     await p.fill('#vsTitle', 'สรุปเยี่ยมบ้าน ไตรมาส 1 (แก้ไข)'); await p.click('#vsSubmit'); await p.waitForTimeout(400);
-    check('สรุปผลงาน: แก้ไขได้ (ไม่ต้องเลือกภาพใหม่) + ปุ่มกลับเป็น "เผยแพร่"', (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'update')).length === 1 && (await text(p, '#vsList')).includes('(แก้ไข)') && (await p.textContent('#vsSubmit')).includes('เผยแพร่'));
+    check('สรุปผลงาน: แก้ไขแล้วแก้ผลงานเดิม (ไม่สร้างผลงานซ้ำ) + ข้อที่เลือกยังอยู่', (await calls(p, (c) => c.table === 'achievements' && c.op === 'insert')).length === achN0 && (await calls(p, (c) => c.table === 'achievements' && c.op === 'update')).some((c) => c.payload?.title === 'สรุปเยี่ยมบ้าน ไตรมาส 1 (แก้ไข)'));
+    check('สรุปผลงาน: แก้ไขได้ (ไม่ต้องเลือกภาพใหม่) + ปุ่มกลับเป็น "เผยแพร่"', (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'update' && c.payload?.title)).length === 1 && (await text(p, '#vsList')).includes('(แก้ไข)') && (await p.textContent('#vsSubmit')).includes('เผยแพร่'));
     check('สรุปผลงาน: บันทึกแล้วฟอร์มย่อกลับ', !(await p.$eval('#vsFold', (d) => d.open)));
     await p.click('#vsFold > summary'); await p.waitForTimeout(150);
     await p.fill('#vsTitle', 'สรุปให้หน่วยอื่น'); await p.selectOption('#vsUnit', '3'); await p.setInputFiles('#vsImage', { name: 'o.png', mimeType: 'image/png', buffer: PNG }); await p.waitForTimeout(400);
@@ -356,7 +372,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.screenshot({ path: path.join(SHOTS, 'summary-visit-dialog-1280.png') });
     await p.click('#svBody [data-sv-go]'); await p.waitForTimeout(900);
     check('สรุปผลงาน: กดลิงก์ → ไปหน้าเยี่ยมบ้าน เปิดผู้ป่วย + ไฮไลต์บันทึกการเยี่ยมนั้น', (await text(p, '#ptPanel')).includes('ประยูร') && await count(p, `#vt-${linkedVisit}.hl`) === 1);
-    await go(p, '#/staff/visits'); await p.waitForTimeout(300);
+    await go(p, '#/staff/visits/summary'); await p.waitForTimeout(400);
     await p.click('#vsList [data-del]'); await p.waitForTimeout(400);
     check('สรุปผลงาน: ลบได้', await count(p, '#vsList .da-poster') === 0);
     await go(p, '#/staff/docs');
@@ -647,10 +663,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('บัญชีเจ้าหน้าที่: แก้ชื่อ/ตำแหน่งของตัวเอง → หัวหน้า (สวัสดี …) + ตำแหน่ง + แถบเมนูเปลี่ยนทันที', (await text(p, '#adminHello')).includes('ภก.ชื่อใหม่ ทดสอบ') && (await text(p, '#adminSub')).includes('เภสัชกรชำนาญการ') && (await text(p, '#profileBtn')).includes('ภก.ชื่อใหม่ ทดสอบ'));
       const s2 = await p.evaluate(() => window.__db.staff_roster.find((r) => r.email === 's2@gmail.com').email);
       await p.click(`[data-edit="${s2}"]`); await p.waitForTimeout(150); await p.fill('#rfPos', 'พยาบาลวิชาชีพชำนาญการ'); await p.click('#rfSubmit'); await p.waitForTimeout(500);
-      await go(p, '#/admin/visits'); await p.waitForTimeout(600);
+      await go(p, '#/admin/visits/summary'); await p.waitForTimeout(600);
       check('บัญชีเจ้าหน้าที่: แก้ตำแหน่งแล้ว รายชื่อผู้ร่วมลงในฟอร์มสรุปผลงานขึ้นตำแหน่งใหม่ทันที', (await p.textContent('#vsPeople')).includes('พยาบาลวิชาชีพชำนาญการ') && (await p.textContent('#vsPeople')).includes('ภก.ชื่อใหม่ ทดสอบ'));
       await go(p, '#/admin/settings/staff'); await p.waitForTimeout(400); }
-    await go(p, '#/admin/visits'); await p.waitForTimeout(400);
+    await go(p, '#/admin/visits/summary'); await p.waitForTimeout(400);
     { const all = await p.evaluate(() => window.__db.patients.length);
       check('ผู้ดูแล: เพิ่มสรุปผลงานเยี่ยมบ้านได้ (ฟอร์มเลือก รพ.สต. ได้ทุกหน่วย)', await visible(p, '#adminSumSlot #vsFold') && await count(p, '#adminSumSlot #vsUnit option') === 7 && (await text(p, '#vsListTitle')).includes('ทุก รพ.สต.'));
       if (!(await p.$eval('#vsFold', (d) => d.open))) { await p.click('#vsFold > summary'); await p.waitForTimeout(150); }
@@ -659,6 +675,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       { const o = (await calls(p, (c) => c.table === 'visit_summaries' && c.op === 'insert')).pop()?.payload || {};
         check('ผู้ดูแล: สรุปผลงานเลือก "รพ.สต.ควนกาหลง" (รหัส 0) บันทึกได้', o.unit_id === 0 && o.title === 'สรุป รพ.สต.ควนกาหลง' && !(await text(p, '#vsMsg')).includes('กรุณาเลือก'), JSON.stringify(o) + (await text(p, '#vsMsg'))); }
       await p.evaluate(() => { const r = window.__db.visit_summaries; const i = r.findIndex((x) => x.title === 'สรุป รพ.สต.ควนกาหลง'); if (i >= 0) r.splice(i, 1); });
+      await p.click('#vtAdminSwitch [data-vt="list"]'); await p.waitForTimeout(500);
       check('ผู้ดูแล: เยี่ยมบ้านช่อง "โรงพยาบาลควนกาหลง" รวมทุกชื่อทุก รพ.สต. (ค่าเริ่มต้น)', (await p.getAttribute('#avUnits [data-u="all"]', 'aria-current')) === 'true' && await count(p, '#ptList [data-pt]') === all && all >= 1 && (await text(p, '#ptList')).includes('รพ.สต.')); }
     await p.click('#ptList [data-pt]'); await p.waitForTimeout(300);   // ช่องรวมทุกชื่อ: บันทึกการเยี่ยมใหม่ได้ (เดิม error smallint "all")
     await p.click('[data-act="add-visit"]'); await p.waitForTimeout(200);

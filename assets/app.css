@@ -477,6 +477,10 @@ a.menu-icon-btn{text-decoration:none}
 .sm-people{margin:6px 0 0;display:flex;flex-direction:column;gap:2px}
 .sm-counts{color:var(--ink)}
 .vs-counts{display:block;font-weight:600}
+.vs-box{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--sunken)}
+.vs-box-h{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-weight:400}
+.vs-box-h input{width:20px;height:20px;flex:none}
+.vs-box-b{margin-top:6px;display:flex;flex-direction:column;gap:8px}
 .sum-poster .car-btn{opacity:.9}
 .sum-poster .sp-prev{left:8px}.sum-poster .sp-next{right:8px}
 .sum-poster .sp-count{position:absolute;right:10px;bottom:10px;padding:2px 10px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:600}

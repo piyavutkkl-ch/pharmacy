@@ -16,7 +16,7 @@ import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
 import { mountRiderEditor } from './rider.js?v=4.4';
 import { mountSummaries } from './summaries.js?v=4.4';
-import { mountAch } from './staff.js?v=4.4';
+import { mountAch, visitTabs } from './staff.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
@@ -35,7 +35,7 @@ export async function showAdmin(tab, sub) {
   if (tab === 'news') return initAdminNews();
   if (tab === 'review') return initReview();
   if (tab === 'messages') return showMessages(sub);
-  if (tab === 'visits') return showVisits(sub);
+  if (tab === 'visits') return showVisits(sub || null);
   if (tab === 'achievements') return showAch();
   if (tab === 'rider') return mountRiderEditor($('#adminRiderSlot'));
   if (tab === 'docs') return initAdminDocs();
@@ -83,15 +83,17 @@ async function showMessages(sub) {
 }
 
 /* ---------- เยี่ยมบ้าน: โรงพยาบาล (รวมทุกชื่อ) หรือเลือก รพ.สต. ---------- */
-let visitUnit = ALL;
-async function showVisits(openVisit = null) {
+let visitUnit = ALL, visitSub = null;
+async function showVisits(sub) {
   const units = await loadUnits();
+  visitSub = sub;
+  const openVisit = sub && sub !== 'summary' ? sub : null;
   if (openVisit) visitUnit = ALL;   // ลิงก์จากสรุปผลงาน → เปิดจากรายชื่อรวม (ผู้ป่วยอยู่หน่วยไหนก็เจอ)
   $('#avUnits').innerHTML = `<button type="button" data-u="${ALL}" aria-current="${visitUnit === ALL}">โรงพยาบาลควนกาหลง (รวมทุกชื่อ)</button>`
     + units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === visitUnit}">${esc(u.name)}</button>`).join('');
-  $('#avUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; visitUnit = b.dataset.u === ALL ? ALL : +b.dataset.u; showVisits(); };
-  mountVisits($('#adminVisitsSlot'), visitUnit, openVisit);
-  mountSummaries($('#adminSumSlot'), visitUnit === ALL ? 'all' : visitUnit);   // ผู้ดูแลเพิ่ม/แก้สรุปผลงานได้ทุกหน่วย (เลือก รพ.สต. ในฟอร์ม)
+  $('#avUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; visitUnit = b.dataset.u === ALL ? ALL : +b.dataset.u; showVisits(visitSub === 'summary' ? 'summary' : null); };
+  if (visitTabs($('#vtAdminSwitch'), $('#adminVisitsSlot'), $('#adminSumSlot'), sub)) mountSummaries($('#adminSumSlot'), visitUnit === ALL ? 'all' : visitUnit);
+  else mountVisits($('#adminVisitsSlot'), visitUnit, openVisit);   // ผู้ดูแลเพิ่ม/แก้สรุปผลงานได้ทุกหน่วย (เลือก รพ.สต. ในฟอร์ม)
 }
 
 /* ---------- ผลงาน รพ.สต. (ผู้ดูแล: ผลงานทุกหน่วย · เลือก/เปลี่ยน รพ.สต. ในฟอร์ม · ใช้หน้าเดียวกับเจ้าหน้าที่ staff.js mountAch) ---------- */

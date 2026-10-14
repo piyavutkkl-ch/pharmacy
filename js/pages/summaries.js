@@ -8,14 +8,14 @@
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, thaiDate, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
-import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
+import { loadUnits, loadYears, unitName, sortItems } from '../data.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { paras } from './delivery.js?v=4.4';
 import { fileLink, imageList } from './news-form.js?v=4.4';
 import { imageCarousel } from '../lightbox.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
-const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others,participant_positions';
+const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others,participant_positions,achievement_id';
 const MAX_IMGS = 7;   // ภาพแรก + gallery ไม่เกิน 6 (visit_summaries_gallery_check)
 const imgsOf = (s) => [s.image_path, ...(s.gallery || [])].filter(Boolean);
 const HINT_IMG = `ภาพสรุป 1 หน้า (เช่น อินโฟกราฟิกจาก Canva) · เลือกได้หลายภาพ ไม่เกิน ${MAX_IMGS} ภาพ · ย่อไม่เกิน A4 อัตโนมัติ · ภาพแรกเป็นภาพหลัก`;
@@ -175,16 +175,22 @@ const FORM = `
       <div class="field"><label for="vsUnit">รพ.สต. <span class="req">*</span></label><select id="vsUnit" class="input"></select></div>
       <div class="field"><label for="vsDate">วันที่ <span class="req">*</span></label><input id="vsDate" class="input" type="date"><span class="small muted" id="vsDateTh"></span></div>
       <div class="field"><label for="vsYear">ปีงบประมาณ</label><select id="vsYear" class="input"></select></div>
-      <div class="field full"><details class="vs-pfold" id="vsPeopleFold"><summary><span class="lbl-t">เจ้าหน้าที่ที่ร่วมลง (เลือกได้หลายคน)</span><span class="small vs-people-n" id="vsPeopleN" aria-live="polite"></span></summary>
+      <div class="field full vs-box"><label class="vs-box-h"><input type="checkbox" id="vsVisitOn"> <span><b id="vsVisitL">แนบรายชื่อเยี่ยมบ้าน</b> <span class="small muted">(เชื่อมโยงรายการเยี่ยม)</span></span></label>
+        <div class="vs-box-b" id="vsVisitBox" hidden><p class="small muted vs-hint">ผูกบันทึกการเยี่ยมของผู้ป่วยแต่ละคนใน one page นี้ · เจ้าหน้าที่/ผู้ดูแลกดจากหน้าสรุปไปดูว่าเยี่ยมแล้วทำอะไร ติดตามอะไร (ประชาชนไม่เห็นส่วนนี้)</p>
+        <div class="list vs-other-list" id="vsVisits" aria-labelledby="vsVisitL"></div>
+        <div><button type="button" class="btn btn-o btn-sm" id="vsVisitBtn" aria-expanded="false" aria-controls="vsVisitPick">+ เชื่อมโยงรายการเยี่ยม</button></div>
+        <div class="vs-visit-pick" id="vsVisitPick" hidden><input id="vsVisitQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อผู้ป่วย" aria-label="ค้นหาชื่อผู้ป่วย"><div class="list" id="vsVisitRes"></div></div></div></div>
+      <div class="field full vs-box"><label class="vs-box-h"><input type="checkbox" id="vsPeopleOn"> <span><b>แนบรายชื่อเจ้าหน้าที่ที่ร่วมลง</b> <span class="small muted">(เลือกได้หลายคน)</span></span></label>
+        <div class="vs-box-b" id="vsPeopleBox" hidden><details class="vs-pfold" id="vsPeopleFold"><summary><span class="lbl-t">รายชื่อเจ้าหน้าที่</span><span class="small vs-people-n" id="vsPeopleN" aria-live="polite"></span></summary>
         <div class="unit-tabs vs-ptabs" id="vsPeopleTabs" aria-label="กรองรายชื่อตาม รพ.สต."></div>
         <input id="vsPeopleQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อ" aria-label="ค้นหาชื่อเจ้าหน้าที่"><div class="crit-pick vs-people" id="vsPeople" role="group" aria-label="เจ้าหน้าที่ที่ร่วมลง"></div>
         <div class="vs-other"><p class="small muted">ไม่มีชื่อในรายการ? กรอกเพิ่มเองได้ (ชื่อ นามสกุล ตำแหน่ง)</p>
           <div class="vs-other-row"><input id="vsOFirst" class="input" maxlength="50" placeholder="ชื่อ" aria-label="ชื่อผู้ร่วมลง"><input id="vsOLast" class="input" maxlength="50" placeholder="นามสกุล" aria-label="นามสกุลผู้ร่วมลง"><input id="vsOPos" class="input" maxlength="45" placeholder="ตำแหน่ง เช่น อสม." aria-label="ตำแหน่งผู้ร่วมลง"><button type="button" class="btn btn-o btn-sm" id="vsOAdd">+ เพิ่มชื่อ</button></div>
-          <div class="list vs-other-list" id="vsOthers"></div></div></details><span class="small vs-counts" id="vsCounts" aria-live="polite"></span></div>
-      <div class="field full"><span class="lbl-t" id="vsVisitL">เชื่อมโยงรายการเยี่ยม</span><p class="small muted vs-hint">ผูกบันทึกการเยี่ยมของผู้ป่วยแต่ละคนใน one page นี้ · เจ้าหน้าที่/ผู้ดูแลกดจากหน้าสรุปไปดูว่าเยี่ยมแล้วทำอะไร ติดตามอะไร (ประชาชนไม่เห็นส่วนนี้)</p>
-        <div class="list vs-other-list" id="vsVisits" aria-labelledby="vsVisitL"></div>
-        <div><button type="button" class="btn btn-o btn-sm" id="vsVisitBtn" aria-expanded="false" aria-controls="vsVisitPick">+ เชื่อมโยงรายการเยี่ยม</button></div>
-        <div class="vs-visit-pick" id="vsVisitPick" hidden><input id="vsVisitQ" class="input" type="search" maxlength="60" placeholder="ค้นหาชื่อผู้ป่วย" aria-label="ค้นหาชื่อผู้ป่วย"><div class="list" id="vsVisitRes"></div></div></div>
+          <div class="list vs-other-list" id="vsOthers"></div></div></details></div></div>
+      <div class="field full"><span class="small vs-counts" id="vsCounts" aria-live="polite"></span></div>
+      <div class="field full vs-box"><label class="vs-box-h"><input type="checkbox" id="vsCritOn"> <span><b>บันทึกเป็นผลงานตามมาตรฐานข้อ</b> <span class="small muted">(เช่น 4.5.1 · ขึ้นเป็นหลักฐานของข้อนั้นในหัวข้อมาตรฐานของ รพ.สต. นี้)</span></span></label>
+        <div class="vs-box-b" id="vsCritBox" hidden><span class="small vs-people-n" id="vsCritN" aria-live="polite"></span>
+        <input id="vsCritQ" class="input" type="search" maxlength="60" placeholder="ค้นหาเลขข้อหรือข้อความ เช่น 4.5" aria-label="ค้นหาข้อมาตรฐาน"><div class="crit-pick" id="vsCrit" role="group" aria-label="ข้อมาตรฐานที่สอดคล้อง"></div></div></div>
       <div class="field full"><label for="vsImage">ภาพสรุป (A4) <span class="req">*</span></label><input id="vsImage" class="input" type="file" accept="image/*" multiple><span class="small muted" id="vsImageNote">${HINT_IMG}</span><div class="img-list" id="vsImagePreview" hidden></div></div>
       <div class="field full"><label for="vsBody">รายละเอียด (ถ้ามี)</label><textarea id="vsBody" rows="4" maxlength="5000"></textarea></div>
       <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="vsSubmit">เผยแพร่สรุปผลงาน</button><button class="btn btn-o btn-sm" type="button" id="vsCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="vsMsg" aria-live="polite"></span></div>
@@ -201,7 +207,7 @@ export async function mountSummaries(slot, unit) {
   if (!S || !slot.contains($('#vsForm'))) {
     document.querySelectorAll('[data-sum-slot]').forEach((s) => { if (s !== slot) s.innerHTML = ''; });   // id ในหน้าต้องไม่ซ้ำ
     slot.innerHTML = FORM;
-    S = { unit, list: [], editing: null, people: null, picked: new Set(), pickedNames: new Set(), others: [], links: new Map(), linksOrig: new Set(), pts: null, openPt: null, img: imageList($('#vsImage'), $('#vsImagePreview'), $('#vsImageNote'), { max: MAX_IMGS, hint: HINT_IMG }) };
+    S = { unit, list: [], editing: null, items: new Set(), people: null, picked: new Set(), pickedNames: new Set(), others: [], links: new Map(), linksOrig: new Set(), pts: null, openPt: null, img: imageList($('#vsImage'), $('#vsImagePreview'), $('#vsImageNote'), { max: MAX_IMGS, hint: HINT_IMG }) };
     const years = await loadYears();
     $('#vsYear').innerHTML = [...new Set([...years, CUR_FY])].sort((a, b) => b - a).map((y) => `<option value="${y}">ปีงบประมาณ ${y}</option>`).join('');
     $('#vsUnit').innerHTML = units.map((u) => `<option value="${u.id}">รพ.สต.${esc(u.name)}</option>`).join('');
@@ -212,6 +218,11 @@ export async function mountSummaries(slot, unit) {
     $('#vsPeopleQ').addEventListener('input', renderPeople);
     $('#vsPeopleTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-pt]'); if (!b) return; S.ptab = b.dataset.pt; renderPeople(); });
     $('#vsOAdd').addEventListener('click', addOther);
+    ['vsVisitOn', 'vsPeopleOn'].forEach((k) => $('#' + k).addEventListener('change', () => { boxes(); peopleCount(); }));
+    $('#vsCritOn').addEventListener('change', () => { $('#vsCritBox').hidden = !$('#vsCritOn').checked; if ($('#vsCritOn').checked) loadCrit(); });
+    $('#vsYear').addEventListener('change', () => { if ($('#vsCritOn').checked) loadCrit(); });
+    $('#vsCritQ').addEventListener('input', renderCrit);
+    $('#vsCrit').addEventListener('change', (e) => { const id = +e.target.value; if (!id) return; if (e.target.checked) S.items.add(id); else S.items.delete(id); critN(); });
     $('#vsVisitBtn').addEventListener('click', toggleVisitPick);
     $('#vsVisitQ').addEventListener('input', renderVisitPick);
     $('#vsVisitRes').addEventListener('click', (e) => { const b = e.target.closest('[data-vpt]'); if (b) openPatientVisits(b.dataset.vpt); });
@@ -251,7 +262,7 @@ function reset() {
   $('#vsDate').value = todayIso(); onDate();
   S.picked = new Set(auth.profile ? [auth.profile.id] : []); S.pickedNames = new Set(); renderPeople();   // ค่าเริ่มต้น = ตัวเองร่วมลง
   S.others = []; renderOthers();
-  S.links = new Map(); S.linksOrig = new Set(); S.openPt = null; renderLinks();
+  S.links = new Map(); S.linksOrig = new Set(); S.openPt = null; boxes(false, true); renderLinks(); setCrit([]);
   $('#vsVisitPick').hidden = true; $('#vsVisitBtn').setAttribute('aria-expanded', 'false'); $('#vsVisitQ').value = '';
   $('#vsMsg').textContent = '';
   $('#vsFormTitle').textContent = 'เพิ่มสรุปผลงานเยี่ยมบ้าน one page summary'; $('#vsSubmit').textContent = 'เผยแพร่สรุปผลงาน'; $('#vsCancel').hidden = true;
@@ -351,12 +362,67 @@ async function syncLinks(summaryId) {
   if (del.length) { const { error } = await sb.from('summary_visits').delete().eq('summary_id', summaryId).in('visit_id', del); if (error) throw error; }
 }
 
+/** กล่อง "แนบรายชื่อเยี่ยมบ้าน" / "แนบรายชื่อเจ้าหน้าที่": ไม่ติ๊ก = ซ่อน และไม่บันทึกรายชื่อนั้น */
+function boxes(visitOn, peopleOn) {
+  if (visitOn != null) $('#vsVisitOn').checked = visitOn;
+  if (peopleOn != null) $('#vsPeopleOn').checked = peopleOn;
+  $('#vsVisitBox').hidden = !$('#vsVisitOn').checked;
+  $('#vsPeopleBox').hidden = !$('#vsPeopleOn').checked;
+}
+const visitOn = () => $('#vsVisitOn').checked, peopleOn = () => $('#vsPeopleOn').checked;
+
+/* ข้อมาตรฐานของปีงบในฟอร์ม → achievements.item_ids (51_summary_achievement.sql) */
+const critCache = new Map();
+async function loadCrit() {
+  const fy = +$('#vsYear').value;
+  if (!critCache.has(fy)) {
+    $('#vsCrit').innerHTML = '<div class="skeleton"></div>';
+    const { data, error } = await sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,item_no,body,sort').eq('fiscal_year', fy).order('sort');
+    if (error) { $('#vsCrit').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+    critCache.set(fy, sortItems(data || []));
+  }
+  renderCrit();
+}
+function renderCrit() {
+  const fy = +$('#vsYear').value, items = critCache.get(fy); if (!items) return;
+  const q = $('#vsCritQ').value.trim().toLowerCase();
+  const list = items.filter((it) => !q || `${it.item_no} ${it.body} ${it.topic_title}`.toLowerCase().includes(q));
+  let last = null;
+  $('#vsCrit').innerHTML = list.map((it) => {
+    const head = it.topic_no !== last ? `<p class="crit-pick-h">${esc(it.topic_title)}</p>` : ''; last = it.topic_no;
+    return head + `<label class="crit-opt"><input type="checkbox" value="${it.id}"${S.items.has(it.id) ? ' checked' : ''}><span><b>${esc(it.item_no)}</b> ${esc(it.body)}</span></label>`;
+  }).join('') || `<p class="empty">${items.length ? 'ไม่พบข้อที่ค้นหา' : `ยังไม่มีเกณฑ์มาตรฐานของปีงบ ${fy}`}</p>`;
+  critN();
+}
+function critN() {
+  const all = [...critCache.values()].flat(), nos = all.filter((it) => S.items.has(it.id)).map((it) => it.item_no);
+  $('#vsCritN').textContent = S.items.size ? `เลือกแล้ว: ข้อ ${nos.join(', ') || S.items.size + ' ข้อ'}` : 'ยังไม่ได้เลือกข้อ';
+}
+function setCrit(ids) {
+  S.items = new Set(ids || []);
+  $('#vsCritOn').checked = S.items.size > 0; $('#vsCritBox').hidden = !S.items.size; $('#vsCritQ').value = '';
+  if (S.items.size) loadCrit(); else critN();
+}
+/** บันทึก/แก้ผลงาน (achievements) จากสรุปนี้ · ไม่ติ๊กข้อ = ผลงานเดิม (ถ้ามี) เอาข้อออก */
+async function syncAchievement(sid, row, old) {
+  const items = $('#vsCritOn').checked ? [...S.items] : [];
+  const achId = old?.achievement_id || null;
+  if (!items.length && !achId) return;
+  if (!achId && auth.profile.role === 'staff' && row.unit_id !== auth.profile.unit_id) throw new Error('บันทึกเป็นผลงานได้เฉพาะ รพ.สต. ของตัวเอง');
+  const a = { unit_id: row.unit_id, title: row.title, body: row.body || null, image_path: row.image_path, item_ids: items };
+  if (achId) { const { error } = await sb.from('achievements').update(a).eq('id', achId); if (error) throw error; return; }
+  const { data, error } = await sb.from('achievements').insert(a).select('id');
+  if (error) throw error;
+  const id = data?.[0]?.id;
+  if (id) { const { error: e2 } = await sb.from('visit_summaries').update({ achievement_id: id }).eq('id', sid); if (e2) throw e2; }
+}
+
 /** คนในบัญชีเจ้าหน้าที่ที่ยังไม่เคยเข้าระบบ → เก็บเป็นข้อความ "ชื่อ (ตำแหน่ง)" ใน participant_others */
 const pendingKey = (p) => (p.position ? `${p.full_name} (${p.position})` : p.full_name);
 function peopleCount() {
   const sys = (S.people || []).filter((p) => p.id && S.picked.has(p.id));
-  const positions = [...sys.map((p) => p.position || ''), ...[...(S.pickedNames || []), ...(S.others || [])].map(posOf)];
-  const nPt = new Set([...(S.links || new Map()).values()].map((r) => r.patient_id)).size;
+  const positions = peopleOn() ? [...sys.map((p) => p.position || ''), ...[...(S.pickedNames || []), ...(S.others || [])].map(posOf)] : [];
+  const nPt = visitOn() ? new Set([...(S.links || new Map()).values()].map((r) => r.patient_id)).size : 0;
   const counts = countLine(positions, nPt);
   $('#vsCounts').textContent = counts ? `ลงเยี่ยม: ${counts}` : '';
   const names = [...sys.map((p) => p.full_name), ...(S.pickedNames || []), ...(S.others || [])];
@@ -399,12 +465,14 @@ async function onList(e) {
     S.picked = new Set(s.participant_ids || []); S.pickedNames = new Set((s.participant_others || []).filter((n) => pending.has(n)));
     $('#vsPeopleQ').value = ''; renderPeople();
     S.others = (s.participant_others || []).filter((n) => !S.pickedNames.has(n)); renderOthers();
-    S.links = new Map(); S.linksOrig = new Set(); renderLinks();
+    S.links = new Map(); S.linksOrig = new Set(); boxes(false, !!((s.participant_ids || []).length || (s.participant_others || []).length)); renderLinks();
+    setCrit([]);
+    if (s.achievement_id) sb.from('achievements').select('item_ids').eq('id', s.achievement_id).maybeSingle().then(({ data: a }) => { if (S.editing?.id === s.id && a) setCrit(a.item_ids); });
     sb.from('summary_visits').select('visit_id').eq('summary_id', s.id).then(async ({ data: ls }) => {
       const rows = await visitRows((ls || []).map((l) => l.visit_id));
       if (S.editing?.id !== s.id) return;
       rows.forEach((r) => audit(r.unit_id, r.patient_id));
-      S.links = new Map(rows.map((r) => [r.id, r])); S.linksOrig = new Set(S.links.keys()); renderLinks();
+      S.links = new Map(rows.map((r) => [r.id, r])); S.linksOrig = new Set(S.links.keys()); if (rows.length) boxes(true); renderLinks();
     });
     S.img.set(imgsOf(s));
     $('#vsFormTitle').textContent = 'แก้ไขสรุปผลงาน'; $('#vsSubmit').textContent = 'บันทึกการแก้ไข'; $('#vsCancel').hidden = false;
@@ -417,7 +485,7 @@ async function onList(e) {
     if (!s || !confirm(`ลบสรุปผลงาน "${s.title}"? หน้าหลักจะไม่แสดงอีก`)) return;
     const { error } = await sb.from('visit_summaries').delete().eq('id', s.id);
     if (error) { toast(errText(error), 'err'); return; }
-    removeFiles('public-images', imgsOf(s)); if (s.file_path) removeFiles('news-files', [s.file_path]);
+    removeFiles('public-images', imgsOf(s).filter((p) => !(s.achievement_id && p === s.image_path))); if (s.file_path) removeFiles('news-files', [s.file_path]);   // ภาพหลักยังใช้ในผลงานที่สร้างจากสรุปนี้
     if (S.editing?.id === s.id) reset();
     toast('ลบสรุปผลงานแล้ว'); load();
   }
@@ -444,11 +512,13 @@ async function save(e) {
       const p = await uploadPublicImage(x.blob, folder); done.push(p); paths.push(p);
     }
     const row = { unit_id: unitId, fiscal_year: +$('#vsYear').value, title, body: $('#vsBody').value.trim(), image_path: paths[0], gallery: paths.slice(1),
-      summary_date: $('#vsDate').value, participant_ids: [...S.picked], participant_others: [...new Set([...S.pickedNames, ...S.others])], updated_at: new Date().toISOString() };
+      summary_date: $('#vsDate').value, participant_ids: peopleOn() ? [...S.picked] : [], participant_others: peopleOn() ? [...new Set([...S.pickedNames, ...S.others])] : [], updated_at: new Date().toISOString() };
+    if (!visitOn()) S.links = new Map();   // ไม่ติ๊กแนบรายชื่อเยี่ยมบ้าน = เอาการเชื่อมโยงออกทั้งหมด
     const { data: saved, error } = old ? await sb.from('visit_summaries').update(row).eq('id', old.id).select('id') : await sb.from('visit_summaries').insert(row).select('id');
     if (error) throw error;
     const sid = saved?.[0]?.id ?? old?.id;
     if (sid) await syncLinks(sid).catch((err) => toast('บันทึกสรุปแล้ว แต่เชื่อมโยงรายการเยี่ยมไม่สำเร็จ: ' + errText(err), 'err'));
+    if (sid) await syncAchievement(sid, row, old).catch((err) => toast('บันทึกสรุปแล้ว แต่บันทึกเป็นผลงานมาตรฐานไม่สำเร็จ: ' + errText(err), 'err'));
     if (old) { const gone = imgsOf(old).filter((p) => !paths.includes(p)); if (gone.length) removeFiles('public-images', gone); }   // ภาพที่กด × ออก
     busy(btn, false);
     toast(old ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่สรุปผลงานแล้ว — แสดงที่หน้าหลัก › ผลการดำเนินงาน');
