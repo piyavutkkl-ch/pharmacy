@@ -60,6 +60,7 @@ js/pages/news-quiz.js      ข่าวที่มี PDF ต้นฉบับ
                            ห้ามทำระบบล็อกอิน/ดึงข้อสอบหรือผลสอบจาก CCPE (ตกลงกับเจ้าของเว็บแล้ว)
                            ฟังก์ชันที่เรียก Gemini ผ่าน pg_net ใช้ public.ai_key() ตรวจความพร้อม + บอกสาเหตุ (48_ai_ready.sql · ไม่ยอมเรียกเฉพาะเมื่อ schema net เปิดผ่าน API)
                            AI ไม่ว่าง (503/500/429…) → *_poll ส่งคำขอเดิมใหม่ด้วยรุ่นสำรองเอง ≤4 รุ่น (49_ai_retry.sql · ai_jobs จำคำขอผ่าน trigger · ลำดับ ai_match_model → site_texts ai_match_models (ช่อง AI บันทึก) → รุ่นสำรองตายตัว)
+js/pages/news-topics.js    หมวดหมู่ข่าวตามเนื้อหา (54_news_topics.sql · news_topics + news.topic_ids ≤3): ผู้ดูแลเพิ่ม/ลบหมวด · เปิดหน้าข่าวแล้ว AI จัดหมวดข่าวที่ยังไม่มีหมวดเอง (ai_news_topics_start/poll · ไม่ทับที่ผู้ดูแลแก้) · กรองในหน้าผู้ดูแล/ข่าวทั้งหมด
 js/pages/admin-ai.js       ผู้ดูแล › ข่าว › ช่อง AI: สถานะ/ประวัติ (ai_news_log), สวิตช์เผยแพร่ทันที (site_texts ai_news_auto), ปุ่มสร้างข่าวตอนนี้ (ai_news_request)
 js/pages/news-form.js      ฟอร์มข่าวใช้ร่วม (sn/an): ประเภท ข่าว/ประชาสัมพันธ์/ความรู้, รูปหลายรูป ≤7 (ย่อ ≤ A4 · × ลบทีละรูป · รูปแรก=image_path ที่เหลือ=gallery), PDF แนบ (bucket news-files)
 js/pages/admin-review.js   ผู้ดูแล › ตรวจประเมิน: ตรวจหลักฐาน (ย้อนกลับผลตรวจ, แนบไฟล์กลับ, ยกเลิกคำขอตรวจ → ถังขยะ 30 วัน กู้คืน/ลบถาวร · item_status.trashed_at + trash/restore/purge_item_status · 46_review_trash.sql), แก้เกณฑ์ (ข้อใหญ่/หัวข้อย่อย/ไฟล์ตัวอย่าง), ปีงบ (เริ่ม/ซ่อน/ลบปีว่าง)

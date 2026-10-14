@@ -624,6 +624,34 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ข่าวที่เผยแพร่: ไม่พบ → แจ้งว่าไม่พบ', (await text(p, '#anList')).includes('ไม่พบ'));
     await p.click('#anFindClear'); await p.click('#anExpand'); await p.waitForTimeout(150);
     check('ข่าวที่เผยแพร่: กดย่อกลับเหลือ 3 ข่าว', await count(p, '#anList .newsrow') === 3);
+    // หมวดหมู่ข่าวตามเนื้อหา (54_news_topics.sql): ชุดแรกตั้งให้ · เพิ่ม/ลบได้ · AI จัดหมวดข่าวที่ยังไม่มีหมวดเอง (รวมข่าวเก่า) · กรองได้
+    await go(p, '#/admin/messages'); await go(p, '#/admin/news'); await p.waitForTimeout(6500);
+    check('หมวดข่าว: ชุดแรกตั้งให้แล้ว (เช่น โรคเรื้อรัง · ยาเด็ก)', await count(p, '#ntList .nt-item') >= 5 && (await text(p, '#ntList')).includes('โรคเรื้อรัง'));
+    check('หมวดข่าว: เปิดหน้าแล้ว AI จัดหมวดข่าวที่ยังไม่มีหมวดเอง (รวมข่าวเก่า)', (await calls(p, (c) => c.rpc === 'ai_news_topics_start')).length >= 1 && await p.evaluate(() => window.__db.news.filter((n) => n.status === 'published').every((n) => (n.topic_ids || []).length >= 1)) && (await text(p, '#ntMsg')).includes('AI จัดหมวดแล้ว'), await text(p, '#ntMsg'));
+    check('หมวดข่าว: รายการข่าวมีป้ายหมวด', await count(p, '#anList .nt-chip') >= 1);
+    await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(200);
+    await (await p.$('#ntPanel')).screenshot({ path: path.join(SHOTS, 'admin-news-topics-390.png') });
+    check('หมวดข่าว 390px: ไม่ล้นจอ', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await p.setViewportSize({ width: 1280, height: 900 }); await p.waitForTimeout(200);
+    await p.fill('#ntName', 'หมวดทดสอบใหม่'); await p.click('#ntAdd'); await p.waitForTimeout(400);
+    check('หมวดข่าว: เพิ่มหมวดได้ (ขึ้นในตัวกรอง + ฟอร์มแก้ไข)', (await text(p, '#ntList')).includes('หมวดทดสอบใหม่') && (await p.$$eval('#anTopicF option', (o) => o.map((x) => x.textContent))).includes('หมวดทดสอบใหม่') && (await text(p, '#anTopics')).includes('หมวดทดสอบใหม่'));
+    { const tid = await p.evaluate(() => window.__db.news_topics.find((t) => t.name === 'หมวดทดสอบใหม่').id);
+      await p.click(`[data-del-topic="${tid}"]`); await p.waitForTimeout(400);
+      check('หมวดข่าว: ลบหมวดได้', !(await text(p, '#ntList')).includes('หมวดทดสอบใหม่')); }
+    { const first = await p.evaluate(() => window.__db.news_topics[0]);
+      await p.selectOption('#anTopicF', String(first.id)); await p.waitForTimeout(200);
+      check('หมวดข่าว: กรองข่าวตามหมวดเนื้อหา', (await p.$$eval('#anList .newsrow', (r) => r.length)) >= 1 && (await p.$$eval('#anList .newsrow', (rs, nm) => rs.every((r) => r.textContent.includes(nm)), first.name)));
+      await p.click('#anFindClear'); await p.waitForTimeout(150);
+      await p.click('#anList [data-edit]'); await p.waitForTimeout(200);
+      await p.evaluate(() => document.querySelectorAll('#anTopics input:checked').forEach((x) => { x.checked = false; }));
+      const boxes = await p.$$('#anTopics input');
+      for (const b of boxes.slice(0, 4)) await b.click();   // ข้อที่ 4 ถูกปฏิเสธ
+      check('หมวดข่าว: ฟอร์มแก้ไขเลือกหมวดได้ไม่เกิน 3', (await p.$$eval('#anTopics input:checked', (x) => x.length)) === 3);
+      await p.click('#anSubmit'); await p.waitForTimeout(500);
+      const up = (await calls(p, (c) => c.table === 'news' && c.op === 'update')).pop()?.payload || {};
+      check('หมวดข่าว: บันทึกหมวดที่เลือก (topic_ids)', (up.topic_ids || []).length === 3, JSON.stringify(up.topic_ids)); }
+    await go(p, '#/news/all'); await p.waitForTimeout(600);
+    check('ข่าวทั้งหมด: กรองตามหมวดเนื้อหา + ป้ายหมวด', (await p.$$eval('#nlTopic option', (o) => o.length)) >= 6 && await count(p, '#nlList .nt-chip') >= 1);
     // หน้าแรก › ข่าวประชาสัมพันธ์: 6 ข่าวล่าสุด กดซ้าย-ขวา + ดูข่าวทั้งหมด (หน้าแยก เรียงแนวตั้ง + ค้นหา)
     await go(p, '#/news'); await p.waitForTimeout(500);
     check('หน้าแรก ข่าว: แสดงข่าวล่าสุด (ไม่เกิน 6) เรียงแนวนอน + ปุ่ม ‹ › + ดูข่าวทั้งหมด', await count(p, '#newsGrid .news-card') >= 4 && await count(p, '#newsGrid .news-card') <= 6 && await visible(p, '#newsAllLink') && (await p.$eval('#newsPrev', (b) => b.disabled)) && !(await p.$eval('#newsNext', (b) => b.disabled)) && await p.$eval('#newsGrid', (g) => g.scrollWidth > g.clientWidth + 10), JSON.stringify(await p.evaluate(() => { const g = document.querySelector('#newsGrid'); return { n: g.querySelectorAll('.news-card').length, sw: g.scrollWidth, cw: g.clientWidth, prev: document.querySelector('#newsPrev').disabled, next: document.querySelector('#newsNext').disabled, link: !document.querySelector('#newsAllLink').hidden }; })));

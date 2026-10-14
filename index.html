@@ -236,6 +236,7 @@
   <div class="an-find nl-find">
     <input id="nlSearch" class="input" type="search" placeholder="ค้นหาข่าว (หัวข้อ/เนื้อหา)…" aria-label="ค้นหาข่าว" maxlength="100">
     <label class="small an-date">หมวด <select id="nlTag" class="input"><option value="all">ทุกหมวด</option><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></label>
+    <label class="small an-date">หมวดเนื้อหา <select id="nlTopic" class="input"><option value="all">ทุกหมวดเนื้อหา</option></select></label>
     <label class="small an-date">จัดเรียงตาม <select id="nlSort" class="input"><option value="new">วันที่เผยแพร่ ใหม่ → เก่า</option><option value="old">วันที่เผยแพร่ เก่า → ใหม่</option><option value="az">ตัวอักษร ก → ฮ / A → Z</option><option value="views">ผู้เข้าชมมากที่สุด</option></select></label>
     <span class="small muted" id="nlFound" aria-live="polite"></span>
   </div>
@@ -519,6 +520,7 @@
             <div class="field"><label for="anImage">รูปประกอบ (ถ้ามี · เลือกได้หลายรูป)</label><input id="anImage" class="input" type="file" accept="image/*" multiple><span class="small muted" id="anImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-list" id="anImagePreview" hidden></div></div>
             <div class="field full"><label for="anFile">ไฟล์ PDF แนบ (ถ้ามี · ไม่เกิน 5 MB)</label><input id="anFile" class="input" type="file" accept="application/pdf,.pdf"><span class="small muted" id="anFileNote">ผู้อ่านข่าวดาวน์โหลดไฟล์นี้ได้</span></div>
             <div class="field full"><label for="anBody">เนื้อหาข่าว <span class="req">*</span></label><textarea id="anBody" rows="6" maxlength="20000"></textarea></div>
+            <div class="field full"><span class="label-like">หมวดเนื้อหา (เลือกได้ไม่เกิน 3 · ไม่เลือก = ให้ AI จัดให้)</span><div class="nt-pick" id="anTopics"></div></div>
             <label class="small full"><input type="checkbox" id="anClosed"> ปิดรับความคิดเห็น</label>
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="anSubmit">เผยแพร่ข่าว</button><button class="btn btn-o btn-sm" type="button" id="anCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="anMsg" aria-live="polite"></span></div>
           </form>
@@ -528,12 +530,20 @@
           <div class="an-find" id="anFind">
             <input id="anSearch" class="input" type="search" placeholder="ค้นหาข่าว (หัวข้อ/เนื้อหา)…" aria-label="ค้นหาข่าว" maxlength="100">
             <label class="small an-date">หมวด <select id="anTagF" class="input"><option value="all">ทุกหมวด</option><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></label>
+            <label class="small an-date">หมวดเนื้อหา <select id="anTopicF" class="input"><option value="all">ทุกหมวดเนื้อหา</option></select></label>
             <label class="small an-date">จัดเรียงตาม <select id="anSort" class="input"><option value="new">วันที่เผยแพร่ ใหม่ → เก่า</option><option value="old">วันที่เผยแพร่ เก่า → ใหม่</option><option value="az">ตัวอักษร ก → ฮ / A → Z</option><option value="za">ตัวอักษร ฮ → ก / Z → A</option><option value="views">ผู้เข้าชมมากที่สุด</option></select></label>
             <label class="small an-date">วันที่เผยแพร่ <input id="anDate" class="input" type="date"></label>
             <button type="button" class="btn btn-o btn-sm" id="anFindClear">ล้าง</button>
             <span class="small muted" id="anFound" aria-live="polite"></span>
           </div>
           <div class="list" id="anList"></div>
+        </div>
+        <div class="panel" id="ntPanel">
+          <h2>หมวดหมู่ข่าวตามเนื้อหา</h2>
+          <p class="small muted">AI (Gemini ฟรี) จัดหมวดให้ข่าวที่ยังไม่มีหมวดอัตโนมัติเมื่อเปิดหน้านี้ (รวมข่าวเก่า) · แก้หมวดของข่าวได้ที่ปุ่ม "แก้ไข" · ใช้กรองข่าวในหน้านี้และหน้าข่าวทั้งหมด</p>
+          <div class="nt-list" id="ntList"></div>
+          <div class="nt-add"><input id="ntName" class="input" maxlength="40" placeholder="ชื่อหมวดใหม่ เช่น ยาและผู้สูงอายุ" aria-label="ชื่อหมวดใหม่"><button type="button" class="btn btn-o btn-sm" id="ntAdd">+ เพิ่มหมวด</button></div>
+          <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-o btn-sm" id="ntAi">ให้ AI จัดหมวดข่าวที่ยังไม่มีหมวด</button><span class="small" id="ntMsg" aria-live="polite"></span></div>
         </div>
         <div class="panel"><h2>ข่าวที่หยุดเผยแพร่ <span class="num muted" id="anTrashCount"></span></h2><p class="small muted">ข่าวที่หยุดเผยแพร่ ถูกลบ หรือไม่ผ่าน · เรียกคืนได้ภายใน 30 วัน หลังจากนั้นระบบลบถาวรให้เอง</p><div class="list" id="anTrash"></div></div>
       </div>

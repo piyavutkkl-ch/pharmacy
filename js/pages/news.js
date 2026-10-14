@@ -5,6 +5,7 @@ import { auth } from '../auth.js?v=4.4';
 import { fileLink, extFileLink } from './news-form.js?v=4.4';
 import { imageCarousel } from '../lightbox.js?v=4.4';
 import { renderReaderQuiz } from './news-quiz.js?v=4.4';
+import { loadTopics, topicOptions, topicMatch, topicChips } from './news-topics.js?v=4.4';
 
 let news = null;          // cache ข่าวที่เผยแพร่แล้ว
 const ANON_MAX = 15;      // ไม่ได้ login: ความคิดเห็นยาวได้ไม่เกิน 15 ตัวอักษร (ตรงกับ comment_news_anon ในฐานข้อมูล)
@@ -106,25 +107,26 @@ export async function showAllNews() {
   if (!allBound) {
     allBound = true;
     $('#nlSearch').addEventListener('input', renderAllNews);
-    ['#nlTag', '#nlSort'].forEach((s) => $(s).addEventListener('change', renderAllNews));
+    ['#nlTag', '#nlSort', '#nlTopic'].forEach((s) => $(s).addEventListener('change', renderAllNews));
   }
   $('#nlList').innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,published_at,view_count')
-    .eq('status', 'published').order('published_at', { ascending: false }).limit(1000);
+  const [{ data, error }] = await Promise.all([sb.from('news').select('id,title,tag,body,image_path,published_at,view_count,topic_ids')
+    .eq('status', 'published').order('published_at', { ascending: false }).limit(1000), loadTopics(true)]);
+  topicOptions($('#nlTopic'));
   if (error) { $('#nlList').innerHTML = `<p class="empty">โหลดข่าวไม่สำเร็จ: ${esc(errText(error))}</p>`; toast(errText(error), 'err'); return; }
   all = data || [];
   renderAllNews();
 }
 function renderAllNews() {
   if (!all) return;
-  const q = $('#nlSearch').value.trim().toLowerCase(), tag = $('#nlTag').value, sort = $('#nlSort').value;
+  const q = $('#nlSearch').value.trim().toLowerCase(), tag = $('#nlTag').value, sort = $('#nlSort').value, topic = $('#nlTopic').value || 'all';
   const t = (n) => Date.parse(n.published_at) || 0;
-  const list = all.filter((n) => (tag === 'all' || n.tag === tag) && (!q || `${n.title} ${n.body || ''}`.toLowerCase().includes(q)))
+  const list = all.filter((n) => (tag === 'all' || n.tag === tag) && topicMatch(n, topic) && (!q || `${n.title} ${n.body || ''}`.toLowerCase().includes(q)))
     .sort(sort === 'old' ? (a, b) => t(a) - t(b) : sort === 'az' ? (a, b) => a.title.localeCompare(b.title, 'th') : sort === 'views' ? (a, b) => (b.view_count || 0) - (a.view_count || 0) || t(b) - t(a) : (a, b) => t(b) - t(a));
   $('#nlCount').textContent = `(${all.length})`;
-  $('#nlFound').textContent = q || tag !== 'all' ? `พบ ${list.length} ข่าว` : '';
+  $('#nlFound').textContent = q || tag !== 'all' || topic !== 'all' ? `พบ ${list.length} ข่าว` : '';
   $('#nlList').innerHTML = list.length ? list.map((n) => `<a class="newsrow" href="#/news/${n.id}"><div class="thumb2 big">${cover(n)}</div>`
-    + `<div class="l"><b>${esc(n.title)}</b><span class="small muted">${esc(n.tag)} · ${esc(thaiDate(n.published_at))} · ${(n.view_count || 0).toLocaleString('th-TH')} ผู้เข้าชม</span>`
+    + `<div class="l"><b>${esc(n.title)}</b>${(n.topic_ids || []).length ? `<span class="row-btns">${topicChips(n.topic_ids)}</span>` : ''}<span class="small muted">${esc(n.tag)} · ${esc(thaiDate(n.published_at))} · ${(n.view_count || 0).toLocaleString('th-TH')} ผู้เข้าชม</span>`
     + `<span class="small nl-ex">${esc(plain(n.body).slice(0, 200))}</span></div></a>`).join('')
     : `<p class="empty">${all.length ? 'ไม่พบข่าวที่ค้นหา' : 'ยังไม่มีข่าวประชาสัมพันธ์'}</p>`;
 }

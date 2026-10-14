@@ -873,5 +873,24 @@ check("AI text saved (long digit runs stripped)", "admin", f"select ai_delivery_
 check("public sees AI text", "anon", f"select ai_status from delivery_reports where id={dr}", eq("done"))
 check("admin deletes summary", "admin", f"delete from delivery_reports where id={dr} returning id", rows(1))
 
+print("== step 51: news topics (AI auto-tagging) ==")
+check("default topics seeded + readable by anon", "anon", "select count(*) >= 5 from news_topics", eq("t"))
+check("staff cannot add topic", "s2", "insert into news_topics(name) values ('x')", "deny")
+check("admin adds topic", "admin", "insert into news_topics(name,sort) values ('หมวดทดสอบ',99) returning id", rows(1))
+check("news topics max 3", "admin", "update news set topic_ids='{1,2,3,4}' where id=(select id from news limit 1)", "deny")
+check("staff cannot start AI tagging", "s2", "select ai_news_topics_start()", "deny")
+run("update news set topic_ids='{}'")
+t1 = check("admin starts AI tagging (untagged news incl. old)", "admin", "select ai_news_topics_start()", lambda o: o.strip().isdigit()).strip()
+check("second start while pending → same run", "admin", "select ai_news_topics_start()", eq(t1))
+check("AI gets topic list + news (key only in header)", None, f"select (convert_from(q.body,'utf8') like '%โรคเรื้อรัง%' and convert_from(q.body,'utf8') not like '%test-key-123%' and q.headers->>'x-goog-api-key'='test-key-123')::text from ai_topic_runs r join net.http_request_queue q on q.id=r.request_id where r.id={t1}", eq("true"))
+nid1 = run(f"select news_ids[1] from ai_topic_runs where id={t1}")[1].strip()
+nid2 = run(f"select news_ids[2] from ai_topic_runs where id={t1}")[1].strip()
+run(f"update news set topic_ids=(select array[id] from news_topics where name='ผู้สูงอายุ') where id='{nid2}'")   # ผู้ดูแลแก้เองระหว่างรอ
+ANS = '{"items":[{"id":"' + nid1 + '","topics":["โรคเรื้อรัง","หมวดที่ไม่มีจริง"]},{"id":"' + nid2 + '","topics":["ยาเด็ก"]},{"id":"00000000-0000-0000-0000-000000000000","topics":["ยาเด็ก"]},{"id":"bad","topics":["ยาเด็ก"]}]}'
+run(f"""insert into net._http_response(id,status_code,content) select request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${ANS}$q$))))))::text from ai_topic_runs where id={t1}""")
+check("AI tagging done (unknown topic dropped · bad/foreign ids ignored)", "admin", f"select ai_news_topics_poll({t1})->>'status'; select array_to_string(array(select t.name from news n, unnest(n.topic_ids) x join news_topics t on t.id=x where n.id='{nid1}'), ',')", lambda o: o.strip().endswith('โรคเรื้อรัง'))
+check("admin's own edit not overwritten by AI", None, f"select t.name from news n, unnest(n.topic_ids) x join news_topics t on t.id=x where n.id='{nid2}'", eq("ผู้สูงอายุ"))
+check("anon reads news topic_ids of published news", "anon", "select count(*) >= 0 from news where status='published' and topic_ids is not null", eq("t"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

@@ -12,7 +12,7 @@ window.__calls = [];
 window.__channels = [];
 const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
-const NUMERIC_ID = new Set(['delivery_reports', 'ai_dose_drafts', 'ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
+const NUMERIC_ID = new Set(['news_topics', 'ai_topic_runs', 'delivery_reports', 'ai_dose_drafts', 'ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
 /* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
 db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
@@ -532,6 +532,29 @@ function rpc(name, a = {}) {
       const r = (db.delivery_reports || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบรายงานนี้', 'P0001');
       if (r.ai_status === 'pending' && ++r.ai_polls >= 2) Object.assign(r, { ai_status: 'done', ai_text: `• จัดส่งยาสำเร็จ ${r.summary?.ok} ครั้ง ผู้ป่วย ${r.summary?.patients} คน\n• ช่องทางที่ใช้มากที่สุดคือ ${r.summary?.service?.[0]?.[0] || '-'}` });
       return { data: { id: r.id, ai_status: r.ai_status, ai_text: r.ai_text, ai_note: null }, error: null };
+    }
+    /* แทน ai_news_topics_start / poll (54_news_topics.sql): ข่าวที่ยังไม่มีหมวด → หมวดที่ชื่ออยู่ในหัวข้อ/เนื้อหา หรือหมวดแรก */
+    case 'ai_news_topics_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const tids = new Set((db.news_topics || []).map((t) => t.id));
+      const ids = db.news.filter((n) => ['published', 'pending'].includes(n.status) && !(n.topic_ids || []).some((x) => tids.has(x))).map((n) => n.id).slice(0, 30);
+      if (!ids.length) return { data: null, error: null };
+      const row = { id: newId('ai_topic_runs'), news_ids: ids, status: 'pending', polls: 0, tagged: 0 };
+      (db.ai_topic_runs ||= []).push(row); return { data: row.id, error: null };
+    }
+    case 'ai_news_topics_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.ai_topic_runs || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบรายการนี้', 'P0001');
+      if (r.status === 'pending' && ++r.polls >= 2) {
+        const T = db.news_topics || [], tids = new Set(T.map((t) => t.id));
+        for (const id of r.news_ids) {
+          const n = db.news.find((x) => x.id === id); if (!n || (n.topic_ids || []).some((x) => tids.has(x))) continue;
+          const t = T.find((x) => `${n.title} ${n.body}`.includes(x.name)) || T[0]; if (!t) continue;
+          n.topic_ids = [t.id]; r.tagged++;
+        }
+        r.status = 'done';
+      }
+      return { data: { id: r.id, status: r.status, note: null, tagged: r.tagged, total: r.news_ids.length }, error: null };
     }
     case 'ai_match_link': {
       const r = (db.ai_matches || []).find((x) => x.id === a.p_id && x.user_id === ME?.id), ach = db.achievements.find((x) => x.id === a.p_achievement);
