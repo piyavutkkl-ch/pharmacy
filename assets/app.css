@@ -859,6 +859,10 @@ span.aq-ok{color:var(--success)}span.aq-bad{color:var(--error)}span.aq-warn{colo
 .ai-err{color:var(--error)}
 /* ผู้ดูแล › รายการยา: ช่วยกรอกจากฐานข้อมูลยา (RxNorm + ฉลาก openFDA + AI ร่าง) */
 .dh-bar{align-items:center}
+.df-bulk{margin:8px 0 12px}.df-bulk textarea{width:100%}
+.df-bulk .list{max-height:320px;overflow-y:auto}
+.df-bulk-cur{background:var(--primary-soft);border-radius:10px;padding-inline:8px}
+.ok-text{color:var(--success)}
 .dh-box{margin-top:8px;padding:12px;border:1px dashed var(--primary);border-radius:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .dh-box h3{margin:4px 0 0;font-size:15px}
 .dh-pick{display:flex;flex-direction:column;gap:6px}

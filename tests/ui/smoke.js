@@ -812,6 +812,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ช่วยกรอกยา: มือถือ 390px ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.locator('#dfHelpOut').screenshot({ path: path.join(SHOTS, 'admin-dose-help-390.png') });
     await p.setViewportSize({ width: 1280, height: 900 });
+    // เพิ่มหลายรายการ: วางรายชื่อยายาว ๆ → คิว → เปิดทีละตัวในฟอร์ม + ช่วยกรอกให้ → บันทึกแล้วไปตัวถัดไป (ไม่บันทึกเอง)
+    await go(p, '#/admin/settings/dose'); await p.waitForTimeout(400);
+    await p.click('#dfBulkFold > summary'); await p.waitForTimeout(100);
+    await p.fill('#dfBulk', '1. ไดเฟนไฮดรามีน (Diphenhydramine)\n- ไอบูโพรเฟน (Ibuprofen)\nเซทิริซีน (Cetirizine)\n\nไดเฟนไฮดรามีน (Diphenhydramine)');
+    const saves0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length;
+    await p.click('#dfBulkMake'); await p.waitForTimeout(3800);
+    check('เพิ่มหลายรายการ: วางรายชื่อ → คิว 3 ตัว (ตัดเลขข้อ/ซ้ำ · ยาที่มีแล้วข้าม) + เปิดตัวแรกในฟอร์มพร้อมช่วยกรอก', await count(p, '#dfBulkList .li') === 3 && (await text(p, '#dfBulkList')).includes('มีในรายการยาแล้ว') && (await p.inputValue('#dfName')) === 'ไดเฟนไฮดรามีน (Diphenhydramine)' && (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args?.p_name === 'diphenhydramine' && (await text(p, '#dfBulkN')).includes('รอเพิ่ม 2'), JSON.stringify({ n: await count(p, '#dfBulkList .li'), list: await text(p, '#dfBulkList'), name: await p.inputValue('#dfName'), rpc: (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args, nn: await text(p, '#dfBulkN') }));
+    check('เพิ่มหลายรายการ: ยังไม่บันทึกยาเอง', (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length === saves0);
+    await p.fill('#dfInds .i-name', 'ลดไข้'); await p.fill('#dfInds .i-min', '5'); await p.fill('#dfInds .i-max', '10');
+    await p.click('#dfSubmit'); await p.waitForTimeout(3800);
+    check('เพิ่มหลายรายการ: บันทึกแล้ว → ตัวนั้นเพิ่มแล้ว + เปิดยาตัวถัดไปเอง', (await text(p, '#dfBulkList')).includes('✓ เพิ่มแล้ว') && (await p.inputValue('#dfName')) === 'เซทิริซีน (Cetirizine)' && (await text(p, '#dfBulkN')).includes('เพิ่มแล้ว 1'));
+    await p.click('#dfBulkList [data-bulk-skip]'); await p.waitForTimeout(200);
+    check('เพิ่มหลายรายการ: ข้ามได้ + จำรายการไว้ในเครื่อง', (await text(p, '#dfBulkN')).includes('รอเพิ่ม 0') && await p.evaluate(() => JSON.parse(localStorage.getItem('pcps_dose_queue') || '[]').length === 3));
+    await p.evaluate(() => localStorage.removeItem('pcps_dose_queue'));
     await go(p, '#/dose'); await p.waitForTimeout(300);
     await p.fill('#doseWeight', '20'); await p.selectOption('#doseDrug', { label: 'ยาทดสอบ' }); await p.waitForTimeout(200);
     check('คำนวณโดส: แสดงพร้อมกัน 3 ข้อบ่งใช้ ที่เหลือย่อไว้ + คิดเป็น มล. จาก มก./มล.', await count(p, '#doseResult section.ind-result') === 3 && await count(p, '#doseResult details.ind-result') === 1 && (await text(p, '#doseResult')).includes('20.00–30.00 มล.'));

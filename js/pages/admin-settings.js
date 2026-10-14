@@ -69,6 +69,10 @@ export async function initDoseAdmin() {
     $('#dfAddConc').addEventListener('click', () => { $('#dfConcs').insertAdjacentHTML('beforeend', concRow()); $('#dfConcs .med-row:last-child input').focus(); });
     $('#dfConcs').addEventListener('click', (e) => { if (e.target.closest('[data-rm]')) e.target.closest('.med-row').remove(); });
     $('#dfHelpBtn').addEventListener('click', runDoseHelp);
+    $('#dfBulkMake').addEventListener('click', makeBulk);
+    $('#dfBulkClear').addEventListener('click', () => { if (confirm('ล้างรายการยาที่รอเพิ่มทั้งหมด?')) { bulk = []; bulkCur = -1; saveBulk(); renderBulk(); } });
+    $('#dfBulkList').addEventListener('click', onBulk);
+    loadBulk();
     $('#dfHelpOut').addEventListener('click', onHelpOut);
     $('#dfCancel').addEventListener('click', resetDrugForm);
     $('#dfForm').addEventListener('submit', saveDrug);
@@ -77,6 +81,51 @@ export async function initDoseAdmin() {
     resetDrugForm();
   }
   await reloadDrugs();
+}
+
+/* ---- เพิ่มหลายรายการ: วางรายชื่อยายาว ๆ → คิว (จำในเครื่องนี้ localStorage 'pcps_dose_queue') → เปิดทีละตัวในฟอร์ม + ช่วยกรอกให้ → บันทึกแล้วไปตัวถัดไป ---- */
+const BULK_KEY = 'pcps_dose_queue';
+let bulk = [], bulkCur = -1;   // [{ name, st: 'wait'|'done'|'skip' }]
+const keyOf = (s) => String(s).toLowerCase().replace(/\s+/g, '');
+const hasDrug = (name) => { const k = keyOf(name), en = doseQuery(name); return drugs.some((d) => keyOf(d.name) === k || (en && doseQuery(d.name) === en)); };
+function loadBulk() { try { bulk = JSON.parse(localStorage.getItem(BULK_KEY) || '[]').filter((x) => x && x.name); } catch { bulk = []; } renderBulk(); }
+function saveBulk() { try { localStorage.setItem(BULK_KEY, JSON.stringify(bulk)); } catch { /* ไม่เป็นไร */ } }
+function makeBulk() {
+  const names = [...new Set($('#dfBulk').value.split(/\r?\n/).map((l) => l.replace(/^\s*(?:\d+[.)]\s*|[-•*]\s*)/, '').trim()).filter(Boolean))].slice(0, 200);
+  if (!names.length) { toast('กรุณาวางรายชื่อยา บรรทัดละ 1 ยา', 'err'); $('#dfBulk').focus(); return; }
+  const have = new Set(bulk.map((x) => keyOf(x.name)));
+  names.filter((n) => !have.has(keyOf(n))).forEach((name) => bulk.push({ name, st: hasDrug(name) ? 'skip' : 'wait', dup: hasDrug(name) }));
+  $('#dfBulk').value = ''; saveBulk(); renderBulk();
+  const next = bulk.findIndex((x) => x.st === 'wait');
+  if (next >= 0) openBulk(next); else toast('ยาทุกตัวมีในรายการแล้ว');
+}
+function renderBulk() {
+  const left = bulk.filter((x) => x.st === 'wait').length, done = bulk.filter((x) => x.st === 'done').length;
+  $('#dfBulkN').textContent = bulk.length ? `รอเพิ่ม ${left} · เพิ่มแล้ว ${done} · ทั้งหมด ${bulk.length}` : '';
+  $('#dfBulkClear').hidden = !bulk.length;
+  $('#dfBulkList').innerHTML = bulk.map((x, i) => `<div class="li${i === bulkCur ? ' df-bulk-cur' : ''}"><div class="l"><b>${esc(x.name)}</b>`
+    + `<span class="small ${x.st === 'done' ? 'ok-text' : 'muted'}">${x.st === 'done' ? '✓ เพิ่มแล้ว' : x.dup ? 'มีในรายการยาแล้ว · ข้าม' : x.st === 'skip' ? 'ข้าม' : i === bulkCur ? 'กำลังกรอกในฟอร์มด้านล่าง' : 'รอเพิ่ม'}</span></div>`
+    + (x.st === 'done' ? '' : `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-bulk-open="${i}">เปิดในฟอร์ม</button>${x.st === 'wait' ? `<button type="button" class="btn btn-o btn-sm" data-bulk-skip="${i}">ข้าม</button>` : ''}</div>`)
+    + '</div>').join('');
+}
+function openBulk(i) {
+  const x = bulk[i]; if (!x) return;
+  resetDrugForm(); bulkCur = i; renderBulk();
+  $('#dfName').value = x.name;
+  $('#dfForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (doseQuery(x.name).length >= 2) runDoseHelp();   // มีชื่อภาษาอังกฤษ = ช่วยกรอกจากฐานข้อมูลให้เลย
+}
+function onBulk(e) {
+  const o = e.target.closest('[data-bulk-open]'), s = e.target.closest('[data-bulk-skip]');
+  if (o) { const i = +o.dataset.bulkOpen; if (bulk[i].st === 'skip') bulk[i].st = 'wait'; saveBulk(); openBulk(i); return; }
+  if (s) { const i = +s.dataset.bulkSkip; bulk[i].st = 'skip'; if (bulkCur === i) bulkCur = -1; saveBulk(); renderBulk(); }
+}
+/** บันทึกยาสำเร็จ → ยาตัวในคิวที่เปิดอยู่ = เพิ่มแล้ว → เปิดตัวถัดไป */
+function bulkSaved() {
+  if (bulkCur < 0 || !bulk[bulkCur]) return;
+  bulk[bulkCur].st = 'done'; bulkCur = -1; saveBulk();
+  const next = bulk.findIndex((x) => x.st === 'wait');
+  if (next >= 0) { toast(`ไปยาตัวถัดไป: ${bulk[next].name}`); openBulk(next); } else { renderBulk(); toast('เพิ่มยาครบทุกตัวในรายการแล้ว'); }
 }
 
 /* ---- ช่วยกรอกจากฐานข้อมูลยา (50_ai_dose.sql): RxNorm = ความแรง · ฉลากยา openFDA → AI ร่างขนาดยา มก./กก. · ผู้ดูแลเลือกใส่ฟอร์มแล้วตรวจเองก่อนบันทึก ---- */
@@ -250,9 +299,10 @@ async function saveDrug(e) {
   busy(btn, false);
   if (error) { say(m, errText(error)); return; }
   toast(editDrug ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มยาแล้ว');
+  const fromBulk = !editDrug && bulkCur >= 0;
   resetDose();
   await reloadDrugs();
-  resetDrugForm();
+  if (fromBulk) { const i = bulkCur; resetDrugForm(); bulkCur = i; bulkSaved(); } else resetDrugForm();
 }
 
 async function onDrugList(e) {
