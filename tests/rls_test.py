@@ -900,5 +900,14 @@ check("anon cannot write rider tambon stats", "anon", "update rider_tambon_stats
 check("tambon name with long digits rejected (no IDs)", "admin", "insert into rider_tambon_stats(fiscal_year,tambon) values (2569,'000081294')", "deny")
 check("negative numbers rejected", "admin", "insert into rider_tambon_stats(fiscal_year,tambon,delivered) values (2569,'อุใดเจริญ',-1)", "deny")
 
+print("== step 53: AI dose drafts (hidden until reviewed) ==")
+DRAFT = """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active,ai_draft,ai_source) values ('ร่าง AI (Cetirizine)','แพ้',0.25,0.25,'dose','[{"name":"แพ้","per":"dose","min":0.25,"max":0.25}]','[]',false,true,'ฉลากยา openFDA · AI ร่าง') returning id"""
+dd = check("admin saves AI draft (hidden)", "admin", DRAFT, lambda o: o.strip().isdigit()).strip()
+check("AI draft cannot be shown before review", "admin", f"update dose_drugs set active=true where id={dd}", "deny")
+check("anon cannot see AI draft", "anon", f"select count(*) from dose_drugs where id={dd}", eq(0))
+check("staff cannot insert drafts", "s2", DRAFT, "deny")
+check("admin reviews → shown", "admin", f"update dose_drugs set active=true, ai_draft=false where id={dd} returning active", eq("t"))
+check("anon sees reviewed drug", "anon", f"select count(*) from dose_drugs where id={dd}", eq(1))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

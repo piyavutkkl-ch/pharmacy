@@ -70,6 +70,8 @@ export async function initDoseAdmin() {
     $('#dfConcs').addEventListener('click', (e) => { if (e.target.closest('[data-rm]')) e.target.closest('.med-row').remove(); });
     $('#dfHelpBtn').addEventListener('click', runDoseHelp);
     $('#dfBulkMake').addEventListener('click', makeBulk);
+    $('#dfBulkAi').addEventListener('click', bulkAi);
+    $('#dfBulkStop').addEventListener('click', () => { bulkStop = true; });
     $('#dfBulkClear').addEventListener('click', () => { if (confirm('ล้างรายการยาที่รอเพิ่มทั้งหมด?')) { bulk = []; bulkCur = -1; saveBulk(); renderBulk(); } });
     $('#dfBulkList').addEventListener('click', onBulk);
     loadBulk();
@@ -88,24 +90,29 @@ const BULK_KEY = 'pcps_dose_queue';
 let bulk = [], bulkCur = -1;   // [{ name, st: 'wait'|'done'|'skip' }]
 const keyOf = (s) => String(s).toLowerCase().replace(/\s+/g, '');
 const hasDrug = (name) => { const k = keyOf(name), en = doseQuery(name); return drugs.some((d) => keyOf(d.name) === k || (en && doseQuery(d.name) === en)); };
-function loadBulk() { try { bulk = JSON.parse(localStorage.getItem(BULK_KEY) || '[]').filter((x) => x && x.name); } catch { bulk = []; } renderBulk(); }
+function loadBulk() { try { bulk = JSON.parse(localStorage.getItem(BULK_KEY) || '[]').filter((x) => x && x.name).map((x) => (x.st === 'busy' ? { ...x, st: 'wait' } : x)); } catch { bulk = []; } renderBulk(); }
 function saveBulk() { try { localStorage.setItem(BULK_KEY, JSON.stringify(bulk)); } catch { /* ไม่เป็นไร */ } }
-function makeBulk() {
+/** รายชื่อในช่อง → เพิ่มเข้าคิว (ตัดเลขข้อ/ซ้ำ · ยาที่มีแล้ว = ข้าม) */
+function addToQueue() {
   const names = [...new Set($('#dfBulk').value.split(/\r?\n/).map((l) => l.replace(/^\s*(?:\d+[.)]\s*|[-•*]\s*)/, '').trim()).filter(Boolean))].slice(0, 200);
-  if (!names.length) { toast('กรุณาวางรายชื่อยา บรรทัดละ 1 ยา', 'err'); $('#dfBulk').focus(); return; }
+  if (!names.length) { if (bulk.some((x) => x.st === 'wait')) return true; toast('กรุณาวางรายชื่อยา บรรทัดละ 1 ยา', 'err'); $('#dfBulk').focus(); return false; }
   const have = new Set(bulk.map((x) => keyOf(x.name)));
   names.filter((n) => !have.has(keyOf(n))).forEach((name) => bulk.push({ name, st: hasDrug(name) ? 'skip' : 'wait', dup: hasDrug(name) }));
   $('#dfBulk').value = ''; saveBulk(); renderBulk();
+  return true;
+}
+function makeBulk() {
+  if (!addToQueue()) return;
   const next = bulk.findIndex((x) => x.st === 'wait');
   if (next >= 0) openBulk(next); else toast('ยาทุกตัวมีในรายการแล้ว');
 }
 function renderBulk() {
-  const left = bulk.filter((x) => x.st === 'wait').length, done = bulk.filter((x) => x.st === 'done').length;
+  const left = bulk.filter((x) => x.st === 'wait' || x.st === 'nodata').length, done = bulk.filter((x) => x.st === 'done' || x.st === 'draft').length;
   $('#dfBulkN').textContent = bulk.length ? `รอเพิ่ม ${left} · เพิ่มแล้ว ${done} · ทั้งหมด ${bulk.length}` : '';
   $('#dfBulkClear').hidden = !bulk.length;
   $('#dfBulkList').innerHTML = bulk.map((x, i) => `<div class="li${i === bulkCur ? ' df-bulk-cur' : ''}"><div class="l"><b>${esc(x.name)}</b>`
-    + `<span class="small ${x.st === 'done' ? 'ok-text' : 'muted'}">${x.st === 'done' ? '✓ เพิ่มแล้ว' : x.dup ? 'มีในรายการยาแล้ว · ข้าม' : x.st === 'skip' ? 'ข้าม' : i === bulkCur ? 'กำลังกรอกในฟอร์มด้านล่าง' : 'รอเพิ่ม'}</span></div>`
-    + (x.st === 'done' ? '' : `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-bulk-open="${i}">เปิดในฟอร์ม</button>${x.st === 'wait' ? `<button type="button" class="btn btn-o btn-sm" data-bulk-skip="${i}">ข้าม</button>` : ''}</div>`)
+    + `<span class="small ${x.st === 'done' || x.st === 'draft' ? 'ok-text' : x.st === 'nodata' ? 'ai-err' : 'muted'}">${x.st === 'done' ? '✓ เพิ่มแล้ว' : x.st === 'draft' ? '✓ เก็บเป็นร่างแล้ว · รอตรวจในรายการยา' : x.st === 'nodata' ? esc(x.note || 'AI ไม่พบขนาดยา · กรอกเอง') : x.st === 'busy' ? 'AI กำลังดึงข้อมูล…' : x.dup ? 'มีในรายการยาแล้ว · ข้าม' : x.st === 'skip' ? 'ข้าม' : i === bulkCur ? 'กำลังกรอกในฟอร์มด้านล่าง' : 'รอเพิ่ม'}</span></div>`
+    + (['done', 'draft', 'busy'].includes(x.st) ? '' : `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-bulk-open="${i}">เปิดในฟอร์ม</button>${x.st === 'wait' ? `<button type="button" class="btn btn-o btn-sm" data-bulk-skip="${i}">ข้าม</button>` : ''}</div>`)
     + '</div>').join('');
 }
 function openBulk(i) {
@@ -117,9 +124,75 @@ function openBulk(i) {
 }
 function onBulk(e) {
   const o = e.target.closest('[data-bulk-open]'), s = e.target.closest('[data-bulk-skip]');
-  if (o) { const i = +o.dataset.bulkOpen; if (bulk[i].st === 'skip') bulk[i].st = 'wait'; saveBulk(); openBulk(i); return; }
+  if (o) { const i = +o.dataset.bulkOpen; if (bulk[i].st === 'skip' || bulk[i].st === 'nodata') bulk[i].st = 'wait'; saveBulk(); openBulk(i); return; }
   if (s) { const i = +s.dataset.bulkSkip; bulk[i].st = 'skip'; if (bulkCur === i) bulkCur = -1; saveBulk(); renderBulk(); }
 }
+/** ให้ AI ดึงข้อมูลยาทุกตัวในคิว → บันทึกเป็นร่างที่ซ่อนไว้ (ai_draft · 56_dose_ai_drafts.sql) · ทำทีละตัว · กดหยุดได้ */
+let bulkStop = false, bulkRunning = false;
+async function aiDose(q) {
+  const { data: id, error } = await sb.rpc('ai_dose_start', { p_name: q });
+  if (error) throw error;
+  let r = { status: 'pending' };
+  for (let i = 0; r.status === 'pending' && i < 80; i++) {
+    if (i) await new Promise((ok) => setTimeout(ok, 2500));
+    const { data, error: e2 } = await sb.rpc('ai_dose_poll', { p_id: id });
+    if (e2) throw e2;
+    r = data;
+  }
+  return r;
+}
+/** ผลจากฐานข้อมูลยา → แถว dose_drugs (ร่าง · ซ่อน) · ไม่มีขนาดยา มก./กก. = null */
+export function draftRow(name, r, sort) {
+  const res = r.result || {}, ai = (res.ai || []).filter((i) => i.name && i.min != null && i.max != null && +i.max >= +i.min);
+  if (!ai.length) return null;
+  const seen = new Set(), concs = (res.rx || []).map(rxConc).filter((c) => c && !seen.has(c.label) && seen.add(c.label));
+  const inds = ai.slice(0, 20).map(({ quote, ...i }) => Object.fromEntries(Object.entries({ ...i, times: i.per === 'day' ? i.times : null }).filter(([, v]) => v != null && v !== '')));
+  const f = inds[0], lab = res.label || {};
+  return {
+    name: String(name).slice(0, 120), form: !concs.length ? 'อื่น ๆ' : concs.every((c) => c.mgPerTab != null) ? 'ยาเม็ด' : concs.every((c) => c.mgPerTab == null) ? 'ยาน้ำ' : 'อื่น ๆ',
+    indications: inds, indication: f.name, per: f.per, mg_per_kg_min: f.min, mg_per_kg_max: f.max, dose_freq_per_day: f.times ?? null, max_mg_per_dose: f.cap ?? null, freq: f.freq ?? null, renal_note: f.renal ?? null,
+    concs, sort, active: false, ai_draft: true,
+    ai_source: `AI ร่างจากฉลากยา openFDA${lab.brand ? ' ' + lab.brand : ''}${lab.effective ? ' ฉบับ ' + lab.effective : ''} + ความแรงจาก RxNorm · ยังไม่ผ่านการตรวจ`.slice(0, 500),
+  };
+}
+async function bulkAi() {
+  if (bulkRunning) return;
+  if (!addToQueue()) return;
+  const todo = bulk.map((x, i) => i).filter((i) => bulk[i].st === 'wait');
+  if (!todo.length) { toast('ไม่มียาที่รอเพิ่ม', 'err'); return; }
+  bulkRunning = true; bulkStop = false;
+  const btn = $('#dfBulkAi'), msg = $('#dfBulkMsg'); busy(btn, true, 'AI กำลังดึงข้อมูล…'); $('#dfBulkStop').hidden = false;
+  let saved = 0, miss = 0;
+  try {
+    for (const [k, i] of todo.entries()) {
+      if (bulkStop) break;
+      const x = bulk[i], q = doseQuery(x.name);
+      msg.style.color = ''; msg.textContent = `กำลังทำ ${k + 1}/${todo.length}: ${x.name}`;
+      if (q.length < 2) { Object.assign(x, { st: 'nodata', note: 'ไม่มีชื่อภาษาอังกฤษ · กรอกเอง' }); miss++; saveBulk(); renderBulk(); continue; }
+      x.st = 'busy'; renderBulk();
+      try {
+        const r = await aiDose(q);
+        const row = r.status === 'done' ? draftRow(x.name, r, nextSort() + k) : null;
+        if (!row) { Object.assign(x, { st: 'nodata', note: r.note || 'ฉลากยาไม่มีขนาดยาแบบ มก./กก. · กรอกเอง' }); miss++; }
+        else {
+          const { error } = await sb.from('dose_drugs').insert(row);
+          if (error) throw error;
+          x.st = 'draft'; saved++;
+        }
+      } catch (err) {
+        Object.assign(x, { st: 'nodata', note: errText(err) }); miss++;
+        if (/ครบ \d+ ครั้ง|ไม่มีสิทธิ์|ยังไม่พร้อม/.test(errText(err))) { saveBulk(); renderBulk(); break; }
+      }
+      saveBulk(); renderBulk();
+    }
+  } finally {
+    busy(btn, false); $('#dfBulkStop').hidden = true; bulkRunning = false;
+    msg.style.color = saved ? 'var(--success)' : 'var(--error)';
+    msg.textContent = `เก็บเป็นร่างแล้ว ${saved} ยา${miss ? ` · ทำไม่ได้ ${miss} ยา (กด "เปิดในฟอร์ม" เพื่อกรอกเอง)` : ''}${bulkStop ? ' · หยุดแล้ว' : ''} · ร่างยังไม่แสดงในเครื่องคำนวณ ตรวจแล้วกด "ตรวจแล้ว · แสดง" ในรายการยา`;
+    resetDose(); await reloadDrugs();
+  }
+}
+
 /** บันทึกยาสำเร็จ → ยาตัวในคิวที่เปิดอยู่ = เพิ่มแล้ว → เปิดตัวถัดไป */
 function bulkSaved() {
   if (bulkCur < 0 || !bulk[bulkCur]) return;
@@ -247,9 +320,10 @@ function renderDrugs() {
   $('#dfList').innerHTML = !drugs.length ? '<p class="empty">ยังไม่มีรายการยา</p>' : !list.length ? '<p class="empty">ไม่พบยาที่ค้นหา</p>' : list.map((d) => `<div class="li"><div class="l"><b>${esc(d.name)} <span class="chip c-off">${esc(d.form || 'อื่น ๆ')}</span></b>`
     + indsOf(d).map((i) => `<span class="small muted">${esc(i.name || 'ข้อบ่งใช้')}: ${esc(perText(i))}</span>`).join('')
     + `<span class="small muted">${indsOf(d).length} ข้อบ่งใช้ · ${(d.concs || []).length} ความแรง · ลำดับ ${d.sort}</span>`
-    + `<div class="meta"><span class="chip ${d.active ? 'c-on' : 'c-off'}">${d.active ? 'แสดงอยู่' : 'ซ่อน'}</span></div></div>`
-    + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">แก้ไข</button>`
-    + `<button type="button" class="btn btn-o btn-sm" data-toggle="${d.id}">${d.active ? 'ซ่อน' : 'แสดง'}</button>`
+    + (d.ai_draft && d.ai_source ? `<span class="small muted">${esc(d.ai_source)}</span>` : '')
+    + `<div class="meta"><span class="chip ${d.active ? 'c-on' : 'c-off'}">${d.active ? 'แสดงอยู่' : 'ซ่อน'}</span>${d.ai_draft ? '<span class="chip c-fix">AI ร่าง · รอตรวจ</span>' : ''}</div></div>`
+    + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">${d.ai_draft ? 'ตรวจ/แก้ไข' : 'แก้ไข'}</button>`
+    + `<button type="button" class="btn btn-o btn-sm" data-toggle="${d.id}">${d.ai_draft ? 'ตรวจแล้ว · แสดง' : d.active ? 'ซ่อน' : 'แสดง'}</button>`
     + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button></div></div>`).join('');
 }
 const nextSort = () => (drugs.length ? Math.max(...drugs.map((d) => d.sort)) + 1 : 0);
@@ -292,7 +366,7 @@ async function saveDrug(e) {
   const row = {
     name, form: $('#dfForm2').value, indications: inds, indication: f.name, per: f.per, mg_per_kg_min: f.min, mg_per_kg_max: f.max,
     dose_freq_per_day: f.times ?? null, max_mg_per_dose: f.cap ?? null, freq: f.freq ?? null, renal_note: f.renal ?? null,
-    concs, sort: num($('#dfSort').value) ?? 0, active: $('#dfActive').checked,
+    concs, sort: num($('#dfSort').value) ?? 0, active: $('#dfActive').checked, ai_draft: false,   // บันทึกผ่านฟอร์ม = ผู้ดูแลตรวจแล้ว
   };
   const btn = $('#dfSubmit'); busy(btn, true, 'กำลังบันทึก…');
   const { error } = editDrug ? await sb.from('dose_drugs').update(row).eq('id', editDrug.id) : await sb.from('dose_drugs').insert(row);
@@ -310,14 +384,17 @@ async function onDrugList(e) {
   const d = drugs.find((x) => String(x.id) === (b.dataset.edit || b.dataset.toggle || b.dataset.del)); if (!d) return;
   if (b.dataset.edit) return startEditDrug(d);
   let res;
-  if (b.dataset.toggle) res = await sb.from('dose_drugs').update({ active: !d.active }).eq('id', d.id);
+  if (b.dataset.toggle && d.ai_draft) {
+    if (!confirm(`ตรวจตัวเลขของ "${d.name}" กับเอกสารอ้างอิงแล้วใช่ไหม?\nกดตกลงแล้วยานี้จะแสดงในเครื่องคำนวณโดสยาหน้าหลักทันที`)) return;
+    res = await sb.from('dose_drugs').update({ active: true, ai_draft: false }).eq('id', d.id);
+  } else if (b.dataset.toggle) res = await sb.from('dose_drugs').update({ active: !d.active }).eq('id', d.id);
   else {
     if (!confirm(`ลบ "${d.name}" ออกจากเครื่องคำนวณ? (ถ้าอาจใช้อีก แนะนำกด "ซ่อน" แทน)`)) return;
     res = await sb.from('dose_drugs').delete().eq('id', d.id);
     if (editDrug?.id === d.id) resetDrugForm();
   }
   if (res.error) { toast(errText(res.error), 'err'); return; }
-  toast(b.dataset.del ? 'ลบแล้ว' : d.active ? 'ซ่อนแล้ว' : 'แสดงแล้ว');
+  toast(b.dataset.del ? 'ลบแล้ว' : d.ai_draft ? 'ตรวจแล้ว · แสดงในเครื่องคำนวณแล้ว' : d.active ? 'ซ่อนแล้ว' : 'แสดงแล้ว');
   resetDose();
   reloadDrugs();
 }

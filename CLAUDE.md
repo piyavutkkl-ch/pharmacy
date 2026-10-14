@@ -65,6 +65,7 @@ js/pages/admin-ai.js       ผู้ดูแล › ข่าว › ช่อ�
 js/pages/news-form.js      ฟอร์มข่าวใช้ร่วม (sn/an): ประเภท ข่าว/ประชาสัมพันธ์/ความรู้, รูปหลายรูป ≤7 (ย่อ ≤ A4 · × ลบทีละรูป · รูปแรก=image_path ที่เหลือ=gallery), PDF แนบ (bucket news-files)
 js/pages/admin-review.js   ผู้ดูแล › ตรวจประเมิน: ตรวจหลักฐาน (ย้อนกลับผลตรวจ, แนบไฟล์กลับ, ยกเลิกคำขอตรวจ → ถังขยะ 30 วัน กู้คืน/ลบถาวร · item_status.trashed_at + trash/restore/purge_item_status · 46_review_trash.sql), แก้เกณฑ์ (ข้อใหญ่/หัวข้อย่อย/ไฟล์ตัวอย่าง), ปีงบ (เริ่ม/ซ่อน/ลบปีว่าง)
 js/pages/admin-settings.js ผู้ดูแล › ตั้งค่า: รายการยาเครื่องคำนวณโดส + ช่องทางติดต่อ รพ.สต.
+                           เพิ่มหลายรายการ (วางรายชื่อยา · คิวจำใน localStorage 'pcps_dose_queue'): กรอกทีละตัว หรือ "ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด" → dose_drugs.ai_draft (ซ่อนเสมอ · constraint ห้าม active จนผู้ดูแลกด "ตรวจแล้ว · แสดง" · 56_dose_ai_drafts.sql)
                            ปุ่ม "ช่วยกรอกจากฐานข้อมูลยา" (50_ai_dose.sql · ai_dose_start/poll): ฐานข้อมูลดึง RxNorm (ความแรง) + ฉลากยา openFDA ผ่าน pg_net → Gemini ร่างขนาดยา มก./กก. พร้อมข้อความอ้างอิง → ผู้ดูแลเลือกใส่ฟอร์ม ตรวจเองก่อนบันทึก (ระบบไม่บันทึกเอง) · ชื่อไทย→ใช้ชื่ออังกฤษในวงเล็บ (paracetamol→acetaminophen ฯลฯ)
 js/pages/admin-staff.js    ผู้ดูแล › ตั้งค่า › บัญชีเจ้าหน้าที่ (staff_roster)
 js/pages/admin-audit.js    ผู้ดูแล › ตั้งค่า › ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA · admin_audit_log() + ดาวน์โหลด CSV)

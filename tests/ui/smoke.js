@@ -835,6 +835,23 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#dfBulkList [data-bulk-skip]'); await p.waitForTimeout(200);
     check('เพิ่มหลายรายการ: ข้ามได้ + จำรายการไว้ในเครื่อง', (await text(p, '#dfBulkN')).includes('รอเพิ่ม 0') && await p.evaluate(() => JSON.parse(localStorage.getItem('pcps_dose_queue') || '[]').length === 3));
     await p.evaluate(() => localStorage.removeItem('pcps_dose_queue'));
+    // ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด (56_dose_ai_drafts.sql): ร่างซ่อนจากเครื่องคำนวณจนผู้ดูแลกด "ตรวจแล้ว · แสดง"
+    await go(p, '#/admin/settings/dose'); await p.waitForTimeout(400);
+    if (!(await p.$eval('#dfBulkFold', (d) => d.open))) await p.click('#dfBulkFold > summary');
+    await p.fill('#dfBulk', 'ลอราทาดีน (Loratadine)\nยาที่ไม่มี (Notfoundium)\nยาไทยล้วนไม่มีชื่ออังกฤษ');
+    const ins0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'insert')).length;
+    await p.click('#dfBulkAi'); await p.waitForTimeout(9000);
+    { const ins = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'insert')).slice(ins0).map((c) => c.payload);
+      const d = ins[0] || {};
+      check('AI เก็บเป็นร่างทั้งหมด: บันทึกยาที่ดึงข้อมูลได้เป็นร่างซ่อนไว้ (ขนาดยา + ความแรงยากิน + ที่มา)', ins.length === 1 && d.name === 'ลอราทาดีน (Loratadine)' && d.active === false && d.ai_draft === true && d.indications?.length === 2 && d.concs?.length === 3 && !JSON.stringify(d.indications).includes('quote') && /openFDA/.test(d.ai_source), JSON.stringify(ins));
+      check('AI เก็บเป็นร่าง: ยาที่ดึงไม่ได้/ไม่มีชื่ออังกฤษ → แจ้งให้กรอกเอง', (await text(p, '#dfBulkList')).includes('เก็บเป็นร่างแล้ว') && (await text(p, '#dfBulkList')).includes('ไม่มีชื่อภาษาอังกฤษ') && (await text(p, '#dfBulkMsg')).includes('เก็บเป็นร่างแล้ว 1 ยา'), await text(p, '#dfBulkMsg')); }
+    await p.selectOption('#dfFForm', 'all'); await p.fill('#dfQ', ''); await p.waitForTimeout(150);
+    check('รายการยา: ร่างจาก AI มีป้าย "AI ร่าง · รอตรวจ" + ปุ่มตรวจแล้ว · แสดง', (await text(p, '#dfList')).includes('AI ร่าง · รอตรวจ') && (await text(p, '#dfList')).includes('ตรวจแล้ว · แสดง'));
+    { const id = await p.evaluate(() => window.__db.dose_drugs.find((x) => x.ai_draft)?.id);
+      await p.click(`#dfList [data-toggle="${id}"]`); await p.waitForTimeout(400);
+      const up = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload || {};
+      check('ร่างจาก AI: กดตรวจแล้ว · แสดง → แสดงในเครื่องคำนวณ (ai_draft = false)', up.active === true && up.ai_draft === false, JSON.stringify(up)); }
+    await p.evaluate(() => localStorage.removeItem('pcps_dose_queue'));
     await go(p, '#/dose'); await p.waitForTimeout(300);
     await p.fill('#doseWeight', '20'); await p.selectOption('#doseDrug', { label: 'ยาทดสอบ' }); await p.waitForTimeout(200);
     check('คำนวณโดส: แสดงพร้อมกัน 3 ข้อบ่งใช้ ที่เหลือย่อไว้ + คิดเป็น มล. จาก มก./มล.', await count(p, '#doseResult section.ind-result') === 3 && await count(p, '#doseResult details.ind-result') === 1 && (await text(p, '#doseResult')).includes('20.00–30.00 มล.'));

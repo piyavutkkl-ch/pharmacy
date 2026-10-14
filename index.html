@@ -665,7 +665,9 @@
             <details class="vs-pfold df-bulk" id="dfBulkFold"><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
               <p class="small muted">พิมพ์หรือวางรายชื่อยา บรรทัดละ 1 ยา เช่น พาราเซตามอล (Paracetamol) · กด "สร้างรายการ" แล้วระบบเปิดยาทีละตัวในฟอร์มด้านล่าง พร้อมช่วยกรอกจากฐานข้อมูลยาให้ · ตรวจแล้วกด "เพิ่มยา" ระบบไปยาตัวถัดไปเอง (ไม่บันทึกยาที่ยังไม่ได้ตรวจ)</p>
               <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>
-              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
+              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
+              <p class="small muted">"ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด" = ดึงความแรง (RxNorm) + ขนาดยา มก./กก. ที่ AI ร่างจากฉลากยา openFDA แล้วบันทึกเป็น <b>ร่าง (ซ่อนจากเครื่องคำนวณ)</b> ทุกตัว · ตรวจแล้วกด "ตรวจแล้ว · แสดง" ทีละตัวในรายการยาด้านล่าง</p>
+              <span class="small" id="dfBulkMsg" aria-live="polite"></span>
               <div class="list" id="dfBulkList"></div>
             </details>
             <form id="dfForm" class="form-grid" novalidate>
