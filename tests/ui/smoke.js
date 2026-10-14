@@ -720,6 +720,32 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ลิงก์ #/rider เดิม: เปิดช่องบริการจัดส่งยาถึงบ้านที่ผลงาน Health Rider', await visible(p, '[data-panel="delivery"] #hrBlock'));
     check('หน้าหลัก Health Rider: ข้อความใหม่ + ผลงานอัปเดต', (await text(p, '#hrInfo')).includes('ไรเดอร์สุขภาพ') && (await text(p, '#hrFigs')).includes('3,258') && await count(p, '#hrBars .bar-row') === 5);
     await p.screenshot({ path: path.join(SHOTS, 'home-rider-1280.png'), fullPage: true });
+    // ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน: สรุปจากไฟล์ประวัติการจัดส่งยา (อ่านในเครื่อง · เก็บเฉพาะตัวเลขสรุป) + ปุ่ม AI
+    { const head = 'ลำดับ,รหัสโรงพยาบาล,โรงพยาบาล,บริการขนส่ง,น้ำหนัก (กรัม),ขนาด (กว้าง x ยาว x สูง),สถานะ,รายละเอียดการขนส่ง,สถานะเดิม,เวลาที่อัปเดตสถานะ,เลขที่การจัดส่ง,ชื่อผู้ขับ,เบอร์โทรผู้ขับ,เลขออเดอร์,HN,VN,ชื่อผู้ใช้บริการ,หมายเลขบัตรประชาชน,เบอร์โทร,วันเวลาที่ลงทะเบียน,วันเวลาที่สร้างออเดอร์,ประเภทสิทธิการรักษา,รายละเอียดสิทธิการรักษา,ค่าจัดส่ง,วัน-เวลา จัดส่งพัสดุสำเร็จ,ที่อยู่จัดส่งยา,แพทย์/เจ้าหน้าที่,บริการ';
+      const row = (i, svc, st, hn, mo, tam, rights, fee, done) => [i, '99999', 'โรงพยาบาลตัวอย่าง', svc, '-', '-', st, st, '-', '-', 'DX' + i, '-', '-', 'ORD' + i, hn, '690000000' + i, 'ชื่อสมมติ ทดสอบ' + i, '1100000000' + String(i).padStart(3, '0'), '0800000000',
+        `วันที่ 01/${mo}/2569 เวลา 9:00 น.`, `วันที่ 01/${mo}/2569 เวลา 9:10 น.`, rights.startsWith('CSH') ? 'NON UC' : 'UC', rights, fee, done ? `วันที่ 01/${mo}/2569 เวลา 15:10 น.` : '-',
+        `"บ้านเลขที่ 1 หมู่ 1 ตำบล ${tam} อำเภอ ตัวอย่าง จังหวัด สตูล รหัสไปรษณีย์ 91130"`, 'หมอสมมติ', 'hosxp'].join(',');
+      const csv = ['ประวัติรายการจัดส่งยา วันที่ 01 พฤษภาคม 2569 - 30 มิถุนายน 2569', head,
+        row(1, 'rider', 'สำเร็จ', '000000001', '05', 'ควนกาหลง', 'UCS : ผู้สูงอายุ', 0, true), row(2, 'rider', 'สำเร็จ', '000000002', '05', 'ควนกาหลง', 'UCS : ผู้สูงอายุ', 0, true),
+        row(3, 'post (Flash Express (Mobilyst))', 'สำเร็จ', '000000001', '06', 'ทุ่งนุ้ย', 'CSH : ชำระเงินเอง', 55, true), row(4, 'rider', 'ยกเลิก', '000000003', '06', 'อุใดเจริญ', 'UCS : ผู้พิการ', 65, false)].join('\n');
+      await go(p, '#/admin/settings/delivery'); await p.waitForTimeout(500);
+      const up0 = (await calls(p, (c) => c.upload)).length;
+      await p.setInputFiles('#drFile', { name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('\uFEFF' + csv) }); await p.waitForTimeout(500);
+      check('จัดส่งยา Excel: อ่านไฟล์ในเครื่อง → ตัวอย่างสรุป (สำเร็จ 3 · ผู้ป่วย 2 คน · ยกเลิก 1)', await visible(p, '#drPreviewWrap') && (await text(p, '#drPreview')).includes('สำเร็จ 3') && (await text(p, '#drPreview')).includes('ยกเลิก 1') && (await p.$$eval('#drPreview .fig .n', (f) => f.map((x) => x.textContent))).slice(0, 2).join('|') === '3|2', await text(p, '#drPreview'));
+      check('จัดส่งยา Excel: แยกตามเดือน/ตำบล/ช่องทาง/สิทธิ', (await text(p, '#drPreview')).includes('ไรเดอร์') && (await text(p, '#drPreview')).includes('พ.ค. 69') && (await text(p, '#drPreview')).includes('ทุ่งนุ้ย') && (await text(p, '#drPreview')).includes('Flash Express') && (await text(p, '#drPreview')).includes('ผู้สูงอายุ'));
+      await p.click('#drSave'); await p.waitForTimeout(500);
+      const ins = (await calls(p, (c) => c.table === 'delivery_reports' && c.op === 'insert')).pop()?.payload || {};
+      const raw = JSON.stringify(ins);
+      check('จัดส่งยา Excel: บันทึกเฉพาะตัวเลขสรุป (ไม่มีชื่อ/เลขบัตร/HN/เบอร์/ที่อยู่ · ไม่อัปโหลดไฟล์)', ins.summary?.ok === 3 && ins.summary?.patients === 2 && ins.period_from === '2026-05-01' && !/ชื่อสมมติ|1100000000|000000001|0800000000|บ้านเลขที่|หมอสมมติ|\d{9,}/.test(raw) && (await calls(p, (c) => c.upload)).length === up0, raw);
+      check('จัดส่งยา Excel: รายการที่บันทึก + ปุ่มให้ AI สรุป', (await text(p, '#drList')).includes('สำเร็จ 3 ครั้ง') && await count(p, '#drList [data-ai]') === 1);
+      await p.click('#drList [data-ai]'); await p.waitForTimeout(6500);
+      check('จัดส่งยา Excel: กดให้ AI สรุป → มีข้อความสรุป', (await text(p, '#drList')).includes('มีสรุปจาก AI แล้ว'));
+      await go(p, '#/delivery'); await p.waitForTimeout(700);
+      check('หน้าจัดส่งยา: แสดงสรุปจากประวัติการจัดส่งยา + ข้อความจาก AI', await visible(p, '#drPanel') && (await text(p, '#drView')).includes('จัดส่งยาสำเร็จ') && (await text(p, '#drView')).includes('สรุปโดย AI') && !(await text(p, '#drView')).includes('ชื่อสมมติ'));
+      await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(200);
+      check('หน้าจัดส่งยา 390px: สรุปไม่ล้นจอ', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+      await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-report-390.png') });
+      await p.setViewportSize({ width: 1280, height: 900 }); }
     await go(p, '#/admin/settings/dose');
     await p.fill('#dfName', 'ยาทดสอบ'); await p.fill('#dfInds .i-name', 'ลดไข้'); await p.fill('#dfInds .i-min', '10'); await p.fill('#dfInds .i-max', '5'); await p.click('#dfSubmit'); await p.waitForTimeout(150);
     check('ผู้ดูแล: ขนาดยาผิดถูกเตือน', (await text(p, '#dfMsg')).length > 0);

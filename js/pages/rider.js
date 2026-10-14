@@ -108,7 +108,7 @@ async function loadStats() {
 
 /* ---------- นำเข้าจาก Excel ---------- */
 /** ข้อความตาราง (วางจาก Excel = คั่นด้วย tab · CSV = คั่นด้วยจุลภาค) → [[ช่อง,…],…] */
-function parseText(text) {
+export function parseText(text) {
   return String(text || '').split(/\r?\n/).map((line) => {
     if (line.includes('\t')) return line.split('\t');
     const out = []; let cur = '', q = false;   // CSV แบบมีเครื่องหมายคำพูด

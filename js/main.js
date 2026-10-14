@@ -20,6 +20,7 @@ import { bindMoreSheets } from './nav.js?v=4.4';
 import { bindTheme } from './theme.js?v=4.4';
 import { initDelivery } from './pages/delivery.js?v=4.4';
 import { initRider } from './pages/rider.js?v=4.4';
+import { initDeliveryReports } from './pages/delivery-report.js?v=4.4';
 import { showSummary } from './pages/summaries.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
 import { openProfile } from './profile.js?v=4.4';
@@ -51,7 +52,7 @@ function openPanel(id, scrollTo = null) {
   });
   $$('[data-panel-link]').forEach((a) => a.setAttribute('aria-expanded', a.dataset.panelLink === id ? 'true' : 'false'));
   if (!id) return;
-  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: () => { initDelivery(); initRider(); },
+  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: () => { initDelivery(); initRider(); initDeliveryReports(); },
     achievements: initAchievements, contact: initContacts })[id]?.();
   const el = scrollTo || document.querySelector(`[data-panel="${id}"]`);
   requestAnimationFrame(() => el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));

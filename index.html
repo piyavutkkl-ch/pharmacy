@@ -169,6 +169,10 @@
       <div class="track-figs dl-figs" id="dlFigs" aria-live="polite"></div>
       <div class="bars" id="dlBars"></div>
     </div>
+    <div class="panel" id="drPanel" hidden>
+      <div class="panel-head"><h2>สรุปจากประวัติการจัดส่งยา</h2><select id="drPick" class="input dr-pick" aria-label="เลือกช่วงข้อมูล"></select></div>
+      <div id="drView" aria-live="polite"></div>
+    </div>
     <div class="panel" id="hrBlock">
       <div class="panel-head"><h2>ผลงาน Health Rider</h2></div>
       <div class="article-body dl-info" id="hrInfo"></div>
@@ -624,6 +628,18 @@
             <select id="daYear" class="input"></select>
             <div class="da-stats" id="daStats"></div>
             <div><button type="button" class="btn btn-p btn-sm" id="daStatSave">บันทึกสถิติ</button></div>
+          </div>
+          <div class="panel">
+            <h2>สรุปจากไฟล์ประวัติการจัดส่งยา (Excel)</h2>
+            <p class="small muted">เลือกไฟล์ "ประวัติรายการจัดส่งยา" (.xlsx หรือ .csv) จากระบบจัดส่งยา · ระบบสรุปตัวเลขในเครื่องนี้ <b>ไม่อัปโหลดไฟล์</b> และเก็บเฉพาะตัวเลขสรุป ไม่มีชื่อ เลขบัตร HN เบอร์โทร หรือที่อยู่ผู้ป่วย</p>
+            <div class="field"><label for="drFile">เลือกไฟล์</label><input id="drFile" class="input" type="file" accept=".xlsx,.xls,.csv,text/csv"><span class="small" id="drMsg" aria-live="polite"></span></div>
+            <div id="drPreviewWrap" class="dr-preview" hidden>
+              <div class="field"><label for="drTitle">ชื่อที่แสดง</label><input id="drTitle" class="input" maxlength="200"></div>
+              <div id="drPreview"></div>
+              <div><button type="button" class="btn btn-p btn-sm" id="drSave">บันทึกและแสดงที่หน้าจัดส่งยา</button></div>
+            </div>
+            <h3>สรุปที่บันทึกไว้</h3>
+            <div class="list" id="drList"></div>
           </div>
         </div>
 
