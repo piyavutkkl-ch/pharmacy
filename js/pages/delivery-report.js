@@ -4,8 +4,7 @@
 //   ปุ่ม "ให้ AI สรุปเป็นข้อความ" (ไม่บังคับ): ส่งเฉพาะตัวเลขสรุปให้ Gemini → ai_text
 //   หน้าหลัก #/delivery: เลือกช่วงข้อมูล → ตัวเลข + กราฟแท่ง (เดือน/ตำบล/ช่องทาง/สิทธิ) + ข้อความจาก AI (ถ้ามี)
 import { sb } from '../supabase.js?v=4.4';
-import { $, esc, toast, errText, busy, thaiDate } from '../util.js?v=4.4';
-import { parseText } from './rider.js?v=4.4';
+import { $, esc, toast, errText, busy, thaiDate, fiscalYearOf } from '../util.js?v=4.4';
 
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
 const TH_MONTH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -34,12 +33,42 @@ function serviceName(s) {
   return clean(t) || 'ไม่ระบุ';
 }
 
-/** ตาราง (แถว × คอลัมน์) → ตัวเลขสรุป · ไม่พบหัวตาราง = throw */
-export function summarizeDelivery(rows) {
+/** หาแถวหัวตาราง + ฟังก์ชันอ่านช่องตามชื่อหัว */
+function tableCols(rows) {
   const hi = rows.findIndex((r) => r.some((c) => String(c).trim() === COLS.status) && r.some((c) => String(c).trim() === COLS.service));
   if (hi < 0) throw new Error('ไม่พบหัวตาราง "สถานะ" และ "บริการขนส่ง" — ใช้ไฟล์ประวัติรายการจัดส่งยาจากระบบจัดส่งยา');
   const head = rows[hi].map((c) => String(c).trim()), col = {};
   for (const [k, name] of Object.entries(COLS)) col[k] = head.indexOf(name);
+  return { hi, col };
+}
+const tambonOf = (addr) => clean(String(addr || '').match(/ตำบล\s*([^\s]+)/)?.[1]) || 'ไม่ระบุ';
+
+/** Health Rider (55_rider_tambon.sql): เฉพาะบริการขนส่ง "rider" → ราย ปีงบ (จากวันที่สร้างออเดอร์) × ตำบล · HN ใช้นับคนในเครื่องแล้วทิ้ง
+ *  → { [ปีงบ]: [{ tambon, delivered, clients, cancelled, free }] } */
+export function riderByTambon(rows) {
+  const { hi, col } = tableCols(rows);
+  const get = (r, k) => (col[k] >= 0 ? String(r[col[k]] ?? '').trim() : '');
+  const out = new Map();
+  for (const r of rows.slice(hi + 1)) {
+    const st = get(r, 'status'); if (!st || !/^rider/i.test(get(r, 'service'))) continue;
+    const c = thDate(get(r, 'created')); if (!c) continue;
+    const fy = fiscalYearOf(c), tam = tambonOf(get(r, 'address'));
+    const y = out.get(fy) || new Map(); out.set(fy, y);
+    const t = y.get(tam) || { tambon: tam, delivered: 0, hn: new Set(), cancelled: 0, free: 0 }; y.set(tam, t);
+    if (/ยกเลิก/.test(st)) { t.cancelled++; continue; }
+    if (!/สำเร็จ/.test(st)) continue;
+    t.delivered++;
+    const hn = get(r, 'hn'); if (hn) t.hn.add(hn);
+    const fee = get(r, 'fee'); if (fee !== '' && fee !== '-' && !(+fee.replace(/[^\d.]/g, '') > 0)) t.free++;
+  }
+  const res = {};
+  for (const [fy, m] of out) res[fy] = [...m.values()].map(({ hn, ...t }) => ({ ...t, clients: hn.size })).sort((a, b) => b.delivered - a.delivered);
+  return res;
+}
+
+/** ตาราง (แถว × คอลัมน์) → ตัวเลขสรุป · ไม่พบหัวตาราง = throw */
+export function summarizeDelivery(rows) {
+  const { hi, col } = tableCols(rows);
   const title = String(rows.slice(0, hi).flat().find((c) => String(c).trim()) || '').replace(/\d{6,}/g, '').replace(/\s+/g, ' ').trim().slice(0, 200) || 'ประวัติรายการจัดส่งยา';
   const get = (r, k) => (col[k] >= 0 ? String(r[col[k]] ?? '').trim() : '');
   const s = { total: 0, ok: 0, cancel: 0, other: 0 }, hnOk = new Set(), hnAll = new Set();
@@ -56,7 +85,7 @@ export function summarizeDelivery(rows) {
     s.ok++; if (hn) hnOk.add(hn);
     add(service, serviceName(get(r, 'service')));
     if (c) add(month, `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}`);
-    add(tambon, clean(get(r, 'address').match(/ตำบล\s*([^\s]+)/)?.[1]) || 'ไม่ระบุ');
+    add(tambon, tambonOf(get(r, 'address')));
     add(rights, clean(get(r, 'rights')) || 'ไม่ระบุ');
     add(cover, clean(get(r, 'cover')) || 'ไม่ระบุ');
     const f = +get(r, 'fee').replace(/[^\d.]/g, '');
@@ -78,8 +107,22 @@ export function summarizeDelivery(rows) {
   };
 }
 
+/** ข้อความตาราง (วางจาก Excel = คั่นด้วย tab · CSV = คั่นด้วยจุลภาค) → [[ช่อง,…],…] */
+export function parseText(text) {
+  return String(text || '').split(/\r?\n/).map((line) => {
+    if (line.includes('\t')) return line.split('\t');
+    const out = []; let cur = '', q = false;   // CSV แบบมีเครื่องหมายคำพูด
+    for (const ch of line) {
+      if (ch === '"') q = !q;
+      else if (ch === ',' && !q) { out.push(cur); cur = ''; } else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }).filter((r) => r.some((c) => String(c).trim()));
+}
+
 /** อ่านไฟล์ในเครื่อง → ตาราง (CSV อ่านเอง · Excel ใช้ SheetJS จาก CDN) */
-async function readTable(f) {
+export async function readTable(f) {
   if (/\.csv$/i.test(f.name) || f.type === 'text/csv') return parseText((await f.text()).replace(/^﻿/, ''));
   const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
   const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });

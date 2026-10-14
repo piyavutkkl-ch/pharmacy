@@ -892,5 +892,13 @@ check("AI tagging done (unknown topic dropped · bad/foreign ids ignored)", "adm
 check("admin's own edit not overwritten by AI", None, f"select t.name from news n, unnest(n.topic_ids) x join news_topics t on t.id=x where n.id='{nid2}'", eq("ผู้สูงอายุ"))
 check("anon reads news topic_ids of published news", "anon", "select count(*) >= 0 from news where status='published' and topic_ids is not null", eq("t"))
 
+print("== step 52: Health Rider by tambon ==")
+check("admin saves rider stats by tambon", "admin", "insert into rider_tambon_stats(fiscal_year,tambon,delivered,clients,cancelled,free) values (2569,'ควนกาหลง',32,25,10,30),(2569,'ทุ่งนุ้ย',6,5,1,6) returning tambon", rows(2))
+check("anyone reads rider tambon stats", "anon", "select sum(delivered) from rider_tambon_stats where fiscal_year=2569", eq(38))
+check("staff cannot write rider tambon stats", "s2", "insert into rider_tambon_stats(fiscal_year,tambon) values (2569,'x')", "deny")
+check("anon cannot write rider tambon stats", "anon", "update rider_tambon_stats set delivered=0 returning tambon", "deny")
+check("tambon name with long digits rejected (no IDs)", "admin", "insert into rider_tambon_stats(fiscal_year,tambon) values (2569,'000081294')", "deny")
+check("negative numbers rejected", "admin", "insert into rider_tambon_stats(fiscal_year,tambon,delivered) values (2569,'อุใดเจริญ',-1)", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

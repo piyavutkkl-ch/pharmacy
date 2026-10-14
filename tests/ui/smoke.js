@@ -735,18 +735,27 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('หน้าหลัก: โปสเตอร์แสดง + ข้อความใหม่ + สถิติอัปเดต', await count(p, '#dlPosters .poster img') === 1 && (await text(p, '#dlInfo')).includes('บริการใหม่') && (await text(p, '#dlFigs')).includes('117'));
     await p.screenshot({ path: path.join(SHOTS, 'home-delivery-1280.png'), fullPage: true });
     await go(p, '#/admin/rider'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: Health Rider กรอกได้ทุก รพ.สต. + ข้อความแนะนำ', await count(p, '#hrStats .da-stat') === 7 && (await p.inputValue('#hrInfoEdit')).includes('Health Rider'));
-    await p.click('.hr-import summary');
-    await p.fill('#hrPaste', 'รพ.สต.\tครั้ง\tคน\nรพ.สต.ควนบ่อทอง\t10\t4\nกระทูน\t1,200\t300\nไม่มีชื่อนี้\t1\t1'); await p.click('#hrPasteUse'); await p.waitForTimeout(150);
-    check('ผู้ดูแล: วางตารางจาก Excel → เติมตัวเลขให้ + แจ้งชื่อที่ไม่พบ', (await p.inputValue('#hrStats [data-u="3"][data-k="trips"]')) === '10' && (await p.inputValue('#hrStats [data-u="1"][data-k="trips"]')) === '1200' && (await text(p, '#hrImportMsg')).includes('ไม่มีชื่อนี้'));
-    await p.setInputFiles('#hrFile', { name: 'rider.csv', mimeType: 'text/csv', buffer: Buffer.from('\ufeffรพ.สต.,ครั้ง,คน\nเหนือคลอง,"2,000",90\n') }); await p.waitForTimeout(300);
-    check('ผู้ดูแล: นำเข้าไฟล์ .csv ได้', (await p.inputValue('#hrStats [data-u="6"][data-k="trips"]')) === '2000' && (await p.inputValue('#hrStats [data-u="6"][data-k="clients"]')) === '90');
-    await p.click('#hrStatSave'); await p.waitForTimeout(300);
+    check('ผู้ดูแล: Health Rider แยกตามตำบล (หัวข้อตามไฟล์ประวัติการจัดส่งยา) + ข้อความแนะนำ', await count(p, '#hrStats .hr-trow') === 0 && (await text(p, '#hrStats')).includes('นำเข้าไฟล์') && (await p.inputValue('#hrInfoEdit')).includes('Health Rider'));
+    { const H = 'ลำดับ,บริการขนส่ง,สถานะ,HN,ชื่อผู้ใช้บริการ,วันเวลาที่สร้างออเดอร์,ค่าจัดส่ง,ที่อยู่จัดส่งยา';
+      const r = (i, svc, st, hn, d, fee, tam) => [i, svc, st, hn, 'ชื่อสมมติ' + i, `วันที่ ${d} เวลา 9:00 น.`, fee, `"ตำบล ${tam} อำเภอ ตัวอย่าง"`].join(',');
+      const csv = ['ประวัติรายการจัดส่งยา', H, r(1, 'rider', 'สำเร็จ', '000000001', '01/09/2569', 0, 'ควนกาหลง'), r(2, 'rider', 'สำเร็จ', '000000001', '02/09/2569', 0, 'ควนกาหลง'),
+        r(3, 'rider', 'ยกเลิก', '000000002', '03/09/2569', 65, 'ทุ่งนุ้ย'), r(4, 'post (Flash Express)', 'สำเร็จ', '000000003', '04/09/2569', 55, 'ทุ่งนุ้ย'),
+        r(5, 'rider', 'สำเร็จ', '000000004', '05/10/2569', 65, 'อุใดเจริญ')].join('\n');
+      await p.setInputFiles('#hrFile', { name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('\uFEFF' + csv) }); await p.waitForTimeout(500);
+      const v = async (t, k) => p.inputValue(`#hrStats [data-tambon="${t}"] [data-k="${k}"]`);
+      check('นำเข้าไฟล์ประวัติการจัดส่งยา: นับเฉพาะ rider แยกปีงบ × ตำบล (สำเร็จ 2 · คน 1 · ส่งฟรี 2 · ยกเลิก 1)', (await text(p, '#hrImportMsg')).includes('2569') && (await text(p, '#hrImportMsg')).includes('2570') && await visible(p, '#hrSaveAll')
+        && (await p.inputValue('#hrYear')) === '2570' && (await v('อุใดเจริญ', 'delivered')) === '1' && (await text(p, '#hrStats')).includes('ส่งฟรี'), await text(p, '#hrImportMsg'));
+      await p.selectOption('#hrYear', '2569'); await p.waitForTimeout(400);
+      check('นำเข้าไฟล์: ปีงบ 2569 ต.ควนกาหลง สำเร็จ 2 ผู้รับบริการ 1 ส่งฟรี 2 · ต.ทุ่งนุ้ย ยกเลิก 1 (ไปรษณีย์ไม่นับ)', (await v('ควนกาหลง', 'delivered')) === '2' && (await v('ควนกาหลง', 'clients')) === '1' && (await v('ควนกาหลง', 'free')) === '2' && (await v('ทุ่งนุ้ย', 'cancelled')) === '1' && (await v('ทุ่งนุ้ย', 'delivered')) === '0'); }
+    await p.click('#hrSaveAll'); await p.waitForTimeout(400);
+    { const up = (await calls(p, (c) => c.table === 'rider_tambon_stats' && c.op === 'upsert')).pop()?.payload || [];
+      check('บันทึกทุกปีงบจากไฟล์: เก็บเฉพาะตัวเลขรวม (ไม่มีชื่อ/HN)', up.length === 3 && !/ชื่อสมมติ|000000001/.test(JSON.stringify(up)), JSON.stringify(up)); }
+    await p.fill('#hrNewTambon', 'ตำบล กระทูน'); await p.click('#hrAddTambon'); await p.waitForTimeout(100);
+    check('เพิ่มตำบลเองได้ (ตัดคำว่า "ตำบล")', await count(p, '#hrStats [data-tambon="กระทูน"]') === 1);
     await p.fill('#hrInfoEdit', 'ไรเดอร์สุขภาพ ส่งยาถึงบ้าน'); await p.click('#hrInfoSave'); await p.waitForTimeout(300);
-    check('ผู้ดูแล: บันทึกผลงาน Health Rider หลาย รพ.สต. พร้อมกัน', (await calls(p, (c) => c.table === 'rider_stats' && c.op === 'upsert'))[0]?.payload?.length === 5);
     await go(p, '#/rider'); await p.waitForTimeout(500);
     check('ลิงก์ #/rider เดิม: เปิดช่องบริการจัดส่งยาถึงบ้านที่ผลงาน Health Rider', await visible(p, '[data-panel="delivery"] #hrBlock'));
-    check('หน้าหลัก Health Rider: ข้อความใหม่ + ผลงานอัปเดต', (await text(p, '#hrInfo')).includes('ไรเดอร์สุขภาพ') && (await text(p, '#hrFigs')).includes('3,258') && await count(p, '#hrBars .bar-row') === 5);
+    check('หน้าหลัก Health Rider: ข้อความใหม่ + ผลงานแยกตามตำบล', (await text(p, '#hrInfo')).includes('ไรเดอร์สุขภาพ') && (await text(p, '#hrFigs')).includes('ตำบลที่ให้บริการ') && (await text(p, '#hrBars')).includes('ต.อุใดเจริญ'), await text(p, '#hrFigs'));
     await p.screenshot({ path: path.join(SHOTS, 'home-rider-1280.png'), fullPage: true });
     // ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน: สรุปจากไฟล์ประวัติการจัดส่งยา (อ่านในเครื่อง · เก็บเฉพาะตัวเลขสรุป) + ปุ่ม AI
     { const head = 'ลำดับ,รหัสโรงพยาบาล,โรงพยาบาล,บริการขนส่ง,น้ำหนัก (กรัม),ขนาด (กว้าง x ยาว x สูง),สถานะ,รายละเอียดการขนส่ง,สถานะเดิม,เวลาที่อัปเดตสถานะ,เลขที่การจัดส่ง,ชื่อผู้ขับ,เบอร์โทรผู้ขับ,เลขออเดอร์,HN,VN,ชื่อผู้ใช้บริการ,หมายเลขบัตรประชาชน,เบอร์โทร,วันเวลาที่ลงทะเบียน,วันเวลาที่สร้างออเดอร์,ประเภทสิทธิการรักษา,รายละเอียดสิทธิการรักษา,ค่าจัดส่ง,วัน-เวลา จัดส่งพัสดุสำเร็จ,ที่อยู่จัดส่งยา,แพทย์/เจ้าหน้าที่,บริการ';

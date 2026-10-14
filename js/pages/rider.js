@@ -1,19 +1,20 @@
-// Health Rider (ขั้น 22) — หน้าแสดงผลงาน (ตัวเลขรวม ไม่มีข้อมูลรายบุคคล)
-//   หน้าหลัก #/rider: ข้อความแนะนำ + ผลงานรายปีงบ (รวมทั้งอำเภอ + ราย รพ.สต.) → initRider()
-//   แท็บ Health Rider ของเจ้าหน้าที่ (#/staff/rider) และผู้ดูแล (#/admin/rider) → mountRiderEditor(slot, unit)
-//     กรอกตัวเลข หรือนำเข้าจาก Excel (.xlsx / .csv / คัดลอกตารางมาวาง) แล้วกด "บันทึกและแสดงผลงาน"
-//     เจ้าหน้าที่ (unit = หน่วยตัวเอง) แก้ได้เฉพาะหน่วยตัวเอง · ผู้ดูแล (unit = null) แก้ได้ทุก รพ.สต. + ข้อความแนะนำ
+// Health Rider — หน้าแสดงผลงาน (ตัวเลขรวม ไม่มีข้อมูลรายบุคคล)
+//   หน้าหลัก (ช่องบริการจัดส่งยาถึงบ้าน #hrBlock): ข้อความแนะนำ + ผลงานรายปีงบ แยกตามตำบล (rider_tambon_stats · 55_rider_tambon.sql)
+//     ปีงบที่ยังไม่มีข้อมูลรายตำบล = แสดงแบบเดิมราย รพ.สต. (rider_stats)
+//   ผู้ดูแล › Health Rider (#/admin/rider) → mountRiderEditor(slot): ตามหัวข้อไฟล์ "ประวัติรายการจัดส่งยา" (นับเฉพาะบริการ rider)
+//     ส่งสำเร็จ (ครั้ง) · ผู้รับบริการ (คน) · ยกเลิก (ครั้ง) · ส่งฟรี (ครั้ง) ราย ตำบล · กรอกเอง หรือนำเข้าไฟล์ (อ่านในเครื่อง ไม่อัปโหลด)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { paras } from './delivery.js?v=4.4';
+import { readTable, riderByTambon } from './delivery-report.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
-export const RIDER_FIELDS = [['trips', 'ออกให้บริการ', 'ครั้ง'], ['clients', 'ผู้รับบริการ', 'คน']];
+export const RIDER_FIELDS = [['delivered', 'ส่งยาสำเร็จ', 'ครั้ง'], ['clients', 'ผู้รับบริการ', 'คน'], ['cancelled', 'ยกเลิก', 'ครั้ง'], ['free', 'ส่งฟรี', 'ครั้ง']];
 
 /* ======================= หน้าหลัก ======================= */
-let hrYear = CUR_FY, hrBound = false, stats = [];
+let hrYear = CUR_FY, hrBound = false, stats = [], tstats = [];
 
 export async function initRider() {
   const years = (await Promise.all([loadUnits(), loadYears()]))[1];
@@ -22,19 +23,32 @@ export async function initRider() {
     $('#hrYears').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (b) { hrYear = +b.dataset.y; renderStats(years); } });
   }
   $('#hrFigs').innerHTML = '<div class="skeleton"></div>';
-  const [t, s] = await Promise.all([
+  const [t, s, ts] = await Promise.all([
     sb.from('site_texts').select('body').eq('key', 'rider_info').maybeSingle(),
     sb.from('rider_stats').select('fiscal_year,unit_id,trips,clients'),
+    sb.from('rider_tambon_stats').select('fiscal_year,tambon,delivered,clients,cancelled,free'),
   ]);
   $('#hrInfo').innerHTML = paras(t.data?.body) || '<p class="muted">ยังไม่มีข้อมูลบริการ</p>';
-  stats = s.data || [];
+  stats = s.data || []; tstats = ts.data || [];
   renderStats(years);
 }
 
 function renderStats(years) {
-  const ys = [...new Set([...years, ...stats.map((r) => r.fiscal_year)])].filter((y) => y <= CUR_FY).sort((a, b) => a - b);
+  const ys = [...new Set([...years, ...stats.map((r) => r.fiscal_year), ...tstats.map((r) => r.fiscal_year)])].filter((y) => y <= CUR_FY).sort((a, b) => a - b);
   if (!ys.includes(hrYear)) hrYear = ys[ys.length - 1] ?? CUR_FY;
   $('#hrYears').innerHTML = ys.map((y) => `<button type="button" data-y="${y}" aria-current="${y === hrYear}">ปีงบประมาณ ${y}${y === CUR_FY ? ' (ปัจจุบัน)' : ''}</button>`).join('');
+  const trows = tstats.filter((r) => r.fiscal_year === hrYear);
+  if (trows.length) {   // แยกตามตำบล (ตามไฟล์ประวัติรายการจัดส่งยา)
+    const tot = trows.reduce((a, r) => ({ d: a.d + r.delivered, c: a.c + r.clients, x: a.x + r.cancelled, f: a.f + r.free }), { d: 0, c: 0, x: 0, f: 0 });
+    $('#hrFigs').innerHTML = `<div class="fig"><div class="n num">${n(tot.d)}</div><div class="t">ส่งยาสำเร็จ (ครั้ง)</div></div>`
+      + `<div class="fig"><div class="n num">${n(tot.c)}</div><div class="t">ผู้รับบริการ (คน)</div></div>`
+      + `<div class="fig"><div class="n num">${trows.filter((r) => r.delivered > 0).length}</div><div class="t">ตำบลที่ให้บริการ</div></div>`
+      + `<div class="fig"><div class="n num">${tot.d ? Math.round((tot.f / tot.d) * 100) : 0}%</div><div class="t">ส่งฟรี · ยกเลิก ${n(tot.x)} ครั้ง</div></div>`;
+    const max = Math.max(1, ...trows.map((r) => r.delivered));
+    $('#hrBars').innerHTML = [...trows].sort((a, b) => b.delivered - a.delivered).map((r) => `<div class="bar-row"><div><span>ต.${esc(r.tambon)}</span>`
+      + `<b class="num">${n(r.delivered)} ครั้ง · ${n(r.clients)} คน</b></div><div class="meter"><span style="width:${Math.round(r.delivered / max * 100)}%"></span></div></div>`).join('');
+    return;
+  }
   const rows = stats.filter((r) => r.fiscal_year === hrYear);
   const tot = rows.reduce((a, r) => ({ t: a.t + r.trips, c: a.c + r.clients }), { t: 0, c: 0 });
   $('#hrFigs').innerHTML = `<div class="fig"><div class="n num">${n(tot.t)}</div><div class="t">จำนวนครั้งที่ออกให้บริการ</div></div>`
@@ -46,128 +60,145 @@ function renderStats(years) {
     : '<p class="empty">ยังไม่มีผลงานของปีงบนี้</p>';
 }
 
-/* ======================= แท็บแก้ไข (เจ้าหน้าที่ / ผู้ดูแล) ======================= */
-let E = null;   // { unit (null = ผู้ดูแล), isAdmin, units }
+/* ======================= ผู้ดูแล › Health Rider (แยกตามตำบล) ======================= */
+let E = null;   // { draft: { [ปีงบ]: [{ tambon, … }] } จากไฟล์ที่นำเข้า (ยังไม่บันทึก) }
 
-const TEMPLATE = (isAdmin) => `
+const TEMPLATE = `
   <p class="small muted">ตัวเลขที่บันทึกแสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน (Health Rider) ทันที · <a href="#/rider">ดูหน้าผลงาน Health Rider</a></p>
   <div class="panel">
-    <div class="panel-head"><h2>ผลงาน Health Rider</h2><label class="small" for="hrYear">ปีงบประมาณ</label></div>
+    <div class="panel-head"><h2>ผลงาน Health Rider แยกตามตำบล</h2><label class="small" for="hrYear">ปีงบประมาณ</label></div>
     <select id="hrYear" class="input"></select>
-    <div class="da-stats" id="hrStats"></div>
-    <details class="hr-import">
-      <summary>นำเข้าจาก Excel</summary>
-      <p class="small muted">ตารางมี 3 คอลัมน์: <b>ชื่อ รพ.สต.</b> · <b>ออกให้บริการ (ครั้ง)</b> · <b>ผู้รับบริการ (คน)</b> (มีแถวหัวตารางหรือไม่ก็ได้)${isAdmin ? '' : ' · ระบบใช้เฉพาะแถวของหน่วยตัวเอง'}</p>
-      <div class="field"><label for="hrFile">เลือกไฟล์ Excel (.xlsx) หรือ .csv</label><input id="hrFile" class="input" type="file" accept=".xlsx,.xls,.csv,text/csv"></div>
-      <div class="field"><label for="hrPaste">หรือคัดลอกตารางจาก Excel มาวางที่นี่</label><textarea id="hrPaste" rows="4" placeholder="ชื่อ รพ.สต.&#9;ครั้ง&#9;คน"></textarea></div>
-      <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-o btn-sm" id="hrPasteUse">ใช้ข้อมูลที่วาง</button><span class="small" id="hrImportMsg" aria-live="polite"></span></div>
+    <p class="small muted">ตามหัวข้อไฟล์ "ประวัติรายการจัดส่งยา" · นับเฉพาะบริการขนส่ง rider · ส่งยาสำเร็จ / ผู้รับบริการ (คน ไม่นับซ้ำ) / ยกเลิก / ส่งฟรี (ค่าจัดส่ง 0 บาท)</p>
+    <div class="hr-tam" id="hrStats"></div>
+    <div class="nt-add"><input id="hrNewTambon" class="input" maxlength="60" placeholder="ชื่อตำบล" aria-label="ชื่อตำบลที่จะเพิ่ม"><button type="button" class="btn btn-o btn-sm" id="hrAddTambon">+ เพิ่มตำบล</button></div>
+    <details class="hr-import" open>
+      <summary>นำเข้าจากไฟล์ประวัติรายการจัดส่งยา</summary>
+      <p class="small muted">เลือกไฟล์ .xlsx หรือ .csv จากระบบจัดส่งยา · ระบบนับในเครื่องนี้ <b>ไม่อัปโหลดไฟล์</b> และเก็บเฉพาะตัวเลขรวม · แยกปีงบจากวันที่สร้างออเดอร์</p>
+      <div class="field"><label for="hrFile">เลือกไฟล์</label><input id="hrFile" class="input" type="file" accept=".xlsx,.xls,.csv,text/csv"></div>
+      <span class="small" id="hrImportMsg" aria-live="polite"></span>
     </details>
-    <div><button type="button" class="btn btn-p btn-sm" id="hrStatSave">บันทึกและแสดงผลงาน</button></div>
+    <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="hrStatSave">บันทึกและแสดงผลงาน</button><button type="button" class="btn btn-o btn-sm" id="hrSaveAll" hidden>บันทึกทุกปีงบจากไฟล์</button></div>
   </div>
-  ${isAdmin ? `<div class="panel">
+  <div class="panel">
     <h2>ข้อความแนะนำ Health Rider</h2>
     <label for="hrInfoEdit" class="small muted">แสดงเหนือผลงานที่หน้าหลัก · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่</label>
     <textarea id="hrInfoEdit" rows="4" maxlength="5000"></textarea>
     <div><button type="button" class="btn btn-p btn-sm" id="hrInfoSave">บันทึกข้อความ</button></div>
-  </div>` : ''}`;
+  </div>`;
 
-/** แสดงหน้าแก้ไข Health Rider ใน slot · unit = รพ.สต. ของเจ้าหน้าที่ หรือ null สำหรับผู้ดูแล */
-export async function mountRiderEditor(slot, unit = null) {
-  const isAdmin = unit == null;
+/** หน้าแก้ไขผลงาน Health Rider (ผู้ดูแล) ใน slot */
+export async function mountRiderEditor(slot) {
   slot.innerHTML = '<div class="skeleton"></div>';
-  let units, years;
-  try { [units, years] = await Promise.all([loadUnits(), loadYears({ includeHidden: true })]); }
+  let years;
+  try { years = await loadYears({ includeHidden: true }); }
   catch (err) { slot.innerHTML = `<p class="empty">${esc(errText(err))}</p>`; return; }
   document.querySelectorAll('[data-rider-slot]').forEach((s) => { if (s !== slot) s.innerHTML = ''; });   // id ในหน้าต้องไม่ซ้ำ
-  slot.innerHTML = TEMPLATE(isAdmin);
-  E = { unit, isAdmin, units: isAdmin ? units : units.filter((u) => u.id === unit) };
+  slot.innerHTML = TEMPLATE;
+  E = { draft: {} };
   const ys = [...new Set([...years, CUR_FY, CUR_FY + 1])].sort((a, b) => b - a);
   $('#hrYear').innerHTML = ys.map((y) => `<option value="${y}"${y === CUR_FY ? ' selected' : ''}>ปีงบประมาณ ${y}</option>`).join('');
   $('#hrYear').addEventListener('change', loadStats);
   $('#hrStatSave').addEventListener('click', saveStats);
+  $('#hrSaveAll').addEventListener('click', saveAll);
   $('#hrFile').addEventListener('change', importFile);
-  $('#hrPasteUse').addEventListener('click', () => applyRows(parseText($('#hrPaste').value)));
-  const jobs = [loadStats()];
-  if (isAdmin) {
-    $('#hrInfoSave').addEventListener('click', saveInfo);
-    jobs.push(sb.from('site_texts').select('body').eq('key', 'rider_info').maybeSingle().then((t) => { $('#hrInfoEdit').value = t.data?.body || ''; }));
-  }
-  await Promise.all(jobs);
+  $('#hrAddTambon').addEventListener('click', addTambon);
+  $('#hrNewTambon').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTambon(); } });
+  $('#hrStats').addEventListener('click', delTambon);
+  $('#hrInfoSave').addEventListener('click', saveInfo);
+  await Promise.all([loadStats(), sb.from('site_texts').select('body').eq('key', 'rider_info').maybeSingle().then((t) => { $('#hrInfoEdit').value = t.data?.body || ''; })]);
 }
+
+const rowHtml = (r, saved) => `<div class="da-stat hr-trow" data-tambon="${esc(r.tambon)}"${saved ? ' data-saved="1"' : ''}><span>ต.${esc(r.tambon)}</span>`
+  + RIDER_FIELDS.map(([k, label, u]) => `<label class="small">${label} (${u})<input class="input" type="number" inputmode="numeric" min="0" data-k="${k}" value="${r[k] ?? ''}"></label>`).join('')
+  + `<button type="button" class="btn btn-no btn-sm" data-del-tambon aria-label="ลบตำบล ${esc(r.tambon)}">ลบ</button></div>`;
 
 async function loadStats() {
   const y = +$('#hrYear').value;
-  let q = sb.from('rider_stats').select('unit_id,trips,clients').eq('fiscal_year', y);
-  if (!E.isAdmin) q = q.eq('unit_id', E.unit);
-  const { data } = await q;
-  const m = new Map((data || []).map((r) => [r.unit_id, r]));
-  $('#hrStats').innerHTML = E.units.map((u) => `<div class="da-stat"><span>${esc(u.name)}</span>`
-    + RIDER_FIELDS.map(([k, label, unitLabel]) => `<label class="small">${label} (${unitLabel})<input class="input" type="number" inputmode="numeric" min="0" data-u="${u.id}" data-k="${k}" value="${m.get(u.id)?.[k] ?? ''}"></label>`).join('')
-    + '</div>').join('');
+  $('#hrStats').innerHTML = '<div class="skeleton"></div>';
+  const { data, error } = await sb.from('rider_tambon_stats').select('tambon,delivered,clients,cancelled,free').eq('fiscal_year', y);
+  if (error) { $('#hrStats').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+  const saved = new Map((data || []).map((r) => [r.tambon, r]));
+  const draft = E.draft[y] || [];
+  const names = [...new Set([...draft.map((r) => r.tambon), ...saved.keys()])];
+  $('#hrStats').innerHTML = names.map((t) => rowHtml(draft.find((r) => r.tambon === t) || saved.get(t) || { tambon: t }, saved.has(t))).join('')
+    || `<p class="empty">ยังไม่มีผลงานของปีงบ ${y} · นำเข้าไฟล์ด้านล่าง หรือเพิ่มตำบลแล้วกรอกเอง</p>`;
 }
 
-/* ---------- นำเข้าจาก Excel ---------- */
-/** ข้อความตาราง (วางจาก Excel = คั่นด้วย tab · CSV = คั่นด้วยจุลภาค) → [[ช่อง,…],…] */
-export function parseText(text) {
-  return String(text || '').split(/\r?\n/).map((line) => {
-    if (line.includes('\t')) return line.split('\t');
-    const out = []; let cur = '', q = false;   // CSV แบบมีเครื่องหมายคำพูด
-    for (const ch of line) {
-      if (ch === '"') q = !q;
-      else if (ch === ',' && !q) { out.push(cur); cur = ''; } else cur += ch;
-    }
-    out.push(cur);
-    return out;
-  }).filter((r) => r.some((c) => String(c).trim()));
+function addTambon() {
+  const t = $('#hrNewTambon').value.replace(/^ต(?:ำบล|\.)\s*/, '').trim();
+  if (!t) { $('#hrNewTambon').focus(); return; }
+  if ([...document.querySelectorAll('#hrStats [data-tambon]')].some((r) => r.dataset.tambon === t)) { toast('มีตำบลนี้แล้ว', 'err'); return; }
+  $('#hrStats .empty')?.remove();
+  $('#hrStats').insertAdjacentHTML('beforeend', rowHtml({ tambon: t }, false));
+  $('#hrNewTambon').value = '';
 }
 
-async function importFile(e) {
-  const f = e.target.files[0]; if (!f) return;
-  const msg = $('#hrImportMsg');
-  try {
-    if (/\.csv$/i.test(f.name) || f.type === 'text/csv') { applyRows(parseText((await f.text()).replace(/^﻿/, ''))); return; }
-    msg.textContent = 'กำลังอ่านไฟล์ Excel…';
-    const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
-    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
-    applyRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' }));
-  } catch (err) { msg.textContent = ''; toast('อ่านไฟล์ไม่สำเร็จ: ' + errText(err) + ' · ลองบันทึกเป็น .csv หรือคัดลอกตารางมาวางแทน', 'err'); }
-  finally { e.target.value = ''; }
-}
-
-const norm = (s) => String(s || '').replace(/รพ\.?\s*สต\.?|โรงพยาบาลส่งเสริมสุขภาพตำบล|\s/g, '');
-const num = (s) => { const v = +String(s ?? '').replace(/[,\s]/g, ''); return Number.isFinite(v) && v >= 0 ? Math.round(v) : null; };
-
-/** ใส่ตัวเลขจากตารางลงช่องกรอก (ยังไม่บันทึก — ให้ตรวจก่อนกดบันทึก) */
-function applyRows(rows) {
-  const msg = $('#hrImportMsg');
-  let hit = 0; const miss = [];
-  for (const r of rows) {
-    const name = norm(r[0]);
-    if (!name || num(r[1]) == null) continue;   // แถวหัวตาราง/แถวว่าง
-    const u = E.units.find((x) => norm(x.name) === name) || E.units.find((x) => name.includes(norm(x.name)));
-    if (!u) { if (E.isAdmin) miss.push(String(r[0]).trim()); continue; }
-    RIDER_FIELDS.forEach(([k], i) => { const v = num(r[i + 1]); if (v != null) $(`#hrStats [data-u="${u.id}"][data-k="${k}"]`).value = v; });
-    hit++;
+async function delTambon(e) {
+  const b = e.target.closest('[data-del-tambon]'); if (!b) return;
+  const row = b.closest('[data-tambon]'), t = row.dataset.tambon, y = +$('#hrYear').value;
+  if (row.dataset.saved) {
+    if (!confirm(`ลบผลงานของ ต.${t} ปีงบ ${y}?`)) return;
+    const { error } = await sb.from('rider_tambon_stats').delete().eq('fiscal_year', y).eq('tambon', t);
+    if (error) { toast(errText(error), 'err'); return; }
+    toast('ลบแล้ว');
   }
-  msg.style.color = hit ? 'var(--success)' : 'var(--error)';
-  msg.textContent = hit ? `นำเข้า ${hit} รพ.สต. แล้ว — ตรวจตัวเลขแล้วกด "บันทึกและแสดงผลงาน"${miss.length ? ` · ไม่พบชื่อ: ${miss.join(', ')}` : ''}`
-    : 'ไม่พบแถวที่ตรงกับชื่อ รพ.สต. — คอลัมน์แรกต้องเป็นชื่อ รพ.สต.';
+  if (E.draft[y]) E.draft[y] = E.draft[y].filter((r) => r.tambon !== t);
+  row.remove();
+}
+
+function readRows(y) {
+  const rows = [];
+  for (const r of document.querySelectorAll('#hrStats [data-tambon]')) {
+    const v = (k) => r.querySelector(`[data-k="${k}"]`).value;
+    if (RIDER_FIELDS.every(([k]) => v(k) === '')) continue;
+    const row = { fiscal_year: y, tambon: r.dataset.tambon, updated_at: new Date().toISOString() };
+    for (const [k] of RIDER_FIELDS) { row[k] = Math.round(+v(k) || 0); if (row[k] < 0) throw new Error('ตัวเลขต้องไม่ติดลบ'); }
+    rows.push(row);
+  }
+  return rows;
 }
 
 async function saveStats() {
-  const y = +$('#hrYear').value, rows = [];
-  for (const u of E.units) {
-    const v = (k) => $(`#hrStats [data-u="${u.id}"][data-k="${k}"]`).value;
-    if (RIDER_FIELDS.every(([k]) => v(k) === '')) continue;
-    const row = { fiscal_year: y, unit_id: u.id, updated_at: new Date().toISOString() };
-    for (const [k] of RIDER_FIELDS) { row[k] = Math.round(+v(k) || 0); if (row[k] < 0) { toast('ตัวเลขต้องไม่ติดลบ', 'err'); return; } }
-    rows.push(row);
-  }
+  const y = +$('#hrYear').value;
+  let rows;
+  try { rows = readRows(y); } catch (err) { toast(err.message, 'err'); return; }
   if (!rows.length) { toast('ยังไม่ได้กรอกตัวเลข', 'err'); return; }
   const btn = $('#hrStatSave'); busy(btn, true, 'กำลังบันทึก…');
-  const { error } = await sb.from('rider_stats').upsert(rows);
+  const { error } = await sb.from('rider_tambon_stats').upsert(rows);
   busy(btn, false);
-  if (error) toast(errText(error), 'err'); else toast(`บันทึกผลงานปีงบ ${y} แล้ว${E.isAdmin ? ` (${rows.length} รพ.สต.)` : ''} · แสดงที่หน้าหลักแล้ว`);
+  if (error) { toast(errText(error), 'err'); return; }
+  delete E.draft[y]; $('#hrSaveAll').hidden = Object.keys(E.draft).length < 1;
+  toast(`บันทึกผลงานปีงบ ${y} แล้ว (${rows.length} ตำบล) · แสดงที่หน้าหลักแล้ว`);
+  loadStats();
+}
+
+async function saveAll() {
+  const rows = Object.entries(E.draft).flatMap(([y, list]) => list.map((r) => ({ fiscal_year: +y, ...r, updated_at: new Date().toISOString() })));
+  if (!rows.length) return;
+  const btn = $('#hrSaveAll'); busy(btn, true, 'กำลังบันทึก…');
+  const { error } = await sb.from('rider_tambon_stats').upsert(rows);
+  busy(btn, false);
+  if (error) { toast(errText(error), 'err'); return; }
+  toast(`บันทึกแล้ว ${Object.keys(E.draft).length} ปีงบ · แสดงที่หน้าหลักแล้ว`);
+  E.draft = {}; $('#hrSaveAll').hidden = true; loadStats();
+}
+
+/** นำเข้าไฟล์ประวัติรายการจัดส่งยา → นับเฉพาะ rider ราย ปีงบ × ตำบล → ใส่ช่องกรอก (ยังไม่บันทึก) */
+async function importFile(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const msg = $('#hrImportMsg'); msg.style.color = ''; msg.textContent = 'กำลังอ่านไฟล์ในเครื่อง…';
+  try {
+    const res = riderByTambon(await readTable(f)), ys = Object.keys(res).map(Number).sort((a, b) => a - b);
+    if (!ys.length) throw new Error('ไม่พบรายการบริการขนส่ง rider ในไฟล์');
+    E.draft = res;
+    const cur = +$('#hrYear').value, show = ys.includes(cur) ? cur : ys[ys.length - 1];
+    if (![...$('#hrYear').options].some((o) => +o.value === show)) $('#hrYear').insertAdjacentHTML('beforeend', `<option value="${show}">ปีงบประมาณ ${show}</option>`);
+    $('#hrYear').value = String(show); await loadStats();
+    $('#hrSaveAll').hidden = ys.length < 2;
+    msg.style.color = 'var(--success)';
+    msg.textContent = `นับแล้ว ปีงบ ${ys.join(', ')} · ${ys.map((y) => `${y}: ${res[y].reduce((a, r) => a + r.delivered, 0)} ครั้ง ${res[y].length} ตำบล`).join(' · ')} — ตรวจตัวเลขแล้วกดบันทึก${ys.length > 1 ? ' (หรือ "บันทึกทุกปีงบจากไฟล์")' : ''}`;
+  } catch (err) { msg.style.color = 'var(--error)'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + errText(err) + ' · ลองบันทึกเป็น .csv แล้วเลือกใหม่'; }
+  finally { e.target.value = ''; }
 }
 
 async function saveInfo() {
