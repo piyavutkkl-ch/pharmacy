@@ -262,6 +262,11 @@ function rpc(name, a = {}) {
       const drps = (list) => list.reduce((s, x) => s + (x.drps?.length || 0), 0);
       return { data: [{ visits: v.length, drps_found: drps(v), drps_resolved: drps(v.filter((x) => x.drp_resolved)), excess_resolved: 0 }], error: null };
     }
+    case 'public_drp_stats': {
+      const m = new Map();
+      for (const v of db.visits.filter((x) => x.fiscal_year === a.p_year && (a.p_unit == null || x.unit_id === a.p_unit))) for (const d of v.drps || []) { const r = m.get(d) || { drp: d, found: 0, resolved: 0 }; r.found++; if (v.drp_resolved) r.resolved++; m.set(d, r); }
+      return { data: [...m.values()].sort((x, y) => y.found - x.found || y.resolved - x.resolved || x.drp.localeCompare(y.drp)), error: null };
+    }
     case 'public_unit_scores': {
       const items = new Set(db.criteria_items.filter((i) => i.fiscal_year === a.p_year).map((i) => i.id));
       return { data: db.units.map((u) => ({ unit_id: u.id, unit_name: u.name, score: db.item_status.filter((s) => s.unit_id === u.id && s.status === 'approved' && items.has(s.item_id)).length, max_score: items.size }))

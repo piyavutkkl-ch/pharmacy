@@ -270,7 +270,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#vsPeopleFold > summary'); await p.waitForTimeout(150);
     await p.click('#vsPeopleTabs [data-pt="2"]'); await p.waitForTimeout(100);
     check('ผู้ร่วมลง: แท็บแยก รพ.สต. กดครั้งเดียวเห็นรายชื่อหน่วยนั้น', (await text(p, '#vsPeople')).includes('สมศรี') && !(await text(p, '#vsPeople')).includes('ภก.ผู้ดูแล') && await count(p, '#vsPeopleTabs [data-pt]') === 9);
-    check('ผู้ร่วมลง: กล่องรายชื่อสูงพอเห็น ~3 ชื่อ แล้วเลื่อนดูต่อ', await p.$eval('#vsPeople', (e) => parseFloat(getComputedStyle(e).maxHeight) <= 180));
+    check('ผู้ร่วมลง: กล่องรายชื่อสูงพอเห็น ~5 ชื่อ แล้วเลื่อนดูต่อ', await p.$eval('#vsPeople', (e) => { const h = parseFloat(getComputedStyle(e).maxHeight); return h >= 250 && h <= 300; }));
     await p.click('#vsPeopleTabs [data-pt="all"]'); await p.waitForTimeout(100);
     const me = await p.evaluate(() => window.__db.profiles.find((x) => x.email === 's2@gmail.com').id), adm = await p.evaluate(() => window.__db.profiles.find((x) => x.role === 'admin').id);
     check('สรุปผลงาน: เลือกผู้ร่วมลงจากรายชื่อผู้ดูแล + เจ้าหน้าที่ (ตัวเองติ๊กไว้แล้ว · ไม่มีประชาชน)', (await text(p, '#vsPeople')).includes('ผู้ดูแล (โรงพยาบาล)') && await p.isChecked(`#vsPeople input[value="${me}"]`)
@@ -304,6 +304,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     let achN0 = 0;
     check('สรุปผลงาน: ช่องบันทึกเป็นผลงานตามมาตรฐานข้อ (ติ๊กเปิด)', !(await p.isVisible('#vsCrit')));
     await p.check('#vsCritOn'); await p.waitForTimeout(400);
+    check('สรุปผลงาน: ติ๊กกล่องมาตรฐาน → เลื่อนไปข้อ 4.5.1 ทันที (ไฮไลต์)', await p.evaluate(() => { const el = document.querySelector('#vsCrit .crit-opt.hl'), box = document.querySelector('#vsCrit'); if (!el) return false; const r = el.getBoundingClientRect(), b = box.getBoundingClientRect(); return el.textContent.includes('4.5.1') && r.top >= b.top - 1 && r.bottom <= b.bottom + 1 && box.scrollTop > 0; }));
     const critId = await p.getAttribute('#vsCrit input[type=checkbox]', 'value');
     await p.check(`#vsCrit input[value="${critId}"]`); await p.waitForTimeout(100);
     check('สรุปผลงาน: เลือกข้อมาตรฐานได้ + บอกข้อที่เลือก', (await text(p, '#vsCritN')).includes('เลือกแล้ว: ข้อ'));
@@ -837,6 +838,28 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผลงาน: ระงับการแสดงได้ (ยังไม่ลบ · มีป้าย + ปุ่มแสดงอีกครั้ง)', await q.evaluate((id) => window.__db.achievements.find((a) => a.id === id)?.hidden === true, aid) && (await text(q, '#saList')).includes('ระงับการแสดง') && (await text(q, `[data-hide="${aid}"]`)).includes('แสดงอีกครั้ง'));
       await go(q, '#/tracking'); await q.waitForTimeout(600);
       check('ผลงาน: ที่ระงับไว้ไม่ขึ้นหน้าหลัก (ผลการดำเนินงาน)', !(await text(q, '#trkSums')).includes('ตู้เย็นเก็บยา'));
+      await q.close(); }
+    // ผลการดำเนินงาน: กดตัวเลข → DRPs แยกชนิด (ทุกคน · ตัวเลขรวม) / รายการเยี่ยม (เจ้าหน้าที่/ผู้ดูแลเท่านั้น)
+    const visitFy = await p.evaluate(() => window.__db.visits.find((v) => (v.drps || []).length)?.fiscal_year);
+    { const q = await open(null, '#/tracking'); await q.waitForTimeout(700);
+      await q.click(`#trkYearTabs [data-y="${visitFy}"]`); await q.waitForTimeout(400);
+      await q.click('#trkDrpsBtn'); await q.waitForTimeout(400);
+      const rows = await q.$$eval('#trkDetail .drp-row', (rs) => rs.map((r) => +(r.textContent.match(/พบ (\d+)/) || [])[1]));
+      check('ผลการดำเนินงาน: กด DRPs → แยกชนิด พบ/แก้ไขสำเร็จ เรียงมากไปน้อย (ไม่มีชื่อผู้ป่วย)', rows.length >= 1 && rows.join() === [...rows].sort((a, b) => b - a).join() && (await text(q, '#trkDetail')).includes('แก้ไขสำเร็จ') && !(await text(q, '#trkDetail')).includes('ประยูร'), JSON.stringify(rows));
+      await q.setViewportSize({ width: 390, height: 900 }); await q.waitForTimeout(200);
+      await (await q.$('#trkDetail')).screenshot({ path: path.join(SHOTS, 'tracking-drps-390.png') });
+      check('ผลการดำเนินงาน: DRPs แยกชนิด 390px ไม่ล้นจอ', await overflow(q) <= 0);
+      await q.setViewportSize({ width: 1280, height: 900 });
+      await q.click('#trkVisitsBtn'); await q.waitForTimeout(400);
+      check('ผลการดำเนินงาน: ประชาชนกดจำนวนการเยี่ยม → ไม่เห็นรายชื่อ (ให้เข้าสู่ระบบ)', (await text(q, '#trkDetail')).includes('เฉพาะเจ้าหน้าที่') && !(await q.$('#trkDetail .trk-visits')));
+      await q.close(); }
+    { const q = await open('staff', '#/tracking'); await q.waitForTimeout(700);
+      await q.click(`#trkYearTabs [data-y="${visitFy}"]`); await q.waitForTimeout(400);
+      const before = (await calls(q, (c) => c.rpc === 'log_patient_access')).length;
+      await q.click('#trkVisitsBtn'); await q.waitForTimeout(500);
+      check('ผลการดำเนินงาน: เจ้าหน้าที่กดจำนวนการเยี่ยม → เห็นรายการเยี่ยม (ชื่อ · วันที่) ของหน่วยตัวเอง + ลิงก์ไปบันทึก + บันทึกการเปิดดู (PDPA)', await count(q, '#trkDetail .trk-visits a.li') >= 1 && (await text(q, '#trkDetail')).includes('ประยูร') && (await q.getAttribute('#trkDetail .trk-visits a.li', 'href')).startsWith('#/staff/visits/') && (await calls(q, (c) => c.rpc === 'log_patient_access')).length > before && (await q.$$eval('#trkDetail .trk-visits .small', (s) => s.every((x) => x.textContent.includes('ทุ่งนุ้ย')))));
+      await q.click('#trkVisitsBtn'); await q.waitForTimeout(200);
+      check('ผลการดำเนินงาน: กดซ้ำ = ปิดรายละเอียด', !(await q.isVisible('#trkDetail')));
       await q.close(); }
     { const q = await open('staff', '#/staff/achievements', 390, 844); await q.waitForTimeout(300);
       await (await q.$('#saList')).screenshot({ path: path.join(SHOTS, 'staff-ach-list-390.png') });

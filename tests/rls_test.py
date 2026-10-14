@@ -187,6 +187,7 @@ check("admin edits contact info", "admin", "update units set phone='074-000-000'
 
 print("== step 4.1 ==")
 check("DRP count = number of problems (1 + 1 = 2 found, 1 resolved)", "anon", "select drps_found||'/'||drps_resolved from public_tracking_stats(2570, null)", eq("2/1"))
+check("DRP breakdown by type (anon · numbers only · totals match)", "anon", "select sum(found)||'/'||sum(resolved)||':'||count(*) from public_drp_stats(2570, null)", lambda o: o.strip().startswith('2/1:'))
 check("admin cannot deactivate self", "admin", "update staff_roster set active=false where email='admin@hosp.th'", "deny")
 check("admin cannot demote self", "admin", "update staff_roster set role='staff', unit_id=1 where email='admin@hosp.th'", "deny")
 check("admin cannot delete self", "admin", "delete from staff_roster where email='admin@hosp.th'", "deny")

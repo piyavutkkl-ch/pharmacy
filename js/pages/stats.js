@@ -1,12 +1,13 @@
 // ผลการดำเนินงาน (ตัวเลขสรุป), ผลงาน รพ.สต., อันดับเกณฑ์มาตรฐาน, ช่องทางติดต่อ — ข้อมูลสาธารณะ ไม่มีข้อมูลรายบุคคล
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, esc, art, thaiDate, fiscalYearOf } from '../util.js?v=4.4';
+import { $, esc, art, thaiDate, fiscalYearOf, errText } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { loadSummaryList, renderSummaryPoster } from './summaries.js?v=4.4';
 import { bindPosterNav } from './delivery.js?v=4.4';
 import { smartCover } from '../lightbox.js?v=4.4';
 import { paras } from './delivery.js?v=4.4';
 import { sortItems } from '../data.js?v=4.4';
+import { auth } from '../auth.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 
@@ -19,6 +20,7 @@ export async function initTracking() {
     trkBound = true;
     $('#trkUnitTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-u]'); if (!b) return; trkUnit = b.dataset.u === 'all' ? 'all' : +b.dataset.u; renderTracking(units, years); });
     $('#trkYearTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (!b) return; trkYear = +b.dataset.y; renderTracking(units, years); });
+    document.querySelectorAll('[data-trk]').forEach((b) => b.addEventListener('click', () => { trkOpen = trkOpen === b.dataset.trk ? null : b.dataset.trk; renderTrkDetail(); }));
   }
   renderTracking(units, years);
 }
@@ -35,6 +37,45 @@ async function renderTracking(units, years) {
   $('#trkVisits').textContent = r.visits.toLocaleString('th-TH');
   $('#trkDrps').textContent = `${r.drps_found} / ${r.drps_resolved}`;
   $('#trkMedExcess').textContent = r.excess_resolved.toLocaleString('th-TH');
+  renderTrkDetail();
+}
+
+/* กดตัวเลข → รายละเอียดใต้ตัวเลข: DRPs แยกชนิด (ทุกคน · ตัวเลขรวม) · รายการเยี่ยม (เฉพาะเจ้าหน้าที่/ผู้ดูแล · RLS + บันทึกการเปิดดู PDPA) */
+let trkOpen = null, trkSeq = 0;
+const isStaffish = () => ['staff', 'admin'].includes(auth.profile?.role);
+async function renderTrkDetail() {
+  const box = $('#trkDetail'), seq = ++trkSeq;
+  $('#trkVisitsMore').hidden = !isStaffish();
+  document.querySelectorAll('[data-trk]').forEach((b) => b.setAttribute('aria-expanded', String(trkOpen === b.dataset.trk)));
+  box.hidden = !trkOpen;
+  if (!trkOpen) return;
+  const where = `${trkUnit === 'all' ? 'ทั้งอำเภอ' : 'รพ.สต.' + esc(unitName(trkUnit))} · ปีงบประมาณ ${trkYear}`;
+  box.innerHTML = '<div class="skeleton"></div>';
+  if (trkOpen === 'drps') {
+    const { data, error } = await sb.rpc('public_drp_stats', { p_year: trkYear, p_unit: trkUnit === 'all' ? null : trkUnit });
+    if (seq !== trkSeq) return;
+    if (error) { box.innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+    const max = Math.max(1, ...(data || []).map((d) => d.found));
+    box.innerHTML = `<h3>DRPs แยกตามชนิด <span class="small muted">${where} · เรียงจากพบมากไปน้อย</span></h3>`
+      + ((data || []).length ? data.map((d) => `<div class="drp-row"><span>${esc(d.drp)}</span><span class="small num"><b>พบ ${d.found.toLocaleString('th-TH')}</b> · แก้ไขสำเร็จ ${d.resolved.toLocaleString('th-TH')} (${Math.round((d.resolved / d.found) * 100)}%)</span>`
+        + `<span class="drp-bar" aria-hidden="true"><i style="width:${(d.found / max) * 100}%"></i></span><span class="drp-bar" aria-hidden="true"><i class="ok" style="width:${(d.resolved / max) * 100}%"></i></span></div>`).join('')
+        + '<p class="small muted">แถบบน = พบ · แถบล่าง (เขียว) = แก้ไขสำเร็จ · นับจากบันทึกการเยี่ยมที่พบ DRP ชนิดนั้น</p>'
+        : '<p class="empty">ยังไม่พบ DRPs ในช่วงนี้</p>');
+    return;
+  }
+  if (!isStaffish()) { box.innerHTML = `<p class="empty">รายการเยี่ยม (ชื่อผู้ป่วย) ดูได้เฉพาะเจ้าหน้าที่ รพ.สต. และผู้ดูแลระบบ · <a href="#/login">เข้าสู่ระบบ</a></p>`; return; }
+  let q = sb.from('visits').select('id,visit_date,unit_id,patient_id,drps,drp_resolved,patient:patients(first_name,last_name)').eq('fiscal_year', trkYear);
+  if (trkUnit !== 'all') q = q.eq('unit_id', trkUnit);
+  const { data, error } = await q.order('visit_date', { ascending: false }).limit(1000);
+  if (seq !== trkSeq) return;
+  if (error) { box.innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+  [...new Set((data || []).map((v) => v.unit_id))].forEach((u) => sb.rpc('log_patient_access', { p_unit: u, p_patient: null }).then(() => {}, () => {}));   // PDPA
+  const role = auth.profile.role, own = role === 'staff' && trkUnit === 'all';
+  box.innerHTML = `<h3>รายการเยี่ยม <span class="small muted">${where} · ${(data || []).length} รายการ${own ? ' · แสดงเฉพาะผู้ป่วยของ รพ.สต. ตัวเอง' : ''}</span></h3>`
+    + ((data || []).length ? `<div class="list trk-visits">${data.map((v) => `<a class="li" href="#/${role}/visits/${esc(v.id)}"><div class="l"><b>${esc(v.patient ? `${v.patient.first_name} ${v.patient.last_name}` : 'ผู้ป่วย')}</b>`
+      + `<span class="small muted">เยี่ยมวันที่ ${esc(thaiDate(v.visit_date))} · รพ.สต.${esc(unitName(v.unit_id))} · ${v.drps?.length ? `DRPs ${v.drps.length} ข้อ${v.drp_resolved ? ' (แก้ไขสำเร็จ)' : ''}` : 'ไม่พบ DRPs'}</span></div></a>`).join('')}</div>`
+      + '<p class="small muted">ข้อมูลผู้ป่วย · ใช้เพื่อการดูแลเท่านั้น · การเปิดดูถูกบันทึกตาม PDPA</p>'
+      : '<p class="empty">ยังไม่มีการเยี่ยมในช่วงนี้</p>');
 }
 
 /** แถว "ผลงานด้านเภสัชกรรมปฐมภูมิ" ใต้ผลการดำเนินงาน: ผลงานที่เจ้าหน้าที่ส่งจากเมนูผลงาน ตาม รพ.สต./ปีงบที่เลือก (ปีงบนับจากวันที่ส่ง) */

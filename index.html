@@ -138,11 +138,12 @@
       <div class="track-grid">
         <div class="cover" id="trackArt"></div>
         <div class="track-figs" aria-live="polite">
-          <div class="fig"><div class="n num" id="trkVisits">–</div><div class="t">จำนวนการออกเยี่ยม</div></div>
-          <div class="fig"><div class="n num" id="trkDrps">–</div><div class="t">DRPs ที่พบ / ที่ได้รับการแก้ไขสำเร็จ</div></div>
+          <button type="button" class="fig fig-btn" id="trkVisitsBtn" data-trk="visits" aria-expanded="false" aria-controls="trkDetail"><div class="n num" id="trkVisits">–</div><div class="t">จำนวนการออกเยี่ยม <span class="fig-more" id="trkVisitsMore" hidden>ดูรายการเยี่ยม ›</span></div></button>
+          <button type="button" class="fig fig-btn" id="trkDrpsBtn" data-trk="drps" aria-expanded="false" aria-controls="trkDetail"><div class="n num" id="trkDrps">–</div><div class="t">DRPs ที่พบ / ที่ได้รับการแก้ไขสำเร็จ <span class="fig-more">ดูแยกชนิด ›</span></div></button>
           <div class="fig"><div class="n num" id="trkMedExcess">–</div><div class="t">ผู้ป่วยที่ได้รับการแก้ไขยาคงค้างที่บ้านเกิน 1 เดือน</div></div>
         </div>
       </div>
+      <div class="trk-detail" id="trkDetail" hidden aria-live="polite"></div>
     </div>
     <div class="panel">
       <div class="panel-head"><h2>ผลงานด้านเภสัชกรรมปฐมภูมิ</h2><span class="small muted">ผลงานที่ รพ.สต. ส่งจากเมนูผลงาน · ตาม รพ.สต. และปีงบที่เลือกด้านบน · กดภาพเพื่อขยาย</span></div>

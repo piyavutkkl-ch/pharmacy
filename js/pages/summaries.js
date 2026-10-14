@@ -219,7 +219,7 @@ export async function mountSummaries(slot, unit) {
     $('#vsPeopleTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-pt]'); if (!b) return; S.ptab = b.dataset.pt; renderPeople(); });
     $('#vsOAdd').addEventListener('click', addOther);
     ['vsVisitOn', 'vsPeopleOn'].forEach((k) => $('#' + k).addEventListener('change', () => { boxes(); peopleCount(); }));
-    $('#vsCritOn').addEventListener('change', () => { $('#vsCritBox').hidden = !$('#vsCritOn').checked; if ($('#vsCritOn').checked) loadCrit(); });
+    $('#vsCritOn').addEventListener('change', () => { $('#vsCritBox').hidden = !$('#vsCritOn').checked; if ($('#vsCritOn').checked) loadCrit().then(jumpVisitItem); });
     $('#vsYear').addEventListener('change', () => { if ($('#vsCritOn').checked) loadCrit(); });
     $('#vsCritQ').addEventListener('input', renderCrit);
     $('#vsCrit').addEventListener('change', (e) => { const id = +e.target.value; if (!id) return; if (e.target.checked) S.items.add(id); else S.items.delete(id); critN(); });
@@ -393,6 +393,17 @@ function renderCrit() {
     return head + `<label class="crit-opt"><input type="checkbox" value="${it.id}"${S.items.has(it.id) ? ' checked' : ''}><span><b>${esc(it.item_no)}</b> ${esc(it.body)}</span></label>`;
   }).join('') || `<p class="empty">${items.length ? 'ไม่พบข้อที่ค้นหา' : `ยังไม่มีเกณฑ์มาตรฐานของปีงบ ${fy}`}</p>`;
   critN();
+}
+/** ติ๊กเปิดกล่อง → เลื่อนรายการไปข้อ 4.5.1 (การติดตามใช้ยาผู้ป่วยโรคเรื้อรังที่บ้าน) ทันที + ไฮไลต์ */
+const VISIT_ITEM = '4.5.1';
+function jumpVisitItem() {
+  const items = critCache.get(+$('#vsYear').value) || [], it = items.find((x) => x.item_no === VISIT_ITEM) || items.find((x) => String(x.item_no).startsWith('4.5'));
+  const box = $('#vsCrit'), el = it && box.querySelector(`input[value="${it.id}"]`)?.closest('.crit-opt');
+  if (!el) return;
+  const head = el.previousElementSibling?.classList.contains('crit-pick-h') ? el.previousElementSibling : el;
+  box.scrollTop = head.offsetTop - 4;   // .crit-pick เป็น position:relative → offsetTop นับจากกล่อง
+  el.classList.add('hl'); setTimeout(() => el.classList.remove('hl'), 2500);
+  el.querySelector('input').focus({ preventScroll: true });
 }
 function critN() {
   const all = [...critCache.values()].flat(), nos = all.filter((it) => S.items.has(it.id)).map((it) => it.item_no);
