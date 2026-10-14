@@ -588,9 +588,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.evaluate(() => { for (let i = 1; i <= 5; i++) window.__db.news.push({ id: `00000000-0000-0000-0000-00000000f00${i}`, title: `ข่าวเก่าลำดับ ${i}`, tag: 'ข่าว', body: 'x', status: 'published', view_count: 0, comments_closed: false, gallery: [], published_at: new Date(Date.UTC(2026, 0, i, 3)).toISOString(), created_at: new Date(Date.UTC(2026, 0, i, 3)).toISOString() }); });
     await go(p, '#/admin/messages'); await go(p, '#/admin/news'); await p.waitForTimeout(300);
     const allN = await pubN(p);
-    check('ข่าวที่เผยแพร่: ย่อไว้แสดง 3 ข่าวล่าสุด + ปุ่มดูทั้งหมด (ช่องค้นซ่อน)', await count(p, '#anList .newsrow') === 3 && await visible(p, '#anExpand') && !(await visible(p, '#anFind')) && allN >= 8);
+    check('ข่าวที่เผยแพร่: ย่อไว้แสดง 3 ข่าวล่าสุด + ปุ่มดูทั้งหมด + ช่องค้นหา/หมวด/จัดเรียง/วันที่ เห็นตลอด', await count(p, '#anList .newsrow') === 3 && await visible(p, '#anExpand') && await visible(p, '#anSearch') && await visible(p, '#anSort') && await visible(p, '#anTagF') && allN >= 8);
+    await p.selectOption('#anSort', 'az'); await p.waitForTimeout(150);
+    { const ts = await p.$$eval('#anList .newsrow .l b', (b) => b.map((x) => x.textContent));
+      check('ข่าวที่เผยแพร่: จัดเรียงตามตัวอักษร → แสดงทุกข่าวเรียง ก→ฮ', ts.length === allN && ts.join('|') === [...ts].sort((a, b) => a.localeCompare(b, 'th')).join('|')); }
+    await p.selectOption('#anSort', 'old'); await p.waitForTimeout(150);
+    check('ข่าวที่เผยแพร่: จัดเรียงวันที่เผยแพร่ เก่า → ใหม่', (await p.textContent('#anList .newsrow .l b')).includes('ข่าวเก่าลำดับ 1'));
+    await p.selectOption('#anTagF', 'ความรู้'); await p.waitForTimeout(150);
+    check('ข่าวที่เผยแพร่: กรองหมวด', (await p.$$eval('#anList .newsrow .small', (s) => s.every((x) => x.textContent.startsWith('ความรู้')))) && !(await text(p, '#anList')).includes('ข่าวเก่าลำดับ'));
+    await p.click('#anFindClear'); await p.waitForTimeout(150);
     await p.click('#anExpand'); await p.waitForTimeout(150);
-    check('ข่าวที่เผยแพร่: ดูทั้งหมด → ครบทุกข่าว + เลื่อนดูได้ + ช่องค้นหัวข้อ/วันที่', await count(p, '#anList .newsrow') === allN && await visible(p, '#anSearch') && await visible(p, '#anDate') && await p.$eval('#anList', (e) => getComputedStyle(e).overflowY === 'auto'));
+    check('ข่าวที่เผยแพร่: ดูทั้งหมด → ครบทุกข่าว + เลื่อนดูได้', await count(p, '#anList .newsrow') === allN && await p.$eval('#anList', (e) => getComputedStyle(e).overflowY === 'auto'));
     await p.fill('#anSearch', 'ข่าวเก่า'); await p.waitForTimeout(150);
     check('ข่าวที่เผยแพร่: พิมพ์ค้นหัวข้อได้', await count(p, '#anList .newsrow') === 5 && (await text(p, '#anFound')).includes('5'));
     await p.fill('#anDate', '2026-01-03'); await p.waitForTimeout(150);
@@ -598,7 +606,28 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#anSearch', 'ไม่มีข่าวนี้'); await p.waitForTimeout(150);
     check('ข่าวที่เผยแพร่: ไม่พบ → แจ้งว่าไม่พบ', (await text(p, '#anList')).includes('ไม่พบ'));
     await p.click('#anFindClear'); await p.click('#anExpand'); await p.waitForTimeout(150);
-    check('ข่าวที่เผยแพร่: กดย่อกลับเหลือ 3 ข่าว', await count(p, '#anList .newsrow') === 3 && !(await visible(p, '#anFind')));
+    check('ข่าวที่เผยแพร่: กดย่อกลับเหลือ 3 ข่าว', await count(p, '#anList .newsrow') === 3);
+    // หน้าแรก › ข่าวประชาสัมพันธ์: 6 ข่าวล่าสุด กดซ้าย-ขวา + ดูข่าวทั้งหมด (หน้าแยก เรียงแนวตั้ง + ค้นหา)
+    await go(p, '#/news'); await p.waitForTimeout(500);
+    check('หน้าแรก ข่าว: แสดงข่าวล่าสุด (ไม่เกิน 6) เรียงแนวนอน + ปุ่ม ‹ › + ดูข่าวทั้งหมด', await count(p, '#newsGrid .news-card') >= 4 && await count(p, '#newsGrid .news-card') <= 6 && await visible(p, '#newsAllLink') && (await p.$eval('#newsPrev', (b) => b.disabled)) && !(await p.$eval('#newsNext', (b) => b.disabled)) && await p.$eval('#newsGrid', (g) => g.scrollWidth > g.clientWidth + 10), JSON.stringify(await p.evaluate(() => { const g = document.querySelector('#newsGrid'); return { n: g.querySelectorAll('.news-card').length, sw: g.scrollWidth, cw: g.clientWidth, prev: document.querySelector('#newsPrev').disabled, next: document.querySelector('#newsNext').disabled, link: !document.querySelector('#newsAllLink').hidden }; })));
+    await p.click('#newsNext'); await p.waitForTimeout(700);
+    check('หน้าแรก ข่าว: กด › เลื่อนไปข่าวถัดไป (ปุ่ม ‹ ใช้ได้)', await p.$eval('#newsGrid', (g) => g.scrollLeft > 50) && !(await p.$eval('#newsPrev', (b) => b.disabled)));
+    await p.click('#newsAllLink'); await p.waitForTimeout(600);
+    check('ดูข่าวทั้งหมด: หน้าแยก ข่าวเรียงแนวตั้งครบทุกข่าว', await visible(p, '[data-view="allnews"]') && await count(p, '#nlList .newsrow') === allN && (await text(p, '#nlCount')).includes(String(allN)));
+    await p.fill('#nlSearch', 'ข่าวเก่าลำดับ 4'); await p.waitForTimeout(150);
+    check('ดูข่าวทั้งหมด: ค้นหาข่าวได้', await count(p, '#nlList .newsrow') === 1 && (await text(p, '#nlFound')).includes('1'));
+    await p.fill('#nlSearch', 'ไม่มีข่าวแบบนี้'); await p.waitForTimeout(150);
+    check('ดูข่าวทั้งหมด: ไม่พบ → แจ้ง', (await text(p, '#nlList')).includes('ไม่พบข่าว'));
+    await p.fill('#nlSearch', ''); await p.selectOption('#nlSort', 'old'); await p.waitForTimeout(150);
+    check('ดูข่าวทั้งหมด: จัดเรียงเก่า → ใหม่', (await p.textContent('#nlList .newsrow b')).includes('ข่าวเก่าลำดับ 1'));
+    await p.setViewportSize({ width: 390, height: 844 }); await go(p, '#/news'); await p.waitForTimeout(500);
+    check('หน้าแรก ข่าว (390px): ปัดซ้าย-ขวาได้ ไม่มี scroll แนวนอนทั้งหน้า', await count(p, '#newsGrid .news-card') >= 4 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), JSON.stringify(await p.evaluate(() => ({ n: document.querySelectorAll('#newsGrid .news-card').length, sw: document.documentElement.scrollWidth, iw: innerWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.offsetParent && !e.closest('#newsGrid')).slice(0, 6).map((e) => e.tagName + '#' + e.id + '.' + e.className) }))));
+    await p.screenshot({ path: path.join(SHOTS, 'home-news-strip-390.png') });
+    await go(p, '#/news/all'); await p.waitForTimeout(500);
+    check('ดูข่าวทั้งหมด (390px): ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await p.screenshot({ path: path.join(SHOTS, 'news-all-390.png') });
+    await p.setViewportSize({ width: 1280, height: 900 }); await go(p, '#/news'); await p.waitForTimeout(400);
+    await p.screenshot({ path: path.join(SHOTS, 'home-news-strip-1280.png') });
     await go(p, '#/admin/review');
     await p.click('#rvUnits [data-u="3"]'); await p.waitForTimeout(200);
     await p.click('#rvBody [data-open]'); await p.waitForTimeout(150);
@@ -692,6 +721,25 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('รายการยา: เรียงตามตัวอักษรย้อนกลับได้', dn.join('|') === [...dn].sort((a, b) => b.localeCompare(a, 'th')).join('|') && dn.length > 1);
     await p.selectOption('#dfFForm', 'ครีม'); await p.waitForTimeout(150);
     check('รายการยา: กรองตามรูปแบบยา (ไม่พบ → แจ้ง)', (await text(p, '#dfList')).includes('ไม่พบยา'));
+    // ช่วยกรอกจากฐานข้อมูลยา (50_ai_dose.sql): RxNorm + ฉลาก openFDA → AI ร่าง · ใส่ลงฟอร์มเท่านั้น ไม่บันทึกเอง
+    await p.fill('#dfName', 'ยาไทยล้วน'); await p.click('#dfHelpBtn'); await p.waitForTimeout(200);
+    check('ช่วยกรอกยา: ไม่มีชื่อภาษาอังกฤษ → บอกให้ใส่ชื่อสามัญภาษาอังกฤษ (ไม่เรียกฐานข้อมูล)', (await text(p, '#dfHelpOut')).includes('ภาษาอังกฤษ') && (await calls(p, (c) => c.rpc === 'ai_dose_start')).length === 0);
+    await p.fill('#dfName', 'ยาที่ไม่มี (Notfoundium)'); await p.click('#dfHelpBtn'); await p.waitForTimeout(3500);
+    check('ช่วยกรอกยา: ไม่พบในฐานข้อมูล → แจ้งให้ตรวจตัวสะกด', (await text(p, '#dfHelpOut')).includes('ไม่พบยานี้'));
+    const savesBefore = (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length;
+    await p.fill('#dfName', 'พาราเซตามอล (Paracetamol)'); await p.click('#dfHelpBtn'); await p.waitForTimeout(3500);
+    check('ช่วยกรอกยา: ชื่อไทย (อังกฤษ) → ค้นด้วยชื่อที่ฐานข้อมูลสหรัฐฯ ใช้ (acetaminophen)', (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args?.p_name === 'acetaminophen');
+    check('ช่วยกรอกยา: ความแรงจาก RxNorm (ยาทาไม่เอา) + ขนาดยาที่ AI ร่างพร้อมข้อความอ้างอิงฉลาก + คำเตือนให้ตรวจ', await count(p, '#dfHelpConcs input') === 3 && (await text(p, '#dfHelpConcs')).includes('ยาน้ำ 120 มก./5 มล.') && await count(p, '#dfHelpInds input') === 2 && (await text(p, '#dfHelpInds')).includes('10 to 15 mg/kg') && (await text(p, '#dfHelpOut')).includes('ต้องตรวจ'));
+    await p.check('#dfHelpConcs input[value="0"]'); await p.check('#dfHelpConcs input[value="1"]'); await p.click('[data-help="conc"]'); await p.waitForTimeout(150);
+    { const rows = await p.$$eval('#dfConcs .med-row', (rs) => rs.map((r) => [r.querySelector('.c-label').value, r.querySelector('.c-mg').value, r.querySelector('.c-type').value].join('|')));
+      check('ช่วยกรอกยา: ใส่ความแรงที่เลือกลงฟอร์ม (แทนแถวว่าง · หน่วยถูกต้อง) + รูปแบบยาน้ำ', rows.join(',') === 'ยาน้ำ 120 มก./5 มล.|120|liquid,ยาน้ำ 100 มก./มล.|100|ml' && (await p.inputValue('#dfForm2')) === 'ยาน้ำ', rows.join(',')); }
+    await p.click('[data-help="ind"]'); await p.waitForTimeout(150);
+    check('ช่วยกรอกยา: ใส่ข้อบ่งใช้ที่ AI ร่างลงฟอร์ม (แทนกล่องว่าง · ต่อวันแบ่ง 4 ครั้ง)', await count(p, '#dfInds .ind-box') === 2 && (await p.inputValue('#dfInds .ind-box:nth-child(1) .i-min')) === '10' && (await p.inputValue('#dfInds .ind-box:nth-child(2) .i-per')) === 'day' && (await p.inputValue('#dfInds .ind-box:nth-child(2) .i-times')) === '4');
+    check('ช่วยกรอกยา: ระบบไม่บันทึกรายการยาเอง (ผู้ดูแลตรวจแล้วกดบันทึกเอง)', (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length === savesBefore);
+    await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(200);
+    check('ช่วยกรอกยา: มือถือ 390px ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await p.locator('#dfHelpOut').screenshot({ path: path.join(SHOTS, 'admin-dose-help-390.png') });
+    await p.setViewportSize({ width: 1280, height: 900 });
     await go(p, '#/dose'); await p.waitForTimeout(300);
     await p.fill('#doseWeight', '20'); await p.selectOption('#doseDrug', { label: 'ยาทดสอบ' }); await p.waitForTimeout(200);
     check('คำนวณโดส: แสดงพร้อมกัน 3 ข้อบ่งใช้ ที่เหลือย่อไว้ + คิดเป็น มล. จาก มก./มล.', await count(p, '#doseResult section.ind-result') === 3 && await count(p, '#doseResult details.ind-result') === 1 && (await text(p, '#doseResult')).includes('20.00–30.00 มล.'));

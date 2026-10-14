@@ -3,6 +3,7 @@
 // เส้นทาง (URL หลัง #):
 //   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/delivery (+ Health Rider · #/rider เลื่อนไปที่ผลงาน Health Rider) | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
+//   #/news/all         ข่าวทั้งหมด (เรียงแนวตั้ง + ค้นหา/หมวด/จัดเรียง)
 //   #/summary/<id>     สรุปผลงานเยี่ยมบ้าน (ภาพ A4)
 //   #/achievement/<id> ผลงาน รพ.สต. (หน้าอ่านแบบข่าว)
 //   #/me[/request]     ประชาชน: ข้อมูลส่วนตัว + แชทถามเจ้าหน้าที่ + ขอสิทธิ์เจ้าหน้าที่ (/request = เปิดฟอร์มคำขอ)
@@ -11,7 +12,7 @@
 import { sb } from './supabase.js?v=4.4';
 import { $, $$, esc, toast, errText, busy } from './util.js?v=4.4';
 import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.4';
-import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState } from './pages/news.js?v=4.4';
+import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState, showAllNews } from './pages/news.js?v=4.4';
 import { initDose } from './pages/dose.js?v=4.4';
 import { initTracking, initAchievements, initContacts, showAchievement } from './pages/stats.js?v=4.4';
 import { showAdmin } from './pages/admin.js?v=4.4';
@@ -83,6 +84,7 @@ async function route() {
     return;
   }
   window.scrollTo(0, 0);
+  if (a === 'news' && b === 'all') { showView('allnews'); document.title = 'ข่าวทั้งหมด · Primary Care Pharmacy Services'; showAllNews(); return; }
   if (a === 'news' && b) { showView('article'); showArticle(b); return; }
   if (a === 'summary' && b) { showView('summary'); showSummary(b); return; }
   if (a === 'achievement' && b) { showView('achievement'); showAchievement(b); return; }

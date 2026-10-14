@@ -69,12 +69,64 @@ export function bindSlider() {
   ['mouseleave', 'focusout'].forEach((ev) => sl.addEventListener(ev, () => { paused = false; }));
 }
 
-/* ---------- รายการข่าว ---------- */
+/* ---------- รายการข่าวหน้าแรก: 6 ข่าวล่าสุด ปัด/กด ‹ › ซ้าย-ขวา · ปุ่ม "ดูข่าวทั้งหมด" → #/news/all ---------- */
+const HOME_NEWS = 6;
+let gridBound = false;
+function gridArrows() {
+  const g = $('#newsGrid'), max = g.scrollWidth - g.clientWidth;
+  $('#newsPrev').disabled = g.scrollLeft <= 4;
+  $('#newsNext').disabled = g.scrollLeft >= max - 4;
+}
+function gridStep(dir) {
+  const g = $('#newsGrid'), card = g.querySelector('.news-card');
+  g.scrollBy({ left: dir * (card ? card.getBoundingClientRect().width + 16 : g.clientWidth), behavior: reduce ? 'auto' : 'smooth' });
+}
 export function renderNewsGrid(list) {
-  $('#newsGrid').innerHTML = list.length
-    ? list.map((n) => `<a class="news-card" href="#/news/${n.id}"><div class="thumb">${cover(n)}</div>`
+  if (!gridBound) {
+    gridBound = true;
+    $('#newsPrev').addEventListener('click', () => gridStep(-1));
+    $('#newsNext').addEventListener('click', () => gridStep(1));
+    let st; $('#newsGrid').addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(gridArrows, 60); });
+    window.addEventListener('resize', gridArrows);
+  }
+  const top = list.slice(0, HOME_NEWS);
+  $('#newsGrid').innerHTML = top.length
+    ? top.map((n) => `<a class="news-card" href="#/news/${n.id}"><div class="thumb">${cover(n)}</div>`
       + `<div class="body"><span class="tag">${esc(n.tag)}</span><h3>${esc(n.title)}</h3><span class="d num">${esc(thaiDate(n.published_at))}</span></div></a>`).join('')
     : '<p class="empty" style="grid-column:1/-1">ยังไม่มีข่าวประชาสัมพันธ์</p>';
+  $('#newsGrid').scrollLeft = 0;
+  $('#newsAllLink').hidden = !list.length;
+  requestAnimationFrame(gridArrows);
+}
+
+/* ---------- หน้าข่าวทั้งหมด (#/news/all): เรียงแนวตั้ง + ค้นหา (หัวข้อ/เนื้อหา) · หมวด · จัดเรียง ---------- */
+let all = null, allBound = false;
+const plain = (t) => String(t || '').replace(/\s+/g, ' ').trim();
+export async function showAllNews() {
+  if (!allBound) {
+    allBound = true;
+    $('#nlSearch').addEventListener('input', renderAllNews);
+    ['#nlTag', '#nlSort'].forEach((s) => $(s).addEventListener('change', renderAllNews));
+  }
+  $('#nlList').innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+  const { data, error } = await sb.from('news').select('id,title,tag,body,image_path,published_at,view_count')
+    .eq('status', 'published').order('published_at', { ascending: false }).limit(1000);
+  if (error) { $('#nlList').innerHTML = `<p class="empty">โหลดข่าวไม่สำเร็จ: ${esc(errText(error))}</p>`; toast(errText(error), 'err'); return; }
+  all = data || [];
+  renderAllNews();
+}
+function renderAllNews() {
+  if (!all) return;
+  const q = $('#nlSearch').value.trim().toLowerCase(), tag = $('#nlTag').value, sort = $('#nlSort').value;
+  const t = (n) => Date.parse(n.published_at) || 0;
+  const list = all.filter((n) => (tag === 'all' || n.tag === tag) && (!q || `${n.title} ${n.body || ''}`.toLowerCase().includes(q)))
+    .sort(sort === 'old' ? (a, b) => t(a) - t(b) : sort === 'az' ? (a, b) => a.title.localeCompare(b.title, 'th') : sort === 'views' ? (a, b) => (b.view_count || 0) - (a.view_count || 0) || t(b) - t(a) : (a, b) => t(b) - t(a));
+  $('#nlCount').textContent = `(${all.length})`;
+  $('#nlFound').textContent = q || tag !== 'all' ? `พบ ${list.length} ข่าว` : '';
+  $('#nlList').innerHTML = list.length ? list.map((n) => `<a class="newsrow" href="#/news/${n.id}"><div class="thumb2 big">${cover(n)}</div>`
+    + `<div class="l"><b>${esc(n.title)}</b><span class="small muted">${esc(n.tag)} · ${esc(thaiDate(n.published_at))} · ${(n.view_count || 0).toLocaleString('th-TH')} ผู้เข้าชม</span>`
+    + `<span class="small nl-ex">${esc(plain(n.body).slice(0, 200))}</span></div></a>`).join('')
+    : `<p class="empty">${all.length ? 'ไม่พบข่าวที่ค้นหา' : 'ยังไม่มีข่าวประชาสัมพันธ์'}</p>`;
 }
 
 /* ---------- หน้าอ่านข่าว ---------- */

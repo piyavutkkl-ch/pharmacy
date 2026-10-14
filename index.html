@@ -93,8 +93,12 @@
   </div>
 
   <div class="sec reveal" data-panel="news" hidden>
-    <div class="sec-head"><h2>ข่าวประชาสัมพันธ์</h2></div>
-    <div class="news" id="newsGrid"></div>
+    <div class="sec-head"><h2>ข่าวประชาสัมพันธ์</h2><a class="btn btn-o btn-sm" href="#/news/all" id="newsAllLink">ดูข่าวทั้งหมด</a></div>
+    <div class="news-strip">
+      <button type="button" class="car-btn prev" id="newsPrev" aria-label="ข่าวก่อนหน้า" disabled>‹</button>
+      <div class="news news-row" id="newsGrid" tabindex="0" aria-label="ข่าวล่าสุด 6 ข่าว (ปัดซ้าย-ขวา)"></div>
+      <button type="button" class="car-btn next" id="newsNext" aria-label="ข่าวถัดไป">›</button>
+    </div>
   </div>
 
   <div class="sec reveal" data-panel="dose" hidden>
@@ -219,6 +223,18 @@
   <div class="cover" id="acCover"></div>
   <div class="article-body" id="acBody"></div>
   <section class="panel ac-crit" id="acCrit" hidden></section>
+</section>
+
+<section data-view="allnews" class="article" hidden>
+  <a class="back" href="#/news"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>ข่าวประชาสัมพันธ์</a>
+  <div class="article-head"><h1>ข่าวทั้งหมด <span class="num muted" id="nlCount"></span></h1></div>
+  <div class="an-find nl-find">
+    <input id="nlSearch" class="input" type="search" placeholder="ค้นหาข่าว (หัวข้อ/เนื้อหา)…" aria-label="ค้นหาข่าว" maxlength="100">
+    <label class="small an-date">หมวด <select id="nlTag" class="input"><option value="all">ทุกหมวด</option><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></label>
+    <label class="small an-date">จัดเรียงตาม <select id="nlSort" class="input"><option value="new">วันที่เผยแพร่ ใหม่ → เก่า</option><option value="old">วันที่เผยแพร่ เก่า → ใหม่</option><option value="az">ตัวอักษร ก → ฮ / A → Z</option><option value="views">ผู้เข้าชมมากที่สุด</option></select></label>
+    <span class="small muted" id="nlFound" aria-live="polite"></span>
+  </div>
+  <div class="list" id="nlList"></div>
 </section>
 
 <section data-view="article" class="article" hidden>
@@ -498,8 +514,10 @@
         </div>
         <div class="panel">
           <div class="panel-head"><h2>ข่าวที่เผยแพร่แล้ว <span class="num muted" id="anCount"></span></h2><button type="button" class="btn btn-o btn-sm" id="anExpand" aria-expanded="false" aria-controls="anList" hidden>ดูทั้งหมด</button></div>
-          <div class="an-find" id="anFind" hidden>
-            <input id="anSearch" class="input" type="search" placeholder="พิมพ์ค้นหัวข้อข่าว…" aria-label="ค้นหัวข้อข่าว" maxlength="100">
+          <div class="an-find" id="anFind">
+            <input id="anSearch" class="input" type="search" placeholder="ค้นหาข่าว (หัวข้อ/เนื้อหา)…" aria-label="ค้นหาข่าว" maxlength="100">
+            <label class="small an-date">หมวด <select id="anTagF" class="input"><option value="all">ทุกหมวด</option><option>ข่าว</option><option>ประชาสัมพันธ์</option><option>ความรู้</option></select></label>
+            <label class="small an-date">จัดเรียงตาม <select id="anSort" class="input"><option value="new">วันที่เผยแพร่ ใหม่ → เก่า</option><option value="old">วันที่เผยแพร่ เก่า → ใหม่</option><option value="az">ตัวอักษร ก → ฮ / A → Z</option><option value="za">ตัวอักษร ฮ → ก / Z → A</option><option value="views">ผู้เข้าชมมากที่สุด</option></select></label>
             <label class="small an-date">วันที่เผยแพร่ <input id="anDate" class="input" type="date"></label>
             <button type="button" class="btn btn-o btn-sm" id="anFindClear">ล้าง</button>
             <span class="small muted" id="anFound" aria-live="polite"></span>
@@ -610,6 +628,7 @@
             <form id="dfForm" class="form-grid" novalidate>
               <div class="field"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>
               <div class="field"><label for="dfForm2">รูปแบบยา</label><select id="dfForm2" class="input"><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
+              <div class="field full dh"><div class="row-btns dh-bar"><button type="button" class="btn btn-o btn-sm" id="dfHelpBtn">ช่วยกรอกจากฐานข้อมูลยา</button><span class="small muted">ใช้ชื่อภาษาอังกฤษในวงเล็บของชื่อยา · ความแรงจาก RxNorm + ขนาดยาที่ AI ร่างจากฉลากยา openFDA · ตรวจก่อนบันทึก</span></div><div id="dfHelpOut" aria-live="polite"></div></div>
               <div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา <span class="req">*</span></span><span class="small muted">แต่ละข้อบ่งใช้ใส่ขนาดยาต่างกันได้ · กดที่หัวข้อเพื่อย่อ/ขยาย</span><div id="dfInds" class="ind-list"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddInd">+ เพิ่มข้อบ่งใช้</button></div></div>
               <div class="field full"><label>ความแรงของยา</label><div id="dfConcs" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddConc">+ เพิ่มความแรง</button></div></div>
               <div class="field"><label for="dfSort">ลำดับแสดง</label><input id="dfSort" class="input" type="number" inputmode="numeric" value="0"></div>

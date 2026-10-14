@@ -47,3 +47,8 @@ create function net.http_post(url text, body jsonb default '{}', params jsonb de
 language sql security definer as
 $$ insert into net.http_request_queue(method, url, headers, body, timeout_milliseconds) values ('POST', url, headers, convert_to(body::text, 'utf8'), timeout_milliseconds) returning id $$;
 grant execute on function net.http_post(text, jsonb, jsonb, jsonb, int) to anon, authenticated;
+create function net.http_get(url text, params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 5000) returns bigint
+language sql security definer as
+$$ insert into net.http_request_queue(method, url, headers, timeout_milliseconds)
+   values ('GET', url || coalesce('?' || (select string_agg(key || '=' || value, '&') from jsonb_each_text(params)), ''), headers, timeout_milliseconds) returning id $$;
+grant execute on function net.http_get(text, jsonb, jsonb, int) to anon, authenticated;

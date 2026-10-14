@@ -12,7 +12,7 @@ window.__calls = [];
 window.__channels = [];
 const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
-const NUMERIC_ID = new Set(['ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
+const NUMERIC_ID = new Set(['ai_dose_drafts', 'ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
 /* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
 db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
@@ -493,6 +493,28 @@ function rpc(name, a = {}) {
       if (!r) return err('ไม่พบรายการนี้', 'P0001');
       if (r.status === 'pending' && ++r.polls >= 2) Object.assign(r, { status: 'done', result: r._fake, done_at: now() });
       return { data: { id: r.id, kind: r.kind, status: r.status, result: r.result, note: r.note, points: r.points }, error: null };
+    }
+    /* แทน ai_dose_start / ai_dose_poll (50_ai_dose.sql): ตอบ "รอ" 1 รอบ · ของจริงดึง RxNorm + ฉลากยา openFDA แล้วให้ Gemini ร่างขนาดยา
+       ชื่อที่มีคำว่า notfound = ไม่พบในฐานข้อมูล */
+    case 'ai_dose_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const q = String(a.p_name || '').trim().toLowerCase();
+      if (!/^[a-z][a-z0-9 .,()/+-]{1,79}$/.test(q)) return err('กรุณาพิมพ์ชื่อสามัญภาษาอังกฤษในชื่อยา เช่น พาราเซตามอล (Paracetamol)', 'P0001');
+      const nf = q.includes('notfound');
+      const row = { id: newId('ai_dose_drafts'), query: q, status: 'pending', polls: 0, note: nf ? 'ไม่พบยานี้ในฐานข้อมูล กรุณาตรวจตัวสะกดชื่อสามัญภาษาอังกฤษ' : null,
+        _fake: nf ? { rx: [], label: null } : {
+          rx: [`${q} 120 MG/5ML Oral Suspension`, `${q} 100 MG/ML Oral Solution`, `${q} 500 MG Oral Tablet`, `${q} 10 MG/ML Topical Cream`],
+          label: { brand: 'ตัวอย่าง', generic: q.toUpperCase(), effective: '20250101', dosage: 'Pediatric patients: 10 to 15 mg/kg every 4 to 6 hours as needed. Do not exceed 5 doses in 24 hours.' },
+          ai: [{ name: 'ลดไข้ แก้ปวด', per: 'dose', min: 10, max: 15, cap: 1000, freq: 'ทุก 4–6 ชั่วโมง เมื่อมีอาการ', quote: '10 to 15 mg/kg every 4 to 6 hours as needed' },
+            { name: 'ปวดหลังผ่าตัด', per: 'day', min: 40, max: 60, times: 4, freq: 'แบ่งให้วันละ 4 ครั้ง', quote: '40 to 60 mg/kg/day in 4 divided doses' }] } };
+      (db.ai_dose_drafts ||= []).push(row); return { data: row.id, error: null };
+    }
+    case 'ai_dose_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.ai_dose_drafts || []).find((x) => x.id === a.p_id);
+      if (!r) return err('ไม่พบรายการนี้', 'P0001');
+      if (r.status === 'pending' && ++r.polls >= 2) Object.assign(r, { status: 'done', result: r._fake });
+      return { data: { id: r.id, status: r.status, result: r.result || null, note: r.note, query: r.query }, error: null };
     }
     case 'ai_match_link': {
       const r = (db.ai_matches || []).find((x) => x.id === a.p_id && x.user_id === ME?.id), ach = db.achievements.find((x) => x.id === a.p_achievement);

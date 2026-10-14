@@ -166,6 +166,19 @@ main section[hidden]{display:none!important}
 .news-card .body{padding:16px 18px 20px;display:flex;flex-direction:column;gap:6px}
 .news-card h3{font-size:16px;line-height:1.45}
 @media (max-width:760px){.news{grid-template-columns:1fr}}
+/* หน้าแรก › ข่าวประชาสัมพันธ์: 6 ข่าวล่าสุด ปัด/กด ‹ › ซ้าย-ขวา */
+.news-strip{position:relative}
+.news.news-row{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:calc((100% - 32px) / 3);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;padding:2px 0 6px}
+.news-row::-webkit-scrollbar{display:none}
+.news-row>.news-card{scroll-snap-align:start}
+.news-strip .car-btn.prev{left:-14px}.news-strip .car-btn.next{right:-14px}
+@media (max-width:760px){.news.news-row{grid-auto-columns:86%}.news-strip .car-btn.prev{left:4px}.news-strip .car-btn.next{right:4px}}
+/* หน้าข่าวทั้งหมด (#/news/all) */
+.nl-find #nlSearch{flex:1 1 220px;min-width:0}
+a.newsrow{text-decoration:none;color:inherit}
+a.newsrow:hover b{color:var(--primary)}
+.newsrow .thumb2.big{width:96px;height:64px}
+.nl-ex{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
 /* article */
 .article{display:flex;flex-direction:column;gap:28px;padding-block:40px 0;max-width:760px;margin-inline:auto}
@@ -813,6 +826,15 @@ span.aq-ok{color:var(--success)}span.aq-bad{color:var(--error)}span.aq-warn{colo
 .ai-out p{margin:0}
 .ai-list{margin:6px 0 0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:4px}
 .ai-err{color:var(--error)}
+/* ผู้ดูแล › รายการยา: ช่วยกรอกจากฐานข้อมูลยา (RxNorm + ฉลาก openFDA + AI ร่าง) */
+.dh-bar{align-items:center}
+.dh-box{margin-top:8px;padding:12px;border:1px dashed var(--primary);border-radius:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.dh-box h3{margin:4px 0 0;font-size:15px}
+.dh-pick{display:flex;flex-direction:column;gap:6px}
+.dh-pick label{display:flex;gap:8px;align-items:flex-start;min-height:32px;overflow-wrap:anywhere;font-weight:400}
+.dh-pick input{margin-top:3px;flex:none}
+.dh-quote{display:block;margin-top:2px;padding-left:8px;border-left:3px solid var(--line);font-style:italic;overflow-wrap:anywhere}
+.dh-label{white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto;font-size:13px;margin:6px 0 0}
 .ai-st{display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:100%}
 .ai-st .chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;white-space:normal}
 .spin{display:inline-block;width:12px;height:12px;margin-right:6px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-1px}

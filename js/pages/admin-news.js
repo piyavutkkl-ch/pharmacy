@@ -106,21 +106,26 @@ async function loadPublished() {
   renderPublished();
 }
 
-/* รายการข่าวที่เผยแพร่: ย่อไว้ = 3 ข่าวล่าสุด · ดูทั้งหมด = เลื่อนดูได้ + ค้นหัวข้อ/เลือกวันที่เผยแพร่ */
+/* รายการข่าวที่เผยแพร่: ค้นหา (หัวข้อ/เนื้อหา) · หมวด · จัดเรียง · วันที่เผยแพร่ — ยังไม่ค้น/กรอง = 3 ข่าวล่าสุด (ดูทั้งหมด = เลื่อนดูได้) */
 const SHOW_LATEST = 3;
 let pubOpen = false;
 const localDay = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function renderPublished() {
-  const q = $('#anSearch').value.trim().toLowerCase(), day = $('#anDate').value;
-  const filtered = published.filter((n) => (!q || n.title.toLowerCase().includes(q)) && (!day || (n.published_at && localDay(n.published_at) === day)));
-  const rows = pubOpen ? filtered : published.slice(0, SHOW_LATEST);
+  const q = $('#anSearch').value.trim().toLowerCase(), day = $('#anDate').value, tag = $('#anTagF').value, sort = $('#anSort').value;
+  const filtered = published.filter((n) => (!q || `${n.title} ${n.body || ''}`.toLowerCase().includes(q)) && (tag === 'all' || n.tag === tag)
+    && (!day || (n.published_at && localDay(n.published_at) === day)));
+  const t = (n) => Date.parse(n.published_at || n.created_at) || 0;
+  filtered.sort(sort === 'old' ? (a, b) => t(a) - t(b) : sort === 'az' ? (a, b) => a.title.localeCompare(b.title, 'th') : sort === 'za' ? (a, b) => b.title.localeCompare(a.title, 'th')
+    : sort === 'views' ? (a, b) => (b.view_count || 0) - (a.view_count || 0) || t(b) - t(a) : (a, b) => t(b) - t(a));
+  const finding = !!(q || day || tag !== 'all' || sort !== 'new'), all = pubOpen || finding;
+  const rows = all ? filtered : filtered.slice(0, SHOW_LATEST);
   $('#anCount').textContent = `(${published.length})`;
-  $('#anExpand').hidden = published.length <= SHOW_LATEST;
+  $('#anExpand').hidden = finding || published.length <= SHOW_LATEST;
   $('#anExpand').textContent = pubOpen ? 'ย่อ (แสดง 3 ข่าวล่าสุด)' : `ดูทั้งหมด (${published.length})`;
   $('#anExpand').setAttribute('aria-expanded', String(pubOpen));
-  $('#anFind').hidden = !pubOpen;
-  $('#anList').classList.toggle('an-scroll', pubOpen);
-  $('#anFound').textContent = pubOpen && (q || day) ? `พบ ${filtered.length} ข่าว` : '';
+  $('#anFindClear').hidden = !finding;
+  $('#anList').classList.toggle('an-scroll', all);
+  $('#anFound').textContent = finding ? `พบ ${filtered.length} ข่าว` : '';
   $('#anList').innerHTML = rows.length ? rows.map((n) => `<div class="newsrow"><div class="thumb2">${n.image_path ? `<img src="${esc(publicImageUrl(n.image_path))}" alt="" loading="lazy">` : ''}</div>`
     + `<div class="l"><b>${esc(n.title)}</b><span class="small muted">${esc(n.tag)} · ${esc(thaiDate(n.published_at))} · ${n.view_count.toLocaleString('th-TH')} ผู้เข้าชม${n.unit_id != null ? ' · จาก รพ.สต. ' + esc(unitName(n.unit_id)) : ''}${n.comments_closed ? ' · ปิดความคิดเห็น' : ''}</span></div>`
     + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/news/${n.id}">ดู</a>${n.source_file_url ? `<button type="button" class="btn btn-o btn-sm" data-quiz="${n.id}">แบบทดสอบ</button>` : ''}<button type="button" class="btn btn-o btn-sm" data-edit="${n.id}">แก้ไข</button><button type="button" class="btn btn-o btn-sm" data-unpub="${n.id}">หยุดเผยแพร่</button><button type="button" class="btn btn-no btn-sm" data-del="${n.id}">ลบ</button></div></div>`).join('')
@@ -193,10 +198,10 @@ function bind() {
       removeNewsFiles(n); toast('ลบถาวรแล้ว'); loadTrash();
     }
   });
-  $('#anExpand').addEventListener('click', () => { pubOpen = !pubOpen; renderPublished(); if (pubOpen) $('#anSearch').focus(); });
+  $('#anExpand').addEventListener('click', () => { pubOpen = !pubOpen; renderPublished(); });
   $('#anSearch').addEventListener('input', renderPublished);
-  $('#anDate').addEventListener('change', renderPublished);
-  $('#anFindClear').addEventListener('click', () => { $('#anSearch').value = ''; $('#anDate').value = ''; renderPublished(); });
+  ['#anDate', '#anTagF', '#anSort'].forEach((s) => $(s).addEventListener('change', renderPublished));
+  $('#anFindClear').addEventListener('click', () => { $('#anSearch').value = ''; $('#anDate').value = ''; $('#anTagF').value = 'all'; $('#anSort').value = 'new'; renderPublished(); });
   $('#anList').addEventListener('click', async (e) => {
     const qz = e.target.closest('[data-quiz]');
     if (qz) { openReview(qz.dataset.quiz, 'published'); return; }   // ทำแบบทดสอบท้ายข่าวให้ข่าวที่เผยแพร่แล้ว

@@ -68,6 +68,8 @@ export async function initDoseAdmin() {
     $('#dfInds').addEventListener('change', syncIndBoxes);
     $('#dfAddConc').addEventListener('click', () => { $('#dfConcs').insertAdjacentHTML('beforeend', concRow()); $('#dfConcs .med-row:last-child input').focus(); });
     $('#dfConcs').addEventListener('click', (e) => { if (e.target.closest('[data-rm]')) e.target.closest('.med-row').remove(); });
+    $('#dfHelpBtn').addEventListener('click', runDoseHelp);
+    $('#dfHelpOut').addEventListener('click', onHelpOut);
     $('#dfCancel').addEventListener('click', resetDrugForm);
     $('#dfForm').addEventListener('submit', saveDrug);
     $('#dfList').addEventListener('click', onDrugList);
@@ -77,6 +79,85 @@ export async function initDoseAdmin() {
   await reloadDrugs();
 }
 
+/* ---- ช่วยกรอกจากฐานข้อมูลยา (50_ai_dose.sql): RxNorm = ความแรง · ฉลากยา openFDA → AI ร่างขนาดยา มก./กก. · ผู้ดูแลเลือกใส่ฟอร์มแล้วตรวจเองก่อนบันทึก ---- */
+const SPIN = '<span class="spin" aria-hidden="true"></span>';
+// ชื่อสามัญแบบไทย/อังกฤษ → ชื่อที่ฐานข้อมูลสหรัฐฯ ใช้
+const US_NAME = { paracetamol: 'acetaminophen', salbutamol: 'albuterol', adrenaline: 'epinephrine', noradrenaline: 'norepinephrine', frusemide: 'furosemide', lignocaine: 'lidocaine', glibenclamide: 'glyburide', 'chlorpheniramine maleate': 'chlorpheniramine' };
+/** ชื่อภาษาอังกฤษในชื่อยา เช่น "พาราเซตามอล (Paracetamol)" → "acetaminophen" */
+export function doseQuery(name) {
+  const q = (String(name).match(/[A-Za-z][A-Za-z0-9 .,+\-/]*/g) || []).join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  return US_NAME[q] || q;
+}
+/** ชื่อยาจาก RxNorm → แถวความแรง เช่น "amoxicillin 250 MG/5ML Oral Suspension" → { label: 'ยาน้ำ 250 มก./5 มล.', mgPer5ml: 250 } */
+export function rxConc(name) {
+  const m = String(name).match(/(\d+(?:\.\d+)?)\s*MG(?:\s*\/\s*(\d+(?:\.\d+)?)?\s*ML)?/i);
+  if (!m || (String(name).match(/\d\s*MG/gi) || []).length > 1) return null;   // ยาสูตรผสม: กรอกเอง
+  if (/topical|inject|ophthalmic|otic|nasal|rectal|vaginal|inhal|transdermal|cream|ointment|gel|paste|patch/i.test(name)) return null;   // เครื่องคำนวณใช้ยากิน
+  const mg = +m[1], ml = m[0].toUpperCase().includes('ML') ? +(m[2] || 1) : null;
+  if (ml) return ml === 5 ? { label: `ยาน้ำ ${mg} มก./5 มล.`, mgPer5ml: mg } : { label: `ยาน้ำ ${mg} มก./${ml === 1 ? '' : ml + ' '}มล.`, mgPerMl: +(mg / ml).toFixed(3) };
+  if (/tablet|capsule/i.test(name)) return { label: `${/capsule/i.test(name) ? 'แคปซูล' : 'เม็ด'} ${mg} มก.`, mgPerTab: mg };
+  return null;
+}
+let help = null;
+async function runDoseHelp() {
+  const out = $('#dfHelpOut'), btn = $('#dfHelpBtn'), q = doseQuery($('#dfName').value);
+  if (q.length < 2) { out.innerHTML = '<p class="small ai-err">กรุณาพิมพ์ชื่อยาที่มีชื่อสามัญภาษาอังกฤษก่อน เช่น อะม็อกซีซิลลิน (Amoxicillin)</p>'; $('#dfName').focus(); return; }
+  busy(btn, true, 'กำลังค้นข้อมูลยา…');
+  out.innerHTML = `<p class="small muted">${SPIN}ค้น "${esc(q)}" ใน RxNorm และฉลากยา openFDA แล้วให้ AI ร่างขนาดยา (ประมาณ 10–60 วินาที)</p>`;
+  try {
+    const { data: id, error } = await sb.rpc('ai_dose_start', { p_name: q });
+    if (error) throw error;
+    let r = { status: 'pending' };
+    for (let i = 0; r.status === 'pending' && i < 80; i++) {
+      if (i) await new Promise((ok) => setTimeout(ok, 2500));
+      const { data, error: e2 } = await sb.rpc('ai_dose_poll', { p_id: id });
+      if (e2) throw e2;
+      r = data;
+    }
+    if (r.status === 'pending') r = { status: 'error', note: 'หมดเวลารอ กรุณาลองใหม่' };
+    help = r; renderHelp();
+  } catch (err) { out.innerHTML = `<p class="small ai-err">${esc(errText(err))}</p>`; }
+  finally { busy(btn, false); }
+}
+function renderHelp() {
+  const r = help, out = $('#dfHelpOut');
+  if (r.status === 'error') { out.innerHTML = `<p class="small ai-err">${esc(r.note || 'ค้นข้อมูลยาไม่สำเร็จ')}</p>`; return; }
+  const res = r.result || {}, lab = res.label || null, ai = res.ai || [];
+  const rx = (res.rx || []).map((n) => ({ n, c: rxConc(n) })).filter((x) => x.c);
+  const seen = new Set(), concs = rx.filter((x) => { const k = x.c.label; if (seen.has(k)) return false; seen.add(k); return true; });
+  out.innerHTML = '<div class="dh-box">'
+    + `<p class="small">ที่มา: RxNorm (NLM)${lab ? ` · ฉลากยา openFDA${lab.brand ? ' ' + esc(lab.brand) : ''}${lab.effective ? ' ฉบับ ' + esc(lab.effective.replace(/^(\d{4})(\d\d)(\d\d)$/, '$3/$2/$1')) : ''} (สหรัฐฯ)` : ''} · <b>ตัวเลขเป็นร่าง ต้องตรวจกับเอกสารอ้างอิงก่อนบันทึก</b></p>`
+    + (r.note ? `<p class="small ai-err">${esc(r.note)}</p>` : '')
+    + (concs.length ? `<h3>ความแรงจาก RxNorm</h3><div class="dh-pick" id="dfHelpConcs">${concs.map((x, k) => `<label><input type="checkbox" value="${k}"> <span>${esc(x.c.label)} <span class="small muted">${esc(x.n)}</span></span></label>`).join('')}</div>`
+      + '<div><button type="button" class="btn btn-o btn-sm" data-help="conc">ใส่ความแรงที่เลือกลงฟอร์ม</button></div>' : '')
+    + (ai.length ? `<h3>ขนาดยาที่ AI ร่างจากฉลาก</h3><div class="dh-pick" id="dfHelpInds">${ai.map((i, k) => `<label><input type="checkbox" value="${k}" checked> <span><b>${esc(i.name)}</b> · ${esc(perText(i))}${i.freq ? ' · ' + esc(i.freq) : ''}${i.renal ? `<span class="small muted"> · โรคไต: ${esc(i.renal)}</span>` : ''}`
+      + `${i.quote ? `<span class="small muted dh-quote">“${esc(i.quote)}”</span>` : ''}</span></label>`).join('')}</div>`
+      + '<div><button type="button" class="btn btn-o btn-sm" data-help="ind">ใส่ข้อบ่งใช้ที่เลือกลงฟอร์ม</button></div>' : '')
+    + (lab?.dosage ? `<details><summary class="small">ข้อความขนาดยาจากฉลากต้นฉบับ (ภาษาอังกฤษ)</summary><p class="dh-label">${esc(lab.dosage)}</p></details>` : '')
+    + '</div>';
+  help.concs = concs;
+}
+function onHelpOut(e) {
+  const b = e.target.closest('[data-help]'); if (!b || !help) return;
+  const picked = (box) => [...document.querySelectorAll(`${box} input:checked`)].map((x) => +x.value);
+  if (b.dataset.help === 'conc') {
+    const add = picked('#dfHelpConcs').map((k) => help.concs[k].c);
+    if (!add.length) { say($('#dfMsg'), 'กรุณาติ๊กความแรงที่ต้องการก่อน'); return; }
+    document.querySelectorAll('#dfConcs .med-row').forEach((r) => { if (!r.querySelector('.c-label').value.trim() && !r.querySelector('.c-mg').value) r.remove(); });
+    const have = new Set([...document.querySelectorAll('#dfConcs .c-label')].map((x) => x.value.trim()));
+    add.filter((c) => !have.has(c.label)).forEach((c) => $('#dfConcs').insertAdjacentHTML('beforeend', concRow(c)));
+    if (add.every((c) => c.mgPerTab != null)) $('#dfForm2').value = 'ยาเม็ด'; else if (add.every((c) => c.mgPerTab == null)) $('#dfForm2').value = 'ยาน้ำ';
+    say($('#dfMsg'), `ใส่ความแรง ${add.length} รายการแล้ว · ตรวจก่อนกดบันทึก`, true);
+  } else {
+    const add = picked('#dfHelpInds').map((k) => help.result.ai[k]);
+    if (!add.length) { say($('#dfMsg'), 'กรุณาติ๊กข้อบ่งใช้ที่ต้องการก่อน'); return; }
+    const boxes = document.querySelectorAll('#dfInds .ind-box');
+    if (boxes.length === 1 && !boxes[0].querySelector('.i-name').value.trim() && !boxes[0].querySelector('.i-min').value) boxes[0].remove();   // กล่องว่างเริ่มต้น
+    add.forEach((i) => $('#dfInds').insertAdjacentHTML('beforeend', indBox(i)));
+    syncIndBoxes();
+    say($('#dfMsg'), `ใส่ข้อบ่งใช้ ${add.length} ข้อแล้ว · ตรวจตัวเลขก่อนกดบันทึก`, true);
+  }
+}
 
 function concRow(c = {}) {
   const type = c.mgPerTab != null ? 'tablet' : c.mgPerMl != null ? 'ml' : 'liquid';
@@ -133,6 +214,7 @@ function resetDrugForm() {
   $('#dfTitle').textContent = 'เพิ่มรายการยา';
   $('#dfSubmit').textContent = 'เพิ่มยา';
   $('#dfCancel').hidden = true;
+  $('#dfHelpOut').innerHTML = ''; help = null;
   say($('#dfMsg'), '');
 }
 
