@@ -1,6 +1,6 @@
 // ข่าวประชาสัมพันธ์: สไลด์หน้าแรก, รายการข่าว, หน้าอ่านข่าว (ถูกใจ / ความคิดเห็น / ผู้เข้าชม)
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, esc, thaiDate, art, toast, errText, busy, deviceToken, fiscalYearOf } from '../util.js?v=4.4';
+import { $, esc, thaiDate, art, toast, errText, busy, deviceToken } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { fileLink, extFileLink } from './news-form.js?v=4.4';
 import { imageCarousel } from '../lightbox.js?v=4.4';
@@ -38,32 +38,33 @@ function cover(n) {
 let cur = 0, timer = null, paused = false;
 const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-/** สไลด์หน้าแรก: สลับข่าวแต่ละประเภท (ข่าว/ประชาสัมพันธ์/ความรู้) กับช่องอื่นของเว็บ (ผลการดำเนินงาน · จัดส่งยาถึงบ้าน · ข้อมูลยา) */
-const FEATURES = [
-  { href: '#/tracking', tag: 'ผลการดำเนินงาน', title: 'ผลการดำเนินงานเภสัชกรรมปฐมภูมิ', d: () => `เยี่ยมบ้าน DRPs และผลงาน รพ.สต. · ปีงบประมาณ ${fiscalYearOf()}`, art: 'รายงาน' },
-  { href: '#/delivery', tag: 'บริการ', title: 'บริการจัดส่งยาถึงบ้าน · Health Rider', d: () => 'ผลการจัดส่งยาและบริการ Health Rider รายตำบล', art: 'visit' },
-  { href: '#/dose', tag: 'ข้อมูลยา', title: 'ข้อมูลยา / คำนวณขนาดยา / คำนวณสารน้ำ', d: () => 'รายการยา รพ.สต. · บัญชียาหลักแห่งชาติ · เครื่องคำนวณ', art: '' },
-];
-export function mixSlides(list) {
+/** ผลงาน รพ.สต. ที่โพสต์ไว้ล่าสุด (ไม่รวมที่ระงับการแสดง) สำหรับสไลด์หน้าแรก · มีรูปขึ้นก่อน */
+export async function loadAchSlides() {
+  const { data, error } = await sb.from('achievements').select('id,title,image_path,created_at').eq('hidden', false).order('created_at', { ascending: false }).limit(12);
+  if (error) return [];
+  return [...data.filter((a) => a.image_path), ...data.filter((a) => !a.image_path)].slice(0, 4);
+}
+/** สไลด์หน้าแรก: สลับข่าวแต่ละประเภท (ข่าว/ประชาสัมพันธ์/ความรู้) กับผลงาน รพ.สต. ที่โพสต์ไว้ (ข่าว 2 เรื่อง → ผลงาน 1 เรื่อง) */
+export function mixSlides(list, achs = []) {
   const by = ['ข่าว', 'ประชาสัมพันธ์', 'ความรู้'].map((t) => list.filter((n) => n.tag === t));
   const other = list.filter((n) => !['ข่าว', 'ประชาสัมพันธ์', 'ความรู้'].includes(n.tag));
   const news = [];
   for (let i = 0; news.length < 6 && i < 6; i++) by.forEach((g) => { if (g[i] && news.length < 6) news.push(g[i]); });
   other.forEach((n) => { if (news.length < 6) news.push(n); });
   const out = [];
-  news.forEach((n, i) => { out.push({ news: n }); if (i % 2 === 0 && FEATURES[i / 2]) out.push({ feat: FEATURES[i / 2] }); });
-  FEATURES.slice(Math.ceil(news.length / 2)).forEach((f) => out.push({ feat: f }));
+  news.forEach((n, i) => { out.push({ news: n }); if (i % 2 === 1 && achs[(i - 1) / 2]) out.push({ ach: achs[(i - 1) / 2] }); });
+  achs.slice(Math.floor(news.length / 2)).forEach((a) => out.push({ ach: a }));
   return out;
 }
-export function renderSlides(list) {
+export function renderSlides(list, achs = []) {
   const slides = $('#slides'), dots = $('#dots');
-  const all = mixSlides(list || []);
-  if (!(list || []).length) all.unshift({ empty: true });
-  const label = (x) => (x.news ? x.news.title : x.feat ? x.feat.title : 'ยังไม่มีข่าวประชาสัมพันธ์');
+  const all = mixSlides(list || [], achs || []);
+  if (!all.length) all.unshift({ empty: true });
+  const label = (x) => (x.news ? x.news.title : x.ach ? x.ach.title : 'ยังไม่มีข่าวประชาสัมพันธ์');
   slides.innerHTML = all.map((x, i) => {
     const aria = `aria-roledescription="slide" aria-label="${i + 1} จาก ${all.length}: ${esc(label(x))}"`;
     if (x.empty) return `<div class="slide" ${aria}><div class="art">${art('')}</div><div class="cap"><span class="tag">ข่าว</span><b>ยังไม่มีข่าวประชาสัมพันธ์</b><span class="d">ข่าวที่ผู้ดูแลเผยแพร่จะแสดงที่นี่</span></div></div>`;
-    if (x.feat) return `<a class="slide slide-feat" href="${x.feat.href}" ${aria}><div class="art">${art(x.feat.art)}</div><div class="cap"><span class="tag">${esc(x.feat.tag)}</span><b>${esc(x.feat.title)}</b><span class="d">${esc(x.feat.d())}</span></div></a>`;
+    if (x.ach) { const a = x.ach; return `<a class="slide slide-ach" href="#/achievement/${esc(a.id)}" ${aria}><div class="art">${a.image_path ? cover({ image_path: a.image_path }) : art('รายงาน')}</div><div class="cap"><span class="tag">ผลงาน รพ.สต.</span><b>${esc(a.title)}</b><span class="d num">${esc(thaiDate(a.created_at))}</span></div></a>`; }
     const n = x.news;
     return `<a class="slide" href="#/news/${n.id}" ${aria}><div class="art">${cover(n)}</div><div class="cap"><span class="tag">${esc(n.tag)}</span><b>${esc(n.title)}</b><span class="d num">${esc(thaiDate(n.published_at))}</span></div></a>`;
   }).join('');
@@ -88,34 +89,22 @@ export function bindSlider() {
   ['mouseleave', 'focusout'].forEach((ev) => sl.addEventListener(ev, () => { paused = false; }));
 }
 
-/* ---------- รายการข่าวหน้าแรก: 6 ข่าวล่าสุด ปัด/กด ‹ › ซ้าย-ขวา · ปุ่ม "ดูข่าวทั้งหมด" → #/news/all ---------- */
+/* ---------- รายการข่าวหน้าแรก: 6 กล่องพร้อมกัน (3 บน · 3 ล่าง) สุ่มข่าวใหม่ทุกครั้งที่เปิดเว็บ (ไม่ซ้ำกันในหน้าเดียว) · ปุ่ม "ดูข่าวทั้งหมด" → #/news/all ---------- */
 const HOME_NEWS = 6;
-let gridBound = false;
-function gridArrows() {
-  const g = $('#newsGrid'), max = g.scrollWidth - g.clientWidth;
-  $('#newsPrev').disabled = g.scrollLeft <= 4;
-  $('#newsNext').disabled = g.scrollLeft >= max - 4;
-}
-function gridStep(dir) {
-  const g = $('#newsGrid'), card = g.querySelector('.news-card');
-  g.scrollBy({ left: dir * (card ? card.getBoundingClientRect().width + 16 : g.clientWidth), behavior: reduce ? 'auto' : 'smooth' });
+let homePick = null;   // สุ่มครั้งเดียวต่อการเปิดเว็บ (กลับมาหน้าเดิมระหว่างใช้งานไม่สลับ)
+export function shuffled(list) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
 }
 export function renderNewsGrid(list) {
-  if (!gridBound) {
-    gridBound = true;
-    $('#newsPrev').addEventListener('click', () => gridStep(-1));
-    $('#newsNext').addEventListener('click', () => gridStep(1));
-    let st; $('#newsGrid').addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(gridArrows, 60); });
-    window.addEventListener('resize', gridArrows);
-  }
-  const top = list.slice(0, HOME_NEWS);
+  if (!homePick || homePick.src !== list) homePick = { src: list, top: shuffled(list).slice(0, HOME_NEWS) };
+  const top = homePick.top;
   $('#newsGrid').innerHTML = top.length
     ? top.map((n) => `<a class="news-card" href="#/news/${n.id}"><div class="thumb">${cover(n)}</div>`
       + `<div class="body"><span class="tag">${esc(n.tag)}</span><h3>${esc(n.title)}</h3><span class="d num">${esc(thaiDate(n.published_at))}</span></div></a>`).join('')
     : '<p class="empty" style="grid-column:1/-1">ยังไม่มีข่าวประชาสัมพันธ์</p>';
-  $('#newsGrid').scrollLeft = 0;
   $('#newsAllLink').hidden = !list.length;
-  requestAnimationFrame(gridArrows);
 }
 
 /* ---------- หน้าข่าวทั้งหมด (#/news/all): เรียงแนวตั้ง + ค้นหา (หัวข้อ/เนื้อหา) · หมวด · จัดเรียง ---------- */

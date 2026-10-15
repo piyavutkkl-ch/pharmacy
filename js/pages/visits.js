@@ -31,6 +31,8 @@ let unitList = [], patients = [], selected = null, visits = [], mode = 'view', e
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const maskId = (id) => (id ? `x-xxxx-xxxxx-${id.slice(10, 12)}-${id.slice(12)}` : '–');
 const age = (dob) => { if (!dob) return ''; const d = new Date(dob), n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n < new Date(n.getFullYear(), d.getMonth(), d.getDate())) a--; return a; };
+/** อายุปัจจุบันของผู้ป่วย: วันเกิด หรืออายุที่กรอกไว้ + ปีที่ผ่านไปตั้งแต่วันที่กรอก (64_patient_age.sql) */
+export const ageOf = (p) => (p?.birth_date ? age(p.birth_date) : p?.age_years != null ? p.age_years + Math.max(0, age(p.age_at || today()) || 0) : '');
 
 const WS_HTML = `<div class="visits-stack">
   <div class="panel pt-listpanel">
@@ -85,7 +87,7 @@ function renderList() {
   $('#ptCount').textContent = `(${patients.length})`;
   $('#ptList').innerHTML = list.length ? list.map((p) => `<button type="button" class="li-btn${selected?.id === p.id ? ' sel' : ''}" data-pt="${p.id}" aria-expanded="${selected?.id === p.id}">`
     + `<span style="display:flex;align-items:center;gap:10px;min-width:0"><span class="avatar" style="width:34px;height:34px;font-size:12px">${esc(initials(p.first_name + ' ' + p.last_name))}</span>`
-    + `<span class="l"><b>${esc(p.first_name)} ${esc(p.last_name)}</b><span class="small muted">${unit === ALL || p.home_unit_id != null ? 'รพ.สต. ' + esc(unitName(unit === ALL ? p.unit_id : p.home_unit_id)) : 'HN รพ.สต. ' + esc(p.hn_unit || '–')}${p.birth_date ? ' · ' + age(p.birth_date) + ' ปี' : ''}</span></span></span></button>`).join('')
+    + `<span class="l"><b>${esc(p.first_name)} ${esc(p.last_name)}</b><span class="small muted">${unit === ALL || p.home_unit_id != null ? 'รพ.สต. ' + esc(unitName(unit === ALL ? p.unit_id : p.home_unit_id)) : 'HN รพ.สต. ' + esc(p.hn_unit || '–')}${ageOf(p) !== '' ? ' · ' + ageOf(p) + ' ปี' : ''}</span></span></span></button>`).join('')
     : `<p class="empty">${patients.length ? 'ไม่พบผู้ป่วยที่ค้นหา' : 'ยังไม่มีผู้ป่วย · กด "เพิ่มผู้ป่วย" เพื่อเริ่ม'}</p>`;
 }
 
@@ -130,7 +132,7 @@ function renderInfo() {
     $('#ptInfo').innerHTML = `<details class="vs-fold pt-fold" id="ptEditFold" open><summary><b>แก้ไขข้อมูล · ${esc(fullName(p))}</b><span class="small muted vs-fold-hint">ย่อไว้ · กดเพื่อแก้ไขต่อ</span></summary>${patientForm(p, true)}</details>`;
     return;
   }
-  $('#ptInfo').innerHTML = `<dl class="kv"><dt>เลข 13 หลัก</dt><dd>${esc(maskId(p.national_id))}</dd><dt>วันเกิด</dt><dd>${p.birth_date ? esc(thaiDate(p.birth_date)) + ` (${age(p.birth_date)} ปี)` : '–'}</dd>`
+  $('#ptInfo').innerHTML = `<dl class="kv"><dt>เลข 13 หลัก</dt><dd>${esc(maskId(p.national_id))}</dd><dt>วันเกิด</dt><dd>${p.birth_date ? esc(thaiDate(p.birth_date)) + ` (${age(p.birth_date)} ปี)` : p.age_years != null ? `ไม่ทราบ · อายุ ${ageOf(p)} ปี` : '–'}</dd>`
     + `<dt>HN รพ.</dt><dd>${esc(p.hn_hospital || '–')}</dd><dt>สังกัด รพ.สต.</dt><dd>${p.home_unit_id != null ? esc(unitName(p.home_unit_id)) : '–'}</dd>`
     + (p.hn_unit ? `<dt>HN รพ.สต. (เดิม)</dt><dd>${esc(p.hn_unit)}</dd>` : '')
     + `<dt>เบอร์โทร</dt><dd>${esc(p.phone || '–')}</dd><dt>ที่อยู่</dt><dd>${esc(p.address || '–')}</dd><dt>สิทธิ</dt><dd>${esc(p.coverage || '–')}</dd></dl>`;
@@ -185,6 +187,7 @@ function patientForm(p, inline = false) {
     + `<div class="field"><label for="pfLast">นามสกุล <span class="req">*</span></label><input id="pfLast" class="input" maxlength="80" value="${v('last_name')}"></div>`
     + `<div class="field"><label for="pfNid">เลขประจำตัวประชาชน 13 หลัก</label><input id="pfNid" class="input" inputmode="numeric" maxlength="17" value="${v('national_id')}"></div>`
     + `<div class="field"><label for="pfDob">วันเกิด</label><input id="pfDob" class="input" inputmode="numeric" maxlength="10" placeholder="เช่น 12/5/1997" aria-describedby="pfDobHint" value="${esc(dmy(p?.birth_date))}"><span class="small muted" id="pfDobHint">วัน/เดือน/ปี ค.ศ. เช่น 12/5/1997 · กรอกปี พ.ศ. ได้ ระบบแปลงให้</span></div>`
+    + `<div class="field"><label for="pfAge">อายุ (ปี)</label><input id="pfAge" class="input" type="number" inputmode="numeric" min="0" max="130" value="${esc(ageOf(p))}" aria-describedby="pfAgeHint"><span class="small muted" id="pfAgeHint">ไม่ทราบวันเกิด กรอกอายุแทนได้ · กรอกวันเกิดแล้วระบบคำนวณให้</span></div>`
     + `<div class="field"><label for="pfHnH">HN โรงพยาบาล</label><input id="pfHnH" class="input" maxlength="30" value="${v('hn_hospital')}"></div>`
     + `<div class="field"><label for="pfHome">สังกัด รพ.สต.${unit === ALL ? ' <span class="req">*</span>' : ''}</label><select id="pfHome" class="input"><option value="">– ไม่ระบุ –</option>${unitList.map((u) => `<option value="${u.id}"${(p ? p.home_unit_id ?? p.unit_id : unit) === u.id ? ' selected' : ''}>${esc(u.name)}</option>`).join('')}</select><span class="small muted">เปลี่ยนสังกัด = ย้ายผู้ป่วยและบันทึกเยี่ยมไปอยู่ในรายชื่อของ รพ.สต. นั้น</span></div>`
     + `<div class="field"><label for="pfPhone">เบอร์โทร</label><input id="pfPhone" class="input" type="tel" inputmode="tel" maxlength="20" placeholder="เช่น 0812345678" value="${v('phone')}"></div>`
@@ -198,17 +201,17 @@ function visitForm(v) {
   const drps = new Set(v?.drps || []);
   return `<h2>${v ? 'แก้ไขบันทึกการเยี่ยม' : 'บันทึกการเยี่ยมบ้าน'} · ${esc(selected.first_name)} ${esc(selected.last_name)}</h2><form id="vForm" class="form-grid" novalidate>`
     + `<div class="field"><label for="vDate">วันที่เยี่ยม <span class="req">*</span></label><input id="vDate" class="input" type="date" max="${today()}" value="${val('visit_date') || today()}"></div>`
-    + `<div class="field"><label for="vAge">อายุ (ปี)</label><input id="vAge" class="input" type="number" inputmode="numeric" min="0" max="130" value="${val('age') || (selected.birth_date ? age(selected.birth_date) : '')}"></div>`
+    + `<div class="field"><label for="vAge">อายุ (ปี)</label><input id="vAge" class="input" type="number" inputmode="numeric" min="0" max="130" value="${val('age') || ageOf(selected)}"></div>`
     + `<div class="field"><label for="vWeight">น้ำหนัก (กก.)</label><input id="vWeight" class="input" type="number" inputmode="decimal" step="0.1" min="0" value="${val('weight')}"></div>`
     + `<div class="field"><label for="vBp">ความดัน (BP)</label><input id="vBp" class="input" placeholder="เช่น 130/80" maxlength="20" value="${val('bp')}"></div>`
     + `<div class="field"><label for="vDtx">น้ำตาล (DTX)</label><input id="vDtx" class="input" placeholder="มก./ดล." maxlength="20" value="${val('dtx')}"></div>`
     + `<div class="field"><label for="vPulse">ชีพจร (Pulse · ครั้ง/นาที)</label><input id="vPulse" class="input" type="number" inputmode="numeric" min="20" max="250" placeholder="เช่น 78" value="${val('pulse')}"></div>`
     + `<div class="field full"><label for="vS">S — อาการ/ข้อมูลจากผู้ป่วย</label><textarea id="vS" rows="2" maxlength="4000">${val('subjective')}</textarea></div>`
     + `<div class="field full"><label for="vO">O — ข้อมูลตรวจพบ (Objective data)</label><textarea id="vO" rows="2" maxlength="4000" placeholder="เช่น สภาพทั่วไป อาการแสดง ผลตรวจ การใช้ยาที่สังเกตได้">${val('objective')}</textarea></div>`
-    + `<div class="field full"><label for="vA">A — การประเมิน (Assessment)</label><textarea id="vA" rows="2" maxlength="4000" placeholder="เช่น ความร่วมมือในการใช้ยา การควบคุมโรค ปัญหาที่พบโดยสรุป">${val('assessment')}</textarea></div>`
     + '<fieldset class="field full drp-box"><legend>Medication reconciliation</legend><div class="field"><label>รายการยาที่เหลือ</label><div id="vMeds" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" data-act="add-med">+ เพิ่มรายการยา</button></div></div>'
     + `<div class="field"><label for="vMedNote">หมายเหตุรายการยาที่เหลือ</label><textarea id="vMedNote" rows="2" maxlength="2000" placeholder="เช่น ยาเก็บในตู้เย็น, ผู้ป่วยแบ่งยาให้ญาติ, ยาเสื่อมสภาพ">${val('med_note')}</textarea></div>`
     + `<label class="small"><input type="checkbox" id="vExcess"${v?.med_excess ? ' checked' : ''}> ยาเหลือค้างที่บ้านเกินวันนัด 1 เดือน</label></fieldset>`
+    + `<div class="field full"><label for="vA">A — การประเมิน (Assessment)</label><textarea id="vA" rows="2" maxlength="4000" placeholder="เช่น ความร่วมมือในการใช้ยา การควบคุมโรค ปัญหาที่พบโดยสรุป">${val('assessment')}</textarea></div>`
     + `<fieldset class="field full drp-box"><legend>ปัญหาจากการใช้ยา (DRPs)</legend><label class="small"><input type="checkbox" id="vNoDrp"${drps.size ? '' : ' checked'}> ไม่พบ DRPs</label>`
     + `<div id="vDrpList" class="drp-list">${DRP_CATS.map((c, i) => `<label class="small"><input type="checkbox" data-drp="${i}"${drps.has(c) ? ' checked' : ''}> ${esc(c)}</label>`).join('')}</div>`
     + `<textarea id="vDrpDetail" rows="2" maxlength="4000" placeholder="รายละเอียดปัญหาและการแก้ไข">${val('drp_detail')}</textarea>`
@@ -313,6 +316,8 @@ function bind() {
     }
   });
   panel.addEventListener('submit', (e) => { e.preventDefault(); if (e.target.id === 'ptForm') savePatient(e.target); if (e.target.id === 'vForm') saveVisit(e.target); });
+  // กรอกวันเกิดถูกต้อง → ช่องอายุคำนวณให้เอง
+  panel.addEventListener('input', (e) => { if (e.target.id !== 'pfDob') return; const d = parseDob(e.target.value); if (d && d <= today()) $('#pfAge').value = age(d); });
 }
 
 function openVisitForm(v) {
@@ -335,9 +340,15 @@ async function savePatient(form) {
   const dobText = $('#pfDob').value.trim(), dob = dobText ? parseDob(dobText) : null;
   if (dobText && !dob) return err('วันเกิดไม่ถูกต้อง — กรอกแบบ วัน/เดือน/ปี เช่น 12/5/1997', $('#pfDob'));
   if (dob && dob > today()) return err('วันเกิดต้องไม่เกินวันนี้', $('#pfDob'));
+  const ageText = $('#pfAge').value.trim(), ageN = ageText === '' ? null : Number(ageText);
+  if (!dob && ageN != null && !(Number.isInteger(ageN) && ageN >= 0 && ageN <= 130)) return err('อายุต้องเป็นจำนวนเต็ม 0–130 ปี', $('#pfAge'));
+  const old = mode !== 'patient-form' && ptEdit && selected ? selected : null;
+  // มีวันเกิด = ใช้วันเกิด · ไม่มี = เก็บอายุที่กรอก (อายุเท่าเดิม = คงวันที่กรอกเดิม)
+  const ageCols = dob || ageN == null ? { age_years: null, age_at: null }
+    : old && old.age_years != null && ageOf(old) === ageN ? { age_years: old.age_years, age_at: old.age_at } : { age_years: ageN, age_at: today() };
   const phone = $('#pfPhone').value.trim();
   if (phone && !PHONE_RE.test(phone)) return err('เบอร์โทรไม่ถูกต้อง (ตัวเลข 9–10 หลัก เช่น 0812345678)', $('#pfPhone'));
-  const row = { first_name: first, last_name: last, national_id: nid || null, birth_date: dob,
+  const row = { first_name: first, last_name: last, national_id: nid || null, birth_date: dob, ...ageCols,
     hn_hospital: $('#pfHnH').value.trim() || null, coverage: $('#pfCov').value || null,
     home_unit_id: $('#pfHome').value === '' ? null : +$('#pfHome').value, phone: phone || null, ...readAddr() };
   const editing = mode !== 'patient-form' && ptEdit && selected, isAdmin = auth.profile.role === 'admin';

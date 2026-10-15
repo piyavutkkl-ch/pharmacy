@@ -67,7 +67,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     let p = await open(null);
     check('หน้าแรก: สไลด์ข่าวแสดง', await count(p, '#slides .slide') > 0);
     { const tags = await p.$$eval('#slides .slide .tag', (x) => x.map((e) => e.textContent));
-      check('หน้าแรก: สไลด์สลับข่าว/ประชาสัมพันธ์/ความรู้ กับผลการดำเนินงานและช่องอื่น', tags.includes('ผลการดำเนินงาน') && tags.includes('ข้อมูลยา') && await count(p, '#slides a.slide-feat[href="#/tracking"]') === 1 && tags[0] !== tags[1] && await count(p, '#dots button') === tags.length, tags.join('|')); }
+      check('หน้าแรก: สไลด์สลับข่าว/ประชาสัมพันธ์/ความรู้ กับผลงาน รพ.สต. ที่โพสต์ไว้ (ไม่ใช่กล่องช่องอื่น)', tags.includes('ผลงาน รพ.สต.') && await count(p, '#slides a.slide-ach[href^="#/achievement/"]') >= 1 && !(await count(p, '#slides .slide-feat')) && tags[0] !== tags[1] && await count(p, '#dots button') === tags.length, tags.join('|')); }
     check('หน้าแรก: เมนูมีปุ่มเข้าสู่ระบบ', (await text(p, '#topNav')).includes('เข้าสู่ระบบ'));
     {
       const before = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -266,7 +266,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= แชทแบบไม่ต้องล็อกอิน ================= */
     p = await open(null, '', 390, 844);
-    check('หน้าแรก: ปุ่มแชทสอบถามเรื่องยา (ไม่ต้องล็อกอิน)', (await p.getAttribute('#homeChatLink', 'href')) === '#/me');
+    check('หน้าแรก: ปุ่มแชทสอบถามเรื่องยา = ปุ่มกลมด้านบนข้างปุ่มโหมดมืด/สว่าง (ไม่ต้องล็อกอิน)', (await p.getAttribute('#homeChatLink', 'href')) === '#/me' && await p.$eval('#homeChatLink', (a) => a.closest('header') && a.nextElementSibling?.id === 'themeBtn' && getComputedStyle(a).borderRadius !== '0px' && a.getBoundingClientRect().width >= 44 && a.getBoundingClientRect().right <= innerWidth));
     { const q = await open('admin', '#/'); await q.waitForTimeout(400);
       check('หน้าแรก (ผู้ดูแล): ปุ่มแชทสอบถามเรื่องยา → หน้าข้อความของผู้ดูแล', (await q.getAttribute('#homeChatLink', 'href')) === '#/admin/messages');
       await q.click('#homeChatLink'); await q.waitForTimeout(500);
@@ -744,19 +744,22 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ข่าวทั้งหมด: กรองตามหมวดเนื้อหา + ป้ายหมวด', (await p.$$eval('#nlTopic option', (o) => o.length)) >= 6 && await count(p, '#nlList .nt-chip') >= 1);
     // หน้าแรก › ข่าวประชาสัมพันธ์: 6 ข่าวล่าสุด กดซ้าย-ขวา + ดูข่าวทั้งหมด (หน้าแยก เรียงแนวตั้ง + ค้นหา)
     await go(p, '#/news'); await p.waitForTimeout(500);
-    check('หน้าแรก ข่าว: แสดงข่าวล่าสุด (ไม่เกิน 6) เรียงแนวนอน + ปุ่ม ‹ › + ดูข่าวทั้งหมด', await count(p, '#newsGrid .news-card') >= 4 && await count(p, '#newsGrid .news-card') <= 6 && await visible(p, '#newsAllLink') && (await p.$eval('#newsPrev', (b) => b.disabled)) && !(await p.$eval('#newsNext', (b) => b.disabled)) && await p.$eval('#newsGrid', (g) => g.scrollWidth > g.clientWidth + 10), JSON.stringify(await p.evaluate(() => { const g = document.querySelector('#newsGrid'); return { n: g.querySelectorAll('.news-card').length, sw: g.scrollWidth, cw: g.clientWidth, prev: document.querySelector('#newsPrev').disabled, next: document.querySelector('#newsNext').disabled, link: !document.querySelector('#newsAllLink').hidden }; })));
-    await p.click('#newsNext'); await p.waitForTimeout(700);
-    check('หน้าแรก ข่าว: กด › เลื่อนไปข่าวถัดไป (ปุ่ม ‹ ใช้ได้)', await p.$eval('#newsGrid', (g) => g.scrollLeft > 50) && !(await p.$eval('#newsPrev', (b) => b.disabled)));
+    check('หน้าแรก ข่าว: 6 กล่องพร้อมกัน 3 บน 3 ล่าง + ดูข่าวทั้งหมด', await count(p, '#newsGrid .news-card') === Math.min(6, allN) && await visible(p, '#newsAllLink') && await p.$$eval('#newsGrid .news-card', (c) => new Set(c.map((e) => Math.round(e.offsetTop / 20))).size === 2 && new Set(c.map((e) => Math.round(e.getBoundingClientRect().left))).size === 3), JSON.stringify(await p.$$eval('#newsGrid .news-card', (c) => c.map((e) => [Math.round(e.getBoundingClientRect().left), Math.round(e.getBoundingClientRect().top)]))) + ' allN=' + allN + ' w=' + await p.evaluate(() => innerWidth));
+    { const ids = await p.$$eval('#newsGrid .news-card', (c) => c.map((e) => e.getAttribute('href')));
+      const orders = new Set();
+      for (let k = 0; k < 6; k++) orders.add(await p.evaluate(async () => { const m = await import(`./js/pages/news.js?v=4.4`); return m.shuffled([1, 2, 3, 4, 5, 6, 7, 8]).slice(0, 6).join(','); }));
+      check('หน้าแรก ข่าว: สุ่มข่าวทุกครั้งที่เปิดเว็บ (ไม่ซ้ำกันในหน้า)', new Set(ids).size === ids.length && orders.size > 1, [...orders].join(' | ')); }
     await p.click('#newsAllLink'); await p.waitForTimeout(600);
     check('ดูข่าวทั้งหมด: หน้าแยก ข่าวเรียงแนวตั้งครบทุกข่าว', await visible(p, '[data-view="allnews"]') && await count(p, '#nlList .newsrow') === allN && (await text(p, '#nlCount')).includes(String(allN)));
     await p.fill('#nlSearch', 'ข่าวเก่าลำดับ 4'); await p.waitForTimeout(150);
+    check('ดูข่าวทั้งหมด: รูปตัวอย่างแต่ละข่าวใหญ่ (≥ 200 px ที่จอคอม)', await p.$eval('#nlList .newsrow .thumb2', (t) => t.getBoundingClientRect().width >= 200), String(await p.$eval('#nlList .newsrow .thumb2', (t) => t.getBoundingClientRect().width)));
     check('ดูข่าวทั้งหมด: ค้นหาข่าวได้', await count(p, '#nlList .newsrow') === 1 && (await text(p, '#nlFound')).includes('1'));
     await p.fill('#nlSearch', 'ไม่มีข่าวแบบนี้'); await p.waitForTimeout(150);
     check('ดูข่าวทั้งหมด: ไม่พบ → แจ้ง', (await text(p, '#nlList')).includes('ไม่พบข่าว'));
     await p.fill('#nlSearch', ''); await p.selectOption('#nlSort', 'old'); await p.waitForTimeout(150);
     check('ดูข่าวทั้งหมด: จัดเรียงเก่า → ใหม่', (await p.textContent('#nlList .newsrow b')).includes('ข่าวเก่าลำดับ 1'));
     await p.setViewportSize({ width: 390, height: 844 }); await go(p, '#/news'); await p.waitForTimeout(500);
-    check('หน้าแรก ข่าว (390px): ปัดซ้าย-ขวาได้ ไม่มี scroll แนวนอนทั้งหน้า', await count(p, '#newsGrid .news-card') >= 4 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), JSON.stringify(await p.evaluate(() => ({ n: document.querySelectorAll('#newsGrid .news-card').length, sw: document.documentElement.scrollWidth, iw: innerWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.offsetParent && !e.closest('#newsGrid')).slice(0, 6).map((e) => e.tagName + '#' + e.id + '.' + e.className) }))));
+    check('หน้าแรก ข่าว (390px): 2 คอลัมน์ ไม่มี scroll แนวนอนทั้งหน้า', await count(p, '#newsGrid .news-card') >= 4 && await p.$$eval('#newsGrid .news-card', (c) => new Set(c.map((e) => Math.round(e.getBoundingClientRect().left))).size === 2) && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), JSON.stringify(await p.evaluate(() => ({ n: document.querySelectorAll('#newsGrid .news-card').length, sw: document.documentElement.scrollWidth, iw: innerWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.offsetParent && !e.closest('#newsGrid')).slice(0, 6).map((e) => e.tagName + '#' + e.id + '.' + e.className) }))));
     await p.screenshot({ path: path.join(SHOTS, 'home-news-strip-390.png') });
     await go(p, '#/dose'); await p.waitForTimeout(400); await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
     check('ข้อมูลยา (390px): รายการยา ไม่มี scroll แนวนอน', await count(p, '#doseInfoList .di-item') > 0 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
@@ -961,6 +964,23 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click(`#dfList [data-toggle="${id}"]`); await p.waitForTimeout(400);
       const up = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload || {};
       check('ร่างจาก AI: กดตรวจแล้ว · แสดง → แสดงในเครื่องคำนวณ (ai_draft = false)', up.active === true && up.ai_draft === false, JSON.stringify(up)); }
+    // ร่างที่ระบบทำเอง (63_ai_auto.sql) → กล่องที่กรอกไว้แล้วด้านบน · แก้ได้ในกล่อง → "ตรวจแล้ว · ใช้คำนวณ"
+    await p.evaluate(() => {
+      const db = window.__db.dose_drugs;
+      db.push({ ...db[0], id: 9901, name: 'Amoxicillin', form: 'ยาน้ำ', active: false, ai_draft: true, ai_source: 'AI ร่างจากฉลากยา openFDA Amoxil · ยังไม่ผ่านการตรวจ',
+        indications: [{ name: 'ติดเชื้อหู', per: 'day', min: 25, max: 45, times: 2, quote: '25 mg/kg/day in divided doses' }], concs: [{ label: 'ยาน้ำ 250 มก./5 มล.', mgPer5ml: 250 }] });
+      const l = window.__db.local_drugs.find((x) => !x.dose_id && /เม็ด/.test(x.category));
+      Object.assign(l, { dose_ai_status: 'none', dose_ai_note: 'ฉลากยาไม่มีขนาดยาแบบ มก./กก.' });
+    });
+    await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(600);
+    { const card = '#dfReview form[data-rv="9901"]';
+      check('ร่างจาก AI รอตรวจ: แสดงเป็นกล่องที่กรอกไว้แล้ว (ชื่อ/ขนาดยา/ความแรง/ข้อความจากฉลาก)', await visible(p, card) && (await p.inputValue(`${card} .r-name`)) === 'Amoxicillin' && (await p.inputValue(`${card} .i-min`)) === '25' && (await p.inputValue(`${card} .c-label`)) === 'ยาน้ำ 250 มก./5 มล.' && (await text(p, card)).includes('25 mg/kg/day') && (await text(p, '#dfRvCount')).includes('1'), await text(p, '#dfReview'));
+      check('ร่างจาก AI: บอกความคืบหน้า + ยาที่ฉลากไม่มีขนาดยาตามน้ำหนัก', (await text(p, '#dfRvStatus')).includes('ระบบกำลังร่างให้') && (await text(p, '#dfRvStatus')).includes('ฉลากยาไม่มีขนาดยาตามน้ำหนักตัว 1 ยา'), await text(p, '#dfRvStatus'));
+      check('ส่วนที่ย่อ/ขยายได้มีลูกศรสามเหลี่ยม (▸ ย่อ / หมุนเมื่อเปิด)', await p.$eval('.df-rv > summary', (el) => getComputedStyle(el, '::before').content.includes('▸') && getComputedStyle(el, '::before').transform !== 'none'));
+      await p.fill(`${card} .i-min`, '30');
+      await p.click(`${card} [type=submit]`); await p.waitForTimeout(500);
+      const up = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload || {};
+      check('ร่างจาก AI: แก้ในกล่อง → ตรวจแล้ว · ใช้คำนวณ (บันทึกค่าที่แก้ + แสดงในเครื่องคำนวณ)', up.active === true && up.ai_draft === false && up.indications?.[0]?.min === 30 && up.mg_per_kg_min === 30 && !JSON.stringify(up.indications).includes('quote') && !(await p.$(card)), JSON.stringify(up)); }
     await p.evaluate(() => localStorage.removeItem('pcps_dose_queue'));
     // ยาที่เพิ่มเองต้องผูกกับยา รพ.สต. ก่อนจึงขึ้นในเครื่องคำนวณ (เลือก "ข้อมูลคำนวณขนาดยา" ในฟอร์มยา รพ.สต.)
     await go(p, '#/admin/drugs/db'); await p.waitForTimeout(600);
@@ -1055,7 +1075,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('openFDA: ผู้ดูแลแก้ข้อความไทย → ตรวจแล้ว', up.th_reviewed === true && up.sections_th?.[0]?.body?.[0] === 'รักษาความดันโลหิตสูง' && up.sections_th[1].body[0] === 'เริ่ม 5 มก. วันละครั้ง', JSON.stringify(up.sections_th)); }
     // Drug interaction (ผู้ดูแล): AI แปลไทย · แก้ไข (= ตรวจแล้ว) · ยา รพ.สต. ผูกยาใน DDInter
     await go(p, '#/admin/drugs/db'); await p.waitForTimeout(700);
-    check('ผู้ดูแล › ฐานข้อมูลยา: บอกว่าระบบแปลไทยให้เองวันละ 5 ฉลาก / 5 คู่', (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองวันละ 5 ฉลาก') && (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองวันละ 5 คู่'));
+    check('ผู้ดูแล › ฐานข้อมูลยา: บอกว่าระบบแปลไทยให้เองต่อเนื่อง (ฉลาก/คู่ยา)', (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองต่อเนื่องทีละฉลาก') && (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองต่อเนื่องทีละคู่'));
     check('Drug interaction (ผู้ดูแล): รายการคู่ยา เรียงรุนแรงก่อน', await count(p, '#ddList .li') === 30 && (await text(p, '#ddList .li')).includes('Major') && (await text(p, '#ddCount')).includes('คู่'));
     await p.selectOption('#ddLevel', 'Major'); await p.waitForTimeout(100);
     await p.click('#ddList [data-dd-th]'); await p.waitForTimeout(6500);
@@ -1202,13 +1222,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ผู้ป่วย: มีช่องสังกัด รพ.สต. (ค่าเริ่มต้น = หน่วยตัวเอง) + ที่อยู่ + เบอร์โทร แทน HN รพ.สต.', !(await p.$('#pfHnU')) && (await p.$eval('#pfHome', (e) => e.value)) === '2' && !!(await p.$('#pfA_no')) && (await p.getAttribute('#pfDob', 'placeholder')).includes('12/5/1997'));
     check('ผู้ป่วย: ที่อยู่แยกช่อง เลขที่/หมู่/ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ (ค่าตั้งต้น ควนกาหลง · สตูล · 91130)', (await p.inputValue('#pfA_amphoe')) === 'ควนกาหลง' && (await p.inputValue('#pfA_province')) === 'สตูล' && (await p.inputValue('#pfA_zip')) === '91130' && !!(await p.$('#pfA_moo')) && !!(await p.$('#pfA_tambon')));
     await p.fill('#pfFirst', 'ทดสอบ'); await p.fill('#pfLast', 'วันเกิด'); await p.fill('#pfDob', '12/5/2540'); await p.fill('#pfPhone', '081-111-2222'); await p.fill('#pfA_no', '12/3'); await p.fill('#pfA_moo', '1'); await p.fill('#pfA_tambon', 'ทุ่งนุ้ย');
+    check('ผู้ป่วย: 2 กล่อง วันเกิด + อายุ · กรอกวันเกิดแล้วอายุคำนวณให้', (await p.inputValue('#pfAge')) === String(await p.evaluate(() => { const n = new Date(); let a = n.getFullYear() - 1997; if (n < new Date(n.getFullYear(), 4, 12)) a--; return a; })), await p.inputValue('#pfAge'));
+    check('ผู้ป่วย: ไม่ทราบวันเกิด → อายุที่กรอกนับเพิ่มตามปีที่ผ่านไป', await p.evaluate(async () => { const m = await import('./js/pages/visits.js?v=4.4'); const y = new Date().getFullYear() - 2020 - (new Date() < new Date(new Date().getFullYear(), 0, 1) ? 1 : 0); return m.ageOf({ age_years: 30, age_at: '2020-01-01' }) === 30 + y && m.ageOf({ birth_date: null, age_years: null }) === ''; }));
     await p.click('#ptForm [type=submit]'); await p.waitForTimeout(500);
     const pt = (await calls(p, (c) => c.table === 'patients' && c.op === 'insert'))[0]?.payload || {};
+    check('ผู้ป่วย: มีวันเกิด → ไม่เก็บอายุซ้ำ (age_years ว่าง)', pt.age_years === null && pt.age_at === null, JSON.stringify(pt));
     check('ผู้ป่วย: วันเกิด 12/5/2540 (พ.ศ.) → 1997-05-12 + บันทึกเบอร์/ที่อยู่', pt.birth_date === '1997-05-12' && pt.phone === '081-111-2222' && pt.home_unit_id === 2, JSON.stringify(pt));
     check('ผู้ป่วย: ที่อยู่เก็บแยกช่อง + ประกอบเป็นที่อยู่เต็ม', pt.address === 'เลขที่ 12/3 หมู่ 1 ต.ทุ่งนุ้ย อ.ควนกาหลง จ.สตูล 91130' && pt.address_parts?.zip === '91130' && pt.address_parts?.moo === '1', JSON.stringify(pt.address_parts));
     await p.click('[data-act="add-visit"]'); await p.waitForTimeout(150);
     check('เยี่ยมบ้าน: หน่วยยา เม็ด/ขวด/หลอด/(ไม่ระบุ)', (await p.$$eval('#vMeds .med-unit option', (o) => o.map((x) => x.value).join(','))) === 'เม็ด,ขวด,หลอด,(ไม่ระบุ)');
     check('เยี่ยมบ้าน: ไม่มีช่อง Medication reconciliation / นัดครั้งถัดไป · มีช่องชีพจร · ป้าย "ยาเหลือค้างที่บ้านเกินวันนัด 1 เดือน" (ติ๊กเอง)', !(await p.$('#vRecon')) && !(await p.$('#vNext')) && await visible(p, '#vPulse') && (await text(p, '#vForm')).includes('ยาเหลือค้างที่บ้านเกินวันนัด 1 เดือน'));
+    check('เยี่ยมบ้าน: Medication reconciliation อยู่ใต้ O (Objective) ก่อน A (Assessment)', await p.evaluate(() => { const o = document.querySelector('#vO').closest('.field'), m = document.querySelector('#vMeds').closest('fieldset'), a = document.querySelector('#vA').closest('.field'); return o.nextElementSibling === m && m.nextElementSibling === a; }));
     await p.fill('#vPulse', '78'); await p.check('#vExcess');
     await p.fill('#vO', 'ผิวแห้ง ไม่บวม'); await p.fill('#vA', 'ใช้ยาไม่สม่ำเสมอ'); await p.fill('#vMeds .med-name', 'เมทฟอร์มิน'); await p.fill('#vMeds .med-how', '1 เม็ด หลังอาหารเช้า'); await p.fill('#vMedNote', 'เก็บในตู้เย็น'); await p.check('#vNoDrp');
     await p.setInputFiles('#vPhotos', [img, { ...img, name: 'b.png' }]); await p.waitForTimeout(500);

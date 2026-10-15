@@ -74,7 +74,8 @@ function fillDrugs() {
   if (!calcList.length && !litems.length) calcList = drugs.map((d, k) => k);   // ยังไม่มีรายการยา รพ.สต. = ใช้ทุกตัว
   const waiting = litems.filter((it) => !it.dose.length && /เม็ด|แคปซูล|น้ำรับประทาน|ผง/.test(it.loc.category)).length;
   sel.innerHTML = calcList.length ? calcList.map((k) => `<option value="${k}">${esc(drugs[k].name)}</option>`).join('') : '<option value="">ยังไม่มีรายการยา</option>';
-  $('#doseDrugNote').textContent = litems.length ? `รายการยาตามยา รพ.สต. ที่มีข้อมูลขนาดยาแล้ว ${calcList.length} รายการ${waiting ? ` · ยารับประทานอีก ${waiting} รายการรอข้อมูลขนาดยา` : ''}` : '';
+  $('#doseDrugNote').innerHTML = litems.length ? `รายการยาตามยา รพ.สต. ที่มีข้อมูลขนาดยาแล้ว ${calcList.length} รายการ${waiting ? ` · ยารับประทานอีก ${waiting} รายการรอข้อมูลขนาดยา` : ''}`
+    + (waiting && isAdmin() ? ' · <a href="#/admin/drugs/dose">ตรวจร่างขนาดยาจาก AI</a>' : '') : '';
 }
 const inCalc = (k) => calcList.includes(+k);
 function drug() { return drugs?.[+$('#doseDrug').value || 0]; }

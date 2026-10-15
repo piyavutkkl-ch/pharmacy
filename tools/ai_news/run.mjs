@@ -291,13 +291,15 @@ export function buildBody(g) {
 
 async function status(db, row) { if (!OFFLINE) await db.insert('ai_news_log', row).catch((e) => log('บันทึก log ไม่ได้:', e.message)); }
 
-/** แปลฉลาก openFDA + คู่ drug interaction เป็นภาษาไทยทีละน้อยทุกชั่วโมง (63_ai_th_auto.sql · ฐานข้อมูลเรียก Gemini เอง) · ไม่สำเร็จก็ไม่ทำให้รอบนี้ล้ม */
+/** งาน AI ที่ระบบทำเอง (63_ai_auto.sql · ฐานข้อมูลเรียก Gemini เอง): แปลไทยฉลาก openFDA/คู่ drug interaction + ร่างขนาดยา รพ.สต.
+ *  ปกติ pg_cron เรียกทุกนาที · ตรงนี้เป็นรอบสำรองทุกชั่วโมง · ไม่สำเร็จก็ไม่ทำให้รอบนี้ล้ม */
 async function autoTranslate(db) {
   if (OFFLINE) return;
   try {
-    const r = await db.rpc('ai_th_auto');
-    log(`แปลไทยอัตโนมัติ (วันละ ${r.daily}): ฉลากส่ง ${r.fda.sent} · วันนี้ ${r.fda.today} · เหลือ ${r.fda.left} | คู่ยาส่ง ${r.ddi.sent} · วันนี้ ${r.ddi.today} · เหลือ ${r.ddi.left}${r.note ? ' · ' + r.note : ''}`);
-  } catch (e) { log('แปลไทยอัตโนมัติไม่ได้:', e.message.slice(0, 200)); }
+    const r = await db.rpc('ai_auto_tick');
+    if (r.skip) { log('งาน AI อัตโนมัติ: รอบอื่นกำลังทำอยู่'); return; }
+    log(`งาน AI อัตโนมัติ: เหลือแปลฉลาก ${r.left.fda} · คู่ยา ${r.left.ddi} · ร่างขนาดยา ${r.left.dose}${r.paused ? ' · พักถึง ' + r.paused : ''}${r.th.note || r.dose.note ? ' · ' + (r.th.note || r.dose.note) : ''}`);
+  } catch (e) { log('งาน AI อัตโนมัติไม่ได้:', e.message.slice(0, 200)); }
 }
 
 async function main() {

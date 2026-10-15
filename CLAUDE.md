@@ -48,7 +48,7 @@ js/util.js            esc, fiscalYearOf, thaiDate, toast, busy, errText, art(), 
 js/lightbox.js        smartCover() รูปหน้าอ่านข่าว/สรุปผลงาน: ใกล้ A4 (แนวตั้ง–แนวนอน) ไม่ครอบตัด · ยาว/กว้างกว่า A4 มากครอบตัด · imageCarousel() หลายภาพ (หน้าอ่านข่าว/สรุปผลงาน): ภาพหลักกลาง ภาพข้างจาง/เบลอ กด ‹ › หรือกดภาพข้างเพื่อเปลี่ยน · openLightbox() ภาพเต็มจอ/ขนาดจริง
 js/profile.js         หน้าต่างข้อมูลส่วนตัว (กดชื่อบนแถบเมนู · ทุกบทบาท) openProfile(), saveMyProfile() → เหตุการณ์ 'pcps:profile'
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
-js/pages/news.js      สไลด์ข่าว, รายการข่าวหน้าแรก (6 ข่าวล่าสุด ‹ › ปัด) + หน้าข่าวทั้งหมด #/news/all (ค้นหา/หมวด/จัดเรียง · showAllNews), หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น — ไม่ login ก็ได้: ถูกใจผ่าน like_news_anon, ความเห็น ≤15 ตัวอักษรผ่าน comment_news_anon · รหัสเครื่อง localStorage 'pcps_device' · ผู้ดูแลลบความเห็นได้)
+js/pages/news.js      สไลด์ข่าว (ข่าวสลับผลงาน รพ.สต. ที่โพสต์ · loadAchSlides), รายการข่าวหน้าแรก (6 กล่อง 3×2 สุ่มทุกครั้งที่เปิดเว็บ · shuffled) + หน้าข่าวทั้งหมด #/news/all (ค้นหา/หมวด/จัดเรียง · showAllNews), หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น — ไม่ login ก็ได้: ถูกใจผ่าน like_news_anon, ความเห็น ≤15 ตัวอักษรผ่าน comment_news_anon · รหัสเครื่อง localStorage 'pcps_device' · ผู้ดูแลลบความเห็นได้)
 js/pages/dose.js      ข้อมูลยา / คำนวณขนาดยา · 4 ส่วน #doseTabs: คำนวณขนาดยา (#dosePaneCalc) · ข้อมูลยา (#dosePaneInfo) · คำนวณสารน้ำ (#dosePaneFluid → fluid.js) · Drug interaction (#dosePaneDdi → ddi.js)
                       คำนวณ: อายุ(ปี/เดือน) → น้ำหนัก (บังคับ) → ส่วนสูง → เพศ · ไม่ได้ชั่งน้ำหนัก = ประมาณจากเกณฑ์ WHO 2006 (กรมอนามัย · 0–5 ปี · js/growth.js จาก tools/growth/build.py)
                         รายชื่อยา = ยา รพ.สต. ที่มีข้อมูลคำนวณ (local_drugs.dose_id หรือจับคู่ชื่อ) · ความแรง = ยา รพ.สต. (local_drugs.strength หรืออ่านจากชื่อ "500 MG") · 60_drug_calc_th.sql
@@ -78,7 +78,8 @@ js/pages/admin-settings.js ผู้ดูแล › ข้อมูลยา �
                            เพิ่มหลายรายการ (วางรายชื่อยา · คิวจำใน localStorage 'pcps_dose_queue'): กรอกทีละตัว หรือ "ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด" → dose_drugs.ai_draft (ซ่อนเสมอ · constraint ห้าม active จนผู้ดูแลกด "ตรวจแล้ว · แสดง" · 56_dose_ai_drafts.sql)
                            ปุ่ม "ช่วยกรอกจากฐานข้อมูลยา" (50_ai_dose.sql · ai_dose_start/poll): ฐานข้อมูลดึง RxNorm (ความแรง) + ฉลากยา openFDA ผ่าน pg_net → Gemini ร่างขนาดยา มก./กก. พร้อมข้อความอ้างอิง → ผู้ดูแลเลือกใส่ฟอร์ม ตรวจเองก่อนบันทึก (ระบบไม่บันทึกเอง) · ชื่อไทย→ใช้ชื่ออังกฤษในวงเล็บ (paracetamol→acetaminophen ฯลฯ)
 js/pages/admin-drugs.js    ผู้ดูแล › ข้อมูลยา › ฐานข้อมูลยา (#/admin/drugs/db): Drug interaction (ค้นหา/AI แปลไทย/แก้/ลบ · ai_ddi_th_start/poll) · ยา รพ.สต. (เพิ่ม/แก้/ซ่อน/ลบ + ค้นหาผูก monograph) · บัญชียาหลัก (เพิ่ม/แก้/ลบ · หัวข้อแก้เป็นข้อความ "## หัวข้อ" · รูปแบบ "form | บัญชี" · ref ใหม่ = custom:<เวลา>) · ฉลาก openFDA: ดึงจาก api.fda.gov ในเบราว์เซอร์ (fetchFdaLabel · ฟรี ไม่ใช้คีย์) ดึงใหม่/แก้/ลบ/ผูกกับยา → resetDrugInfo()
-                           แปลไทยอัตโนมัติ: ai_th_auto() (63_ai_th_auto.sql) ← run.mjs --check ทุกชั่วโมง (ai-news.yml · secret key) ตรวจคำตอบค้าง + ส่งฉลาก/คู่ยาที่ยังไม่แปล ≤ วันละ site_texts ai_th_daily (ค่าเริ่ม 5) ต่อชนิด · รอบละ ≤2
+                           งาน AI ที่ระบบทำเอง: ai_auto_tick() (63_ai_auto.sql) ← pg_cron ทุกนาที + run.mjs --check ทุกชั่วโมง (สำรอง) · ทีละ 1 รายการต่อชนิด ไม่จำกัดจำนวน · AI ไม่ว่าง = พัก 30 นาที (site_texts ai_auto_pause)
+                           ① แปลไทยฉลาก openFDA → คู่ DDI ② ร่างขนาดยายารับประทาน รพ.สต. (local_drugs.dose_ai_status/dose_id → dose_drugs.ai_draft) → admin-settings.js กล่องร่างรอตรวจ (#dfReview · "ตรวจแล้ว · ใช้คำนวณ")
 js/pages/admin-staff.js    ผู้ดูแล › ตั้งค่า › บัญชีเจ้าหน้าที่ (staff_roster)
 js/pages/admin-audit.js    ผู้ดูแล › ตั้งค่า › ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA · admin_audit_log() + ดาวน์โหลด CSV)
 js/pages/chat.js      แชท real-time: mountInbox() กล่องข้อความเจ้าหน้าที่/ผู้ดูแล (ลบห้องลงถัง กู้คืน 30 วัน · ผู้ดูแลลบถาวรเมื่อครบ), startChatWatch() ตัวเลขข้อความใหม่บนเมนู
@@ -101,7 +102,7 @@ js/pages/summaries.js สรุปผลงานเยี่ยมบ้าน 
 js/pages/visits.js    ผู้ป่วย + บันทึกเยี่ยมบ้าน (SOAP: S/O/A(assessment)/P, ชีพจร visits.pulse (45_visit_pulse.sql), Medication reconciliation = รายการยา + วิธีใช้ (med_list.how) + หมายเหตุ + ติ๊กยาเหลือค้างเกินวันนัด, DRPs) — mountVisits(slot, unit) ใช้ทั้งเจ้าหน้าที่และผู้ดูแล
                       แผงผู้ป่วยวาดแยกส่วน (renderInfo/renderVisitForm/renderVisits): ฟอร์มแก้ไขผู้ป่วยย่อได้ + ค้างไว้ระหว่างแก้บันทึกเยี่ยม · กดชื่อซ้ำ = ย่อ
                       สังกัด รพ.สต. = หน่วยที่ดูแล: เปลี่ยนแล้วย้ายผู้ป่วย+บันทึกเยี่ยมด้วย rpc transfer_patient (33_patient_transfer.sql) · ผู้ดูแลมีช่อง ALL = โรงพยาบาล รวมทุกชื่อ
-                      ที่อยู่แยกช่อง patients.address_parts {no,moo,tambon,amphoe,province,zip} + address (ข้อความเต็ม)
+                      ไม่ทราบวันเกิดกรอกอายุได้ (patients.age_years + age_at · 64_patient_age.sql · ageOf()) · ที่อยู่แยกช่อง patients.address_parts {no,moo,tambon,amphoe,province,zip} + address (ข้อความเต็ม)
 js/upload.js          อัปโหลดไฟล์: ย่อรูปเป็น WebP (imagePicker แสดงตัวอย่างทันที), ภาพย่อไฟล์ fileCard/hydrateSigned, ลิงก์ชั่วคราวไฟล์ส่วนตัว
 supabase/NN_*.sql     migration เรียงเลข · ไฟล์ใหม่ = เลขถัดไป → ระบบรันบน Supabase ให้เองหลังทดสอบผ่าน (tools/db/migrate.sh)
 .github/workflows/    ci-deploy (ทดสอบ→รวม→ฐานข้อมูล→ขึ้นเว็บ) · keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์) · restore (กู้) · ai-news (ช่อง AI เช็กทุกชั่วโมง ทำวันละ 1 ข่าว)

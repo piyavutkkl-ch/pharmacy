@@ -56,11 +56,13 @@ a{color:var(--primary)}
 .mark{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;color:var(--ink);text-decoration:none;white-space:nowrap}
 .mark i{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--primary);color:var(--on-primary);font-style:normal;font-size:16px;line-height:1}
 .mark span{color:var(--primary)}
+.top .mark{min-width:0;flex:0 1 auto}.top .mark b{overflow:hidden;text-overflow:ellipsis}.top .top-end{flex:none}
 .nav{display:flex;align-items:center;gap:6px}
 .top-end{display:flex;align-items:center;gap:6px;min-width:0}
 .theme-btn{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer;transition:color .15s,border-color .15s}
 .theme-btn:hover{color:var(--ink);border-color:var(--primary)}
 .theme-btn svg{width:20px;height:20px}
+.chat-btn{color:var(--primary);text-decoration:none}
 .theme-btn .i-sun{display:none}
 :root[data-theme="dark"] .theme-btn .i-sun{display:block}
 :root[data-theme="dark"] .theme-btn .i-moon{display:none}
@@ -167,17 +169,15 @@ main section[hidden]{display:none!important}
 .news-card h3{font-size:16px;line-height:1.45}
 @media (max-width:760px){.news{grid-template-columns:1fr}}
 /* หน้าแรก › ข่าวประชาสัมพันธ์: 6 ข่าวล่าสุด ปัด/กด ‹ › ซ้าย-ขวา */
-.news-strip{position:relative}
-.news.news-row{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:calc((100% - 32px) / 3);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;padding:2px 0 6px}
-.news-row::-webkit-scrollbar{display:none}
-.news-row>.news-card{scroll-snap-align:start}
-.news-strip .car-btn.prev{left:-14px}.news-strip .car-btn.next{right:-14px}
-@media (max-width:760px){.news.news-row{grid-auto-columns:86%}.news-strip .car-btn.prev{left:4px}.news-strip .car-btn.next{right:4px}}
+/* หน้าแรก: ข่าว 6 กล่อง 3 บน 3 ล่าง (มือถือ 2 คอลัมน์) */
+@media (max-width:760px){.news.news-six{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.news-six .news-card .body{padding:10px 12px}.news-six .news-card h3{font-size:14px}}
 /* หน้าข่าวทั้งหมด (#/news/all) */
 .nl-find #nlSearch{flex:1 1 220px;min-width:0}
 a.newsrow{text-decoration:none;color:inherit}
 a.newsrow:hover b{color:var(--primary)}
-.newsrow .thumb2.big{width:96px;height:64px}
+.newsrow .thumb2.big{width:clamp(132px,30vw,260px);height:auto;aspect-ratio:16/10;border-radius:12px}
+#nlList .newsrow{align-items:flex-start;flex-wrap:nowrap;gap:16px}
+@media (max-width:420px){#nlList .newsrow{gap:12px}#nlList .nl-ex{display:none}}
 .nl-ex{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
 /* article */
@@ -998,3 +998,21 @@ a.fthumb.ach-link{text-decoration:none}
 .ddi-t1{font:700 13px 'IBM Plex Sans Thai',system-ui,sans-serif;fill:var(--ink);text-anchor:middle}
 .ddi-t2{font:500 11.5px 'IBM Plex Sans Thai',system-ui,sans-serif;fill:var(--ink);text-anchor:middle}
 .ddi-t3{font:500 10.5px 'IBM Plex Sans Thai',system-ui,sans-serif;fill:var(--muted);text-anchor:middle}
+
+/* ทุกส่วนที่ย่อ/ขยายได้ (details) มีลูกศรสามเหลี่ยมหน้าหัวข้อ: ▸ = ย่ออยู่ · ▾ (หมุน) = เปิดอยู่ */
+summary{cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▸';display:inline-block;flex-shrink:0;margin-inline-end:.4em;color:var(--primary);transition:transform .15s}
+details[open] > summary::before{transform:rotate(90deg)}
+.crit summary::before{content:none}
+@media (prefers-reduced-motion:reduce){summary::before{transition:none}}
+
+/* ร่างขนาดยาจาก AI รอตรวจ (ผู้ดูแล › ข้อมูลยา › คำนวณขนาดยา) */
+.df-rv-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.df-rv{border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.df-rv > summary{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;padding:10px 14px;min-height:44px}
+.df-rv > summary .small{flex-basis:100%;overflow-wrap:anywhere}
+.df-rv > form{padding:0 14px 14px}
+.df-rv-btns{align-items:center}
+.df-rv-none{margin-top:6px}
+.df-rv-none ul{margin:6px 0 0;padding-left:20px}

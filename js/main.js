@@ -12,7 +12,7 @@
 import { sb } from './supabase.js?v=4.4';
 import { $, $$, esc, toast, errText, busy } from './util.js?v=4.4';
 import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.4';
-import { loadNews, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState, showAllNews } from './pages/news.js?v=4.4';
+import { loadNews, loadAchSlides, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState, showAllNews } from './pages/news.js?v=4.4';
 import { initDose } from './pages/dose.js?v=4.4';
 import { initTracking, initAchievements, initContacts, showAchievement } from './pages/stats.js?v=4.4';
 import { showAdmin } from './pages/admin.js?v=4.4';
@@ -183,7 +183,7 @@ async function boot() {
   });
   window.addEventListener('hashchange', route);
   route();                                     // แสดงหน้าสาธารณะทันที ไม่ต้องรอ login
-  loadNews().then((list) => { renderSlides(list); }).catch(() => renderSlides([]));
+  Promise.all([loadNews().catch(() => []), loadAchSlides().catch(() => [])]).then(([list, achs]) => renderSlides(list, achs));
 
   onAuth(() => {
     renderNav();

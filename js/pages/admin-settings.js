@@ -27,18 +27,19 @@ function indBox(i = { per: 'dose' }, open = true) {
     + `<div class="field"><label>ขนาดสูงสุด (มก./กก.) <span class="req">*</span><input class="input i-max" type="number" inputmode="decimal" min="0" step="0.01" value="${v('max')}"></label></div>`
     + `<div class="field"><label>เพดานต่อครั้ง (มก.)<input class="input i-cap" type="number" inputmode="decimal" min="0" step="0.1" value="${v('cap')}"></label></div>`
     + `<div class="field"><label>ความถี่ (ข้อความ)<input class="input i-freq" maxlength="120" placeholder="เช่น ทุก 4–6 ชั่วโมง" value="${v('freq')}"></label></div>`
-    + `<div class="field full"><label>ขนาดยาในโรคไต<textarea class="i-renal" rows="2" maxlength="1000">${v('renal')}</textarea></label></div></div></details>`;
+    + `<div class="field full"><label>ขนาดยาในโรคไต<textarea class="i-renal" rows="2" maxlength="1000">${v('renal')}</textarea></label></div>`
+    + (i.quote ? `<p class="small muted dh-quote full">ข้อความจากฉลาก: “${esc(i.quote)}”</p>` : '') + '</div></details>';
 }
-function syncIndBoxes() {
-  document.querySelectorAll('#dfInds .ind-box').forEach((b, k) => {
+function syncIndBoxes(root = $('#dfInds')) {
+  root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value;
     b.querySelector('.i-times-wrap').hidden = g('.i-per') !== 'day';
     b.querySelector('.ind-sum').textContent = `ข้อบ่งใช้ ${k + 1}: ${g('.i-name').trim() || '(ยังไม่ระบุ)'} · ${perText({ per: g('.i-per'), min: g('.i-min') || null, max: g('.i-max') || null, times: g('.i-times') || null, cap: g('.i-cap') || null })}`;
   });
 }
-function readInds() {
+function readInds(root = $('#dfInds')) {
   const out = [];
-  document.querySelectorAll('#dfInds .ind-box').forEach((b, k) => {
+  root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value.trim(), n = `ข้อบ่งใช้ ${k + 1}`;
     const i = { name: g('.i-name'), per: g('.i-per'), min: num(g('.i-min')), max: num(g('.i-max')), times: num(g('.i-times')), cap: num(g('.i-cap')), freq: g('.i-freq') || null, renal: g('.i-renal') || null };
     const bad = (t) => { b.open = true; throw new Error(`${n}: ${t}`); };
@@ -64,8 +65,11 @@ export async function initDoseAdmin() {
       if ($('#dfInds').children.length === 1) { say($('#dfMsg'), 'ต้องมีข้อบ่งใช้อย่างน้อย 1 ข้อ'); return; }
       rm.closest('.ind-box').remove(); syncIndBoxes();
     });
-    $('#dfInds').addEventListener('input', syncIndBoxes);
-    $('#dfInds').addEventListener('change', syncIndBoxes);
+    $('#dfInds').addEventListener('input', () => syncIndBoxes());
+    $('#dfInds').addEventListener('change', () => syncIndBoxes());
+    $('#dfReview').addEventListener('click', onReview);
+    $('#dfReview').addEventListener('submit', (e) => { e.preventDefault(); saveReview(e.target); });
+    ['input', 'change'].forEach((ev) => $('#dfReview').addEventListener(ev, (e) => { const b = e.target.closest('.r-inds'); if (b) syncIndBoxes(b); }));
     $('#dfAddConc').addEventListener('click', () => { $('#dfConcs').insertAdjacentHTML('beforeend', concRow()); $('#dfConcs .med-row:last-child input').focus(); });
     $('#dfConcs').addEventListener('click', (e) => { if (e.target.closest('[data-rm]')) e.target.closest('.med-row').remove(); });
     $('#dfHelpBtn').addEventListener('click', runDoseHelp);
@@ -319,9 +323,9 @@ function concRow(c = {}) {
     + '<button type="button" class="btn btn-o btn-sm" data-rm aria-label="ลบความแรงนี้">ลบ</button></div>';
 }
 
-function readConcs() {
+function readConcs(root = $('#dfConcs')) {
   const out = [];
-  for (const r of document.querySelectorAll('#dfConcs .med-row')) {
+  for (const r of root.querySelectorAll('.med-row')) {
     const label = r.querySelector('.c-label').value.trim(), mg = num(r.querySelector('.c-mg').value);
     if (!label && mg == null) continue;
     if (!label || !(mg > 0)) throw new Error('ความแรงของยาต้องมีทั้งชื่อและปริมาณ (มก.) มากกว่า 0');
@@ -336,7 +340,7 @@ async function reloadDrugs() {
   const { data, error } = await sb.from('dose_drugs').select('*').order('sort').order('name');
   if (error) { $('#dfList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   drugs = data;
-  renderDrugs();
+  renderDrugs(); renderReview();
   if (!editDrug && !$('#dfName').value) $('#dfSort').value = nextSort();
 }
 
@@ -427,6 +431,78 @@ async function onDrugList(e) {
   toast(b.dataset.del ? 'ลบแล้ว' : d.ai_draft ? 'ตรวจแล้ว · แสดงในเครื่องคำนวณแล้ว' : d.active ? 'ซ่อนแล้ว' : 'แสดงแล้ว');
   resetDose();
   reloadDrugs();
+}
+
+/* ---- ร่างขนาดยาจาก AI รอตรวจ (63_ai_auto.sql: ระบบร่างให้ยารับประทานของ รพ.สต. เองทีละยา) ----
+   แสดงทุกร่างเป็นกล่องที่กรอกไว้แล้ว แก้ได้ในกล่อง → "ตรวจแล้ว · ใช้คำนวณ" = บันทึก + แสดงในหน้าคำนวณขนาดยา */
+const FORMS = ['ยาน้ำ', 'ยาเม็ด', 'ครีม', 'อื่น ๆ'], RV_OPEN = 5;
+const ORAL = /เม็ด|แคปซูล|น้ำรับประทาน|ผง|NCD|เรื้อรัง/;
+function rvCard(d, open) {
+  const inds = indsOf(d);
+  return `<details class="df-rv"${open ? ' open' : ''}><summary><b>${esc(d.name)}</b><span class="small muted">${inds.map((i) => esc(`${i.name || 'ข้อบ่งใช้'} ${perText(i)}`)).join(' · ')}</span></summary>`
+    + `<form class="form-grid" data-rv="${d.id}" novalidate>`
+    + `<div class="field"><label>ชื่อยา <span class="req">*</span><input class="input r-name" maxlength="120" value="${esc(d.name)}"></label></div>`
+    + `<div class="field"><label>รูปแบบยา<select class="input r-form">${FORMS.map((f) => `<option${(d.form || 'อื่น ๆ') === f ? ' selected' : ''}>${f}</option>`).join('')}</select></label></div>`
+    + `<div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา</span><div class="ind-list r-inds">${inds.map((i) => indBox(i, true)).join('')}</div><div><button type="button" class="btn btn-o btn-sm" data-rv-addind>+ เพิ่มข้อบ่งใช้</button></div></div>`
+    + `<div class="field full"><span class="label-like">ความแรงของยา</span><div class="med-rows r-concs">${(d.concs || []).map(concRow).join('') || concRow()}</div><div><button type="button" class="btn btn-o btn-sm" data-rv-addconc>+ เพิ่มความแรง</button></div></div>`
+    + (d.ai_source ? `<p class="small muted full">${esc(d.ai_source)}</p>` : '')
+    + '<div class="full row-btns df-rv-btns"><button class="btn btn-p btn-sm" type="submit">ตรวจแล้ว · ใช้คำนวณ</button><button type="button" class="btn btn-no btn-sm" data-rv-del>ลบร่าง</button><span class="small r-msg" aria-live="polite"></span></div>'
+    + '</form></details>';
+}
+async function renderReview() {
+  const list = drugs.filter((d) => d.ai_draft);
+  $('#dfRvCount').textContent = `(${list.length})`;
+  $('#dfReview').innerHTML = list.length ? list.map((d, k) => rvCard(d, k < RV_OPEN)).join('') : '<p class="empty">ไม่มีร่างรอตรวจ</p>';
+  $('#dfReview').querySelectorAll('.r-inds').forEach((b) => syncIndBoxes(b));
+  // ความคืบหน้าของระบบ: ยารับประทานของ รพ.สต. ที่ยังไม่มีข้อมูลคำนวณ
+  const { data, error } = await sb.from('local_drugs').select('name,category,dose_id,dose_ai_status,dose_ai_note').eq('active', true);
+  if (error) { $('#dfRvStatus').textContent = ''; return; }
+  const left = data.filter((l) => !l.dose_id && ORAL.test(l.category));
+  const n = (st) => left.filter((l) => (l.dose_ai_status || 'wait') === st).length;
+  const none = left.filter((l) => l.dose_ai_status === 'none');
+  $('#dfRvStatus').innerHTML = !left.length ? 'ยารับประทานของ รพ.สต. มีข้อมูลคำนวณครบทุกตัวแล้ว'
+    : `ระบบกำลังร่างให้ ${n('pending')} ยา · รอคิว ${n('wait') + n('error')} ยา (ทำต่อเองทีละยา ไม่ต้องกด)`
+      + (none.length ? `<details class="df-rv-none"><summary>ฉลากยาไม่มีขนาดยาตามน้ำหนักตัว ${none.length} ยา (กรอกเองในฟอร์มด้านล่างได้)</summary><ul>${none.map((l) => `<li>${esc(l.name)}${l.dose_ai_note ? ` <span class="muted">· ${esc(l.dose_ai_note)}</span>` : ''}</li>`).join('')}</ul></details>` : '');
+}
+function onReview(e) {
+  const card = e.target.closest('form[data-rv]'); if (!card) return;
+  const rm = e.target.closest('[data-rmind]');
+  if (rm) {
+    e.preventDefault();
+    const box = card.querySelector('.r-inds');
+    if (box.children.length === 1) { say(card.querySelector('.r-msg'), 'ต้องมีข้อบ่งใช้อย่างน้อย 1 ข้อ'); return; }
+    rm.closest('.ind-box').remove(); syncIndBoxes(box); return;
+  }
+  if (e.target.closest('[data-rv-addind]')) { const box = card.querySelector('.r-inds'); box.insertAdjacentHTML('beforeend', indBox()); syncIndBoxes(box); box.lastElementChild.querySelector('.i-name').focus(); return; }
+  if (e.target.closest('[data-rv-addconc]')) { card.querySelector('.r-concs').insertAdjacentHTML('beforeend', concRow()); return; }
+  if (e.target.closest('[data-rm]')) { e.target.closest('.med-row').remove(); return; }
+  if (e.target.closest('[data-rv-del]')) delReview(card, e.target.closest('[data-rv-del]'));
+}
+async function saveReview(card) {
+  const m = card.querySelector('.r-msg'), name = card.querySelector('.r-name').value.trim();
+  if (!name) { say(m, 'กรุณาใส่ชื่อยา'); card.querySelector('.r-name').focus(); return; }
+  let inds, concs;
+  try { inds = readInds(card.querySelector('.r-inds')); concs = readConcs(card.querySelector('.r-concs')); } catch (err) { say(m, err.message); return; }
+  const f = inds[0], btn = card.querySelector('[type=submit]');
+  busy(btn, true, 'กำลังบันทึก…');
+  const { error } = await sb.from('dose_drugs').update({
+    name, form: card.querySelector('.r-form').value, indications: inds, indication: f.name, per: f.per, mg_per_kg_min: f.min, mg_per_kg_max: f.max,
+    dose_freq_per_day: f.times ?? null, max_mg_per_dose: f.cap ?? null, freq: f.freq ?? null, renal_note: f.renal ?? null,
+    concs, active: true, ai_draft: false,   // ผู้ดูแลตรวจแล้ว → ใช้ในเครื่องคำนวณ
+  }).eq('id', +card.dataset.rv);
+  busy(btn, false);
+  if (error) { say(m, errText(error)); return; }
+  toast(`ตรวจแล้ว · ${name} ใช้ในหน้าคำนวณขนาดยาแล้ว`);
+  resetDose(); await reloadDrugs();
+}
+async function delReview(card, btn) {
+  const name = card.querySelector('.r-name').value.trim();
+  if (!confirm(`ลบร่างของ "${name}"? (ระบบจะไม่ร่างยานี้ใหม่เอง · เพิ่มเองได้ในฟอร์มด้านล่าง)`)) return;
+  busy(btn, true);
+  const { error } = await sb.from('dose_drugs').delete().eq('id', +card.dataset.rv);
+  busy(btn, false);
+  if (error) { toast(errText(error), 'err'); return; }
+  toast('ลบร่างแล้ว'); await reloadDrugs();
 }
 
 /* ======================= ช่องทางติดต่อ รพ.สต. ======================= */
