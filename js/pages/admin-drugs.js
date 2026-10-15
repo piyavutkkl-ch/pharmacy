@@ -1,19 +1,38 @@
-// ผู้ดูแล › ตั้งค่า › ฐานข้อมูลยา (#/admin/settings/drugs)
+// ผู้ดูแล › ตั้งค่า › ฐานข้อมูลยา (#/admin/drugs/db · เมนูข้อมูลยา)
 //   รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql): เพิ่ม/แก้/ซ่อน/ลบ + ผูกกับข้อมูลยาในบัญชียาหลัก (mono_refs → drug_monographs.ref)
 //   ฉลากยาสหรัฐฯ openFDA (drug_fda_labels · 59_fda_labels.sql): ดึงจาก api.fda.gov ในเบราว์เซอร์ (ฟรี · ไม่ใช้คีย์) แล้วบันทึก · แก้/ลบ · ผูกกับยา รพ.สต. ด้วย local_drugs.fda_key
+//     ภาษาไทย: AI แปลทีละฉลาก/ทั้งหมด (ai_fda_th_start/poll · 60_drug_calc_th.sql) · ผู้ดูแลแก้ข้อความไทยแล้ว = th_reviewed
+//     ปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา → sessionStorage 'pcps_drug_edit' (local:/mono:/fda:<id>) → เปิดฟอร์มนั้น
 //     หัวข้อ/การตัดความยาว (FDA_SECTIONS) ต้องตรงกับ tools/nlem/fda_labels.py
 //   บัญชียาหลักแห่งชาติ (drug_monographs · 57_drug_monographs.sql): ค้นหา เพิ่ม แก้ ลบ · หัวข้อในยาแก้เป็นข้อความ "## หัวข้อ" + บรรทัดเนื้อหา
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
-import { resetDrugInfo } from './dose.js?v=4.4';
+import { resetDrugInfo, strengthOf } from './dose.js?v=4.4';
 
-let locals = [], monos = [], fdas = [], bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30;
+let locals = [], monos = [], fdas = [], doses = [], thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30;
 
 export async function initDrugsAdmin() {
   if (!bound) bind();
   $('#ldList').innerHTML = $('#dmList').innerHTML = $('#faList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
-  await Promise.all([loadLocals(), loadMonos(), loadFdas()]);
+  await Promise.all([loadLocals(), loadMonos(), loadFdas(), loadDoses()]);
   if (!editLocal) resetLocal();
+  openPending();
+}
+/** มาจากปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา → เปิดฟอร์มของรายการนั้น */
+function openPending() {
+  let key = null;
+  try { key = sessionStorage.getItem('pcps_drug_edit'); sessionStorage.removeItem('pcps_drug_edit'); } catch { /* ไม่เป็นไร */ }
+  const [kind, id] = String(key || '').split(':');
+  if (kind === 'local') { const l = locals.find((x) => x.id === +id); if (l) editLocalForm(l); }
+  if (kind === 'mono') { const m = monos.find((x) => x.id === +id); if (m) openMonoForm(m); }
+  if (kind === 'fda') { const f = fdas.find((x) => x.id === +id); if (f) openFdaForm(f); }
+}
+async function loadDoses() {
+  const { data } = await sb.from('dose_drugs').select('id,name,active,ai_draft').order('sort');
+  doses = data || [];
+  const cur = $('#ldDose').value;
+  $('#ldDose').innerHTML = '<option value="">อัตโนมัติ (จับคู่ตามชื่อยา)</option>' + doses.map((d) => `<option value="${d.id}">${esc(d.name)}${d.ai_draft ? ' (ร่าง · รอตรวจ)' : d.active ? '' : ' (ซ่อน)'}</option>`).join('');
+  $('#ldDose').value = cur;
 }
 
 async function loadLocals() {
@@ -59,6 +78,9 @@ function bind() {
   $('#faQ').addEventListener('input', renderFdas);
   $('#faList').addEventListener('click', onFdaList);
   $('#faForm').addEventListener('submit', saveFda);
+  $('#faThAll').addEventListener('click', thAll);
+  $('#faThStop').addEventListener('click', () => { thStop = true; });
+  ['#ldName', '#ldUnit', '#ldStrMg'].forEach((x) => $(x).addEventListener('input', strHint));
   $('#faCancel').addEventListener('click', () => { $('#faForm').hidden = true; editFda = null; });
   $('#dmNew').addEventListener('click', () => openMonoForm(null));
   $('#dmCancel').addEventListener('click', () => { $('#dmForm').hidden = true; editMono = null; });
@@ -79,10 +101,17 @@ function renderLocals() {
     : list.map((l) => `<div class="li"><div class="l"><b>${esc(l.name)}</b>`
       + `<span class="small muted">${[l.code && `รหัส ${esc(l.code)}`, esc(l.category), (l.pack_size || l.unit) && `บรรจุ ${esc([l.pack_size, l.unit].filter(Boolean).join(' '))}`].filter(Boolean).join(' · ')}</span>`
       + `<span class="small">${(l.mono_refs || []).length ? `ข้อมูลยา: ${esc(linkNames(l.mono_refs).join(', '))}` : '<span class="chip c-fix">ยังไม่ผูกข้อมูลยา</span>'}</span>`
+      + (() => { const st = strengthOf(l); return st ? `<span class="small muted">ความแรง ${st.mg} ${{ tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' }[st.per]}${l.strength ? '' : ' (อ่านจากชื่อ)'}</span>` : ''; })()
       + (l.fda_key ? `<span class="small muted">ฉลาก openFDA: ${esc(fdas.find((f) => f.key === l.fda_key)?.title || l.fda_key)}</span>` : '')
       + `${l.active ? '' : '<div class="meta"><span class="chip c-off">ซ่อน</span></div>'}</div>`
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-ld-edit="${l.id}">แก้ไข</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-ld-del="${l.id}">ลบ</button></div></div>`).join('');
+}
+/** ช่องความแรงว่าง → บอกว่าระบบอ่านจากชื่อยาได้เท่าไร */
+function strHint() {
+  if (+$('#ldStrMg').value > 0) { $('#ldStrHint').textContent = 'ใช้ความแรงที่กรอก'; return; }
+  const st = strengthOf({ name: $('#ldName').value, unit: $('#ldUnit').value });
+  $('#ldStrHint').textContent = st ? `ว่าง = อ่านจากชื่อยา: ${+st.mg.toFixed(3)} ${{ tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' }[st.per]}` : 'อ่านจากชื่อยาไม่ได้ · กรอกความแรงเพื่อใช้ในเครื่องคำนวณ (เช่น ยาน้ำ 120 มก./5 มล.)';
 }
 function renderLinks() {
   const names = linkNames(links);
@@ -100,13 +129,15 @@ function resetLocal() {
   editLocal = null; links = [];
   ['#ldName', '#ldCode', '#ldCat', '#ldPack', '#ldUnit', '#ldNote', '#ldLinkQ'].forEach((s) => { $(s).value = ''; });
   $('#ldSort').value = locals.length ? Math.max(...locals.map((l) => l.sort)) + 1 : 1; $('#ldActive').checked = true; $('#ldFda').value = '';
+  $('#ldStrMg').value = ''; $('#ldStrPer').value = 'tab'; $('#ldDose').value = ''; strHint();
   $('#ldSubmit').textContent = 'เพิ่มยา'; $('#ldCancel').hidden = true; $('#ldMsg').textContent = '';
   renderLinks(); renderPick();
 }
 function editLocalForm(l) {
   editLocal = l; links = [...(l.mono_refs || [])];
   $('#ldName').value = l.name; $('#ldCode').value = l.code || ''; $('#ldCat').value = l.category; $('#ldPack').value = l.pack_size || '';
-  $('#ldUnit').value = l.unit || ''; $('#ldNote').value = l.note || ''; $('#ldFda').value = l.fda_key || ''; $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
+  $('#ldUnit').value = l.unit || ''; $('#ldNote').value = l.note || ''; $('#ldFda').value = l.fda_key || '';
+  $('#ldStrMg').value = l.strength?.mg ?? ''; $('#ldStrPer').value = l.strength?.per || 'tab'; $('#ldDose').value = l.dose_id ?? ''; strHint(); $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
   $('#ldSubmit').textContent = 'บันทึกการแก้ไข'; $('#ldCancel').hidden = false; $('#ldMsg').textContent = '';
   renderLinks();
   $('#ldForm').scrollIntoView({ block: 'start', behavior: 'smooth' }); $('#ldName').focus();
@@ -119,7 +150,8 @@ async function saveLocal(e) {
   const code = $('#ldCode').value.trim() || null;
   if (code && locals.some((l) => l.code === code && l.id !== editLocal?.id)) { $('#ldCode').focus(); $('#ldMsg').textContent = 'รหัสยานี้มีในรายการแล้ว'; return; }
   const row = { name, code, category, pack_size: $('#ldPack').value.trim(), unit: $('#ldUnit').value.trim(), note: $('#ldNote').value.trim() || null,
-    mono_refs: links, fda_key: $('#ldFda').value || null, sort: +$('#ldSort').value || 0, active: $('#ldActive').checked, updated_at: new Date().toISOString() };
+    mono_refs: links, fda_key: $('#ldFda').value || null, dose_id: +$('#ldDose').value || null,
+    strength: +$('#ldStrMg').value > 0 ? { mg: +$('#ldStrMg').value, per: $('#ldStrPer').value } : null, sort: +$('#ldSort').value || 0, active: $('#ldActive').checked, updated_at: new Date().toISOString() };
   const btn = $('#ldSubmit'); busy(btn, true, 'กำลังบันทึก…');
   const { error } = editLocal ? await sb.from('local_drugs').update(row).eq('id', editLocal.id) : await sb.from('local_drugs').insert(row);
   busy(btn, false);
@@ -220,7 +252,7 @@ const FDA_SECTIONS = [
   ['คำเตือนกรอบดำ', ['boxed_warning']],
   ['คำเตือนและข้อควรระวัง', ['warnings_and_cautions', 'warnings', 'precautions', 'ask_doctor', 'ask_doctor_or_pharmacist', 'when_using', 'stop_use']],
   ['อาการไม่พึงประสงค์', ['adverse_reactions']],
-  ['ยาตีกัน', ['drug_interactions']],
+  ['Drug interaction', ['drug_interactions']],
   ['การใช้ในหญิงตั้งครรภ์/ให้นมบุตร เด็ก ผู้สูงอายุ', ['pregnancy', 'lactation', 'nursing_mothers', 'pregnancy_or_breast_feeding', 'pediatric_use', 'geriatric_use']],
   ['การได้รับยาเกินขนาด', ['overdosage']],
   ['การเก็บรักษา', ['storage_and_handling']],
@@ -285,33 +317,78 @@ function renderFdas() {
   $('#faCount').textContent = `(${fdas.length})`;
   $('#faList').innerHTML = !fdas.length ? '<p class="empty">ยังไม่มีฉลากยา</p>' : !list.length ? '<p class="empty">ไม่พบฉลากที่ค้นหา</p>'
     : list.map((f) => `<div class="li"><div class="l"><b>${esc(f.title)}</b><span class="small muted">${esc(f.generic)} · ${esc(f.route)}${f.brand ? ` · ${esc(f.brand)}` : ''} · ${(f.sections || []).length} หัวข้อ${f.effective ? ` · ฉลาก ${esc(f.effective)}` : ''}</span>`
-      + `<span class="small ${used(f.key) ? 'muted' : ''}">${used(f.key) ? `ผูกกับยา รพ.สต. ${used(f.key)} รายการ` : '<span class="chip c-off">ยังไม่ผูกกับยา รพ.สต.</span>'}</span></div>`
-      + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-fa-refresh="${f.id}">ดึงใหม่</button><button type="button" class="btn btn-o btn-sm" data-fa-edit="${f.id}">แก้ไข</button>`
+      + `<span class="small ${used(f.key) ? 'muted' : ''}">${used(f.key) ? `ผูกกับยา รพ.สต. ${used(f.key)} รายการ` : '<span class="chip c-off">ยังไม่ผูกกับยา รพ.สต.</span>'}</span>`
+      + `<div class="meta">${f.sections_th?.length ? `<span class="chip ${f.th_reviewed ? 'c-on' : 'c-role'}">${f.th_reviewed ? 'ภาษาไทย · ตรวจแล้ว' : 'ภาษาไทย (AI แปล)'}</span>` : f.th_status === 'pending' ? '<span class="chip c-off">AI กำลังแปล…</span>' : '<span class="chip c-off">ยังไม่มีภาษาไทย</span>'}${f.th_status === 'error' && f.th_note ? `<span class="small ai-err">${esc(f.th_note)}</span>` : ''}</div></div>`
+      + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-fa-th="${f.id}">${f.sections_th?.length ? 'AI แปลใหม่' : 'ให้ AI แปลไทย'}</button><button type="button" class="btn btn-o btn-sm" data-fa-refresh="${f.id}">ดึงใหม่</button><button type="button" class="btn btn-o btn-sm" data-fa-edit="${f.id}">แก้ไข</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-fa-del="${f.id}">ลบ</button></div></div>`).join('');
 }
 async function onFdaList(e) {
-  const b = e.target.closest('[data-fa-refresh],[data-fa-edit],[data-fa-del]'); if (!b) return;
-  const f = fdas.find((x) => x.id === +(b.dataset.faRefresh || b.dataset.faEdit || b.dataset.faDel)); if (!f) return;
+  const b = e.target.closest('[data-fa-refresh],[data-fa-edit],[data-fa-del],[data-fa-th]'); if (!b) return;
+  const f = fdas.find((x) => x.id === +(b.dataset.faRefresh || b.dataset.faEdit || b.dataset.faDel || b.dataset.faTh)); if (!f) return;
+  if (b.dataset.faTh) {
+    if (f.th_reviewed && !confirm(`ให้ AI แปล "${f.title}" ใหม่?\nข้อความภาษาไทยที่ตรวจ/แก้ไว้จะถูกแทนที่`)) return;
+    busy(b, true, 'AI กำลังแปล…');
+    try { await translate(f); toast('AI แปลเป็นภาษาไทยแล้ว'); } catch (err) { toast(errText(err), 'err'); }
+    finally { busy(b, false); changed(); loadFdas(); }
+    return;
+  }
   if (b.dataset.faRefresh) {
     if (!confirm(`ดึงฉลาก "${f.title}" ใหม่จาก openFDA?\nข้อความที่แก้เองในฉลากนี้จะถูกแทนที่`)) return;
     return fetchAndSave(f.generic, f.route, f.brand || '', b);
   }
-  if (b.dataset.faEdit) {
-    editFda = f; $('#faTitle').textContent = `แก้ไขฉลาก: ${f.title}`; $('#faName').value = f.title;
-    $('#faSections').value = sectionsText((f.sections || []).map((x) => ({ title: x.title, body: [x.body] })));
-    $('#faForm').hidden = false; $('#faForm').scrollIntoView({ block: 'start', behavior: 'smooth' }); return;
-  }
+  if (b.dataset.faEdit) { openFdaForm(f); return; }
   if (!confirm(`ลบฉลาก "${f.title}"?` + (locals.some((l) => l.fda_key === f.key) ? '\nยา รพ.สต. ที่ผูกไว้จะไม่แสดงข้อมูลฉลากนี้' : ''))) return;
   const { error } = await sb.from('drug_fda_labels').delete().eq('id', f.id);
   if (error) { toast(errText(error), 'err'); return; }
   toast('ลบฉลากแล้ว'); changed(); loadFdas();
 }
+function openFdaForm(f) {
+  editFda = f; $('#faTitle').textContent = `แก้ไขฉลาก: ${f.title}`; $('#faName').value = f.title;
+  $('#faSections').value = sectionsText((f.sections || []).map((x) => ({ title: x.title, body: [x.body] })));
+  $('#faSectionsTh').value = sectionsText(f.sections_th || []);
+  $('#faForm').hidden = false; $('#faForm').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+/** ให้ AI แปล/เรียบเรียงฉลาก 1 ฉลากเป็นภาษาไทย (60_drug_calc_th.sql · ai_fda_th_start/poll) */
+async function translate(f) {
+  const { error } = await sb.rpc('ai_fda_th_start', { p_id: f.id });
+  if (error) throw error;
+  let r = { th_status: 'pending' };
+  for (let i = 0; r.th_status === 'pending' && i < 80; i++) {
+    await new Promise((ok) => setTimeout(ok, 2500));
+    const { data, error: e2 } = await sb.rpc('ai_fda_th_poll', { p_id: f.id });
+    if (e2) throw e2;
+    r = data;
+  }
+  if (r.th_status !== 'done') throw new Error(r.th_note || 'AI ยังแปลไม่เสร็จ กรุณาลองใหม่');
+  return r;
+}
+/** แปลทุกฉลากที่ยังไม่มีภาษาไทย ทีละฉลาก · กดหยุดได้ */
+async function thAll() {
+  const todo = fdas.filter((f) => !f.sections_th?.length);
+  const msg = $('#faMsg'), btn = $('#faThAll');
+  if (!todo.length) { msg.style.color = 'var(--success)'; msg.textContent = 'ทุกฉลากมีภาษาไทยแล้ว'; return; }
+  thStop = false; busy(btn, true, 'AI กำลังแปล…'); $('#faThStop').hidden = false;
+  let ok = 0, bad = 0;
+  try {
+    for (const [i, f] of todo.entries()) {
+      if (thStop) break;
+      msg.style.color = ''; msg.textContent = `กำลังแปล ${i + 1}/${todo.length}: ${f.title}`;
+      try { await translate(f); ok++; } catch (err) { bad++; if (/ครบ \d+ ครั้ง|ไม่มีสิทธิ์|ยังไม่พร้อม/.test(errText(err))) { msg.textContent = errText(err); break; } }
+    }
+  } finally {
+    busy(btn, false); $('#faThStop').hidden = true; changed();
+    msg.style.color = ok ? 'var(--success)' : 'var(--error)';
+    msg.textContent = `แปลเป็นภาษาไทยแล้ว ${ok} ฉลาก${bad ? ` · ไม่สำเร็จ ${bad} ฉลาก (กด "ให้ AI แปลไทย" ทีละฉลากเพื่อลองใหม่)` : ''}${thStop ? ' · หยุดแล้ว' : ''}`;
+    await loadFdas();
+  }
+}
 async function saveFda(e) {
   e.preventDefault();
   if (!editFda) return;
   const sections = parseSections($('#faSections').value).map((x) => ({ title: x.title, body: x.body.join(' ') })).filter((x) => x.body);
+  const th = parseSections($('#faSectionsTh').value).map((x) => ({ title: x.title, body: x.body.map((l) => l.replace(/^[-•]\s*/, '')).filter(Boolean) })).filter((x) => x.body.length);
   const btn = $('#faSave'); busy(btn, true, 'กำลังบันทึก…');
-  const { error } = await sb.from('drug_fda_labels').update({ title: $('#faName').value.trim() || editFda.title, sections, updated_at: new Date().toISOString() }).eq('id', editFda.id);
+  const { error } = await sb.from('drug_fda_labels').update({ title: $('#faName').value.trim() || editFda.title, sections, sections_th: th.length ? th : null, th_reviewed: th.length > 0, updated_at: new Date().toISOString() }).eq('id', editFda.id);
   busy(btn, false);
   if (error) { toast(errText(error), 'err'); return; }
   toast('บันทึกฉลากแล้ว'); changed(); $('#faForm').hidden = true; editFda = null; loadFdas();

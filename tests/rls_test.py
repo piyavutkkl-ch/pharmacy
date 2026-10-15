@@ -936,5 +936,23 @@ check("staff cannot edit FDA label (RLS → 0 rows)", "s2", "update drug_fda_lab
 check("admin upserts FDA label", "admin", "insert into drug_fda_labels(key,generic,route,title) values ('test|ORAL','test','ORAL','T') on conflict (key) do update set title='T2' returning title", eq("T"))
 check("admin links local drug to label", "admin", "update local_drugs set fda_key='test|ORAL' where code='1010270' returning code", eq("1010270"))
 
+print("== step 60: calculator links + FDA Thai (AI) ==")
+check("admin sets strength + dose link on local drug", "admin", "update local_drugs set strength='{\"mg\":120,\"per\":\"5ml\"}', dose_id=(select id from dose_drugs order by id limit 1) where code='1050060' returning strength->>'mg'", eq("120"))
+check("anon reads strength", "anon", "select strength->>'per' from local_drugs where code='1050060'", eq("5ml"))
+fl = run("select id from drug_fda_labels where key='amlodipine besylate|ORAL'")[1].strip()
+check("staff cannot start FDA translation", "s2", f"select ai_fda_th_start({fl})", "deny")
+check("anon cannot start FDA translation", "anon", f"select ai_fda_th_start({fl})", "deny")
+run(f"select ai_fda_th_start({fl})", "admin")
+check("translation pending", "admin", f"select ai_fda_th_poll({fl})->>'th_status'", eq("pending"))
+check("AI gets label text, key only in header", None, f"select (convert_from(q.body,'utf8') like '%amlodipine%' and convert_from(q.body,'utf8') not like '%test-key-123%' and q.headers->>'x-goog-api-key'='test-key-123')::text from drug_fda_labels f join net.http_request_queue q on q.id=f.th_request_id where f.id={fl}", eq("true"))
+run(f"insert into net._http_response(id,status_code,content) select th_request_id, 503, '{{}}' from drug_fda_labels where id={fl}")
+check("AI busy → resent with backup model", "admin", f"select ai_fda_th_poll({fl})->>'th_status'", eq("pending"))
+TH = '{"sections":[{"title":"ข้อบ่งใช้","points":["ใช้รักษาความดันโลหิตสูง","", "ใช้รักษาเจ็บหน้าอก"]},{"title":"หัวข้อที่ไม่มีในฉลาก","points":["x"]},{"title":"ขนาดยาและวิธีใช้","points":["เริ่ม 5 มก. วันละครั้ง สูงสุด 10 มก."]}]}'
+run(f"""insert into net._http_response(id,status_code,content) select th_request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${TH}$q$))))))::text from drug_fda_labels where id={fl}""")
+check("Thai saved (only label titles · empty points dropped · label order)", "admin", f"select ai_fda_th_poll({fl})->>'th_status'; select string_agg(e->>'title' || ':' || jsonb_array_length(e->'body'), ',') from drug_fda_labels, jsonb_array_elements(sections_th) e where id={fl}", lambda o: o.strip().endswith('ข้อบ่งใช้:2,ขนาดยาและวิธีใช้:1'))
+check("anon reads Thai label", "anon", f"select sections_th->1->'body'->>0 from drug_fda_labels where id={fl}", eq("เริ่ม 5 มก. วันละครั้ง สูงสุด 10 มก."))
+check("admin marks Thai reviewed", "admin", f"update drug_fda_labels set th_reviewed=true where id={fl} returning th_reviewed", eq("t"))
+check("bad th_status rejected", "admin", f"update drug_fda_labels set th_status='x' where id={fl}", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

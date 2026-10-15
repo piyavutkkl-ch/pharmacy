@@ -41,7 +41,7 @@ SECTIONS = [  # (หัวข้อไทย, ช่องใน openFDA ที�
     ('คำเตือนกรอบดำ', ['boxed_warning']),
     ('คำเตือนและข้อควรระวัง', ['warnings_and_cautions', 'warnings', 'precautions', 'ask_doctor', 'ask_doctor_or_pharmacist', 'when_using', 'stop_use']),
     ('อาการไม่พึงประสงค์', ['adverse_reactions']),
-    ('ยาตีกัน', ['drug_interactions']),
+    ('Drug interaction', ['drug_interactions']),
     ('การใช้ในหญิงตั้งครรภ์/ให้นมบุตร เด็ก ผู้สูงอายุ', ['pregnancy', 'lactation', 'nursing_mothers', 'pregnancy_or_breast_feeding', 'pediatric_use', 'geriatric_use']),
     ('การได้รับยาเกินขนาด', ['overdosage']),
     ('การเก็บรักษา', ['storage_and_handling']),

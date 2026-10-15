@@ -1,6 +1,7 @@
 // ผู้ดูแล: โครงหน้า + เมนู + ตัวเลขงานค้าง + ข้อเสนอแนะ (อยู่ใน ตั้งค่า › ข้อเสนอแนะ)
 // ข่าว → admin-news.js · ตรวจประเมิน → admin-review.js · ข้อความ → chat.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
-// ตั้งค่า → admin-settings.js (ยา, ช่องทางติดต่อ) + admin-drugs.js (ฐานข้อมูลยา: ยา รพ.สต. + บัญชียาหลัก) + admin-staff.js (บัญชีเจ้าหน้าที่) + admin-audit.js (ประวัติการเข้าถึงข้อมูลผู้ป่วย)
+// ข้อมูลยา (#/admin/drugs/dose|db) → admin-settings.js initDoseAdmin + admin-drugs.js · Health Rider (#/admin/rider[/delivery]) → rider.js + delivery.js
+// ตั้งค่า → admin-settings.js (ช่องทางติดต่อ) + admin-staff.js (บัญชีเจ้าหน้าที่) + admin-audit.js (ประวัติการเข้าถึงข้อมูลผู้ป่วย)
 import { sb } from '../supabase.js?v=4.4';
 import { $, $$, esc, thaiDate, toast, errText } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
@@ -22,12 +23,15 @@ import { mountAch, visitTabs } from './staff.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.', rider: 'Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
-const SUBS = { dose: initDoseAdmin, drugs: initDrugsAdmin, contacts: initContactsAdmin, staff: initRoster, delivery: () => { initDeliveryAdmin(); initDeliveryReportAdmin(); }, audit: initAudit, feedback: () => initFeedback() };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.', rider: 'จัดส่งยาถึงบ้าน · Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', drugs: 'ข้อมูลยา', settings: 'ตั้งค่า' };
+const SUBS = { contacts: initContactsAdmin, staff: initRoster, audit: initAudit, feedback: () => initFeedback() };
+// ย้ายจากตั้งค่า: ข้อมูลยา (คำนวณขนาดยา/ฐานข้อมูลยา) → เมนูข้อมูลยา · จัดส่งยาถึงบ้าน → เมนู Health Rider
+const MOVED = { dose: '#/admin/drugs/dose', drugs: '#/admin/drugs/db', delivery: '#/admin/rider/delivery' };
 
 export async function showAdmin(tab, sub) {
   if (tab === 'staff') { location.replace('#/admin/settings/staff'); return; }   // ลิงก์เดิมจากขั้น 4.1
   if (tab === 'feedback') { location.replace('#/admin/settings/feedback'); return; }   // ย้ายไปอยู่ในตั้งค่า
+  if (tab === 'settings' && MOVED[sub]) { location.replace(MOVED[sub]); return; }
   if (!ADMIN_TABS[tab]) tab = 'news';
   adminHead();
   $('#adminViewTitle').textContent = ADMIN_TABS[tab];
@@ -39,16 +43,31 @@ export async function showAdmin(tab, sub) {
   if (tab === 'messages') return showMessages(sub);
   if (tab === 'visits') return showVisits(sub || null);
   if (tab === 'achievements') return showAch();
-  if (tab === 'rider') return mountRiderEditor($('#adminRiderSlot'));
+  if (tab === 'rider') {   // Health Rider + จัดส่งยาถึงบ้าน
+    const d = sub === 'delivery';
+    subTabs('#arTabs', d ? 'delivery' : 'rider');
+    $$('[data-rider-sub]').forEach((v) => { v.hidden = v.dataset.riderSub !== (d ? 'delivery' : 'rider'); });
+    if (d) { initDeliveryAdmin(); initDeliveryReportAdmin(); return; }
+    return mountRiderEditor($('#adminRiderSlot'));
+  }
+  if (tab === 'drugs') {   // ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา
+    const v = sub === 'db' ? 'db' : 'dose';
+    subTabs('#adrTabs', v);
+    $$('[data-admin-view="drugs"] [data-admin-sub]').forEach((x) => { x.hidden = x.dataset.adminSub !== v; });
+    return v === 'db' ? initDrugsAdmin() : initDoseAdmin();
+  }
   if (tab === 'docs') return initAdminDocs();
-  if (!SUBS[sub]) sub = 'dose';
-  $$('#asTabs [data-sub]').forEach((a) => {
+  if (!SUBS[sub]) sub = 'contacts';
+  subTabs('#asTabs', sub);
+  $$('[data-admin-view="settings"] [data-admin-sub]').forEach((v) => { v.hidden = v.dataset.adminSub !== sub; });
+  return SUBS[sub]();
+}
+function subTabs(sel, sub) {
+  $$(`${sel} [data-sub]`).forEach((a) => {
     if (a.dataset.sub !== sub) { a.removeAttribute('aria-current'); return; }
     a.setAttribute('aria-current', 'page');
     a.parentNode.scrollLeft = a.offsetLeft - a.parentNode.offsetLeft - 16;   // มือถือ: แท็บที่เลือกต้องมองเห็น
   });
-  $$('[data-admin-sub]').forEach((v) => { v.hidden = v.dataset.adminSub !== sub; });
-  return SUBS[sub]();
 }
 
 /** ตัวเลขงานค้างบนเมนู */

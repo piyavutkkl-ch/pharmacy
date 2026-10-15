@@ -533,6 +533,18 @@ function rpc(name, a = {}) {
       if (r.ai_status === 'pending' && ++r.ai_polls >= 2) Object.assign(r, { ai_status: 'done', ai_text: `• จัดส่งยาสำเร็จ ${r.summary?.ok} ครั้ง ผู้ป่วย ${r.summary?.patients} คน\n• ช่องทางที่ใช้มากที่สุดคือ ${r.summary?.service?.[0]?.[0] || '-'}` });
       return { data: { id: r.id, ai_status: r.ai_status, ai_text: r.ai_text, ai_note: null }, error: null };
     }
+    /* แทน ai_fda_th_start / poll (60_drug_calc_th.sql): ตอบ "รอ" 1 รอบ แล้วได้ภาษาไทยทุกหัวข้อของฉลาก (ข้อความจำลอง) */
+    case 'ai_fda_th_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.drug_fda_labels || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบฉลากนี้', 'P0001');
+      Object.assign(r, { th_status: 'pending', th_polls: 0 }); return { data: null, error: null };
+    }
+    case 'ai_fda_th_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.drug_fda_labels || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบฉลากนี้', 'P0001');
+      if (r.th_status === 'pending' && ++r.th_polls >= 2) Object.assign(r, { th_status: 'done', th_reviewed: false, sections_th: (r.sections || []).map((x) => ({ title: x.title, body: [`(ภาษาไทย) ${x.title} ของ ${r.generic}`, 'ข้อที่สอง'] })) });
+      return { data: { id: r.id, th_status: r.th_status, th_note: null, sections_th: r.sections_th || null }, error: null };
+    }
     /* แทน ai_news_topics_start / poll (54_news_topics.sql): ข่าวที่ยังไม่มีหมวด → หมวดที่ชื่ออยู่ในหัวข้อ/เนื้อหา หรือหมวดแรก */
     case 'ai_news_topics_start': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');

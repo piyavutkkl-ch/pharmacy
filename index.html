@@ -106,11 +106,12 @@
     <div class="unit-tabs uc-switch" id="doseTabs" role="tablist" aria-label="เลือกส่วน">
       <button type="button" role="tab" data-dt="calc" aria-current="true">คำนวณขนาดยา</button>
       <button type="button" role="tab" data-dt="info">ข้อมูลยา</button>
+      <button type="button" role="tab" data-dt="fluid">คำนวณสารน้ำ</button>
     </div>
     <div class="panel" id="dosePaneInfo" hidden>
       <p class="small muted">รายการยาของ รพ.สต. ในอำเภอควนกาหลง และข้อมูลยาตาม <b>บัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙</b> (ราชกิจจานุเบกษา) · เลือกยาเพื่อดูกลุ่มยา รูปแบบยา บัญชี เงื่อนไขการใช้ คำเตือนและข้อควรระวัง คำแนะนำ และขนาดยาจากเครื่องคำนวณ (ถ้ามี) · ใช้เป็นข้อมูลอ้างอิงเบื้องต้น โปรดตรวจสอบกับเอกสารกำกับยาก่อนใช้จริง</p>
       <div id="doseInfoPick">
-        <div class="form-grid three">
+        <div class="form-grid di-filters">
           <div class="field"><label for="doseInfoQ">ค้นหายา</label><input id="doseInfoQ" class="input" type="search" placeholder="ชื่อยา รหัสยา หรือกลุ่มยา เช่น paracetamol"></div>
           <div class="field"><label for="doseScope">แหล่งข้อมูล</label><select id="doseScope" class="input"><option value="all">ทั้งหมด</option><option value="local" selected>ยา รพ.สต.</option><option value="nlem">บัญชียาหลักแห่งชาติ</option></select></div>
           <div class="field"><label for="doseInfoGroup" id="doseInfoGroupLbl">หมวดยา</label><select id="doseInfoGroup" class="input"><option value="all">ทั้งหมด</option></select></div>
@@ -121,15 +122,38 @@
       </div>
       <div id="doseMono" class="di-mono" hidden></div>
     </div>
+    <div class="panel" id="dosePaneFluid" hidden>
+      <p class="small muted">เตรียมสารน้ำ Dextrose ความเข้มข้นที่ไม่มีในคลัง จากถุงที่มี + 50% Dextrose (เติม 3% NaCl ถ้าต้องการเพิ่มความเข้มข้นเกลือ) · ตรวจสอบซ้ำก่อนเตรียมจริงทุกครั้ง</p>
+      <div class="fx-grid">
+        <fieldset class="fx-box"><legend>ถุงที่มีอยู่</legend>
+          <div class="form-grid three">
+            <div class="field"><label for="fxD1">Dextrose</label><select id="fxD1" class="input"><option value="0">ไม่มี (0%)</option><option value="5" selected>5%</option><option value="10">10%</option></select></div>
+            <div class="field"><label for="fxN1">NaCl</label><select id="fxN1" class="input"><option value="0">W (ไม่มีเกลือ)</option><option value="0.9">S (0.9%)</option><option value="0.45" selected>N/2 (0.45%)</option><option value="0.3">N/3 (0.3%)</option><option value="0.225">N/4 (0.225%)</option><option value="0.18">N/5 (0.18%)</option></select></div>
+            <div class="field"><label for="fxV">ปริมาตรถุง (มล.)</label><input id="fxV" class="input" type="number" inputmode="numeric" min="10" step="10" value="1000" list="fxVols"><datalist id="fxVols"><option value="100"><option value="250"><option value="500"><option value="1000"></datalist></div>
+          </div>
+        </fieldset>
+        <fieldset class="fx-box"><legend>ที่ต้องการ</legend>
+          <div class="form-grid">
+            <div class="field"><label for="fxD2">Dextrose (%)</label><input id="fxD2" class="input" type="number" inputmode="decimal" min="0" max="45" step="2.5" value="10"></div>
+            <div class="field"><label for="fxN2">NaCl</label><select id="fxN2" class="input"><option value="same" selected>เท่าเดิม (ไม่เติม NaCl)</option><option value="0.9">S (0.9%)</option><option value="0.45">N/2 (0.45%)</option><option value="0.3">N/3 (0.3%)</option><option value="0.225">N/4 (0.225%)</option><option value="0.18">N/5 (0.18%)</option></select></div>
+          </div>
+        </fieldset>
+      </div>
+      <div id="fxOut" aria-live="polite"></div>
+      <details class="fx-table" id="fxTableWrap" open><summary>ตารางเตรียมน้ำเกลือที่ใช้บ่อย (ถุง 1000 มล.)</summary><div id="fxTable"></div></details>
+    </div>
     <div class="panel" id="dosePaneCalc">
       <p class="small muted">คำนวณขนาดยาโดยประมาณตามน้ำหนักตัว สำหรับใช้เป็นข้อมูลอ้างอิงเบื้องต้นเท่านั้น เภสัชกร/แพทย์ต้องพิจารณาและตรวจสอบซ้ำก่อนสั่งใช้ยาจริงทุกครั้ง</p>
-      <div class="form-grid three">
-        <div class="field"><label for="doseWeight">น้ำหนักตัว (กก.)</label><input id="doseWeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="เช่น 12.5"></div>
-        <div class="field"><label for="doseHeight">ส่วนสูง (ซม.)</label><input id="doseHeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="เช่น 90"></div>
+      <div class="form-grid four dose-pt">
+        <div class="field"><label for="doseAge">อายุ</label><div class="dose-age"><input id="doseAge" class="input" type="number" inputmode="decimal" min="0" max="130" step="0.1" placeholder="ไม่บังคับ"><select id="doseAgeUnit" class="input" aria-label="หน่วยอายุ"><option value="y">ปี</option><option value="m">เดือน</option></select></div></div>
+        <div class="field"><label for="doseWeight">น้ำหนักตัว (กก.) <span class="req">*</span></label><input id="doseWeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="เช่น 12.5" required></div>
+        <div class="field"><label for="doseHeight">ส่วนสูง (ซม.)</label><input id="doseHeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="ไม่บังคับ"></div>
+        <div class="field"><label for="doseSex">เพศ</label><select id="doseSex" class="input"><option value="m">ชาย</option><option value="f">หญิง</option></select></div>
       </div>
-      <div class="field"><label for="doseDrug">รายการยา</label><select id="doseDrug" class="input"></select></div>
+      <div class="dose-est" id="doseEst" aria-live="polite"></div>
+      <div class="field"><label for="doseDrug">รายการยา</label><select id="doseDrug" class="input"></select><span class="small muted" id="doseDrugNote"></span></div>
       <div class="field"><label for="doseConc">ความแรงของยาที่มี</label><select id="doseConc" class="input"></select></div>
-      <label class="small"><input type="checkbox" id="doseRenalAdjust"> ปรับขนาดยาตามการทำงานของไต (คำนวณ CrCl จากค่า Serum creatinine)</label>
+      <label class="small"><input type="checkbox" id="doseRenalAdjust"> ปรับขนาดยาตามการทำงานของไต (คำนวณ CrCl หรือ eGFR จากค่า Serum creatinine)</label>
       <div class="field" id="doseRenalManualWrap"><label for="doseRenal">ระดับการทำงานของไต (ประมาณเอง)</label>
         <select id="doseRenal" class="input">
           <option value="normal">ปกติ / ไม่ทราบ</option>
@@ -138,11 +162,10 @@
           <option value="severe">ไตเสื่อมรุนแรง / ฟอกไต (CrCl &lt;10 มล./นาที)</option>
         </select>
       </div>
-      <div class="form-grid four" id="doseRenalCalcWrap" hidden>
-        <div class="field"><label for="doseAge">อายุ (ปี)</label><input id="doseAge" class="input" type="number" inputmode="numeric" min="0" max="130"></div>
-        <div class="field"><label for="doseSex">เพศ</label><select id="doseSex" class="input"><option value="m">ชาย</option><option value="f">หญิง</option></select></div>
+      <div class="form-grid three" id="doseRenalCalcWrap" hidden>
+        <div class="field"><label for="doseRenalMethod">วิธีประเมิน</label><select id="doseRenalMethod" class="input"><option value="crcl">CrCl (Cockcroft-Gault)</option><option value="egfr">eGFR (CKD-EPI 2021 · เด็ก Schwartz)</option></select></div>
         <div class="field"><label for="doseCr">Serum creatinine (มก./ดล.)</label><input id="doseCr" class="input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="เช่น 1.0"></div>
-        <div class="field"><label for="doseCrClOut">CrCl (Cockcroft-Gault)</label><input id="doseCrClOut" class="input" type="text" readonly tabindex="-1"></div>
+        <div class="field"><label for="doseCrClOut" id="doseCrClLbl">CrCl (Cockcroft-Gault)</label><input id="doseCrClOut" class="input" type="text" readonly tabindex="-1"></div>
       </div>
       <div id="doseResult" class="panel result-panel" aria-live="polite"></div>
     </div>
@@ -482,9 +505,10 @@
       <a href="#/admin/visits" data-admin-tab="visits" title="เยี่ยมบ้าน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span class="lbl">เยี่ยมบ้าน</span></a>
       <a href="#/admin/achievements" data-admin-tab="achievements" title="ผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">ผลงาน</span></a>
       <div class="more-group" id="adminMore">
-        <a href="#/admin/rider" data-admin-tab="rider" title="Health Rider"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg><span class="lbl">Health Rider</span></a>
+        <a href="#/admin/rider" data-admin-tab="rider" title="จัดส่งยา · Health Rider"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg><span class="lbl">Health Rider</span></a>
         <a href="#/admin/review" data-admin-tab="review" title="ตรวจประเมิน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">ตรวจประเมิน</span><span id="admReviewBadge" class="badge num"></span></a>
         <a href="#/admin/docs" data-admin-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
+        <a href="#/admin/drugs" data-admin-tab="drugs" title="ข้อมูลยา"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg><span class="lbl">ข้อมูลยา</span></a>
         <a href="#/admin/settings" data-admin-tab="settings" title="ตั้งค่า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">ตั้งค่า</span><span id="admSetBadge" class="badge num"></span></a>
       </div>
       <button type="button" class="more-btn" aria-expanded="false" aria-controls="adminMore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span class="lbl">เพิ่มเติม</span><span class="dot" aria-hidden="true"></span></button>
@@ -603,39 +627,13 @@
       </div>
 
       <!-- Health Rider: กรอก/นำเข้าตัวเลขผลงานทุก รพ.สต. + ข้อความแนะนำ (rider.js) -->
-      <div data-admin-view="rider" hidden><div id="adminRiderSlot" data-rider-slot></div></div>
-
-      <!-- เอกสาร: อัปโหลด/แก้/แทนที่/ลบ -->
-      <div data-admin-view="docs" hidden>
-        <div class="panel">
-          <h2 id="adFormTitle">อัปโหลดเอกสาร</h2>
-          <p class="small muted">รองรับ PDF, JPG, PNG, CSV, TXT ไม่เกิน 5 MB · ไฟล์ Word/Excel ให้บันทึกเป็น PDF ก่อน</p>
-          <form id="adForm" class="form-grid" novalidate>
-            <div class="field full"><label for="adTitle">ชื่อเอกสาร <span class="req">*</span></label><input id="adTitle" class="input" maxlength="160" placeholder="เช่น แบบบันทึกอุณหภูมิตู้เย็นเก็บยา"></div>
-            <div class="field"><label for="adCat">หมวดหมู่</label><select id="adCat" class="input"><option>แบบฟอร์ม</option><option>คู่มือ / แนวทาง</option><option>หนังสือสั่งการ / ประกาศ</option><option>อื่น ๆ</option></select></div>
-            <div class="field"><label for="adFor">สำหรับ</label><select id="adFor" class="input"></select></div>
-            <div class="field full"><label for="adFile" id="adFileLabel">ไฟล์ <span class="req">*</span></label><input id="adFile" class="input" type="file" accept=".pdf,.jpg,.jpeg,.png,.csv,.txt"><span class="small muted" id="adFileNote"></span></div>
-            <div class="field full"><label for="adNote">รายละเอียด (ถ้ามี)</label><input id="adNote" class="input" maxlength="240"></div>
-            <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="adSubmit">อัปโหลด</button><button class="btn btn-o btn-sm" type="button" id="adCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="adMsg" aria-live="polite"></span></div>
-          </form>
+      <div data-admin-view="rider" hidden>
+        <div class="unit-tabs" id="arTabs" aria-label="เมนูจัดส่งยา">
+          <a class="tab-link" href="#/admin/rider" data-sub="rider">Health Rider</a>
+          <a class="tab-link" href="#/admin/rider/delivery" data-sub="delivery">จัดส่งยาถึงบ้าน</a>
         </div>
-        <div class="panel"><h2>เอกสารทั้งหมด <span class="num muted" id="adCount"></span></h2><div class="doc-tools"><div class="field doc-q"><label for="adQ">ค้นหาชื่อเอกสาร</label><input id="adQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อเอกสาร"></div><div class="field"><label for="adFCat">ประเภท</label><select id="adFCat" class="input"><option value="all">ทุกประเภท</option><option>แบบฟอร์ม</option><option>คู่มือ / แนวทาง</option><option>หนังสือสั่งการ / ประกาศ</option><option>อื่น ๆ</option></select></div><div class="field"><label for="adSort">เรียงตาม</label><select id="adSort" class="input"><option value="updated_desc">อัปเดตล่าสุดก่อน</option><option value="updated_asc">อัปเดตเก่าสุดก่อน</option><option value="title_asc">ชื่อ ก → ฮ</option><option value="title_desc">ชื่อ ฮ → ก</option><option value="dl_desc">ดาวน์โหลดมาก → น้อย</option><option value="dl_asc">ดาวน์โหลดน้อย → มาก</option></select></div></div><div class="list" id="adList"></div></div>
-      </div>
-
-
-      <!-- ตั้งค่า -->
-      <div data-admin-view="settings" hidden>
-        <div class="unit-tabs" id="asTabs" aria-label="เมนูตั้งค่า">
-          <a class="tab-link" href="#/admin/settings/dose" data-sub="dose">คำนวณขนาดยา</a>
-          <a class="tab-link" href="#/admin/settings/drugs" data-sub="drugs">ฐานข้อมูลยา</a>
-          <a class="tab-link" href="#/admin/settings/contacts" data-sub="contacts">ช่องทางติดต่อ รพ.สต.</a>
-          <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่ <span class="badge num" id="admReqBadge"></span></a>
-          <a class="tab-link" href="#/admin/settings/delivery" data-sub="delivery">จัดส่งยาถึงบ้าน</a>
-          <a class="tab-link" href="#/admin/settings/audit" data-sub="audit">ประวัติการเข้าถึง</a>
-          <a class="tab-link" href="#/admin/settings/feedback" data-sub="feedback">ข้อเสนอแนะ</a>
-        </div>
-
-        <div data-admin-sub="delivery" hidden>
+        <div data-rider-sub="rider"><div id="adminRiderSlot" data-rider-slot></div></div>
+        <div data-rider-sub="delivery" hidden>
           <div class="panel">
             <h2>โปสเตอร์บริการจัดส่งยาถึงบ้าน</h2>
             <p class="small muted">แสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน เลื่อนซ้าย-ขวาได้ · รูปย่อไม่เกินขนาด A4 อัตโนมัติ</p>
@@ -671,8 +669,15 @@
             <div class="list" id="drList"></div>
           </div>
         </div>
+      </div>
 
-        <div data-admin-sub="drugs" hidden>
+      <!-- ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา (เฉพาะผู้ดูแลแก้ไขได้) -->
+      <div data-admin-view="drugs" hidden>
+        <div class="unit-tabs" id="adrTabs" aria-label="เมนูข้อมูลยา">
+          <a class="tab-link" href="#/admin/drugs/dose" data-sub="dose">คำนวณขนาดยา</a>
+          <a class="tab-link" href="#/admin/drugs/db" data-sub="db">ฐานข้อมูลยา</a>
+        </div>
+        <div data-admin-sub="db" hidden>
           <div class="panel">
             <h2>รายการยา รพ.สต. อ.ควนกาหลง <span class="num muted" id="ldCount"></span></h2>
             <p class="small muted">แสดงที่หน้าหลัก › ข้อมูลยา / คำนวณขนาดยา › ข้อมูลยา · ผูกยาแต่ละรายการกับข้อมูลยาในบัญชียาหลักแห่งชาติ เพื่อให้ข้อมูลยา (กลุ่มยา เงื่อนไข คำเตือน ฯลฯ) ขึ้นเมื่อเลือกยานั้น</p>
@@ -686,6 +691,8 @@
               </div>
               <div class="field full"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้</span><div class="di-chips" id="ldLinks"></div>
                 <input id="ldLinkQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="ldLinkOut"></div></div>
+              <div class="field"><label for="ldStrMg">ความแรง (สำหรับเครื่องคำนวณ)</label><div class="dose-age ld-str"><input id="ldStrMg" class="input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="มก."><select id="ldStrPer" class="input" aria-label="ต่อ"><option value="tab">มก./เม็ด</option><option value="5ml">มก./5 มล.</option><option value="ml">มก./มล.</option></select></div><span class="small muted" id="ldStrHint">ว่าง = อ่านจากชื่อยา</span></div>
+              <div class="field"><label for="ldDose">ข้อมูลคำนวณขนาดยา</label><select id="ldDose" class="input"><option value="">อัตโนมัติ (จับคู่ตามชื่อยา)</option></select></div>
               <div class="field full"><label for="ldFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="ldFda" class="input"><option value="">— ไม่ผูก —</option></select><span class="small muted">ยังไม่มีในรายการ → ดึงเพิ่มได้ในกล่อง "ฉลากยาสหรัฐฯ (openFDA)" ด้านล่าง</span></div>
               <div class="field full"><label for="ldNote">หมายเหตุ (ถ้ามี)</label><textarea id="ldNote" rows="2" maxlength="2000" placeholder="เช่น เก็บในตู้เย็น"></textarea></div>
               <div class="field"><label for="ldSort">ลำดับแสดง</label><input id="ldSort" class="input" type="number" inputmode="numeric" value="0"></div>
@@ -706,11 +713,13 @@
               <div class="field"><label for="faRoute">ช่องทางให้ยา</label><select id="faRoute" class="input"><option value="ORAL">รับประทาน (ORAL)</option><option value="TOPICAL">ทาภายนอก (TOPICAL)</option><option value="OPHTHALMIC">ตา (OPHTHALMIC)</option><option value="RESPIRATORY (INHALATION)">พ่นสูด (INHALATION)</option><option value="INTRAVENOUS">หลอดเลือดดำ (INTRAVENOUS)</option><option value="INTRAMUSCULAR">กล้ามเนื้อ (INTRAMUSCULAR)</option><option value="SUBCUTANEOUS">ใต้ผิวหนัง (SUBCUTANEOUS)</option><option value="DENTAL">ช่องปาก (DENTAL)</option><option value="IRRIGATION">ล้างแผล (IRRIGATION)</option><option value="INFILTRATION">ฉีดเฉพาะที่ (INFILTRATION)</option></select></div>
               <div class="field"><label for="faBrand">ชื่อการค้า (ถ้าต้องการเจาะจง)</label><input id="faBrand" class="input" maxlength="120" placeholder="เช่น humulin 70/30"></div>
             </div>
-            <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="faFetch">ดึงจาก openFDA</button><span class="small" id="faMsg" aria-live="polite"></span></div>
+            <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="faFetch">ดึงจาก openFDA</button><button type="button" class="btn btn-o btn-sm" id="faThAll">ให้ AI แปลเป็นภาษาไทย (ทุกฉลากที่ยังไม่แปล)</button><button type="button" class="btn btn-o btn-sm" id="faThStop" hidden>หยุด</button><span class="small" id="faMsg" aria-live="polite"></span></div>
+            <p class="small muted">AI (Gemini ฟรี) แปลและเรียบเรียงเป็นข้อ ๆ ภาษาไทย · หน้าข้อมูลยาแสดงภาษาไทย และซ่อนต้นฉบับภาษาอังกฤษไว้ให้กดดู · ข้อความที่ AI แปลจะมีป้ายบอก จนผู้ดูแลกด "แก้ไข" แล้วบันทึก (ถือว่าตรวจแล้ว)</p>
             <form id="faForm" class="form-grid dm-form" novalidate hidden>
               <h3 class="full" id="faTitle">แก้ไขฉลาก</h3>
               <div class="field full"><label for="faName">ชื่อที่แสดง</label><input id="faName" class="input" maxlength="200"></div>
-              <div class="field full"><label for="faSections">หัวข้อ (## หัวข้อ แล้วตามด้วยเนื้อหา)</label><textarea id="faSections" rows="10" maxlength="60000"></textarea></div>
+              <div class="field full"><label for="faSectionsTh">ภาษาไทยที่แสดง (## หัวข้อ แล้วบรรทัดละ 1 ข้อ)</label><textarea id="faSectionsTh" rows="12" maxlength="60000" placeholder="## ข้อบ่งใช้&#10;ใช้รักษา ...&#10;## ขนาดยาและวิธีใช้&#10;ผู้ใหญ่ ..."></textarea><span class="small muted">บันทึกแล้วหน้าข้อมูลยาจะแสดงว่า "ผู้ดูแลตรวจแล้ว"</span></div>
+              <div class="field full"><label for="faSections">ต้นฉบับภาษาอังกฤษ (## หัวข้อ แล้วตามด้วยเนื้อหา)</label><textarea id="faSections" rows="8" maxlength="60000"></textarea></div>
               <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="faSave">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="faCancel">ยกเลิก</button></div>
             </form>
             <div class="field"><label for="faQ">ค้นหาฉลาก</label><input id="faQ" class="input" type="search" placeholder="ชื่อยา"></div>
@@ -737,12 +746,6 @@
             <button type="button" class="btn btn-o btn-sm di-more" id="dmMore" hidden>แสดงเพิ่ม</button>
           </div>
         </div>
-
-        <div data-admin-sub="feedback" hidden>
-          <div class="unit-tabs" id="afFilter" aria-label="กรองแหล่งที่มา"></div>
-          <div class="panel"><h2>ข้อเสนอแนะ</h2><div class="list" id="afList"></div></div>
-        </div>
-
         <div data-admin-sub="dose" hidden>
           <div class="panel">
             <h2 id="dfTitle">เพิ่มรายการยา</h2>
@@ -750,7 +753,7 @@
             <details class="vs-pfold df-bulk" id="dfBulkFold"><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
               <p class="small muted">พิมพ์หรือวางรายชื่อยา บรรทัดละ 1 ยา เช่น พาราเซตามอล (Paracetamol) · กด "สร้างรายการ" แล้วระบบเปิดยาทีละตัวในฟอร์มด้านล่าง พร้อมช่วยกรอกจากฐานข้อมูลยาให้ · ตรวจแล้วกด "เพิ่มยา" ระบบไปยาตัวถัดไปเอง (ไม่บันทึกยาที่ยังไม่ได้ตรวจ)</p>
               <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>
-              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
+              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด</button><button type="button" class="btn btn-o btn-sm" id="dfFromRpst">ดึงขนาดยาจาก openFDA ให้ยา รพ.สต. ที่ยังไม่มี</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
               <p class="small muted">"ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด" = ดึงความแรง (RxNorm) + ขนาดยา มก./กก. ที่ AI ร่างจากฉลากยา openFDA แล้วบันทึกเป็น <b>ร่าง (ซ่อนจากเครื่องคำนวณ)</b> ทุกตัว · ตรวจแล้วกด "ตรวจแล้ว · แสดง" ทีละตัวในรายการยาด้านล่าง</p>
               <span class="small" id="dfBulkMsg" aria-live="polite"></span>
               <div class="list" id="dfBulkList"></div>
@@ -772,6 +775,43 @@
             <div class="field"><label for="dfSortBy">เรียงตาม</label><select id="dfSortBy" class="input"><option value="order">ลำดับที่ตั้งไว้</option><option value="asc">ชื่อ ก → ฮ / A → Z</option><option value="desc">ชื่อ ฮ → ก / Z → A</option></select></div></div>
             <div class="list" id="dfList"></div></div>
         </div>
+      </div>
+
+      
+
+      <!-- เอกสาร: อัปโหลด/แก้/แทนที่/ลบ -->
+      <div data-admin-view="docs" hidden>
+        <div class="panel">
+          <h2 id="adFormTitle">อัปโหลดเอกสาร</h2>
+          <p class="small muted">รองรับ PDF, JPG, PNG, CSV, TXT ไม่เกิน 5 MB · ไฟล์ Word/Excel ให้บันทึกเป็น PDF ก่อน</p>
+          <form id="adForm" class="form-grid" novalidate>
+            <div class="field full"><label for="adTitle">ชื่อเอกสาร <span class="req">*</span></label><input id="adTitle" class="input" maxlength="160" placeholder="เช่น แบบบันทึกอุณหภูมิตู้เย็นเก็บยา"></div>
+            <div class="field"><label for="adCat">หมวดหมู่</label><select id="adCat" class="input"><option>แบบฟอร์ม</option><option>คู่มือ / แนวทาง</option><option>หนังสือสั่งการ / ประกาศ</option><option>อื่น ๆ</option></select></div>
+            <div class="field"><label for="adFor">สำหรับ</label><select id="adFor" class="input"></select></div>
+            <div class="field full"><label for="adFile" id="adFileLabel">ไฟล์ <span class="req">*</span></label><input id="adFile" class="input" type="file" accept=".pdf,.jpg,.jpeg,.png,.csv,.txt"><span class="small muted" id="adFileNote"></span></div>
+            <div class="field full"><label for="adNote">รายละเอียด (ถ้ามี)</label><input id="adNote" class="input" maxlength="240"></div>
+            <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="adSubmit">อัปโหลด</button><button class="btn btn-o btn-sm" type="button" id="adCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="adMsg" aria-live="polite"></span></div>
+          </form>
+        </div>
+        <div class="panel"><h2>เอกสารทั้งหมด <span class="num muted" id="adCount"></span></h2><div class="doc-tools"><div class="field doc-q"><label for="adQ">ค้นหาชื่อเอกสาร</label><input id="adQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อเอกสาร"></div><div class="field"><label for="adFCat">ประเภท</label><select id="adFCat" class="input"><option value="all">ทุกประเภท</option><option>แบบฟอร์ม</option><option>คู่มือ / แนวทาง</option><option>หนังสือสั่งการ / ประกาศ</option><option>อื่น ๆ</option></select></div><div class="field"><label for="adSort">เรียงตาม</label><select id="adSort" class="input"><option value="updated_desc">อัปเดตล่าสุดก่อน</option><option value="updated_asc">อัปเดตเก่าสุดก่อน</option><option value="title_asc">ชื่อ ก → ฮ</option><option value="title_desc">ชื่อ ฮ → ก</option><option value="dl_desc">ดาวน์โหลดมาก → น้อย</option><option value="dl_asc">ดาวน์โหลดน้อย → มาก</option></select></div></div><div class="list" id="adList"></div></div>
+      </div>
+
+
+      <!-- ตั้งค่า -->
+      <div data-admin-view="settings" hidden>
+        <div class="unit-tabs" id="asTabs" aria-label="เมนูตั้งค่า">
+          <a class="tab-link" href="#/admin/settings/contacts" data-sub="contacts">ช่องทางติดต่อ รพ.สต.</a>
+          <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่ <span class="badge num" id="admReqBadge"></span></a>
+          <a class="tab-link" href="#/admin/settings/audit" data-sub="audit">ประวัติการเข้าถึง</a>
+          <a class="tab-link" href="#/admin/settings/feedback" data-sub="feedback">ข้อเสนอแนะ</a>
+        </div>
+
+        <div data-admin-sub="feedback" hidden>
+          <div class="unit-tabs" id="afFilter" aria-label="กรองแหล่งที่มา"></div>
+          <div class="panel"><h2>ข้อเสนอแนะ</h2><div class="list" id="afList"></div></div>
+        </div>
+
+        
 
         <div data-admin-sub="contacts" hidden>
           <div class="panel" id="ctEdit" hidden>
