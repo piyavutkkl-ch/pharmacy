@@ -94,6 +94,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#doseInfoQ', 'PARACETAMOL 500'); await p.waitForTimeout(100); await p.click('#doseInfoList .di-item'); await p.waitForTimeout(300);
     { const t = await text(p, '#doseMono');
       check('ข้อมูลยา รพ.สต.: เลือกยา → รหัสยา/หมวด/ขนาดบรรจุ + monograph บัญชียาหลัก + ขนาดยา', t.includes('1050042') && t.includes('ยาเม็ด/แคปซูล') && t.includes('Analgesics and antipyretics') && t.includes('มก./กก./ครั้ง') && t.includes('ราชกิจจานุเบกษา'), t.slice(0, 300)); }
+    check('ข้อมูลยา รพ.สต.: รวมข้อมูลฉลากยาสหรัฐฯ (openFDA) หัวข้อไทย + เนื้อหาอังกฤษ + ลิงก์ DailyMed', await visible(p, '#doseMono .mono-fda') && (await text(p, '#doseMono .mono-fda')).includes('ขนาดยาและวิธีใช้') && (await p.$eval('#doseMono .mono-fda', (e) => e.textContent)).includes('acetaminophen') && await count(p, '#doseMono .mono-fda details[open]') >= 2 && await count(p, '#doseMono .mono-fda a[href*="dailymed"]') === 1);
     await p.click('[data-mono-back]'); await p.selectOption('#doseInfoGroup', 'l:ยาสมุนไพร'); await p.fill('#doseInfoQ', ''); await p.waitForTimeout(100);
     check('ข้อมูลยา รพ.สต.: กรองหมวด · ยาที่ยังไม่ผูกข้อมูลยาบอกชัด', await count(p, '#doseInfoList .di-item') === 10 && (await text(p, '#doseInfoList')).includes('ยังไม่มีข้อมูลยา'));
     await p.selectOption('#doseScope', 'all'); await p.waitForTimeout(150);
@@ -936,6 +937,26 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.fill('#dmQ', 'testdrugine'); await p.waitForTimeout(100);
       await p.click('#dmList [data-dm-del]'); await p.waitForTimeout(400);
       check('บัญชียาหลัก: ลบข้อมูลยา', (await calls(p, (c) => c.table === 'drug_monographs' && c.op === 'delete')).length === 1 && (await text(p, '#dmList')).includes('ไม่พบ')); }
+    // ฉลากยาสหรัฐฯ (openFDA): ดึงในเบราว์เซอร์ (จำลองคำตอบ api.fda.gov) → เลือกฉลากที่ครบ (ไม่เอาโฮมีโอพาธีย์) → บันทึก · แก้ · ผูก · ลบ
+    await p.route('https://api.fda.gov/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ results: [
+      { set_id: 'h1', effective_time: '20250101', openfda: { generic_name: ['LORATADINE'], brand_name: ['Lorata HPUS'], product_type: ['HUMAN OTC DRUG'] }, indications_and_usage: ['homeopathic'], dosage_and_administration: ['x'], warnings: ['x'], adverse_reactions: ['x'], drug_interactions: ['x'], overdosage: ['x'] },
+      { set_id: 'abc-123', effective_time: '20260301', openfda: { generic_name: ['LORATADINE'], brand_name: ['Claritin'], product_type: ['HUMAN OTC DRUG'] }, indications_and_usage: ['Uses • temporarily relieves runny nose • itchy eyes'], dosage_and_administration: ['Directions adults: 1 tablet daily'], do_not_use: ['Do not use if allergic'], storage_and_handling: ['store at 20-25°C'] },
+    ] }) }));
+    await p.fill('#faGeneric', 'Loratadine'); await p.selectOption('#faRoute', 'ORAL'); await p.click('#faFetch'); await p.waitForTimeout(500);
+    { const up = (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'upsert')).pop()?.payload || {};
+      check('openFDA: ดึงฉลาก → เลือกฉลากจริง (ไม่ใช่โฮมีโอพาธีย์) + หัวข้อไทย + บันทึก', up.key === 'loratadine|ORAL' && up.title === 'Claritin' && up.set_id === 'abc-123' && up.sections?.[0]?.title === 'ข้อบ่งใช้' && up.sections[0].body.includes('temporarily relieves') && up.sections.some((x) => x.title === 'ข้อห้ามใช้') && (await text(p, '#faMsg')).includes('บันทึกฉลาก'), JSON.stringify(up).slice(0, 300)); }
+    await p.fill('#faQ', 'claritin'); await p.waitForTimeout(100);
+    check('openFDA: ฉลากใหม่อยู่ในรายการ + ตัวเลือกผูกในฟอร์มยา รพ.สต.', await count(p, '#faList .li') === 1 && await p.$eval('#ldFda', (s) => [...s.options].some((o) => o.value === 'loratadine|ORAL')));
+    await p.click('#faList [data-fa-edit]'); await p.waitForTimeout(100);
+    check('openFDA: แก้ไขเปิดหัวข้อเป็น ## ข้อความ', await visible(p, '#faForm') && (await p.inputValue('#faSections')).includes('## ข้อบ่งใช้'));
+    await p.fill('#faName', 'Claritin (ทดสอบแก้)'); await p.click('#faSave'); await p.waitForTimeout(300);
+    check('openFDA: บันทึกการแก้ไขฉลาก', (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'update')).pop()?.payload?.title === 'Claritin (ทดสอบแก้)');
+    { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1700170')?.id);
+      await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100); await p.selectOption('#ldFda', 'loratadine|ORAL'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
+      check('openFDA: ผูกฉลากกับยา รพ.สต.', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.fda_key === 'loratadine|ORAL'); }
+    await p.click('#faList [data-fa-del]'); await p.waitForTimeout(300);
+    check('openFDA: ลบฉลาก', (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'delete')).length === 1);
+    await p.unroute('https://api.fda.gov/**');
     await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(150);
     check('ฐานข้อมูลยา (390px): ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.screenshot({ path: path.join(SHOTS, 'admin-drugs-390.png') });

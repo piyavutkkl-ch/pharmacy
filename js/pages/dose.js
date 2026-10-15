@@ -2,6 +2,7 @@
 //   คำนวณขนาดยา: ตามน้ำหนักตัว (รายการยาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
 //   ข้อมูลยา: ตัวกรองแหล่งข้อมูล #doseScope (ทั้งหมด / ยา รพ.สต. [ค่าเริ่ม] / บัญชียาหลัก) — รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql) · บัญชียาหลักแห่งชาติ 2569 (drug_monographs · 57)
 //            ยา รพ.สต. ผูกกับ monograph ผ่าน local_drugs.mono_refs → drug_monographs.ref · ผู้ดูแลแก้ทั้งสองฐานใน ตั้งค่า › ฐานข้อมูลยา (admin-drugs.js)
+//            ฉลากยาสหรัฐฯ openFDA (drug_fda_labels · 59_fda_labels.sql) ผ่าน local_drugs.fda_key · ภาษาอังกฤษ
 //            ค้นหา/กรองหมวด → เลือกยา → กลุ่มยา รูปแบบยา บัญชี เงื่อนไข คำเตือน คำแนะนำ หมายเหตุ + ขนาดยาจากเครื่องคำนวณ (จับคู่ชื่ออังกฤษ)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText } from '../util.js?v=4.4';
@@ -242,6 +243,13 @@ async function openMono(it) {
     if (error) { toast(errText(error), 'err'); closeMono(); return; }
     rows = data;
   }
+  // ฉลากยาสหรัฐฯ (openFDA · drug_fda_labels): ของยา รพ.สต. นั้น หรือของยา รพ.สต. ที่ผูกกับชื่อยานี้ในบัญชียาหลัก
+  const fkeys = [...new Set(it.loc ? [it.loc.fda_key] : litems.filter((x) => x.names.includes(it.name)).map((x) => x.loc.fda_key))].filter(Boolean);
+  let fda = [];
+  if (fkeys.length) {
+    const { data, error } = await sb.from('drug_fda_labels').select('*').in('key', fkeys);
+    if (!error) fda = data;
+  }
   // รายการที่เนื้อหาเหมือนกัน (ยาเดียวกันอยู่หลายกลุ่มยา) แสดงรวมกล่องเดียว
   const cards = [];
   for (const r of rows) {
@@ -272,11 +280,22 @@ async function openMono(it) {
         + `<p class="small muted">ที่มา: บัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙ · <a href="${NLEM_PDF}#page=${+r.page || 1}" target="_blank" rel="noopener">ราชกิจจานุเบกษา (PDF หน้า ${+r.page || '-'})</a></p>`
         + '</section>';
     }).join('')
+    + fda.map(fdaCard).join('')
     + (dose ? `<section class="mono-card"><div class="mono-sec"><h4>ขนาดยา (จากเครื่องคำนวณขนาดยาของเว็บนี้)</h4>${dose}</div></section>`
-      : '<p class="small muted">บัญชียาหลักแห่งชาติระบุขนาดยาเฉพาะบางรายการ (อยู่ในเงื่อนไข/หมายเหตุ) · ขนาดยา อาการไม่พึงประสงค์ และยาตีกัน โปรดดูเอกสารกำกับยา</p>')
+      : fda.length ? '' : '<p class="small muted">บัญชียาหลักแห่งชาติระบุขนาดยาเฉพาะบางรายการ (อยู่ในเงื่อนไข/หมายเหตุ) · ขนาดยา อาการไม่พึงประสงค์ และยาตีกัน โปรดดูเอกสารกำกับยา</p>')
     + (rows.length || l ? '' : '<p class="small muted">ยานี้ยังไม่มีข้อมูลในบัญชียาหลักแห่งชาติที่บันทึกไว้</p>')
     + (rows.length ? `<details class="mono-abbr"><summary>คำย่อ</summary><p class="small">บัญชี: ${Object.entries(ACCT).map(([k, v]) => `${k} = ${v}`).join(' · ')}</p><p class="small">${ABBR}</p></details>` : '');
   box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+/** ข้อความในฉลาก openFDA: ขึ้นต้นด้วย • หลายข้อ → รายการ */
+const fdaBody = (t) => { const p = String(t).split(/\s*•\s*/).map((x) => x.trim()).filter(Boolean); return p.length > 1 ? `<ul>${p.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : `<p>${esc(t)}</p>`; };
+const FDA_OPEN = new Set(['ข้อบ่งใช้', 'ขนาดยาและวิธีใช้', 'คำเตือนกรอบดำ']);
+function fdaCard(f) {
+  const e = /^\d{8}$/.test(f.effective || '') ? `${+f.effective.slice(6, 8)}/${+f.effective.slice(4, 6)}/${+f.effective.slice(0, 4) + 543}` : '';
+  return '<section class="mono-card mono-fda"><div class="mono-sec"><h4>ข้อมูลจากฉลากยาสหรัฐอเมริกา (openFDA)</h4>'
+    + `<p class="small muted">${esc(f.title || f.generic)} · ภาษาอังกฤษตามต้นฉบับ · ขนาดยาและข้อบ่งใช้ในสหรัฐฯ อาจต่างจากประเทศไทย</p></div>`
+    + (f.sections || []).map((x) => `<details class="mono-fold"${FDA_OPEN.has(x.title) ? ' open' : ''}><summary>${esc(x.title)}</summary><div lang="en">${fdaBody(x.body)}</div></details>`).join('')
+    + `<p class="small muted">ที่มา: openFDA${e ? ` · ฉลากปรับปรุง ${e}` : ''}${f.set_id ? ` · <a href="https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=${encodeURIComponent(f.set_id)}" target="_blank" rel="noopener">อ่านฉลากเต็ม (DailyMed)</a>` : ''}</p></section>`;
 }
 function closeMono() {
   $('#doseMono').hidden = true; $('#doseInfoPick').hidden = false;

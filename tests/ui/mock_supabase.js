@@ -12,7 +12,7 @@ window.__calls = [];
 window.__channels = [];
 const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
-const NUMERIC_ID = new Set(['drug_monographs', 'local_drugs', 'news_topics', 'ai_topic_runs', 'delivery_reports', 'ai_dose_drafts', 'ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
+const NUMERIC_ID = new Set(['drug_fda_labels', 'drug_monographs', 'local_drugs', 'news_topics', 'ai_topic_runs', 'delivery_reports', 'ai_dose_drafts', 'ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
 /* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
 db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
@@ -217,7 +217,7 @@ function run(st) {
     if (!ME) return err('new row violates row-level security policy', '42501');
     const list = (Array.isArray(st.payload) ? st.payload : [st.payload]).map((p) => ({ ...structuredClone(p) }));
     for (const r of list) { const e = beforeInsert(table, r); if (e) return err(e, /duplicate/.test(e) ? '23505' : '42501'); }
-    const PK = { site_texts: ['key'], delivery_stats: ['fiscal_year', 'unit_id'], rider_stats: ['fiscal_year', 'unit_id'], rider_tambon_stats: ['fiscal_year', 'tambon'], rider_units: ['unit_id'] }[table];
+    const PK = { site_texts: ['key'], drug_fda_labels: ['key'], delivery_stats: ['fiscal_year', 'unit_id'], rider_stats: ['fiscal_year', 'unit_id'], rider_tambon_stats: ['fiscal_year', 'tambon'], rider_units: ['unit_id'] }[table];
     if (st.op === 'upsert' && PK) for (const r of list) { const i = rows.findIndex((x) => PK.every((k) => x[k] === r[k])); if (i >= 0) rows.splice(i, 1); }
     rows.push(...list);
     list.forEach((r) => audit('insert', table, r));

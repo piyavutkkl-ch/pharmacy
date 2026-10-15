@@ -1,16 +1,18 @@
 // ผู้ดูแล › ตั้งค่า › ฐานข้อมูลยา (#/admin/settings/drugs)
 //   รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql): เพิ่ม/แก้/ซ่อน/ลบ + ผูกกับข้อมูลยาในบัญชียาหลัก (mono_refs → drug_monographs.ref)
+//   ฉลากยาสหรัฐฯ openFDA (drug_fda_labels · 59_fda_labels.sql): ดึงจาก api.fda.gov ในเบราว์เซอร์ (ฟรี · ไม่ใช้คีย์) แล้วบันทึก · แก้/ลบ · ผูกกับยา รพ.สต. ด้วย local_drugs.fda_key
+//     หัวข้อ/การตัดความยาว (FDA_SECTIONS) ต้องตรงกับ tools/nlem/fda_labels.py
 //   บัญชียาหลักแห่งชาติ (drug_monographs · 57_drug_monographs.sql): ค้นหา เพิ่ม แก้ ลบ · หัวข้อในยาแก้เป็นข้อความ "## หัวข้อ" + บรรทัดเนื้อหา
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { resetDrugInfo } from './dose.js?v=4.4';
 
-let locals = [], monos = [], bound = false, editLocal = null, editMono = null, links = [], dmShown = 30;
+let locals = [], monos = [], fdas = [], bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30;
 
 export async function initDrugsAdmin() {
   if (!bound) bind();
-  $('#ldList').innerHTML = $('#dmList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
-  await Promise.all([loadLocals(), loadMonos()]);
+  $('#ldList').innerHTML = $('#dmList').innerHTML = $('#faList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
+  await Promise.all([loadLocals(), loadMonos(), loadFdas()]);
   if (!editLocal) resetLocal();
 }
 
@@ -53,6 +55,11 @@ function bind() {
     const b = e.target.closest('[data-unlink]'); if (!b) return;
     links = links.filter((r) => byRef(r)?.name !== b.dataset.unlink && r !== b.dataset.unlink); renderLinks();
   });
+  $('#faFetch').addEventListener('click', () => fetchAndSave($('#faGeneric').value, $('#faRoute').value, $('#faBrand').value, $('#faFetch')));
+  $('#faQ').addEventListener('input', renderFdas);
+  $('#faList').addEventListener('click', onFdaList);
+  $('#faForm').addEventListener('submit', saveFda);
+  $('#faCancel').addEventListener('click', () => { $('#faForm').hidden = true; editFda = null; });
   $('#dmNew').addEventListener('click', () => openMonoForm(null));
   $('#dmCancel').addEventListener('click', () => { $('#dmForm').hidden = true; editMono = null; });
   $('#dmForm').addEventListener('submit', saveMono);
@@ -72,6 +79,7 @@ function renderLocals() {
     : list.map((l) => `<div class="li"><div class="l"><b>${esc(l.name)}</b>`
       + `<span class="small muted">${[l.code && `รหัส ${esc(l.code)}`, esc(l.category), (l.pack_size || l.unit) && `บรรจุ ${esc([l.pack_size, l.unit].filter(Boolean).join(' '))}`].filter(Boolean).join(' · ')}</span>`
       + `<span class="small">${(l.mono_refs || []).length ? `ข้อมูลยา: ${esc(linkNames(l.mono_refs).join(', '))}` : '<span class="chip c-fix">ยังไม่ผูกข้อมูลยา</span>'}</span>`
+      + (l.fda_key ? `<span class="small muted">ฉลาก openFDA: ${esc(fdas.find((f) => f.key === l.fda_key)?.title || l.fda_key)}</span>` : '')
       + `${l.active ? '' : '<div class="meta"><span class="chip c-off">ซ่อน</span></div>'}</div>`
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-ld-edit="${l.id}">แก้ไข</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-ld-del="${l.id}">ลบ</button></div></div>`).join('');
@@ -91,14 +99,14 @@ function renderPick() {
 function resetLocal() {
   editLocal = null; links = [];
   ['#ldName', '#ldCode', '#ldCat', '#ldPack', '#ldUnit', '#ldNote', '#ldLinkQ'].forEach((s) => { $(s).value = ''; });
-  $('#ldSort').value = locals.length ? Math.max(...locals.map((l) => l.sort)) + 1 : 1; $('#ldActive').checked = true;
+  $('#ldSort').value = locals.length ? Math.max(...locals.map((l) => l.sort)) + 1 : 1; $('#ldActive').checked = true; $('#ldFda').value = '';
   $('#ldSubmit').textContent = 'เพิ่มยา'; $('#ldCancel').hidden = true; $('#ldMsg').textContent = '';
   renderLinks(); renderPick();
 }
 function editLocalForm(l) {
   editLocal = l; links = [...(l.mono_refs || [])];
   $('#ldName').value = l.name; $('#ldCode').value = l.code || ''; $('#ldCat').value = l.category; $('#ldPack').value = l.pack_size || '';
-  $('#ldUnit').value = l.unit || ''; $('#ldNote').value = l.note || ''; $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
+  $('#ldUnit').value = l.unit || ''; $('#ldNote').value = l.note || ''; $('#ldFda').value = l.fda_key || ''; $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
   $('#ldSubmit').textContent = 'บันทึกการแก้ไข'; $('#ldCancel').hidden = false; $('#ldMsg').textContent = '';
   renderLinks();
   $('#ldForm').scrollIntoView({ block: 'start', behavior: 'smooth' }); $('#ldName').focus();
@@ -111,7 +119,7 @@ async function saveLocal(e) {
   const code = $('#ldCode').value.trim() || null;
   if (code && locals.some((l) => l.code === code && l.id !== editLocal?.id)) { $('#ldCode').focus(); $('#ldMsg').textContent = 'รหัสยานี้มีในรายการแล้ว'; return; }
   const row = { name, code, category, pack_size: $('#ldPack').value.trim(), unit: $('#ldUnit').value.trim(), note: $('#ldNote').value.trim() || null,
-    mono_refs: links, sort: +$('#ldSort').value || 0, active: $('#ldActive').checked, updated_at: new Date().toISOString() };
+    mono_refs: links, fda_key: $('#ldFda').value || null, sort: +$('#ldSort').value || 0, active: $('#ldActive').checked, updated_at: new Date().toISOString() };
   const btn = $('#ldSubmit'); busy(btn, true, 'กำลังบันทึก…');
   const { error } = editLocal ? await sb.from('local_drugs').update(row).eq('id', editLocal.id) : await sb.from('local_drugs').insert(row);
   busy(btn, false);
@@ -202,4 +210,109 @@ async function onMonoList(e) {
   if (error) { toast(errText(error), 'err'); return; }
   toast('ลบข้อมูลยาแล้ว'); changed();
   loadMonos();
+}
+
+/* ======================= ฉลากยาสหรัฐฯ (openFDA) ======================= */
+const FDA_SECTIONS = [
+  ['ข้อบ่งใช้', ['indications_and_usage']],
+  ['ขนาดยาและวิธีใช้', ['dosage_and_administration']],
+  ['ข้อห้ามใช้', ['contraindications', 'do_not_use']],
+  ['คำเตือนกรอบดำ', ['boxed_warning']],
+  ['คำเตือนและข้อควรระวัง', ['warnings_and_cautions', 'warnings', 'precautions', 'ask_doctor', 'ask_doctor_or_pharmacist', 'when_using', 'stop_use']],
+  ['อาการไม่พึงประสงค์', ['adverse_reactions']],
+  ['ยาตีกัน', ['drug_interactions']],
+  ['การใช้ในหญิงตั้งครรภ์/ให้นมบุตร เด็ก ผู้สูงอายุ', ['pregnancy', 'lactation', 'nursing_mothers', 'pregnancy_or_breast_feeding', 'pediatric_use', 'geriatric_use']],
+  ['การได้รับยาเกินขนาด', ['overdosage']],
+  ['การเก็บรักษา', ['storage_and_handling']],
+];
+const FDA_MAX = 2500;
+const fdaClean = (t) => String(t).replace(/\s+/g, ' ').trim()
+  .replace(/^\d+(\.\d+)*\s+[A-Z][A-Z &/,-]+\s+/, '')
+  .replace(/^(INDICATIONS (AND|&) USAGE|DOSAGE (AND|&) ADMINISTRATION|CONTRAINDICATIONS|WARNINGS( AND PRECAUTIONS)?|PRECAUTIONS|ADVERSE REACTIONS|DRUG INTERACTIONS|OVERDOSAGE|PREGNANCY|NURSING MOTHERS|PEDIATRIC USE|GERIATRIC USE|LACTATION|Uses|Directions|Warnings|Do not use|Ask a doctor[a-z ]*|Stop use[a-z ]*|When using[a-z ]*|If pregnant or breast-feeding,?|Storage and Handling|HOW SUPPLIED)[:\s]+/i, '');
+function fdaSections(lab) {
+  const out = [];
+  for (const [title, keys] of FDA_SECTIONS) {
+    let body = keys.filter((k) => lab[k]?.length).map((k) => fdaClean(lab[k].join(' '))).filter(Boolean).join(' ');
+    if (!body) continue;
+    if (body.length > FDA_MAX) { const cut = body.slice(0, FDA_MAX); body = cut.slice(0, Math.max(cut.lastIndexOf('. '), FDA_MAX - 300) + 1).trim() + ' …'; }
+    out.push({ title, body });
+  }
+  return out;
+}
+/** ดึงฉลากจาก openFDA แล้วเลือกฉลากที่ข้อมูลครบที่สุด (ตัวยาเดี่ยว · ยาสั่งจ่าย · ไม่ใช่โฮมีโอพาธีย์) */
+export async function fetchFdaLabel(generic, route, brand) {
+  const g = generic.trim().toLowerCase();
+  const q = `openfda.generic_name:"${g}"+AND+openfda.route:"${route}"` + (brand ? `+AND+openfda.brand_name:"${brand.trim()}"` : '');
+  const res = await fetch('https://api.fda.gov/drug/label.json?search=' + encodeURI(q).replace(/#/g, '%23') + '&limit=50');
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`openFDA ไม่ตอบ (รหัส ${res.status}) กรุณาลองใหม่`);
+  const labs = ((await res.json()).results || []).filter((l) => (l.openfda?.generic_name || []).map((x) => x.toLowerCase()).includes(g) && !/homeopath|\bHPUS\b/i.test(JSON.stringify(l)));
+  if (!labs.length) return null;
+  const score = (l) => { const o = l.openfda || {}, gn = (o.generic_name || []).map((x) => x.toLowerCase());
+    return fdaSections(l).length * 10 + (gn.length === 1 && gn[0] === g ? 30 : 0) + ((o.product_type || []).includes('HUMAN PRESCRIPTION DRUG') ? 15 : 0)
+      - (/bacteriostatic/i.test((o.brand_name || []).join(' ')) ? 25 : 0) + (+String(l.effective_time || '0').slice(0, 4) || 0) / 1000; };
+  const lab = labs.reduce((a, b) => (score(b) > score(a) ? b : a));
+  const o = lab.openfda || {};
+  return { key: [g, route, ...(brand?.trim() ? [brand.trim().toLowerCase()] : [])].join('|'), generic: g, route, brand: brand?.trim().toLowerCase() || null,
+    title: ((o.brand_name || o.generic_name || [g])[0] || g).slice(0, 200), set_id: lab.set_id || null, effective: lab.effective_time || null, sections: fdaSections(lab) };
+}
+async function fetchAndSave(generic, route, brand, btn) {
+  if (!generic.trim()) { $('#faGeneric').focus(); $('#faMsg').textContent = 'กรุณากรอกชื่อสามัญภาษาอังกฤษ'; return; }
+  busy(btn, true, 'กำลังดึง…'); $('#faMsg').textContent = '';
+  try {
+    const row = await fetchFdaLabel(generic, route, brand);
+    if (!row || !row.sections.length) { $('#faMsg').style.color = 'var(--error)'; $('#faMsg').textContent = 'ไม่พบฉลากยานี้ใน openFDA · ลองชื่อสามัญที่สหรัฐฯ ใช้ (เช่น paracetamol → acetaminophen, salbutamol → albuterol) หรือเปลี่ยนช่องทางให้ยา'; return; }
+    const { error } = await sb.from('drug_fda_labels').upsert({ ...row, fetched_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    if (error) throw error;
+    $('#faMsg').style.color = 'var(--success)'; $('#faMsg').textContent = `บันทึกฉลาก "${row.title}" แล้ว (${row.sections.length} หัวข้อ) · ผูกกับยา รพ.สต. ได้ที่ช่อง "ฉลากยาสหรัฐฯ" ในฟอร์มด้านบน`;
+    changed(); await loadFdas();
+  } catch (err) { $('#faMsg').style.color = 'var(--error)'; $('#faMsg').textContent = errText(err); }
+  finally { busy(btn, false); }
+}
+async function loadFdas() {
+  const { data, error } = await sb.from('drug_fda_labels').select('*').order('generic');
+  if (error) { toast(errText(error), 'err'); $('#faList').innerHTML = '<p class="empty">โหลดฉลากยาไม่สำเร็จ</p>'; return; }
+  fdas = data;
+  const cur = $('#ldFda').value;
+  $('#ldFda').innerHTML = '<option value="">— ไม่ผูก —</option>' + fdas.map((f) => `<option value="${esc(f.key)}">${esc(f.title)} · ${esc(f.generic)} (${esc(f.route)})</option>`).join('');
+  $('#ldFda').value = fdas.some((f) => f.key === cur) ? cur : (editLocal?.fda_key || '');
+  renderFdas(); renderLocals();
+}
+function renderFdas() {
+  const q = $('#faQ').value.trim().toLowerCase();
+  const list = fdas.filter((f) => !q || [f.title, f.generic, f.route].join(' ').toLowerCase().includes(q));
+  const used = (k) => locals.filter((l) => l.fda_key === k).length;
+  $('#faCount').textContent = `(${fdas.length})`;
+  $('#faList').innerHTML = !fdas.length ? '<p class="empty">ยังไม่มีฉลากยา</p>' : !list.length ? '<p class="empty">ไม่พบฉลากที่ค้นหา</p>'
+    : list.map((f) => `<div class="li"><div class="l"><b>${esc(f.title)}</b><span class="small muted">${esc(f.generic)} · ${esc(f.route)}${f.brand ? ` · ${esc(f.brand)}` : ''} · ${(f.sections || []).length} หัวข้อ${f.effective ? ` · ฉลาก ${esc(f.effective)}` : ''}</span>`
+      + `<span class="small ${used(f.key) ? 'muted' : ''}">${used(f.key) ? `ผูกกับยา รพ.สต. ${used(f.key)} รายการ` : '<span class="chip c-off">ยังไม่ผูกกับยา รพ.สต.</span>'}</span></div>`
+      + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-fa-refresh="${f.id}">ดึงใหม่</button><button type="button" class="btn btn-o btn-sm" data-fa-edit="${f.id}">แก้ไข</button>`
+      + `<button type="button" class="btn btn-no btn-sm" data-fa-del="${f.id}">ลบ</button></div></div>`).join('');
+}
+async function onFdaList(e) {
+  const b = e.target.closest('[data-fa-refresh],[data-fa-edit],[data-fa-del]'); if (!b) return;
+  const f = fdas.find((x) => x.id === +(b.dataset.faRefresh || b.dataset.faEdit || b.dataset.faDel)); if (!f) return;
+  if (b.dataset.faRefresh) {
+    if (!confirm(`ดึงฉลาก "${f.title}" ใหม่จาก openFDA?\nข้อความที่แก้เองในฉลากนี้จะถูกแทนที่`)) return;
+    return fetchAndSave(f.generic, f.route, f.brand || '', b);
+  }
+  if (b.dataset.faEdit) {
+    editFda = f; $('#faTitle').textContent = `แก้ไขฉลาก: ${f.title}`; $('#faName').value = f.title;
+    $('#faSections').value = sectionsText((f.sections || []).map((x) => ({ title: x.title, body: [x.body] })));
+    $('#faForm').hidden = false; $('#faForm').scrollIntoView({ block: 'start', behavior: 'smooth' }); return;
+  }
+  if (!confirm(`ลบฉลาก "${f.title}"?` + (locals.some((l) => l.fda_key === f.key) ? '\nยา รพ.สต. ที่ผูกไว้จะไม่แสดงข้อมูลฉลากนี้' : ''))) return;
+  const { error } = await sb.from('drug_fda_labels').delete().eq('id', f.id);
+  if (error) { toast(errText(error), 'err'); return; }
+  toast('ลบฉลากแล้ว'); changed(); loadFdas();
+}
+async function saveFda(e) {
+  e.preventDefault();
+  if (!editFda) return;
+  const sections = parseSections($('#faSections').value).map((x) => ({ title: x.title, body: x.body.join(' ') })).filter((x) => x.body);
+  const btn = $('#faSave'); busy(btn, true, 'กำลังบันทึก…');
+  const { error } = await sb.from('drug_fda_labels').update({ title: $('#faName').value.trim() || editFda.title, sections, updated_at: new Date().toISOString() }).eq('id', editFda.id);
+  busy(btn, false);
+  if (error) { toast(errText(error), 'err'); return; }
+  toast('บันทึกฉลากแล้ว'); changed(); $('#faForm').hidden = true; editFda = null; loadFdas();
 }

@@ -697,6 +697,10 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .mono-sec p,.mono-sec li{font-size:14px;overflow-wrap:anywhere}
 .mono-dose{display:flex;flex-direction:column;gap:6px;padding-top:6px}
 .mono-dose + .mono-dose{border-top:1px solid var(--line);margin-top:6px}
+.mono-fold{border-top:1px solid var(--line);padding-top:6px}
+.mono-fold > summary{cursor:pointer;min-height:36px;display:flex;align-items:center;font-size:14px;font-weight:700}
+.mono-fold ul{margin:4px 0 6px;padding-left:18px;display:grid;gap:4px}
+.mono-fold p,.mono-fold li{font-size:14px;overflow-wrap:anywhere}
 .mono-abbr summary{cursor:pointer;min-height:32px;font-size:14px;font-weight:600}
 .mono-abbr p{overflow-wrap:anywhere;margin-top:4px}
 .di-renal{color:var(--warning)}

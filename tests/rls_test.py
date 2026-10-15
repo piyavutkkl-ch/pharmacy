@@ -927,5 +927,14 @@ check("anon cannot see hidden local drug", "anon", "select count(*) from local_d
 check("admin deletes local drug", "admin", "delete from local_drugs where name='ยาทดสอบซ่อน' returning name", eq("ยาทดสอบซ่อน"))
 check("duplicate drug code rejected", "admin", "insert into local_drugs(code,name,category) values ('1050042','x','y')", "deny")
 
+print("== step 59: openFDA labels ==")
+check("FDA labels seeded + readable by anon", "anon", "select count(*) > 50 from drug_fda_labels", eq("t"))
+check("local drug linked to FDA label (paracetamol 500)", "anon", "select f.generic from local_drugs l join drug_fda_labels f on f.key=l.fda_key where l.code='1050042'", eq("acetaminophen"))
+check("FDA label has Thai section titles", "anon", "select sections->0->>'title' from drug_fda_labels where key='amlodipine besylate|ORAL'", eq("ข้อบ่งใช้"))
+check("staff cannot add FDA label", "s2", "insert into drug_fda_labels(key,generic) values ('x','x')", "deny")
+check("staff cannot edit FDA label (RLS → 0 rows)", "s2", "update drug_fda_labels set title='x' returning id", rows(0))
+check("admin upserts FDA label", "admin", "insert into drug_fda_labels(key,generic,route,title) values ('test|ORAL','test','ORAL','T') on conflict (key) do update set title='T2' returning title", eq("T"))
+check("admin links local drug to label", "admin", "update local_drugs set fda_key='test|ORAL' where code='1010270' returning code", eq("1010270"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

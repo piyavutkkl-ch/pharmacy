@@ -686,6 +686,7 @@
               </div>
               <div class="field full"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้</span><div class="di-chips" id="ldLinks"></div>
                 <input id="ldLinkQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="ldLinkOut"></div></div>
+              <div class="field full"><label for="ldFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="ldFda" class="input"><option value="">— ไม่ผูก —</option></select><span class="small muted">ยังไม่มีในรายการ → ดึงเพิ่มได้ในกล่อง "ฉลากยาสหรัฐฯ (openFDA)" ด้านล่าง</span></div>
               <div class="field full"><label for="ldNote">หมายเหตุ (ถ้ามี)</label><textarea id="ldNote" rows="2" maxlength="2000" placeholder="เช่น เก็บในตู้เย็น"></textarea></div>
               <div class="field"><label for="ldSort">ลำดับแสดง</label><input id="ldSort" class="input" type="number" inputmode="numeric" value="0"></div>
               <label class="small" style="align-self:end"><input type="checkbox" id="ldActive" checked> แสดงที่หน้าหลัก</label>
@@ -696,6 +697,24 @@
               <div class="field"><label for="ldFilter">แสดง</label><select id="ldFilter" class="input"><option value="all">ทั้งหมด</option><option value="unlinked">ยังไม่ผูกข้อมูลยา</option><option value="hidden">ซ่อนอยู่</option></select></div>
             </div>
             <div class="list" id="ldList"></div>
+          </div>
+          <div class="panel">
+            <h2>ฉลากยาสหรัฐฯ (openFDA) <span class="num muted" id="faCount"></span></h2>
+            <p class="small muted">ข้อมูลฉลากยาภาษาอังกฤษจาก openFDA (ฟรี · ข้อมูลสาธารณะ) แสดงในหน้าข้อมูลยาของยา รพ.สต. ที่ผูกไว้ · ดึงใหม่ได้เมื่อฉลากปรับปรุง</p>
+            <div class="form-grid three">
+              <div class="field"><label for="faGeneric">ชื่อสามัญที่สหรัฐฯ ใช้ <span class="req">*</span></label><input id="faGeneric" class="input" maxlength="120" placeholder="เช่น acetaminophen, albuterol sulfate"></div>
+              <div class="field"><label for="faRoute">ช่องทางให้ยา</label><select id="faRoute" class="input"><option value="ORAL">รับประทาน (ORAL)</option><option value="TOPICAL">ทาภายนอก (TOPICAL)</option><option value="OPHTHALMIC">ตา (OPHTHALMIC)</option><option value="RESPIRATORY (INHALATION)">พ่นสูด (INHALATION)</option><option value="INTRAVENOUS">หลอดเลือดดำ (INTRAVENOUS)</option><option value="INTRAMUSCULAR">กล้ามเนื้อ (INTRAMUSCULAR)</option><option value="SUBCUTANEOUS">ใต้ผิวหนัง (SUBCUTANEOUS)</option><option value="DENTAL">ช่องปาก (DENTAL)</option><option value="IRRIGATION">ล้างแผล (IRRIGATION)</option><option value="INFILTRATION">ฉีดเฉพาะที่ (INFILTRATION)</option></select></div>
+              <div class="field"><label for="faBrand">ชื่อการค้า (ถ้าต้องการเจาะจง)</label><input id="faBrand" class="input" maxlength="120" placeholder="เช่น humulin 70/30"></div>
+            </div>
+            <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="faFetch">ดึงจาก openFDA</button><span class="small" id="faMsg" aria-live="polite"></span></div>
+            <form id="faForm" class="form-grid dm-form" novalidate hidden>
+              <h3 class="full" id="faTitle">แก้ไขฉลาก</h3>
+              <div class="field full"><label for="faName">ชื่อที่แสดง</label><input id="faName" class="input" maxlength="200"></div>
+              <div class="field full"><label for="faSections">หัวข้อ (## หัวข้อ แล้วตามด้วยเนื้อหา)</label><textarea id="faSections" rows="10" maxlength="60000"></textarea></div>
+              <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="faSave">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="faCancel">ยกเลิก</button></div>
+            </form>
+            <div class="field"><label for="faQ">ค้นหาฉลาก</label><input id="faQ" class="input" type="search" placeholder="ชื่อยา"></div>
+            <div class="list" id="faList"></div>
           </div>
           <div class="panel">
             <h2>บัญชียาหลักแห่งชาติ (ฐานข้อมูลส่วนกลาง) <span class="num muted" id="dmCount"></span></h2>
