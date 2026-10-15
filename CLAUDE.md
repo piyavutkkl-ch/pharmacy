@@ -49,7 +49,8 @@ js/lightbox.js        smartCover() รูปหน้าอ่านข่าว
 js/profile.js         หน้าต่างข้อมูลส่วนตัว (กดชื่อบนแถบเมนู · ทุกบทบาท) openProfile(), saveMyProfile() → เหตุการณ์ 'pcps:profile'
 js/main.js            hash router + แถบเมนู + ท้ายเว็บ (อ่านคอมเมนต์หัวไฟล์เพื่อดูเส้นทาง)
 js/pages/news.js      สไลด์ข่าว, รายการข่าวหน้าแรก (6 ข่าวล่าสุด ‹ › ปัด) + หน้าข่าวทั้งหมด #/news/all (ค้นหา/หมวด/จัดเรียง · showAllNews), หน้าอ่านข่าว (ถูกใจ/ความคิดเห็น — ไม่ login ก็ได้: ถูกใจผ่าน like_news_anon, ความเห็น ≤15 ตัวอักษรผ่าน comment_news_anon · รหัสเครื่อง localStorage 'pcps_device' · ผู้ดูแลลบความเห็นได้)
-js/pages/dose.js      ข้อมูลยา / คำนวณขนาดยา (ตาราง dose_drugs) · 2 ส่วน #doseTabs: คำนวณขนาดยา (#dosePaneCalc) · ข้อมูลยา (#dosePaneInfo ค้นหา + ปุ่มไปคำนวณยานั้น)
+js/pages/dose.js      ข้อมูลยา / คำนวณขนาดยา · 2 ส่วน #doseTabs: คำนวณขนาดยา (dose_drugs · #dosePaneCalc) · ข้อมูลยา (#dosePaneInfo): 2 ฐาน #doseScope = ยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql) / บัญชียาหลักแห่งชาติ 2569 (drug_monographs · 57_drug_monographs.sql · โหลดทีละ ≤1000 แถว)
+                      ค้นหา/กรองหมวด → เลือกยา → monograph (กลุ่มยา รูปแบบ/บัญชี เงื่อนไข คำเตือน คำแนะนำ หมายเหตุ) + ขนาดยาจากเครื่องคำนวณ (จับคู่ชื่ออังกฤษ) · ยา รพ.สต. ผูก monograph ด้วย local_drugs.mono_refs → drug_monographs.ref
 js/pages/stats.js     ผลการดำเนินงาน (กดตัวเลข → DRPs แยกชนิด public_drp_stats (52_drp_stats.sql · ตัวเลขรวม) / รายการเยี่ยมเฉพาะเจ้าหน้าที่-ผู้ดูแล (RLS + log_patient_access)) (+ แถว "ผลงานด้านเภสัชกรรมปฐมภูมิ" จากตาราง achievements ตาม รพ.สต./ปีงบ), ผลงาน รพ.สต. + อันดับ, ช่องทางติดต่อ · หน้าอ่านผลงาน #/achievement/<id> showAchievement() · ผลงานที่ระงับการแสดง (achievements.hidden · 44_achievement_hidden.sql) ไม่ขึ้นหน้าสาธารณะ
 js/pages/admin.js     ผู้ดูแล: โครงหน้า/เมนู (#/admin/<tab>[/<sub>]) + ตัวเลขงานค้าง + ข้อเสนอแนะ (ตั้งค่า › ข้อเสนอแนะ) + ผลงาน รพ.สต. (ทุกหน่วย · เลือก/เปลี่ยน รพ.สต. ในฟอร์ม → staff.js mountAch(slot,'all'))
 js/pages/admin-news.js     ผู้ดูแล › ข่าว: กล่องบนสุด = ข่าวรอตรวจ (รพ.สต. + AI) + กล่องตรวจ/แก้ไขกล่องเดียว (ฟอร์ม aq* · อนุมัติ/บันทึก/ขอแก้ไข/ไม่ผ่าน · ข่าวที่เผยแพร่แล้วที่มี PDF กด "แบบทดสอบ" เปิดกล่องเดียวกัน openReview(id,'published')) + ช่อง AI (ย่อได้) · เขียน/แก้ข่าวที่เผยแพร่ (an*) + ข่าวที่หยุดเผยแพร่ (เรียกคืนได้ 30 วัน)
@@ -64,9 +65,10 @@ js/pages/news-topics.js    หมวดหมู่ข่าวตามเน�
 js/pages/admin-ai.js       ผู้ดูแล › ข่าว › ช่อง AI: สถานะ/ประวัติ (ai_news_log), สวิตช์เผยแพร่ทันที (site_texts ai_news_auto), ปุ่มสร้างข่าวตอนนี้ (ai_news_request)
 js/pages/news-form.js      ฟอร์มข่าวใช้ร่วม (sn/an): ประเภท ข่าว/ประชาสัมพันธ์/ความรู้, รูปหลายรูป ≤7 (ย่อ ≤ A4 · × ลบทีละรูป · รูปแรก=image_path ที่เหลือ=gallery), PDF แนบ (bucket news-files)
 js/pages/admin-review.js   ผู้ดูแล › ตรวจประเมิน: ตรวจหลักฐาน (ย้อนกลับผลตรวจ, แนบไฟล์กลับ, ยกเลิกคำขอตรวจ → ถังขยะ 30 วัน กู้คืน/ลบถาวร · item_status.trashed_at + trash/restore/purge_item_status · 46_review_trash.sql), แก้เกณฑ์ (ข้อใหญ่/หัวข้อย่อย/ไฟล์ตัวอย่าง), ปีงบ (เริ่ม/ซ่อน/ลบปีว่าง)
-js/pages/admin-settings.js ผู้ดูแล › ตั้งค่า: รายการยาเครื่องคำนวณโดส + ช่องทางติดต่อ รพ.สต.
+js/pages/admin-settings.js ผู้ดูแล › ตั้งค่า › คำนวณขนาดยา (รายการยาเครื่องคำนวณ dose_drugs) + ช่องทางติดต่อ รพ.สต.
                            เพิ่มหลายรายการ (วางรายชื่อยา · คิวจำใน localStorage 'pcps_dose_queue'): กรอกทีละตัว หรือ "ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด" → dose_drugs.ai_draft (ซ่อนเสมอ · constraint ห้าม active จนผู้ดูแลกด "ตรวจแล้ว · แสดง" · 56_dose_ai_drafts.sql)
                            ปุ่ม "ช่วยกรอกจากฐานข้อมูลยา" (50_ai_dose.sql · ai_dose_start/poll): ฐานข้อมูลดึง RxNorm (ความแรง) + ฉลากยา openFDA ผ่าน pg_net → Gemini ร่างขนาดยา มก./กก. พร้อมข้อความอ้างอิง → ผู้ดูแลเลือกใส่ฟอร์ม ตรวจเองก่อนบันทึก (ระบบไม่บันทึกเอง) · ชื่อไทย→ใช้ชื่ออังกฤษในวงเล็บ (paracetamol→acetaminophen ฯลฯ)
+js/pages/admin-drugs.js    ผู้ดูแล › ตั้งค่า › ฐานข้อมูลยา (#/admin/settings/drugs): ยา รพ.สต. (เพิ่ม/แก้/ซ่อน/ลบ + ค้นหาผูก monograph) · บัญชียาหลัก (เพิ่ม/แก้/ลบ · หัวข้อแก้เป็นข้อความ "## หัวข้อ" · รูปแบบ "form | บัญชี" · ref ใหม่ = custom:<เวลา>) → resetDrugInfo()
 js/pages/admin-staff.js    ผู้ดูแล › ตั้งค่า › บัญชีเจ้าหน้าที่ (staff_roster)
 js/pages/admin-audit.js    ผู้ดูแล › ตั้งค่า › ประวัติการเข้าถึงข้อมูลผู้ป่วย (PDPA · admin_audit_log() + ดาวน์โหลด CSV)
 js/pages/chat.js      แชท real-time: mountInbox() กล่องข้อความเจ้าหน้าที่/ผู้ดูแล (ลบห้องลงถัง กู้คืน 30 วัน · ผู้ดูแลลบถาวรเมื่อครบ), startChatWatch() ตัวเลขข้อความใหม่บนเมนู
@@ -94,6 +96,8 @@ js/upload.js          อัปโหลดไฟล์: ย่อรูปเ�
 supabase/NN_*.sql     migration เรียงเลข · ไฟล์ใหม่ = เลขถัดไป → ระบบรันบน Supabase ให้เองหลังทดสอบผ่าน (tools/db/migrate.sh)
 .github/workflows/    ci-deploy (ทดสอบ→รวม→ฐานข้อมูล→ขึ้นเว็บ) · keepalive (กัน Supabase หลับ) · backup (สำรองรายสัปดาห์) · restore (กู้) · ai-news (ช่อง AI เช็กทุกชั่วโมง ทำวันละ 1 ข่าว)
 tools/ai_news/        run.mjs ข่าวจากบทความ CCPE: เลือกบทความ → PDF → Gemini (ฟรี · pro ก่อน flash) ① วิเคราะห์ข้อเท็จจริง+เลขหน้า ② เขียนข่าว ③ ตรวจทานเทียบ PDF แก้ซ้ำ ≤3 รอบ (ยังผิด = รอผู้ดูแลตรวจ) → ถอดข้อความ PDF เก็บ news_sources (pdftotext/Gemini) → templates.mjs ภาพแม่แบบ 3 ภาพ (ไม่ใช้ AI วาดภาพ ตามเจ้าของเว็บ) → บันทึกข่าว · --check / --offline
+tools/nlem/            parse.py ถอดบัญชียาหลักแห่งชาติ 2569 จาก PDF ราชกิจจานุเบกษา (ตามตำแหน่งคอลัมน์ · pymupdf) → nlem2569.json → build_sql.py → 57_drug_monographs.sql
+                      local_drugs.py รายการยา รพ.สต. (rpst_drugs.txt จากเจ้าของเว็บ) + ตาราง LINK รหัสยา→ชื่อในบัญชี → 58_local_drugs.sql (ข้อมูลใส่แบบ on conflict do nothing · ไม่ทับที่ผู้ดูแลแก้)
 tools/db/migrate.sh   รัน SQL ใหม่บน Supabase (จดไว้ใน ops.schema_migrations · สำรองก่อน · กันคำสั่งลบข้อมูลที่ไม่ได้ยืนยัน)
 tools/backup/         สคริปต์สำรอง/กู้ข้อมูล (bash + Python มาตรฐาน) — วิธีตั้งค่าอยู่ใน docs/BACKUP.md
 tools/preview/build.py สร้างหน้าตัวอย่าง (_preview/ · Supabase จำลอง + ชื่อสมมติ · ตรวจว่าไม่มีชื่อจริงหลุด)

@@ -87,7 +87,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ข้อมูลยา/คำนวณขนาดยา: ชื่อเมนูและหัวข้อใหม่ + แยก 2 ส่วน (เริ่มที่คำนวณ)', (await text(p, '[data-panel-link="dose"]')).includes('ข้อมูลยา') && (await text(p, '[data-panel="dose"] h2')).includes('ข้อมูลยา / คำนวณขนาดยา')
       && await count(p, '#doseTabs [data-dt]') === 2 && await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')));
     await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
-    check('ข้อมูลยา: แสดงรายการยาจากบัญชียาหลักแห่งชาติ (ทีละ 40 + แสดงเพิ่ม) · ซ่อนส่วนคำนวณ', await visible(p, '#dosePaneInfo') && !(await visible(p, '#dosePaneCalc')) && await count(p, '#doseInfoList .di-item') === 40 && await visible(p, '#doseInfoMore') && (await text(p, '#doseInfoN')).includes('พบ'), await text(p, '#doseInfoN'));
+    { const nLocal = await p.evaluate(() => window.__db.local_drugs.filter((d) => d.active).length);
+      check('ข้อมูลยา: เริ่มที่รายการยา รพ.สต. (ครบทุกรายการ แยกหมวด) · ซ่อนส่วนคำนวณ', await visible(p, '#dosePaneInfo') && !(await visible(p, '#dosePaneCalc')) && nLocal >= 100 && await count(p, '#doseInfoList .di-item') === nLocal && await count(p, '#doseInfoList .di-cat') >= 5 && (await p.getAttribute('#doseScope [data-scope="local"]', 'aria-current')) === 'true' && !(await visible(p, '#doseInfoMore')), String(nLocal)); }
+    await p.fill('#doseInfoQ', 'paracetamol'); await p.waitForTimeout(100);
+    check('ข้อมูลยา รพ.สต.: ค้นหา → ยาทุกขนาด + ชื่อในบัญชียาหลัก + คำนวณขนาดยาได้', await count(p, '#doseInfoList .di-item') === 3 && (await text(p, '#doseInfoList')).includes('Paracetamol (Acetaminophen)') && (await text(p, '#doseInfoList')).includes('คำนวณขนาดยาได้'));
+    await p.fill('#doseInfoQ', 'PARACETAMOL 500'); await p.waitForTimeout(100); await p.click('#doseInfoList .di-item'); await p.waitForTimeout(300);
+    { const t = await text(p, '#doseMono');
+      check('ข้อมูลยา รพ.สต.: เลือกยา → รหัสยา/หมวด/ขนาดบรรจุ + monograph บัญชียาหลัก + ขนาดยา', t.includes('1050042') && t.includes('ยาเม็ด/แคปซูล') && t.includes('Analgesics and antipyretics') && t.includes('มก./กก./ครั้ง') && t.includes('ราชกิจจานุเบกษา'), t.slice(0, 300)); }
+    await p.click('[data-mono-back]'); await p.selectOption('#doseInfoGroup', 'ยาสมุนไพร'); await p.fill('#doseInfoQ', ''); await p.waitForTimeout(100);
+    check('ข้อมูลยา รพ.สต.: กรองหมวด · ยาที่ยังไม่ผูกข้อมูลยาบอกชัด', await count(p, '#doseInfoList .di-item') === 10 && (await text(p, '#doseInfoList')).includes('ยังไม่มีข้อมูลยา'));
+    await p.click('#doseScope [data-scope="nlem"]'); await p.waitForTimeout(150);
+    check('ข้อมูลยา: บัญชียาหลักแห่งชาติทั้งหมด (ทีละ 40 + แสดงเพิ่ม · ตัวกรองเป็นกลุ่มยา)', await count(p, '#doseInfoList .di-item') === 40 && await visible(p, '#doseInfoMore') && (await text(p, '#doseInfoGroupLbl')) === 'กลุ่มยา' && (await p.inputValue('#doseInfoGroup')) === 'all', await text(p, '#doseInfoN'));
     check('ข้อมูลยา: โหลดรายการทีละ ≤1000 แถว (ครบเกิน 900 ยา)', (await calls(p, (c) => c.table === 'drug_monographs')).some((c) => c.range) && Number((await text(p, '#doseInfoN')).match(/\d+/)?.[0]) > 750);
     await p.selectOption('#doseInfoGroup', '1'); await p.fill('#doseInfoQ', 'domperidone'); await p.waitForTimeout(150);
     check('ข้อมูลยา: กรองกลุ่มยา + ค้นหาชื่อยา', await count(p, '#doseInfoList .di-item') === 1 && (await text(p, '#doseInfoList')).includes('Domperidone') && (await text(p, '#doseInfoList')).includes('และอีก 1 กลุ่ม'));
@@ -104,7 +114,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ข้อมูลยา: monograph มีขนาดยาจากเครื่องคำนวณ', (await text(p, '#doseMono')).includes('มก./กก./ครั้ง') && (await text(p, '#doseMono')).includes('Analgesics and antipyretics'));
     await p.click('#doseMono [data-dose-calc]'); await p.waitForTimeout(150);
     check('ข้อมูลยา: ปุ่ม "คำนวณขนาดยานี้" → ส่วนคำนวณพร้อมเลือกยานั้น', await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')) && (await p.$eval('#doseDrug', (s) => s.selectedOptions[0].textContent)).includes('Paracetamol') && (await text(p, '#doseResult')).includes('มก.'));
-    await p.click('#doseTabs [data-dt="info"]'); await p.click('[data-mono-back]'); await p.fill('#doseInfoQ', ''); await p.click('#doseTabs [data-dt="calc"]');
+    await p.click('#doseTabs [data-dt="info"]'); await p.click('[data-mono-back]'); await p.fill('#doseInfoQ', ''); await p.click('#doseScope [data-scope="local"]'); await p.click('#doseTabs [data-dt="calc"]');
     await p.click('[data-panel-link="tracking"]'); await p.waitForTimeout(300);
     check('ผลการดำเนินงาน: ตัวเลขแสดง', (await text(p, '#trkVisits')).trim() !== '');
     await p.click('[data-panel-link="delivery"]'); await p.waitForTimeout(400);
@@ -430,7 +440,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= ผู้ดูแล ================= */
     p = await open('admin', '#/admin');
-    for (const tab of ['news', 'messages', 'review', 'visits', 'rider', 'docs', 'settings/feedback', 'settings/dose', 'settings/contacts', 'settings/staff', 'settings/audit']) {
+    for (const tab of ['news', 'messages', 'review', 'visits', 'rider', 'docs', 'settings/feedback', 'settings/dose', 'settings/drugs', 'settings/contacts', 'settings/staff', 'settings/audit']) {
       await go(p, '#/admin/' + tab); await p.waitForTimeout(250);
       const view = tab.split('/')[0];
       const shown = await p.$eval(`[data-admin-view="${view}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
@@ -692,7 +702,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/dose'); await p.waitForTimeout(400); await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
     check('ข้อมูลยา (390px): รายการยา ไม่มี scroll แนวนอน', await count(p, '#doseInfoList .di-item') > 0 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.screenshot({ path: path.join(SHOTS, 'dose-info-390.png') });
-    await p.fill('#doseInfoQ', 'lansoprazole'); await p.waitForTimeout(100); await p.click('#doseInfoList .di-item'); await p.waitForTimeout(300);
+    await p.fill('#doseInfoQ', 'amoxicillin dry'); await p.waitForTimeout(100); await p.click('#doseInfoList .di-item'); await p.waitForTimeout(300);
     check('ข้อมูลยา (390px): monograph ไม่มี scroll แนวนอน + ปุ่มสูง ≥ 44px', await visible(p, '#doseMono .mono-card') && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1) && (await p.$eval('[data-mono-back]', (b) => b.getBoundingClientRect().height)) >= 44);
     await p.screenshot({ path: path.join(SHOTS, 'dose-mono-390.png'), fullPage: true });
     await p.click('[data-mono-back]'); await p.fill('#doseInfoQ', ''); await p.click('#doseTabs [data-dt="calc"]');
@@ -884,6 +894,48 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#doseWeight', '20'); await p.selectOption('#doseDrug', { label: 'ยาทดสอบ' }); await p.waitForTimeout(200);
     check('คำนวณโดส: แสดงพร้อมกัน 3 ข้อบ่งใช้ ที่เหลือย่อไว้ + คิดเป็น มล. จาก มก./มล.', await count(p, '#doseResult section.ind-result') === 3 && await count(p, '#doseResult details.ind-result') === 1 && (await text(p, '#doseResult')).includes('20.00–30.00 มล.'));
     check('คำนวณโดส: รายการยาอยู่ใต้น้ำหนักตัว', await p.evaluate(() => { const w = document.querySelector('#doseWeight').getBoundingClientRect(), d = document.querySelector('#doseDrug').getBoundingClientRect(); return d.top > w.bottom; }));
+    // ตั้งค่า › ฐานข้อมูลยา: รายการยา รพ.สต. (local_drugs) + บัญชียาหลักแห่งชาติ (drug_monographs) — ผู้ดูแลเพิ่ม/แก้/ลบได้
+    await go(p, '#/admin/settings/drugs'); await p.waitForTimeout(600);
+    check('ฐานข้อมูลยา: รายการยา รพ.สต. ครบ + บัญชียาหลัก (ทีละ 30)', await count(p, '#ldList .li') === await p.evaluate(() => window.__db.local_drugs.length) && await count(p, '#dmList .li') === 30 && await visible(p, '#dmMore'));
+    await p.selectOption('#ldFilter', 'unlinked'); await p.waitForTimeout(100);
+    check('ฐานข้อมูลยา: กรองยาที่ยังไม่ผูกข้อมูลยา', await count(p, '#ldList .li') === 12 && (await text(p, '#ldList')).includes('ยังไม่ผูกข้อมูลยา'));
+    await p.selectOption('#ldFilter', 'all');
+    await p.fill('#ldName', 'OMEPRAZOLE 20 MG ทดสอบ'); await p.fill('#ldCode', '9999991'); await p.fill('#ldCat', 'ยาเม็ด/แคปซูล'); await p.fill('#ldPack', '100'); await p.fill('#ldUnit', 'CAP');
+    await p.fill('#ldLinkQ', 'omepraz'); await p.waitForTimeout(100);
+    await p.click('#ldLinkOut [data-link="Omeprazole"]'); await p.waitForTimeout(100);
+    check('ฐานข้อมูลยา: ค้นหาแล้วกดผูกกับข้อมูลยาในบัญชียาหลัก', (await text(p, '#ldLinks')).includes('Omeprazole'));
+    await p.click('#ldSubmit'); await p.waitForTimeout(400);
+    { const ins = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'insert')).pop()?.payload || {};
+      check('ฐานข้อมูลยา: เพิ่มยา รพ.สต. พร้อมผูกข้อมูลยา (ref)', ins.name === 'OMEPRAZOLE 20 MG ทดสอบ' && ins.code === '9999991' && ins.mono_refs?.length >= 1 && ins.mono_refs.every((r) => r.startsWith('2569:')) && (await text(p, '#ldList')).includes('OMEPRAZOLE 20 MG ทดสอบ'), JSON.stringify(ins)); }
+    { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '9999991')?.id);
+      await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
+      check('ฐานข้อมูลยา: แก้ไขเปิดค่าเดิม + ข้อมูลยาที่ผูกไว้', (await p.inputValue('#ldName')) === 'OMEPRAZOLE 20 MG ทดสอบ' && (await text(p, '#ldLinks')).includes('Omeprazole') && await visible(p, '#ldCancel'));
+      await p.fill('#ldNote', 'เก็บให้พ้นแสง'); await p.click('#ldSubmit'); await p.waitForTimeout(400);
+      check('ฐานข้อมูลยา: บันทึกการแก้ไขยา รพ.สต.', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.note === 'เก็บให้พ้นแสง');
+      await go(p, '#/dose'); await p.waitForTimeout(300); await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
+      await p.fill('#doseInfoQ', 'ทดสอบ'); await p.waitForTimeout(100);
+      check('ฐานข้อมูลยา: ยาที่เพิ่มขึ้นหน้าข้อมูลยาทันที (ไม่ต้องรีเฟรช)', (await text(p, '#doseInfoList')).includes('OMEPRAZOLE 20 MG ทดสอบ') && (await text(p, '#doseInfoList')).includes('Omeprazole'));
+      await p.fill('#doseInfoQ', ''); await p.click('#doseTabs [data-dt="calc"]');
+      await go(p, '#/admin/settings/drugs'); await p.waitForTimeout(500);
+      await p.click(`[data-ld-del="${id}"]`); await p.waitForTimeout(400);
+      check('ฐานข้อมูลยา: ลบยา รพ.สต.', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'delete')).length === 1 && !(await text(p, '#ldList')).includes('OMEPRAZOLE 20 MG ทดสอบ')); }
+    await p.fill('#dmQ', 'domperidone'); await p.waitForTimeout(100);
+    { const id = await p.$eval('#dmList [data-dm-edit]', (b) => b.dataset.dmEdit);
+      await p.click(`[data-dm-edit="${id}"]`); await p.waitForTimeout(100);
+      check('บัญชียาหลัก: แก้ไขเปิดฟอร์ม (รูปแบบยา | บัญชี · หัวข้อ ##)', await visible(p, '#dmForm') && (await p.inputValue('#dmForms')).includes('| b') && (await p.inputValue('#dmSections')).includes('## คำเตือนและข้อควรระวัง'));
+      await p.fill('#dmSections', (await p.inputValue('#dmSections')) + '\n## หมายเหตุ รพ.\nทดสอบแก้ไข'); await p.click('#dmSubmit'); await p.waitForTimeout(400);
+      const up = (await calls(p, (c) => c.table === 'drug_monographs' && c.op === 'update')).pop()?.payload || {};
+      check('บัญชียาหลัก: บันทึกการแก้ไข (หัวข้อใหม่ต่อท้าย)', up.sections?.at(-1)?.title === 'หมายเหตุ รพ.' && up.sections.at(-1).body[0] === 'ทดสอบแก้ไข' && up.sections[0].title === 'คำเตือนและข้อควรระวัง', JSON.stringify(up.sections)); }
+    await p.click('#dmNew'); await p.fill('#dmName', 'Testdrugine'); await p.fill('#dmGroupNo', '4'); await p.fill('#dmGroup', 'Central nervous system'); await p.fill('#dmSubCode', '4.6');
+    await p.fill('#dmForms', 'tab | b'); await p.fill('#dmSections', '## เงื่อนไข\nใช้ทดสอบ'); await p.click('#dmSubmit'); await p.waitForTimeout(400);
+    { const ins = (await calls(p, (c) => c.table === 'drug_monographs' && c.op === 'insert')).pop()?.payload || {};
+      check('บัญชียาหลัก: เพิ่มข้อมูลยาใหม่', ins.name === 'Testdrugine' && ins.ref?.startsWith('custom:') && ins.forms?.[0]?.acct === 'b' && ins.sections?.[0]?.title === 'เงื่อนไข', JSON.stringify(ins));
+      await p.fill('#dmQ', 'testdrugine'); await p.waitForTimeout(100);
+      await p.click('#dmList [data-dm-del]'); await p.waitForTimeout(400);
+      check('บัญชียาหลัก: ลบข้อมูลยา', (await calls(p, (c) => c.table === 'drug_monographs' && c.op === 'delete')).length === 1 && (await text(p, '#dmList')).includes('ไม่พบ')); }
+    await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(150);
+    check('ฐานข้อมูลยา (390px): ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await p.screenshot({ path: path.join(SHOTS, 'admin-drugs-390.png') });
     await p.close();
 
     /* ================= งานจาก comment หน้าตัวอย่าง (ข่าว/แชท/เกณฑ์/ผู้ป่วย) ================= */

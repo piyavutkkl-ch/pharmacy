@@ -917,5 +917,15 @@ check("staff cannot add monographs", "s2", "insert into drug_monographs(ref,grou
 check("anon cannot add monographs", "anon", "insert into drug_monographs(ref,group_no,group_name,sub_code,no,name) values ('x',1,'x','1',1,'x')", "deny")
 check("admin edits monograph", "admin", "update drug_monographs set sections=sections||'[{\"title\":\"หมายเหตุ รพ.\",\"body\":[\"ทดสอบ\"]}]' where ref='2569:1.2:2' returning ref", eq("2569:1.2:2"))
 
+print("== step 58: local drugs (รพ.สต.) linked to monographs ==")
+check("local drugs seeded (117) + readable by anon", "anon", "select count(*) from local_drugs", eq(117))
+check("local drug linked to NLEM monograph", "anon", "select m.name from local_drugs l join drug_monographs m on m.ref = any(l.mono_refs) where l.code='1050042' limit 1", eq("Paracetamol (Acetaminophen)"))
+check("staff cannot add local drug", "s2", "insert into local_drugs(name,category) values ('x','y')", "deny")
+check("staff cannot edit local drug (RLS → 0 rows)", "s2", "update local_drugs set name='x' where code='1050042' returning id", rows(0))
+check("admin adds + hides local drug", "admin", "insert into local_drugs(name,category,active) values ('ยาทดสอบซ่อน','อื่น ๆ',false) returning name", eq("ยาทดสอบซ่อน"))
+check("anon cannot see hidden local drug", "anon", "select count(*) from local_drugs where name='ยาทดสอบซ่อน'", eq(0))
+check("admin deletes local drug", "admin", "delete from local_drugs where name='ยาทดสอบซ่อน' returning name", eq("ยาทดสอบซ่อน"))
+check("duplicate drug code rejected", "admin", "insert into local_drugs(code,name,category) values ('1050042','x','y')", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

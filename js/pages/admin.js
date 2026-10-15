@@ -1,6 +1,6 @@
 // ผู้ดูแล: โครงหน้า + เมนู + ตัวเลขงานค้าง + ข้อเสนอแนะ (อยู่ใน ตั้งค่า › ข้อเสนอแนะ)
 // ข่าว → admin-news.js · ตรวจประเมิน → admin-review.js · ข้อความ → chat.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
-// ตั้งค่า → admin-settings.js (ยา, ช่องทางติดต่อ) + admin-staff.js (บัญชีเจ้าหน้าที่) + admin-audit.js (ประวัติการเข้าถึงข้อมูลผู้ป่วย)
+// ตั้งค่า → admin-settings.js (ยา, ช่องทางติดต่อ) + admin-drugs.js (ฐานข้อมูลยา: ยา รพ.สต. + บัญชียาหลัก) + admin-staff.js (บัญชีเจ้าหน้าที่) + admin-audit.js (ประวัติการเข้าถึงข้อมูลผู้ป่วย)
 import { sb } from '../supabase.js?v=4.4';
 import { $, $$, esc, thaiDate, toast, errText } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
@@ -11,6 +11,7 @@ import { initReview } from './admin-review.js?v=4.4';
 import { mountVisits, ALL } from './visits.js?v=4.4';
 import { initAdminDocs } from './docs.js?v=4.4';
 import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.4';
+import { initDrugsAdmin } from './admin-drugs.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
@@ -22,7 +23,7 @@ import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
 export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.', rider: 'Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', settings: 'ตั้งค่า' };
-const SUBS = { dose: initDoseAdmin, contacts: initContactsAdmin, staff: initRoster, delivery: () => { initDeliveryAdmin(); initDeliveryReportAdmin(); }, audit: initAudit, feedback: () => initFeedback() };
+const SUBS = { dose: initDoseAdmin, drugs: initDrugsAdmin, contacts: initContactsAdmin, staff: initRoster, delivery: () => { initDeliveryAdmin(); initDeliveryReportAdmin(); }, audit: initAudit, feedback: () => initFeedback() };
 
 export async function showAdmin(tab, sub) {
   if (tab === 'staff') { location.replace('#/admin/settings/staff'); return; }   // ลิงก์เดิมจากขั้น 4.1

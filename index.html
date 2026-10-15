@@ -108,11 +108,15 @@
       <button type="button" role="tab" data-dt="info">ข้อมูลยา</button>
     </div>
     <div class="panel" id="dosePaneInfo" hidden>
-      <p class="small muted">ข้อมูลยาตาม <b>บัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙</b> (ราชกิจจานุเบกษา) · เลือกยาเพื่อดูกลุ่มยา รูปแบบยา บัญชี เงื่อนไขการใช้ คำเตือนและข้อควรระวัง คำแนะนำ และขนาดยาจากเครื่องคำนวณ (ถ้ามี) · ใช้เป็นข้อมูลอ้างอิงเบื้องต้น โปรดตรวจสอบกับเอกสารกำกับยาก่อนใช้จริง</p>
+      <p class="small muted">รายการยาของ รพ.สต. ในอำเภอควนกาหลง และข้อมูลยาตาม <b>บัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙</b> (ราชกิจจานุเบกษา) · เลือกยาเพื่อดูกลุ่มยา รูปแบบยา บัญชี เงื่อนไขการใช้ คำเตือนและข้อควรระวัง คำแนะนำ และขนาดยาจากเครื่องคำนวณ (ถ้ามี) · ใช้เป็นข้อมูลอ้างอิงเบื้องต้น โปรดตรวจสอบกับเอกสารกำกับยาก่อนใช้จริง</p>
       <div id="doseInfoPick">
+        <div class="unit-tabs uc-switch" id="doseScope" role="tablist" aria-label="เลือกฐานข้อมูลยา">
+          <button type="button" role="tab" data-scope="local" aria-current="true">ยา รพ.สต. ควนกาหลง</button>
+          <button type="button" role="tab" data-scope="nlem" aria-current="false">บัญชียาหลักแห่งชาติ</button>
+        </div>
         <div class="form-grid">
-          <div class="field"><label for="doseInfoQ">ค้นหายา</label><input id="doseInfoQ" class="input" type="search" placeholder="ชื่อยา หรือกลุ่มยา เช่น omeprazole"></div>
-          <div class="field"><label for="doseInfoGroup">กลุ่มยา</label><select id="doseInfoGroup" class="input"><option value="all">ทุกกลุ่มยา</option></select></div>
+          <div class="field"><label for="doseInfoQ">ค้นหายา</label><input id="doseInfoQ" class="input" type="search" placeholder="ชื่อยา รหัสยา หรือกลุ่มยา เช่น paracetamol"></div>
+          <div class="field"><label for="doseInfoGroup" id="doseInfoGroupLbl">หมวดยา</label><select id="doseInfoGroup" class="input"><option value="all">ทุกหมวด</option></select></div>
         </div>
         <p class="small muted" id="doseInfoN" aria-live="polite"></p>
         <div id="doseInfoList" class="di-list"></div>
@@ -625,7 +629,8 @@
       <!-- ตั้งค่า -->
       <div data-admin-view="settings" hidden>
         <div class="unit-tabs" id="asTabs" aria-label="เมนูตั้งค่า">
-          <a class="tab-link" href="#/admin/settings/dose" data-sub="dose">ข้อมูลยา / คำนวณขนาดยา</a>
+          <a class="tab-link" href="#/admin/settings/dose" data-sub="dose">คำนวณขนาดยา</a>
+          <a class="tab-link" href="#/admin/settings/drugs" data-sub="drugs">ฐานข้อมูลยา</a>
           <a class="tab-link" href="#/admin/settings/contacts" data-sub="contacts">ช่องทางติดต่อ รพ.สต.</a>
           <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่ <span class="badge num" id="admReqBadge"></span></a>
           <a class="tab-link" href="#/admin/settings/delivery" data-sub="delivery">จัดส่งยาถึงบ้าน</a>
@@ -667,6 +672,53 @@
             </div>
             <h3>สรุปที่บันทึกไว้</h3>
             <div class="list" id="drList"></div>
+          </div>
+        </div>
+
+        <div data-admin-sub="drugs" hidden>
+          <div class="panel">
+            <h2>รายการยา รพ.สต. อ.ควนกาหลง <span class="num muted" id="ldCount"></span></h2>
+            <p class="small muted">แสดงที่หน้าหลัก › ข้อมูลยา / คำนวณขนาดยา › ข้อมูลยา · ผูกยาแต่ละรายการกับข้อมูลยาในบัญชียาหลักแห่งชาติ เพื่อให้ข้อมูลยา (กลุ่มยา เงื่อนไข คำเตือน ฯลฯ) ขึ้นเมื่อเลือกยานั้น</p>
+            <form id="ldForm" class="form-grid" novalidate>
+              <div class="field"><label for="ldName">ชื่อยา <span class="req">*</span></label><input id="ldName" class="input" maxlength="200" placeholder="เช่น PARACETAMOL 500 MG"></div>
+              <div class="field"><label for="ldCode">รหัสยาใน รพ.</label><input id="ldCode" class="input" maxlength="30" inputmode="numeric"></div>
+              <div class="field"><label for="ldCat">หมวดยา <span class="req">*</span></label><input id="ldCat" class="input" maxlength="100" list="ldCats" placeholder="เช่น ยาเม็ด/แคปซูล"><datalist id="ldCats"></datalist></div>
+              <div class="form-grid">
+                <div class="field"><label for="ldPack">ขนาดบรรจุ</label><input id="ldPack" class="input" maxlength="40"></div>
+                <div class="field"><label for="ldUnit">หน่วย</label><input id="ldUnit" class="input" maxlength="40" placeholder="TAB, BOT, หลอด"></div>
+              </div>
+              <div class="field full"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้</span><div class="di-chips" id="ldLinks"></div>
+                <input id="ldLinkQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="ldLinkOut"></div></div>
+              <div class="field full"><label for="ldNote">หมายเหตุ (ถ้ามี)</label><textarea id="ldNote" rows="2" maxlength="2000" placeholder="เช่น เก็บในตู้เย็น"></textarea></div>
+              <div class="field"><label for="ldSort">ลำดับแสดง</label><input id="ldSort" class="input" type="number" inputmode="numeric" value="0"></div>
+              <label class="small" style="align-self:end"><input type="checkbox" id="ldActive" checked> แสดงที่หน้าหลัก</label>
+              <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="ldSubmit">เพิ่มยา</button><button class="btn btn-o btn-sm" type="button" id="ldCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="ldMsg" aria-live="polite"></span></div>
+            </form>
+            <div class="form-grid">
+              <div class="field"><label for="ldQ">ค้นหา</label><input id="ldQ" class="input" type="search" placeholder="ชื่อยา รหัสยา หมวด"></div>
+              <div class="field"><label for="ldFilter">แสดง</label><select id="ldFilter" class="input"><option value="all">ทั้งหมด</option><option value="unlinked">ยังไม่ผูกข้อมูลยา</option><option value="hidden">ซ่อนอยู่</option></select></div>
+            </div>
+            <div class="list" id="ldList"></div>
+          </div>
+          <div class="panel">
+            <h2>บัญชียาหลักแห่งชาติ (ฐานข้อมูลส่วนกลาง) <span class="num muted" id="dmCount"></span></h2>
+            <p class="small muted">ข้อมูลตั้งต้นจากบัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙ (ราชกิจจานุเบกษา) · แก้ เพิ่ม หรือลบได้ · การแก้ไขมีผลกับยา รพ.สต. ที่ผูกไว้ทันที</p>
+            <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dmNew">+ เพิ่มข้อมูลยาใหม่</button></div>
+            <form id="dmForm" class="form-grid dm-form" novalidate hidden>
+              <h3 class="full" id="dmTitle">เพิ่มข้อมูลยาใหม่</h3>
+              <div class="field full"><label for="dmName">ชื่อยา <span class="req">*</span></label><input id="dmName" class="input" maxlength="300" placeholder="เช่น Paracetamol (Acetaminophen)"></div>
+              <div class="field"><label for="dmGroupNo">กลุ่มยา (เลข)</label><input id="dmGroupNo" class="input" type="number" inputmode="numeric" min="0" max="99"></div>
+              <div class="field"><label for="dmGroup">ชื่อกลุ่มยา</label><input id="dmGroup" class="input" maxlength="200" list="dmGroups"><datalist id="dmGroups"></datalist></div>
+              <div class="field"><label for="dmSubCode">กลุ่มย่อย (เลข)</label><input id="dmSubCode" class="input" maxlength="20" placeholder="เช่น 4.6"></div>
+              <div class="field"><label for="dmSub">ชื่อกลุ่มย่อย</label><input id="dmSub" class="input" maxlength="200"></div>
+              <div class="field full"><label for="dmForms">รูปแบบยา / บัญชี</label><textarea id="dmForms" rows="3" maxlength="3000" placeholder="tab, syr | b&#10;sterile sol | ex"></textarea><span class="small muted">บรรทัดละ 1 แบบ: รูปแบบยา | บัญชี (b, s, ex, R1, R2)</span></div>
+              <div class="field full"><label for="dmFlags">ป้ายกำกับ (ถ้ามี)</label><input id="dmFlags" class="input" maxlength="300" placeholder="เช่น ยากำพร้า, ยาเสพติดให้โทษประเภท 2"><span class="small muted">คั่นด้วยเครื่องหมายจุลภาค</span></div>
+              <div class="field full"><label for="dmSections">เงื่อนไข / คำเตือน / คำแนะนำ / หมายเหตุ</label><textarea id="dmSections" rows="10" maxlength="30000" placeholder="## เงื่อนไข&#10;ใช้สำหรับ ...&#10;## คำเตือนและข้อควรระวัง&#10;1. ...&#10;2. ..."></textarea><span class="small muted">ขึ้นต้นบรรทัดด้วย ## ตามด้วยชื่อหัวข้อ · บรรทัดถัดไปคือเนื้อหา (บรรทัดละ 1 ข้อ)</span></div>
+              <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dmSubmit">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="dmCancel">ยกเลิก</button><span class="small" id="dmMsg" aria-live="polite"></span></div>
+            </form>
+            <div class="field"><label for="dmQ">ค้นหาข้อมูลยา</label><input id="dmQ" class="input" type="search" placeholder="ชื่อยา หรือกลุ่มยา"></div>
+            <div class="list" id="dmList"></div>
+            <button type="button" class="btn btn-o btn-sm di-more" id="dmMore" hidden>แสดงเพิ่ม</button>
           </div>
         </div>
 
