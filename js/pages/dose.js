@@ -1,4 +1,5 @@
-// เครื่องคำนวณขนาดยาตามน้ำหนักตัว (รายการยามาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
+// ข้อมูลยา / คำนวณขนาดยา (รายการยามาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
+//   2 ส่วน (#doseTabs): คำนวณขนาดยาตามน้ำหนักตัว · ข้อมูลยา (ขนาดยาตามข้อบ่งใช้/ความแรง/โรคไต + ค้นหา + ปุ่มไปคำนวณ)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc } from '../util.js?v=4.4';
 
@@ -14,9 +15,16 @@ export async function initDose() {
   const { data, error } = await sb.from('dose_drugs').select('*').eq('active', true).order('sort');
   drugs = error ? [] : data;
   sel.innerHTML = drugs.length ? drugs.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('') : '<option value="">ยังไม่มีรายการยา</option>';
-  fillConc(); toggleRenal(); render();
+  fillConc(); toggleRenal(); render(); renderInfo();
   if (bound) return;
   bound = true;
+  $('#doseTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-dt]'); if (b) showTab(b.dataset.dt); });
+  $('#doseInfoQ').addEventListener('input', renderInfo);
+  $('#doseInfoList').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-dose-calc]'); if (!b) return;
+    $('#doseDrug').value = b.dataset.doseCalc; fillConc(); render(); showTab('calc');
+    $('#doseWeight').focus();
+  });
   ['doseWeight', 'doseHeight', 'doseAge', 'doseCr'].forEach((id) => $('#' + id).addEventListener('input', render));
   ['doseConc', 'doseRenal', 'doseSex'].forEach((id) => $('#' + id).addEventListener('change', render));
   sel.addEventListener('change', () => { fillConc(); render(); });
@@ -97,4 +105,37 @@ function render() {
       : `<details class="ind-result"><summary>${title(i, k)}</summary>${doseOf(i)}</details>`)).join('') + '</div>'
     + bmi
     + '<p class="small muted">ตัวเลขนี้เป็นการประมาณตามช่วงขนาดยาทั่วไป โปรดตรวจสอบกับเอกสารกำกับยา/แนวทางการรักษาและดุลยพินิจทางคลินิกก่อนใช้จริงเสมอ</p>';
+}
+
+/* ---------- ส่วน "ข้อมูลยา" ---------- */
+function showTab(t) {
+  $('#doseTabs').querySelectorAll('[data-dt]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.dt === t)));
+  $('#dosePaneCalc').hidden = t !== 'calc';
+  $('#dosePaneInfo').hidden = t !== 'info';
+}
+const num = (n) => (n == null || n === '' ? '' : String(+n));
+/** ข้อความขนาดยาของข้อบ่งใช้ เช่น "10–15 มก./กก./ครั้ง · สูงสุด 500 มก./ครั้ง" */
+function doseText(i) {
+  if (!(+i.min > 0 || +i.max > 0)) return '-';
+  const r = num(i.min) === num(i.max) || !+i.max ? num(i.min || i.max) : `${num(i.min)}–${num(i.max)}`;
+  return i.per === 'day'
+    ? `${r} มก./กก./วัน${i.times ? ` แบ่งให้วันละ ${num(i.times)} ครั้ง` : ''}`
+    : `${r} มก./กก./ครั้ง${i.cap ? ` · สูงสุด ${num(i.cap)} มก./ครั้ง` : ''}`;
+}
+function renderInfo() {
+  const box = $('#doseInfoList');
+  if (!drugs?.length) { box.innerHTML = '<p class="empty">ยังไม่มีรายการยา</p>'; return; }
+  const q = $('#doseInfoQ').value.trim().toLowerCase();
+  const list = drugs.map((d, k) => ({ d, k })).filter(({ d }) => !q
+    || [d.name, d.form, ...indsOf(d).map((i) => i.name)].some((x) => String(x || '').toLowerCase().includes(q)));
+  box.innerHTML = !list.length ? '<p class="empty">ไม่พบยาที่ค้นหา</p>' : list.map(({ d, k }) => {
+    const concs = (d.concs || []).map((c) => `<span class="chip c-sub">${esc(c.label)}</span>`).join('');
+    const inds = indsOf(d).map((i) => `<li><b>${esc(i.name || 'ข้อบ่งใช้')}</b>: ${esc(doseText(i))}`
+      + (i.freq ? `<div class="small muted">ความถี่: ${esc(i.freq)}</div>` : '')
+      + (i.renal ? `<div class="small di-renal"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</div>` : '') + '</li>').join('');
+    return `<article class="di-card"><div class="di-head"><h3>${esc(d.name)}</h3><span class="chip c-off">${esc(d.form || 'อื่น ๆ')}</span></div>`
+      + (concs ? `<div class="di-concs"><span class="small muted">ความแรงที่มี:</span> ${concs}</div>` : '')
+      + `<ul class="di-inds">${inds}</ul>`
+      + `<button type="button" class="btn btn-o di-calc" data-dose-calc="${k}">คำนวณขนาดยานี้</button></article>`;
+  }).join('');
 }

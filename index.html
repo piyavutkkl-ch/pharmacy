@@ -63,7 +63,7 @@
         </a>
         <a class="menu-icon-btn" href="#/dose" data-panel-link="dose" aria-expanded="false">
           <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></span>
-          <span class="mi-label">คำนวณโดสยา</span>
+          <span class="mi-label">ข้อมูลยา / คำนวณขนาดยา</span>
         </a>
         <a class="menu-icon-btn" href="#/tracking" data-panel-link="tracking" aria-expanded="false">
           <span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
@@ -102,8 +102,17 @@
   </div>
 
   <div class="sec reveal" data-panel="dose" hidden>
-    <div class="sec-head"><h2>คำนวณโดสยา</h2></div>
-    <div class="panel">
+    <div class="sec-head"><h2>ข้อมูลยา / คำนวณขนาดยา</h2></div>
+    <div class="unit-tabs uc-switch" id="doseTabs" role="tablist" aria-label="เลือกส่วน">
+      <button type="button" role="tab" data-dt="calc" aria-current="true">คำนวณขนาดยา</button>
+      <button type="button" role="tab" data-dt="info">ข้อมูลยา</button>
+    </div>
+    <div class="panel" id="dosePaneInfo" hidden>
+      <p class="small muted">ข้อมูลขนาดยาตามข้อบ่งใช้ ความแรงของยาที่มี และคำแนะนำในโรคไต ของยาในระบบ · ใช้เป็นข้อมูลอ้างอิงเบื้องต้นเท่านั้น โปรดตรวจสอบกับเอกสารกำกับยา/แนวทางการรักษาก่อนใช้จริง</p>
+      <div class="field"><label for="doseInfoQ">ค้นหายา</label><input id="doseInfoQ" class="input" type="search" placeholder="พิมพ์ชื่อยา หรือข้อบ่งใช้"></div>
+      <div id="doseInfoList" class="dose-info-list"></div>
+    </div>
+    <div class="panel" id="dosePaneCalc">
       <p class="small muted">คำนวณขนาดยาโดยประมาณตามน้ำหนักตัว สำหรับใช้เป็นข้อมูลอ้างอิงเบื้องต้นเท่านั้น เภสัชกร/แพทย์ต้องพิจารณาและตรวจสอบซ้ำก่อนสั่งใช้ยาจริงทุกครั้ง</p>
       <div class="form-grid three">
         <div class="field"><label for="doseWeight">น้ำหนักตัว (กก.)</label><input id="doseWeight" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="เช่น 12.5"></div>
@@ -608,7 +617,7 @@
       <!-- ตั้งค่า -->
       <div data-admin-view="settings" hidden>
         <div class="unit-tabs" id="asTabs" aria-label="เมนูตั้งค่า">
-          <a class="tab-link" href="#/admin/settings/dose" data-sub="dose">คำนวณโดสยา</a>
+          <a class="tab-link" href="#/admin/settings/dose" data-sub="dose">ข้อมูลยา / คำนวณขนาดยา</a>
           <a class="tab-link" href="#/admin/settings/contacts" data-sub="contacts">ช่องทางติดต่อ รพ.สต.</a>
           <a class="tab-link" href="#/admin/settings/staff" data-sub="staff">บัญชีเจ้าหน้าที่ <span class="badge num" id="admReqBadge"></span></a>
           <a class="tab-link" href="#/admin/settings/delivery" data-sub="delivery">จัดส่งยาถึงบ้าน</a>
@@ -661,7 +670,7 @@
         <div data-admin-sub="dose" hidden>
           <div class="panel">
             <h2 id="dfTitle">เพิ่มรายการยา</h2>
-            <p class="small muted">รายการนี้ใช้ในเครื่องคำนวณโดสยาหน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
+            <p class="small muted">รายการนี้ใช้ในหน้าข้อมูลยา / คำนวณขนาดยาที่หน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
             <details class="vs-pfold df-bulk" id="dfBulkFold"><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
               <p class="small muted">พิมพ์หรือวางรายชื่อยา บรรทัดละ 1 ยา เช่น พาราเซตามอล (Paracetamol) · กด "สร้างรายการ" แล้วระบบเปิดยาทีละตัวในฟอร์มด้านล่าง พร้อมช่วยกรอกจากฐานข้อมูลยาให้ · ตรวจแล้วกด "เพิ่มยา" ระบบไปยาตัวถัดไปเอง (ไม่บันทึกยาที่ยังไม่ได้ตรวจ)</p>
               <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>

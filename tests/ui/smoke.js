@@ -84,6 +84,19 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('[data-panel-link="dose"]'); await p.waitForTimeout(300);
     await p.fill('#doseWeight', '20'); await p.waitForTimeout(150);
     check('คำนวณโดสยา: แสดงผลเป็นมิลลิกรัม', (await text(p, '#doseResult')).includes('มก.'));
+    check('ข้อมูลยา/คำนวณขนาดยา: ชื่อเมนูและหัวข้อใหม่ + แยก 2 ส่วน (เริ่มที่คำนวณ)', (await text(p, '[data-panel-link="dose"]')).includes('ข้อมูลยา') && (await text(p, '[data-panel="dose"] h2')).includes('ข้อมูลยา / คำนวณขนาดยา')
+      && await count(p, '#doseTabs [data-dt]') === 2 && await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')));
+    await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(150);
+    { const nDrugs = await p.evaluate(() => window.__db.dose_drugs.filter((d) => d.active).length);
+      check('ข้อมูลยา: แสดงยาที่เปิดใช้ทุกตัว (ขนาดยาตามข้อบ่งใช้ + ความแรง) · ซ่อนส่วนคำนวณ', await visible(p, '#dosePaneInfo') && !(await visible(p, '#dosePaneCalc')) && await count(p, '#doseInfoList .di-card') === nDrugs && (await text(p, '#doseInfoList')).includes('มก./กก.'), String(nDrugs)); }
+    { const first = await p.textContent('#doseInfoList .di-card h3');
+      await p.fill('#doseInfoQ', first); await p.waitForTimeout(100);
+      check('ข้อมูลยา: ค้นหาชื่อยา', await count(p, '#doseInfoList .di-card') >= 1 && (await text(p, '#doseInfoList .di-card h3')) === first);
+      await p.fill('#doseInfoQ', 'ไม่มียานี้แน่นอน'); await p.waitForTimeout(100);
+      check('ข้อมูลยา: ไม่พบ → แจ้ง', (await text(p, '#doseInfoList')).includes('ไม่พบยา'));
+      await p.fill('#doseInfoQ', first); await p.waitForTimeout(100);
+      await p.click('#doseInfoList [data-dose-calc]'); await p.waitForTimeout(150);
+      check('ข้อมูลยา: ปุ่ม "คำนวณขนาดยานี้" → กลับส่วนคำนวณพร้อมเลือกยานั้น', await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')) && (await p.$eval('#doseDrug', (s) => s.selectedOptions[0].textContent)) === first && (await text(p, '#doseResult')).includes('มก.')); }
     await p.click('[data-panel-link="tracking"]'); await p.waitForTimeout(300);
     check('ผลการดำเนินงาน: ตัวเลขแสดง', (await text(p, '#trkVisits')).trim() !== '');
     await p.click('[data-panel-link="delivery"]'); await p.waitForTimeout(400);
@@ -668,6 +681,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.setViewportSize({ width: 390, height: 844 }); await go(p, '#/news'); await p.waitForTimeout(500);
     check('หน้าแรก ข่าว (390px): ปัดซ้าย-ขวาได้ ไม่มี scroll แนวนอนทั้งหน้า', await count(p, '#newsGrid .news-card') >= 4 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), JSON.stringify(await p.evaluate(() => ({ n: document.querySelectorAll('#newsGrid .news-card').length, sw: document.documentElement.scrollWidth, iw: innerWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.offsetParent && !e.closest('#newsGrid')).slice(0, 6).map((e) => e.tagName + '#' + e.id + '.' + e.className) }))));
     await p.screenshot({ path: path.join(SHOTS, 'home-news-strip-390.png') });
+    await go(p, '#/dose'); await p.waitForTimeout(400); await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(150);
+    check('ข้อมูลยา (390px): ไม่มี scroll แนวนอน', await count(p, '#doseInfoList .di-card') > 0 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await p.screenshot({ path: path.join(SHOTS, 'dose-info-390.png') });
+    await p.click('#doseTabs [data-dt="calc"]');
     await go(p, '#/news/all'); await p.waitForTimeout(500);
     check('ดูข่าวทั้งหมด (390px): ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.screenshot({ path: path.join(SHOTS, 'news-all-390.png') });

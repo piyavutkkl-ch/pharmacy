@@ -679,6 +679,14 @@ button.fthumb:hover{border-color:var(--primary)}
 .ind-result{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .ind-result h4,.ind-result > summary{font-size:14px;font-weight:700;color:var(--primary)}
 details.ind-result > summary{cursor:pointer;min-height:32px}
+.dose-info-list{display:grid;gap:12px;margin-top:4px}
+.di-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.di-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.di-head h3{font-size:15px;font-weight:700;color:var(--primary);overflow-wrap:anywhere}
+.di-concs{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.di-inds{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px;overflow-wrap:anywhere}
+.di-renal{color:var(--warning)}
+.di-calc{align-self:flex-start;min-height:44px}
 @media (prefers-reduced-motion:reduce){.ind-box > summary::before{transition:none}}
 /* เยี่ยมบ้าน: รายชื่อผู้ป่วยอยู่บน · บันทึกการเยี่ยมอยู่ล่าง (เต็มความกว้าง) */
 .visits-stack{display:flex;flex-direction:column;gap:16px}
