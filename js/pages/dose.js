@@ -1,4 +1,4 @@
-// ข้อมูลยา / คำนวณขนาดยา — 3 ส่วน (#doseTabs): คำนวณขนาดยา · ข้อมูลยา · คำนวณสารน้ำ (fluid.js)
+// ข้อมูลยา / คำนวณขนาดยา — 4 ส่วน (#doseTabs): คำนวณขนาดยา · ข้อมูลยา · คำนวณสารน้ำ (fluid.js) · Drug interaction (ddi.js)
 //   คำนวณขนาดยา: อายุ/น้ำหนัก (บังคับ)/ส่วนสูง · รายชื่อยา = ยา รพ.สต. ที่มีข้อมูลคำนวณ (dose_drugs ผูกเอง local_drugs.dose_id หรือจับคู่ชื่อ) · ความแรง = ยา รพ.สต. (local_drugs.strength หรืออ่านจากชื่อ)
 //               ไต: CrCl Cockcroft-Gault (MDCalc · ส่วนสูง → IBW/AdjBW) หรือ eGFR CKD-EPI 2021 (เด็ก = Bedside Schwartz) · 60_drug_calc_th.sql
 //   ข้อมูลยา: ตัวกรองแหล่งข้อมูล #doseScope (ทั้งหมด / ยา รพ.สต. [ค่าเริ่ม] / บัญชียาหลัก) — รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql) · บัญชียาหลักแห่งชาติ 2569 (drug_monographs · 57)
@@ -10,6 +10,7 @@ import { $, esc, toast, errText } from '../util.js?v=4.4';
 import { isAdmin } from '../auth.js?v=4.4';
 import { estimateWeight } from '../growth.js?v=4.4';
 import { initFluid } from './fluid.js?v=4.4';
+import { initDdi, resetDdi } from './ddi.js?v=4.4';
 
 let drugs = null, bound = false;
 let monos = null, locals = null, items = null, litems = [], scope = 'local', shown = 40;   // ข้อมูลยา: โหลดเมื่อเปิดส่วนข้อมูลยา
@@ -17,7 +18,7 @@ let monos = null, locals = null, items = null, litems = [], scope = 'local', sho
 /** ให้โหลดรายการยาใหม่ครั้งถัดไป (เรียกหลังผู้ดูแลแก้รายการยา) */
 export function resetDose() { drugs = null; items = null; }
 /** ให้โหลดข้อมูลยา (บัญชียาหลัก + ยา รพ.สต.) ใหม่ครั้งถัดไป (เรียกหลังผู้ดูแลแก้ฐานข้อมูลยา) */
-export function resetDrugInfo() { monos = null; locals = null; items = null; drugs = null; }
+export function resetDrugInfo() { monos = null; locals = null; items = null; drugs = null; resetDdi(); }
 
 export async function initDose() {
   if (drugs) return;
@@ -226,8 +227,10 @@ function showTab(t) {
   $('#dosePaneCalc').hidden = t !== 'calc';
   $('#dosePaneInfo').hidden = t !== 'info';
   $('#dosePaneFluid').hidden = t !== 'fluid';
+  $('#dosePaneDdi').hidden = t !== 'ddi';
   if (t === 'info') openInfo();
   if (t === 'fluid') initFluid();
+  if (t === 'ddi') initDdi();
 }
 /** ชื่ออังกฤษของยาในเครื่องคำนวณ เช่น "พาราเซตามอล (Paracetamol)" → "paracetamol" */
 export const latinOf = (name) => { const m = String(name).match(/\(([^()]*[A-Za-z][^()]*)\)/); return (m ? m[1] : /[A-Za-z]/.test(name) ? name : '').trim().toLowerCase(); };
@@ -398,7 +401,7 @@ const editLink = (key) => (isAdmin() ? `<a class="btn btn-o btn-sm mono-edit" hr
 const fdaBody = (t) => { const p = String(t).split(/\s*•\s*/).map((x) => x.trim()).filter(Boolean); return p.length > 1 ? `<ul>${p.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : `<p>${esc(t)}</p>`; };
 const FDA_OPEN = new Set(['คำเตือนกรอบดำ', 'ข้อบ่งใช้', 'ขนาดยาและวิธีใช้', 'ข้อห้ามใช้']);
 // เรียงหัวข้อให้อ่านง่าย: เรื่องที่ต้องรู้ก่อนใช้ยาขึ้นก่อน
-const FDA_ORDER = ['คำเตือนกรอบดำ', 'ข้อบ่งใช้', 'ขนาดยาและวิธีใช้', 'ข้อห้ามใช้', 'คำเตือนและข้อควรระวัง', 'Drug interaction', 'อาการไม่พึงประสงค์', 'การใช้ในหญิงตั้งครรภ์/ให้นมบุตร เด็ก ผู้สูงอายุ', 'การได้รับยาเกินขนาด', 'การเก็บรักษา'];
+const FDA_ORDER = ['คำเตือนกรอบดำ', 'ข้อบ่งใช้', 'ขนาดยาและวิธีใช้', 'ข้อห้ามใช้', 'คำเตือนและข้อควรระวัง', 'Drug interaction', 'อาการไม่พึงประสงค์', 'การใช้ในหญิงตั้งครรภ์/ให้นมบุตร เด็ก ผู้สูงอายุ', 'กลไกการออกฤทธิ์', 'เภสัชจลนศาสตร์', 'การได้รับยาเกินขนาด', 'การเก็บรักษา'];
 const fdaRank = (t) => { const i = FDA_ORDER.indexOf(t); return i < 0 ? 99 : i; };
 function fdaCard(f) {
   const e = /^\d{8}$/.test(f.effective || '') ? `${+f.effective.slice(6, 8)}/${+f.effective.slice(4, 6)}/${+f.effective.slice(0, 4) + 543}` : '';

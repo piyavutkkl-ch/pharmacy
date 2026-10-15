@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ฉลากยาสหรัฐฯ จาก openFDA (https://open.fda.gov/apis/drug/label/ · ข้อมูลสาธารณะ) ของยา รพ.สต. → supabase/59_fda_labels.sql
    ยาแต่ละรายการค้นด้วยชื่อสามัญที่สหรัฐฯ ใช้ + ช่องทางให้ยา (ตาราง FDA) → เลือกฉลากที่ข้อมูลครบที่สุด → เก็บเฉพาะหัวข้อสำคัญ (ตัดยาวเกิน)
-   ใช้: python3 tools/nlem/fda_labels.py   (ต้องต่อเน็ต · ไม่ต้องใช้คีย์ · ≤240 ครั้ง/นาที) → เขียน supabase/59_fda_labels.sql
+   ใช้: python3 tools/nlem/fda_labels.py   (ต้องต่อเน็ต · ไม่ต้องใช้คีย์ · ≤240 ครั้ง/นาที) → เขียน supabase/62_fda_moa_pk.sql (59 รันบนเว็บจริงแล้ว ห้ามแก้)
    หัวข้อ/การตัดความยาวต้องตรงกับ FDA_SECTIONS ใน js/pages/admin-drugs.js (ปุ่มดึงใหม่ในหน้าผู้ดูแล)"""
 import json, pathlib, re, sys, time, urllib.parse, urllib.request
 
@@ -43,6 +43,8 @@ SECTIONS = [  # (หัวข้อไทย, ช่องใน openFDA ที�
     ('อาการไม่พึงประสงค์', ['adverse_reactions']),
     ('Drug interaction', ['drug_interactions']),
     ('การใช้ในหญิงตั้งครรภ์/ให้นมบุตร เด็ก ผู้สูงอายุ', ['pregnancy', 'lactation', 'nursing_mothers', 'pregnancy_or_breast_feeding', 'pediatric_use', 'geriatric_use']),
+    ('กลไกการออกฤทธิ์', ['mechanism_of_action']),
+    ('เภสัชจลนศาสตร์', ['pharmacokinetics']),
     ('การได้รับยาเกินขนาด', ['overdosage']),
     ('การเก็บรักษา', ['storage_and_handling']),
 ]
@@ -66,7 +68,8 @@ def get(url):
 def clean(t):
     t = re.sub(r'\s+', ' ', t).strip()
     t = re.sub(r'^\d+(\.\d+)*\s+[A-Z][A-Z &/,\-]+\s+', '', t)          # ตัดเลขหัวข้อ เช่น "2 DOSAGE AND ADMINISTRATION"
-    t = re.sub(r'^(INDICATIONS (AND|&) USAGE|DOSAGE (AND|&) ADMINISTRATION|CONTRAINDICATIONS|WARNINGS( AND PRECAUTIONS)?|PRECAUTIONS|ADVERSE REACTIONS|DRUG INTERACTIONS|OVERDOSAGE|PREGNANCY|NURSING MOTHERS|PEDIATRIC USE|GERIATRIC USE|LACTATION|Uses|Directions|Warnings|Do not use|Ask a doctor[a-z ]*|Stop use[a-z ]*|When using[a-z ]*|If pregnant or breast-feeding,?|Storage and Handling|HOW SUPPLIED)[:\s]+', '', t, flags=re.I)
+    t = re.sub(r'^\d+\.\d+(\.\d+)*\s+', '', t)                          # เลขหัวข้อย่อย เช่น "12.1 Mechanism of Action"
+    t = re.sub(r'^(INDICATIONS (AND|&) USAGE|DOSAGE (AND|&) ADMINISTRATION|CONTRAINDICATIONS|WARNINGS( AND PRECAUTIONS)?|PRECAUTIONS|ADVERSE REACTIONS|DRUG INTERACTIONS|OVERDOSAGE|PREGNANCY|NURSING MOTHERS|PEDIATRIC USE|GERIATRIC USE|LACTATION|MECHANISM OF ACTION|PHARMACOKINETICS|Uses|Directions|Warnings|Do not use|Ask a doctor[a-z ]*|Stop use[a-z ]*|When using[a-z ]*|If pregnant or breast-feeding,?|Storage and Handling|HOW SUPPLIED)[:\s]+', '', t, flags=re.I)
     return t
 
 
@@ -171,6 +174,31 @@ select 'ok' as step_59_fda_labels, (select count(*) from public.drug_fda_labels)
     print('labels', len(rows), 'linked codes', len(links), file=sys.stderr)
 
 
+EXTRA = ('กลไกการออกฤทธิ์', 'เภสัชจลนศาสตร์')   # หัวข้อที่เพิ่มหลัง 59 ขึ้นเว็บแล้ว → 62_fda_moa_pk.sql
+
+
+def write_extra_sql(found):
+    """59_fda_labels.sql รันบนเว็บจริงแล้ว (ห้ามแก้) → หัวข้อใหม่ใส่ผ่าน 62 เฉพาะฉลากที่ผู้ดูแลยังไม่ได้แก้ (updated_at = fetched_at)"""
+    rows = [{'key': k, 'sections': [x for x in v['sections'] if x['title'] in EXTRA]} for k, v in sorted(found.items())]
+    rows = [r for r in rows if r['sections']]
+    data = '[\n' + ',\n'.join(json.dumps(r, ensure_ascii=False, separators=(',', ':')) for r in rows) + '\n]'
+    assert '$fda$' not in data
+    sql = f"""-- =====================================================================
+--  ขั้นที่ 62: เพิ่มหัวข้อ "กลไกการออกฤทธิ์" + "เภสัชจลนศาสตร์" ในฉลาก openFDA (ใช้ในหน้า Drug interaction) · รันซ้ำได้
+--   ใส่เฉพาะฉลากที่ผู้ดูแลยังไม่ได้แก้ (updated_at = fetched_at) และยังไม่มีหัวข้อนั้น · ไฟล์นี้สร้างด้วย tools/nlem/fda_labels.py
+-- =====================================================================
+update public.drug_fda_labels f
+   set sections = f.sections || (select coalesce(jsonb_agg(e), '[]') from jsonb_array_elements(x.sections) e
+                                   where not exists (select 1 from jsonb_array_elements(f.sections) o where o->>'title' = e->>'title'))
+  from jsonb_to_recordset($fda${data}$fda$::jsonb) as x(key text, sections jsonb)
+ where f.key = x.key and f.updated_at = f.fetched_at;
+
+select 'ok' as step_62_fda_moa_pk;
+"""
+    (root / 'supabase/62_fda_moa_pk.sql').write_text(sql, encoding='utf-8')
+    print('extra sections for', len(rows), 'labels', file=sys.stderr)
+
+
 if __name__ == '__main__':
     found, miss = {}, []
     for code, (g, r, *b) in FDA.items():
@@ -185,4 +213,4 @@ if __name__ == '__main__':
             miss.append(k)
         print(('OK  ' if k in found else 'MISS') + f' {k}' + (f" · {found[k]['title']}" if k in found else ''), file=sys.stderr)
         time.sleep(0.3)
-    write_sql(found)
+    write_extra_sql(found)   # 59 ขึ้นเว็บแล้ว: ไม่เขียนทับ (write_sql ใช้สร้าง 59 ครั้งแรกเท่านั้น)

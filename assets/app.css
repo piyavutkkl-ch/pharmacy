@@ -955,3 +955,46 @@ a.fthumb.ach-link{text-decoration:none}
 .fx-tbl th{background:var(--sunken);font-weight:700}
 .fx-tbl tbody tr:nth-child(even){background:var(--sunken)}
 .table-wrap{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+
+/* Drug interaction (ddi.js): เทียบยาเป็นคอลัมน์ + แจ้งเตือนด้านบน */
+.ddi-alerts{display:grid;gap:8px;margin-bottom:12px}
+.ddi-hint{margin:0}
+.ddi-sum{margin:0;font-size:14px}
+.ddi-ok{padding:10px 12px;border-radius:12px;background:var(--success-soft);color:var(--success);font-size:14px;font-weight:600}
+.ddi-alert{border:1px solid var(--line);border-left:6px solid var(--faint);border-radius:12px;background:var(--surface);overflow:hidden}
+.ddi-alert.ddi-major{border-left-color:var(--error)}
+.ddi-alert.ddi-mod{border-left-color:var(--warning)}
+.ddi-alert.ddi-minor{border-left-color:var(--primary)}
+.ddi-alert-btn{appearance:none;width:100%;text-align:left;background:none;border:0;font:inherit;color:var(--ink);padding:10px 12px;min-height:44px;cursor:pointer;display:grid;gap:4px}
+.ddi-alert-btn:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.ddi-lv{font-size:12.5px;font-weight:700}
+.ddi-major .ddi-lv{color:var(--error)}
+.ddi-mod .ddi-lv{color:var(--warning)}
+.ddi-minor .ddi-lv{color:var(--primary)}
+.ddi-detail{padding:0 12px 12px;display:grid;gap:6px;font-size:14px}
+.ddi-detail h5{font-size:14px;font-weight:700;margin:4px 0 0}
+.ddi-detail p{margin:0;overflow-wrap:anywhere}
+.ddi-mgmt{white-space:pre-line}
+.ddi-cols{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);gap:10px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory}
+@media (max-width:600px){.ddi-cols{grid-auto-columns:86%}}
+.ddi-col{border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0;scroll-snap-align:start;background:var(--surface)}
+.ddi-col-head{display:flex;align-items:center;justify-content:space-between;min-height:32px}
+.ddi-body{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ddi-name{font-size:16px;font-weight:700;color:var(--primary);overflow-wrap:anywhere}
+.ddi-struct{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;background:#fff;border-radius:10px}
+.ddi-struct img{max-width:100%;height:auto}
+.ddi-add{appearance:none;border:2px dashed var(--line);border-radius:14px;background:none;color:var(--primary);font:inherit;font-weight:700;min-height:120px;display:grid;place-content:center;gap:4px;cursor:pointer;scroll-snap-align:start}
+.ddi-add span{font-size:32px;line-height:1}
+.ddi-add:hover,.ddi-add:focus-visible{border-color:var(--primary)}
+.ddi-path,.ddi-pic{width:100%;height:auto;display:block}
+.ddi-pic{max-width:420px;margin:4px auto}
+.ddi-b1{fill:var(--primary-soft);stroke:var(--primary);stroke-width:1.5}
+.ddi-b2{fill:var(--warning-soft);stroke:var(--warning);stroke-width:1.5}
+.ddi-b3{fill:var(--success-soft);stroke:var(--success);stroke-width:1.5}
+.ddi-b4{fill:var(--sunken);stroke:var(--faint);stroke-width:1.5}
+.ddi-site{fill:var(--warning-soft);stroke:var(--warning);stroke-width:2}
+.ddi-arrow{fill:none;stroke:var(--muted);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.ddi-inh{fill:none;stroke:var(--error);stroke-width:3.5;stroke-linecap:round}
+.ddi-t1{font:700 13px 'IBM Plex Sans Thai',system-ui,sans-serif;fill:var(--ink);text-anchor:middle}
+.ddi-t2{font:500 11.5px 'IBM Plex Sans Thai',system-ui,sans-serif;fill:var(--ink);text-anchor:middle}
+.ddi-t3{font:500 10.5px 'IBM Plex Sans Thai',system-ui,sans-serif;fill:var(--muted);text-anchor:middle}

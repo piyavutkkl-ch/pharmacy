@@ -107,6 +107,7 @@
       <button type="button" role="tab" data-dt="calc" aria-current="true">คำนวณขนาดยา</button>
       <button type="button" role="tab" data-dt="info">ข้อมูลยา</button>
       <button type="button" role="tab" data-dt="fluid">คำนวณสารน้ำ</button>
+      <button type="button" role="tab" data-dt="ddi">Drug interaction</button>
     </div>
     <div class="panel" id="dosePaneInfo" hidden>
       <p class="small muted">รายการยาของ รพ.สต. ในอำเภอควนกาหลง และข้อมูลยาตาม <b>บัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙</b> (ราชกิจจานุเบกษา) · เลือกยาเพื่อดูกลุ่มยา รูปแบบยา บัญชี เงื่อนไขการใช้ คำเตือนและข้อควรระวัง คำแนะนำ และขนาดยาจากเครื่องคำนวณ (ถ้ามี) · ใช้เป็นข้อมูลอ้างอิงเบื้องต้น โปรดตรวจสอบกับเอกสารกำกับยาก่อนใช้จริง</p>
@@ -121,6 +122,11 @@
         <button type="button" class="btn btn-o di-more" id="doseInfoMore" hidden>แสดงเพิ่ม</button>
       </div>
       <div id="doseMono" class="di-mono" hidden></div>
+    </div>
+    <div class="panel" id="dosePaneDdi" hidden>
+      <p class="small muted">เลือกยา รพ.สต. มาเทียบกัน (สูงสุด 4 ตัว) · ดูเส้นทางยาในร่างกาย กลไก เภสัชจลนศาสตร์ และแจ้งเตือน drug interaction ระหว่างยาที่เลือก · ข้อมูล interaction จาก DDInter · ใช้เป็นข้อมูลอ้างอิงเบื้องต้น</p>
+      <div id="ddiAlerts" class="ddi-alerts" aria-live="polite"></div>
+      <div class="ddi-cols" id="ddiCols"></div>
     </div>
     <div class="panel" id="dosePaneFluid" hidden>
       <p class="small muted">เตรียมสารน้ำ Dextrose ความเข้มข้นที่ไม่มีในคลัง จากถุงที่มี + 50% Dextrose (เติม 3% NaCl ถ้าต้องการเพิ่มความเข้มข้นเกลือ) · ตรวจสอบซ้ำก่อนเตรียมจริงทุกครั้ง</p>
@@ -693,6 +699,7 @@
                 <input id="ldLinkQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="ldLinkOut"></div></div>
               <div class="field"><label for="ldStrMg">ความแรง (สำหรับเครื่องคำนวณ)</label><div class="dose-age ld-str"><input id="ldStrMg" class="input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="มก."><select id="ldStrPer" class="input" aria-label="ต่อ"><option value="tab">มก./เม็ด</option><option value="5ml">มก./5 มล.</option><option value="ml">มก./มล.</option></select></div><span class="small muted" id="ldStrHint">ว่าง = อ่านจากชื่อยา</span></div>
               <div class="field"><label for="ldDose">ข้อมูลคำนวณขนาดยา</label><select id="ldDose" class="input"><option value="">อัตโนมัติ (จับคู่ตามชื่อยา)</option></select></div>
+              <div class="field full"><label for="ldDdi">ยาใน DDInter (สำหรับ Drug interaction)</label><input id="ldDdi" class="input" list="ddiNames" maxlength="300" placeholder="ชื่อยาภาษาอังกฤษ คั่นด้วย , เช่น Sulfamethoxazole, Trimethoprim"><datalist id="ddiNames"></datalist><span class="small muted">ว่าง = ไม่ตรวจ interaction ของยานี้ (เช่น ยาทาภายนอก)</span></div>
               <div class="field full"><label for="ldFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="ldFda" class="input"><option value="">— ไม่ผูก —</option></select><span class="small muted">ยังไม่มีในรายการ → ดึงเพิ่มได้ในกล่อง "ฉลากยาสหรัฐฯ (openFDA)" ด้านล่าง</span></div>
               <div class="field full"><label for="ldNote">หมายเหตุ (ถ้ามี)</label><textarea id="ldNote" rows="2" maxlength="2000" placeholder="เช่น เก็บในตู้เย็น"></textarea></div>
               <div class="field"><label for="ldSort">ลำดับแสดง</label><input id="ldSort" class="input" type="number" inputmode="numeric" value="0"></div>
@@ -724,6 +731,26 @@
             </form>
             <div class="field"><label for="faQ">ค้นหาฉลาก</label><input id="faQ" class="input" type="search" placeholder="ชื่อยา"></div>
             <div class="list" id="faList"></div>
+          </div>
+          <div class="panel">
+            <h2>Drug interaction (DDInter) <span class="num muted" id="ddCount"></span></h2>
+            <p class="small muted">คู่ interaction ระหว่างยา รพ.สต. จาก DDInter (CC BY-NC-SA 4.0) · แสดงที่ ข้อมูลยา › Drug interaction · แปลไทยด้วย AI (Gemini ฟรี) แล้วแก้/ตรวจได้</p>
+            <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-o btn-sm" id="ddThAll">ให้ AI แปลเป็นภาษาไทย (คู่ที่ยังไม่แปล · รุนแรงก่อน)</button><button type="button" class="btn btn-o btn-sm" id="ddThStop" hidden>หยุด</button><span class="small" id="ddMsg" aria-live="polite"></span></div>
+            <form id="ddForm" class="form-grid dm-form" novalidate hidden>
+              <h3 class="full" id="ddTitle">แก้ไข</h3>
+              <div class="field"><label for="ddLv">ระดับ</label><select id="ddLv" class="input"><option>Major</option><option>Moderate</option><option>Minor</option><option>Unknown</option></select></div>
+              <div class="field full"><label for="ddDescTh">เกิดอะไรขึ้น (ภาษาไทยที่แสดง)</label><textarea id="ddDescTh" rows="3" maxlength="6000"></textarea></div>
+              <div class="field full"><label for="ddMgmtTh">ควรทำอย่างไร (ภาษาไทยที่แสดง)</label><textarea id="ddMgmtTh" rows="4" maxlength="6000"></textarea></div>
+              <div class="field full"><label for="ddDesc">Interaction (ต้นฉบับ)</label><textarea id="ddDesc" rows="3" maxlength="6000"></textarea></div>
+              <div class="field full"><label for="ddMgmt">Management (ต้นฉบับ)</label><textarea id="ddMgmt" rows="3" maxlength="6000"></textarea></div>
+              <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="ddSave">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="ddCancel">ยกเลิก</button></div>
+            </form>
+            <div class="form-grid">
+              <div class="field"><label for="ddQ">ค้นหาคู่ยา</label><input id="ddQ" class="input" type="search" placeholder="ชื่อยา"></div>
+              <div class="field"><label for="ddLevel">ระดับ</label><select id="ddLevel" class="input"><option value="all">ทุกระดับ</option><option>Major</option><option>Moderate</option><option>Minor</option><option>Unknown</option></select></div>
+            </div>
+            <div class="list" id="ddList"></div>
+            <button type="button" class="btn btn-o btn-sm di-more" id="ddMore" hidden>แสดงเพิ่ม</button>
           </div>
           <div class="panel">
             <h2>บัญชียาหลักแห่งชาติ (ฐานข้อมูลส่วนกลาง) <span class="num muted" id="dmCount"></span></h2>

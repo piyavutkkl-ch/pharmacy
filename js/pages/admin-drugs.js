@@ -2,19 +2,20 @@
 //   รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql): เพิ่ม/แก้/ซ่อน/ลบ + ผูกกับข้อมูลยาในบัญชียาหลัก (mono_refs → drug_monographs.ref)
 //   ฉลากยาสหรัฐฯ openFDA (drug_fda_labels · 59_fda_labels.sql): ดึงจาก api.fda.gov ในเบราว์เซอร์ (ฟรี · ไม่ใช้คีย์) แล้วบันทึก · แก้/ลบ · ผูกกับยา รพ.สต. ด้วย local_drugs.fda_key
 //     ภาษาไทย: AI แปลทีละฉลาก/ทั้งหมด (ai_fda_th_start/poll · 60_drug_calc_th.sql) · ผู้ดูแลแก้ข้อความไทยแล้ว = th_reviewed
-//     ปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา → sessionStorage 'pcps_drug_edit' (local:/mono:/fda:<id>) → เปิดฟอร์มนั้น
+//   Drug interaction (ddi_pairs · 61_ddi.sql · DDInter): ค้นหา/กรองระดับ · AI แปลไทยทีละคู่/ทั้งหมด (ai_ddi_th_start/poll) · แก้/ลบ · ยา รพ.สต. ผูกด้วย local_drugs.ddi_ids
+//     ปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา → sessionStorage 'pcps_drug_edit' (local:/mono:/fda:/ddi:<id>) → เปิดฟอร์มนั้น
 //     หัวข้อ/การตัดความยาว (FDA_SECTIONS) ต้องตรงกับ tools/nlem/fda_labels.py
 //   บัญชียาหลักแห่งชาติ (drug_monographs · 57_drug_monographs.sql): ค้นหา เพิ่ม แก้ ลบ · หัวข้อในยาแก้เป็นข้อความ "## หัวข้อ" + บรรทัดเนื้อหา
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { resetDrugInfo, strengthOf } from './dose.js?v=4.4';
 
-let locals = [], monos = [], fdas = [], doses = [], thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30;
+let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30;
 
 export async function initDrugsAdmin() {
   if (!bound) bind();
   $('#ldList').innerHTML = $('#dmList').innerHTML = $('#faList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
-  await Promise.all([loadLocals(), loadMonos(), loadFdas(), loadDoses()]);
+  await Promise.all([loadLocals(), loadMonos(), loadFdas(), loadDoses(), loadDdi()]);
   if (!editLocal) resetLocal();
   openPending();
 }
@@ -26,6 +27,7 @@ function openPending() {
   if (kind === 'local') { const l = locals.find((x) => x.id === +id); if (l) editLocalForm(l); }
   if (kind === 'mono') { const m = monos.find((x) => x.id === +id); if (m) openMonoForm(m); }
   if (kind === 'fda') { const f = fdas.find((x) => x.id === +id); if (f) openFdaForm(f); }
+  if (kind === 'ddi') { const d = ddPairs.find((x) => x.id === +id); if (d) openDdForm(d); }
 }
 async function loadDoses() {
   const { data } = await sb.from('dose_drugs').select('id,name,active,ai_draft').order('sort');
@@ -79,6 +81,14 @@ function bind() {
   $('#faList').addEventListener('click', onFdaList);
   $('#faForm').addEventListener('submit', saveFda);
   $('#faThAll').addEventListener('click', thAll);
+  $('#ddThAll').addEventListener('click', ddThAll);
+  $('#ddThStop').addEventListener('click', () => { ddStop = true; });
+  $('#ddQ').addEventListener('input', () => { ddShown = 30; renderDd(); });
+  $('#ddLevel').addEventListener('change', () => { ddShown = 30; renderDd(); });
+  $('#ddMore').addEventListener('click', () => { ddShown += 50; renderDd(); });
+  $('#ddList').addEventListener('click', onDdList);
+  $('#ddForm').addEventListener('submit', saveDd);
+  $('#ddCancel').addEventListener('click', () => { $('#ddForm').hidden = true; editDd = null; });
   $('#faThStop').addEventListener('click', () => { thStop = true; });
   ['#ldName', '#ldUnit', '#ldStrMg'].forEach((x) => $(x).addEventListener('input', strHint));
   $('#faCancel').addEventListener('click', () => { $('#faForm').hidden = true; editFda = null; });
@@ -129,7 +139,7 @@ function resetLocal() {
   editLocal = null; links = [];
   ['#ldName', '#ldCode', '#ldCat', '#ldPack', '#ldUnit', '#ldNote', '#ldLinkQ'].forEach((s) => { $(s).value = ''; });
   $('#ldSort').value = locals.length ? Math.max(...locals.map((l) => l.sort)) + 1 : 1; $('#ldActive').checked = true; $('#ldFda').value = '';
-  $('#ldStrMg').value = ''; $('#ldStrPer').value = 'tab'; $('#ldDose').value = ''; strHint();
+  $('#ldStrMg').value = ''; $('#ldStrPer').value = 'tab'; $('#ldDose').value = ''; $('#ldDdi').value = ''; strHint();
   $('#ldSubmit').textContent = 'เพิ่มยา'; $('#ldCancel').hidden = true; $('#ldMsg').textContent = '';
   renderLinks(); renderPick();
 }
@@ -137,7 +147,8 @@ function editLocalForm(l) {
   editLocal = l; links = [...(l.mono_refs || [])];
   $('#ldName').value = l.name; $('#ldCode').value = l.code || ''; $('#ldCat').value = l.category; $('#ldPack').value = l.pack_size || '';
   $('#ldUnit').value = l.unit || ''; $('#ldNote').value = l.note || ''; $('#ldFda').value = l.fda_key || '';
-  $('#ldStrMg').value = l.strength?.mg ?? ''; $('#ldStrPer').value = l.strength?.per || 'tab'; $('#ldDose').value = l.dose_id ?? ''; strHint(); $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
+  $('#ldStrMg').value = l.strength?.mg ?? ''; $('#ldStrPer').value = l.strength?.per || 'tab'; $('#ldDose').value = l.dose_id ?? ''; strHint();
+  $('#ldDdi').value = (l.ddi_ids || []).map((i) => ddDrugs.find((d) => d.id === i)?.name || i).join(', '); $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
   $('#ldSubmit').textContent = 'บันทึกการแก้ไข'; $('#ldCancel').hidden = false; $('#ldMsg').textContent = '';
   renderLinks();
   $('#ldForm').scrollIntoView({ block: 'start', behavior: 'smooth' }); $('#ldName').focus();
@@ -152,6 +163,10 @@ async function saveLocal(e) {
   const row = { name, code, category, pack_size: $('#ldPack').value.trim(), unit: $('#ldUnit').value.trim(), note: $('#ldNote').value.trim() || null,
     mono_refs: links, fda_key: $('#ldFda').value || null, dose_id: +$('#ldDose').value || null,
     strength: +$('#ldStrMg').value > 0 ? { mg: +$('#ldStrMg').value, per: $('#ldStrPer').value } : null, sort: +$('#ldSort').value || 0, active: $('#ldActive').checked, updated_at: new Date().toISOString() };
+  const ddiNames = $('#ldDdi').value.split(',').map((x) => x.trim()).filter(Boolean);
+  const ddiIds = ddiNames.map((n) => ddDrugs.find((d) => d.name.toLowerCase() === n.toLowerCase() || d.id === n)?.id);
+  if (ddiIds.some((x) => !x)) { $('#ldDdi').focus(); $('#ldMsg').textContent = `ไม่พบยาใน DDInter: ${ddiNames.filter((n, i) => !ddiIds[i]).join(', ')} (เลือกจากรายการที่แนะนำ)`; return; }
+  row.ddi_ids = [...new Set(ddiIds)];
   const btn = $('#ldSubmit'); busy(btn, true, 'กำลังบันทึก…');
   const { error } = editLocal ? await sb.from('local_drugs').update(row).eq('id', editLocal.id) : await sb.from('local_drugs').insert(row);
   busy(btn, false);
@@ -254,13 +269,16 @@ const FDA_SECTIONS = [
   ['อาการไม่พึงประสงค์', ['adverse_reactions']],
   ['Drug interaction', ['drug_interactions']],
   ['การใช้ในหญิงตั้งครรภ์/ให้นมบุตร เด็ก ผู้สูงอายุ', ['pregnancy', 'lactation', 'nursing_mothers', 'pregnancy_or_breast_feeding', 'pediatric_use', 'geriatric_use']],
+  ['กลไกการออกฤทธิ์', ['mechanism_of_action']],
+  ['เภสัชจลนศาสตร์', ['pharmacokinetics']],
   ['การได้รับยาเกินขนาด', ['overdosage']],
   ['การเก็บรักษา', ['storage_and_handling']],
 ];
 const FDA_MAX = 2500;
 const fdaClean = (t) => String(t).replace(/\s+/g, ' ').trim()
   .replace(/^\d+(\.\d+)*\s+[A-Z][A-Z &/,-]+\s+/, '')
-  .replace(/^(INDICATIONS (AND|&) USAGE|DOSAGE (AND|&) ADMINISTRATION|CONTRAINDICATIONS|WARNINGS( AND PRECAUTIONS)?|PRECAUTIONS|ADVERSE REACTIONS|DRUG INTERACTIONS|OVERDOSAGE|PREGNANCY|NURSING MOTHERS|PEDIATRIC USE|GERIATRIC USE|LACTATION|Uses|Directions|Warnings|Do not use|Ask a doctor[a-z ]*|Stop use[a-z ]*|When using[a-z ]*|If pregnant or breast-feeding,?|Storage and Handling|HOW SUPPLIED)[:\s]+/i, '');
+  .replace(/^\d+\.\d+(\.\d+)*\s+/, '')
+  .replace(/^(INDICATIONS (AND|&) USAGE|DOSAGE (AND|&) ADMINISTRATION|CONTRAINDICATIONS|WARNINGS( AND PRECAUTIONS)?|PRECAUTIONS|ADVERSE REACTIONS|DRUG INTERACTIONS|OVERDOSAGE|PREGNANCY|NURSING MOTHERS|PEDIATRIC USE|GERIATRIC USE|LACTATION|MECHANISM OF ACTION|PHARMACOKINETICS|Uses|Directions|Warnings|Do not use|Ask a doctor[a-z ]*|Stop use[a-z ]*|When using[a-z ]*|If pregnant or breast-feeding,?|Storage and Handling|HOW SUPPLIED)[:\s]+/i, '');
 function fdaSections(lab) {
   const out = [];
   for (const [title, keys] of FDA_SECTIONS) {
@@ -392,4 +410,93 @@ async function saveFda(e) {
   busy(btn, false);
   if (error) { toast(errText(error), 'err'); return; }
   toast('บันทึกฉลากแล้ว'); changed(); $('#faForm').hidden = true; editFda = null; loadFdas();
+}
+
+/* ======================= Drug interaction (DDInter) ======================= */
+const DD_RANK = { Major: 0, Moderate: 1, Minor: 2, Unknown: 3 };
+const ddName = (id) => ddDrugs.find((d) => d.id === id)?.name || id;
+async function loadDdi() {
+  const [d, p] = await Promise.all([sb.from('ddi_drugs').select('id,name').order('name'), sb.from('ddi_pairs').select('*').order('id')]);
+  if (d.error || p.error) { toast(errText(d.error || p.error), 'err'); $('#ddList').innerHTML = '<p class="empty">โหลดข้อมูลไม่สำเร็จ</p>'; return; }
+  ddDrugs = d.data; ddPairs = p.data.sort((a, b) => DD_RANK[a.level] - DD_RANK[b.level] || ddName(a.a).localeCompare(ddName(b.a)));
+  $('#ddiNames').innerHTML = ddDrugs.map((x) => `<option value="${esc(x.name)}"></option>`).join('');
+  if (editLocal) $('#ldDdi').value = (editLocal.ddi_ids || []).map(ddName).join(', ');
+  renderDd();
+}
+function renderDd() {
+  const q = $('#ddQ').value.trim().toLowerCase(), lv = $('#ddLevel').value;
+  const list = ddPairs.filter((p) => (lv === 'all' || p.level === lv) && (!q || `${ddName(p.a)} ${ddName(p.b)}`.toLowerCase().includes(q)));
+  $('#ddCount').textContent = `(${ddPairs.length} คู่ · แปลไทยแล้ว ${ddPairs.filter((p) => p.description_th).length})`;
+  $('#ddList').innerHTML = !ddPairs.length ? '<p class="empty">ยังไม่มีข้อมูล drug interaction</p>' : !list.length ? '<p class="empty">ไม่พบคู่ยาที่ค้นหา</p>'
+    : list.slice(0, ddShown).map((p) => `<div class="li"><div class="l"><b>${esc(ddName(p.a))} × ${esc(ddName(p.b))}</b>`
+      + `<span class="small muted">${esc(p.level)} · ${esc((p.mech || []).join(', ') || '-')}</span>`
+      + `<div class="meta">${p.description_th ? `<span class="chip ${p.th_reviewed ? 'c-on' : 'c-role'}">${p.th_reviewed ? 'ภาษาไทย · ตรวจแล้ว' : 'ภาษาไทย (AI แปล)'}</span>` : '<span class="chip c-off">ยังไม่มีภาษาไทย</span>'}${p.th_status === 'error' && p.th_note ? `<span class="small ai-err">${esc(p.th_note)}</span>` : ''}</div></div>`
+      + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-dd-th="${p.id}">${p.description_th ? 'AI แปลใหม่' : 'ให้ AI แปลไทย'}</button><button type="button" class="btn btn-o btn-sm" data-dd-edit="${p.id}">แก้ไข</button>`
+      + `<button type="button" class="btn btn-no btn-sm" data-dd-del="${p.id}">ลบ</button></div></div>`).join('');
+  $('#ddMore').hidden = list.length <= ddShown;
+  if (list.length > ddShown) $('#ddMore').textContent = `แสดงเพิ่ม (เหลืออีก ${list.length - ddShown} คู่)`;
+}
+async function translateDd(p) {
+  const { error } = await sb.rpc('ai_ddi_th_start', { p_id: p.id });
+  if (error) throw error;
+  let r = { th_status: 'pending' };
+  for (let i = 0; r.th_status === 'pending' && i < 80; i++) {
+    await new Promise((ok) => setTimeout(ok, 2500));
+    const { data, error: e2 } = await sb.rpc('ai_ddi_th_poll', { p_id: p.id });
+    if (e2) throw e2;
+    r = data;
+  }
+  if (r.th_status !== 'done') throw new Error(r.th_note || 'AI ยังแปลไม่เสร็จ กรุณาลองใหม่');
+  return r;
+}
+async function ddThAll() {
+  const todo = ddPairs.filter((p) => !p.description_th && p.description);   // เรียงรุนแรงก่อนอยู่แล้ว
+  const msg = $('#ddMsg'), btn = $('#ddThAll');
+  if (!todo.length) { msg.style.color = 'var(--success)'; msg.textContent = 'ทุกคู่มีภาษาไทยแล้ว'; return; }
+  ddStop = false; busy(btn, true, 'AI กำลังแปล…'); $('#ddThStop').hidden = false;
+  let ok = 0, bad = 0;
+  try {
+    for (const [i, p] of todo.entries()) {
+      if (ddStop) break;
+      msg.style.color = ''; msg.textContent = `กำลังแปล ${i + 1}/${todo.length}: ${ddName(p.a)} × ${ddName(p.b)}`;
+      try { await translateDd(p); ok++; } catch (err) { bad++; if (/ครบ \d+ ครั้ง|ไม่มีสิทธิ์|ยังไม่พร้อม/.test(errText(err))) { msg.textContent = errText(err); break; } }
+    }
+  } finally {
+    busy(btn, false); $('#ddThStop').hidden = true; changed();
+    msg.style.color = ok ? 'var(--success)' : 'var(--error)';
+    msg.textContent = `แปลเป็นภาษาไทยแล้ว ${ok} คู่${bad ? ` · ไม่สำเร็จ ${bad} คู่` : ''}${ddStop ? ' · หยุดแล้ว (กดอีกครั้งเพื่อแปลต่อ)' : ''}`;
+    await loadDdi();
+  }
+}
+function openDdForm(p) {
+  editDd = p; $('#ddTitle').textContent = `แก้ไข: ${ddName(p.a)} × ${ddName(p.b)}`; $('#ddLv').value = p.level;
+  $('#ddDescTh').value = p.description_th || ''; $('#ddMgmtTh').value = p.management_th || ''; $('#ddDesc').value = p.description || ''; $('#ddMgmt').value = p.management || '';
+  $('#ddForm').hidden = false; $('#ddForm').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+async function onDdList(e) {
+  const b = e.target.closest('[data-dd-th],[data-dd-edit],[data-dd-del]'); if (!b) return;
+  const p = ddPairs.find((x) => x.id === +(b.dataset.ddTh || b.dataset.ddEdit || b.dataset.ddDel)); if (!p) return;
+  if (b.dataset.ddEdit) { openDdForm(p); return; }
+  if (b.dataset.ddTh) {
+    if (p.th_reviewed && !confirm('ให้ AI แปลคู่นี้ใหม่?\nข้อความภาษาไทยที่ตรวจ/แก้ไว้จะถูกแทนที่')) return;
+    busy(b, true, 'AI กำลังแปล…');
+    try { await translateDd(p); toast('AI แปลเป็นภาษาไทยแล้ว'); } catch (err) { toast(errText(err), 'err'); } finally { busy(b, false); changed(); loadDdi(); }
+    return;
+  }
+  if (!confirm(`ลบคู่ interaction "${ddName(p.a)} × ${ddName(p.b)}"?`)) return;
+  const { error } = await sb.from('ddi_pairs').delete().eq('id', p.id);
+  if (error) { toast(errText(error), 'err'); return; }
+  toast('ลบแล้ว'); changed(); loadDdi();
+}
+async function saveDd(e) {
+  e.preventDefault();
+  if (!editDd) return;
+  const th = $('#ddDescTh').value.trim();
+  const row = { level: $('#ddLv').value, description_th: th || null, management_th: $('#ddMgmtTh').value.trim() || null, th_reviewed: !!th,
+    description: $('#ddDesc').value.trim(), management: $('#ddMgmt').value.trim(), updated_at: new Date().toISOString() };
+  const btn = $('#ddSave'); busy(btn, true, 'กำลังบันทึก…');
+  const { error } = await sb.from('ddi_pairs').update(row).eq('id', editDd.id);
+  busy(btn, false);
+  if (error) { toast(errText(error), 'err'); return; }
+  toast('บันทึกแล้ว'); changed(); $('#ddForm').hidden = true; editDd = null; loadDdi();
 }

@@ -954,5 +954,25 @@ check("anon reads Thai label", "anon", f"select sections_th->1->'body'->>0 from 
 check("admin marks Thai reviewed", "admin", f"update drug_fda_labels set th_reviewed=true where id={fl} returning th_reviewed", eq("t"))
 check("bad th_status rejected", "admin", f"update drug_fda_labels set th_status='x' where id={fl}", "deny")
 
+print("== step 61: drug interactions (DDInter) ==")
+check("DDI drugs + pairs seeded, anon reads", "anon", "select (select count(*) from ddi_drugs) > 40 and (select count(*) from ddi_pairs) > 300", eq("t"))
+check("pairs only among รพ.สต. drugs (a<b, both exist)", None, "select count(*) from ddi_pairs p where not exists (select 1 from local_drugs l where p.a = any(l.ddi_ids)) or not exists (select 1 from local_drugs l where p.b = any(l.ddi_ids))", eq(0))
+check("local drug linked to DDInter ids (co-trimoxazole = 2)", "anon", "select cardinality(ddi_ids) from local_drugs where code='1010280'", eq(2))
+check("staff cannot edit DDI pair (RLS → 0 rows)", "s2", "update ddi_pairs set level='Minor' returning id", rows(0))
+check("anon cannot add DDI pair", "anon", "insert into ddi_pairs(a,b) select min(id), max(id) from ddi_drugs", "deny")
+check("bad level rejected", "admin", "update ddi_pairs set level='Severe' where id=(select min(id) from ddi_pairs)", "deny")
+dp = run("select id from ddi_pairs where level='Major' and description <> '' order by id limit 1")[1].strip()
+check("staff cannot start DDI translation", "s2", f"select ai_ddi_th_start({dp})", "deny")
+run(f"select ai_ddi_th_start({dp})", "admin")
+check("DDI translation pending + AI gets text (key only in header)", None, f"select (convert_from(q.body,'utf8') like '%Management%' and convert_from(q.body,'utf8') not like '%test-key-123%' and q.headers->>'x-goog-api-key'='test-key-123')::text from ddi_pairs d join net.http_request_queue q on q.id=d.th_request_id where d.id={dp}", eq("true"))
+DTH = '{"description":"ยาสองตัวนี้เพิ่มความเสี่ยงต่อกัน","management":"• หลีกเลี่ยงการใช้ร่วมกัน"}'
+run(f"""insert into net._http_response(id,status_code,content) select th_request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${DTH}$q$))))))::text from ddi_pairs where id={dp}""")
+check("DDI Thai saved", "admin", f"select ai_ddi_th_poll({dp})->>'th_status'; select description_th from ddi_pairs where id={dp}", lambda o: o.strip().endswith('ยาสองตัวนี้เพิ่มความเสี่ยงต่อกัน'))
+check("anon reads DDI Thai", "anon", f"select management_th from ddi_pairs where id={dp}", eq("• หลีกเลี่ยงการใช้ร่วมกัน"))
+
+print("== step 62: FDA mechanism/PK sections ==")
+check("mechanism/PK sections added to untouched labels", "anon", "select count(*) > 30 from drug_fda_labels where sections @> '[{\"title\":\"กลไกการออกฤทธิ์\"}]' or sections @> '[{\"title\":\"เภสัชจลนศาสตร์\"}]'", eq("t"))
+check("62 rerun does not duplicate sections", None, "select max(n) from (select count(*) n from drug_fda_labels, jsonb_array_elements(sections) e where e->>'title'='กลไกการออกฤทธิ์' group by id) x", eq(1))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

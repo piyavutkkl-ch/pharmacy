@@ -12,7 +12,7 @@ window.__calls = [];
 window.__channels = [];
 const log = (x) => window.__calls.push(x);
 const now = () => new Date().toISOString();
-const NUMERIC_ID = new Set(['drug_fda_labels', 'drug_monographs', 'local_drugs', 'news_topics', 'ai_topic_runs', 'delivery_reports', 'ai_dose_drafts', 'ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
+const NUMERIC_ID = new Set(['ddi_pairs', 'drug_fda_labels', 'drug_monographs', 'local_drugs', 'news_topics', 'ai_topic_runs', 'delivery_reports', 'ai_dose_drafts', 'ai_news_checks', 'news_quiz', 'ai_matches', 'unit_messages', 'visit_summaries', 'delivery_posters', 'staff_requests', 'feedback', 'messages', 'news_comments', 'criteria_items', 'item_status', 'dose_drugs', 'audit_log']);
 const err = (message, code) => ({ data: null, error: { message, code } });
 /* ---------- บันทึกการเข้าถึงข้อมูลผู้ป่วย (แทน trigger write_audit + log_patient_access) ---------- */
 db.audit_log = (db.patients || []).map((pt, i) => ({ id: i + 1, at: pt.created_at, actor_id: pt.created_by, action: 'insert', table_name: 'patients', row_id: pt.id, unit_id: pt.unit_id, patient_id: pt.id, detail: null }));
@@ -544,6 +544,18 @@ function rpc(name, a = {}) {
       const r = (db.drug_fda_labels || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบฉลากนี้', 'P0001');
       if (r.th_status === 'pending' && ++r.th_polls >= 2) Object.assign(r, { th_status: 'done', th_reviewed: false, sections_th: (r.sections || []).map((x) => ({ title: x.title, body: [`(ภาษาไทย) ${x.title} ของ ${r.generic}`, 'ข้อที่สอง'] })) });
       return { data: { id: r.id, th_status: r.th_status, th_note: null, sections_th: r.sections_th || null }, error: null };
+    }
+    /* แทน ai_ddi_th_start / poll (61_ddi.sql): ตอบ "รอ" 1 รอบ แล้วได้คำอธิบาย/การจัดการภาษาไทย (ข้อความจำลอง) */
+    case 'ai_ddi_th_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.ddi_pairs || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบคู่ยานี้', 'P0001');
+      Object.assign(r, { th_status: 'pending', th_polls: 0 }); return { data: null, error: null };
+    }
+    case 'ai_ddi_th_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.ddi_pairs || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบคู่ยานี้', 'P0001');
+      if (r.th_status === 'pending' && ++r.th_polls >= 2) Object.assign(r, { th_status: 'done', th_reviewed: false, description_th: '(ภาษาไทย) ยาสองตัวนี้เสริมความเสี่ยงต่อกัน', management_th: '• หลีกเลี่ยงการใช้ร่วมกัน\n• ติดตามอาการ' });
+      return { data: { id: r.id, th_status: r.th_status, th_note: null, description_th: r.description_th || null, management_th: r.management_th || null }, error: null };
     }
     /* แทน ai_news_topics_start / poll (54_news_topics.sql): ข่าวที่ยังไม่มีหมวด → หมวดที่ชื่ออยู่ในหัวข้อ/เนื้อหา หรือหมวดแรก */
     case 'ai_news_topics_start': {

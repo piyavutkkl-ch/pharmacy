@@ -119,9 +119,27 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('สารน้ำ: ปรับ NaCl ด้วย (N/2 → S) → ดูดออก 333 · เติม 50%D 133 + 3% NaCl 200 มล.', (await text(p, '#fxOut')).includes('ดูดออก 333 มล.') && (await text(p, '#fxOut')).includes('เติม 133 มล.') && (await text(p, '#fxOut')).includes('เติม 200 มล.'), await text(p, '#fxOut'));
     await p.selectOption('#fxN2', 'same'); await p.fill('#fxD2', '15'); await p.waitForTimeout(100);
     check('สารน้ำ: Dextrose > 12.5% เตือนให้ทาง central line', (await text(p, '#fxOut')).includes('central line'));
-    await p.fill('#fxD2', '10'); await p.click('#doseTabs [data-dt="calc"]');
+    await p.fill('#fxD2', '10');
+    // Drug interaction: เทียบยา รพ.สต. เป็นคอลัมน์ + แจ้งเตือนคู่ interaction (DDInter)
+    await p.click('#doseTabs [data-dt="ddi"]'); await p.waitForTimeout(500);
+    { const pick = await p.evaluate(() => { const db = window.__db, pr = db.ddi_pairs.find((x) => x.level === 'Major' && x.description);
+        const la = db.local_drugs.find((l) => l.active && (l.ddi_ids || []).includes(pr.a)), lb = db.local_drugs.find((l) => l.active && (l.ddi_ids || []).includes(pr.b));
+        return { a: la.id, b: lb.id, an: db.ddi_drugs.find((d) => d.id === pr.a).name, bn: db.ddi_drugs.find((d) => d.id === pr.b).name }; });
+      check('Drug interaction: เริ่มที่ 1 คอลัมน์ + ปุ่มเพิ่มยา · เลือกได้เฉพาะยา รพ.สต.', await visible(p, '#dosePaneDdi') && await count(p, '#ddiCols .ddi-col') === 1 && await visible(p, '[data-ddi-add]') && await count(p, '#ddiSel0 option') > 30 && (await text(p, '#ddiAlerts')).includes('อย่างน้อย 2 ตัว'));
+      await p.selectOption('#ddiSel0', String(pick.a)); await p.waitForTimeout(400);
+      check('Drug interaction: เลือกยา → ภาพเส้นทางยา (ให้ยา→ตับ/เอนไซม์→ออกฤทธิ์→ขับออก) + ชื่อยา', await count(p, '#ddiBody0 svg.ddi-path') === 1 && (await text(p, '#ddiBody0')).includes(pick.an) && (await p.$eval('#ddiBody0 svg.ddi-path', (x) => x.getAttribute('aria-label'))).includes('ตับ'));
+      await p.click('[data-ddi-add]'); await p.waitForTimeout(200); await p.selectOption('#ddiSel1', String(pick.b)); await p.waitForTimeout(500);
+      const t = await text(p, '#ddiAlerts');
+      check('Drug interaction: เลือกยาตัวที่ 2 → แจ้งเตือนคู่ interaction ด้านบน (ระดับรุนแรงขึ้นก่อน)', await count(p, '#ddiAlerts .ddi-alert') >= 1 && t.includes('Major') && t.includes(pick.an) && t.includes(pick.bn) && (await p.$eval('#ddiAlerts .ddi-alert', (e) => e.className)).includes('ddi-major'), t.slice(0, 200));
+      await p.click('#ddiAlerts .ddi-alert-btn'); await p.waitForTimeout(150);
+      check('Drug interaction: กดคู่ยา → ภาพตำแหน่งที่เกิด + เกิดอะไรขึ้น/ควรทำอย่างไร + ที่มา DDInter', await count(p, '#ddiAlerts svg.ddi-pic') === 1 && (await text(p, '#ddiAlerts')).includes('ควรทำอย่างไร') && await count(p, '#ddiAlerts a[href*="ddinter.scbdd.com"]') === 1);
+      await p.click('[data-ddi-add]'); await p.waitForTimeout(150);
+      check('Drug interaction: เพิ่มได้หลายคอลัมน์ · ลบคอลัมน์ได้', await count(p, '#ddiCols .ddi-col') === 3 && await count(p, '[data-ddi-del]') === 3);
+      await p.click('[data-ddi-del="2"]'); await p.waitForTimeout(150);
+      check('Drug interaction: ลบแล้วเหลือ 2 คอลัมน์ แจ้งเตือนยังอยู่', await count(p, '#ddiCols .ddi-col') === 2 && await count(p, '#ddiAlerts .ddi-alert') >= 1); }
+    await p.click('#doseTabs [data-dt="calc"]');
     check('ข้อมูลยา/คำนวณขนาดยา: ชื่อเมนูและหัวข้อใหม่ + แยก 2 ส่วน (เริ่มที่คำนวณ)', (await text(p, '[data-panel-link="dose"]')).includes('ข้อมูลยา') && (await text(p, '[data-panel="dose"] h2')).includes('ข้อมูลยา / คำนวณขนาดยา')
-      && await count(p, '#doseTabs [data-dt]') === 3 && await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')));
+      && await count(p, '#doseTabs [data-dt]') === 4 && await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')));
     await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
     { const nLocal = await p.evaluate(() => window.__db.local_drugs.filter((d) => d.active).length);
       check('ข้อมูลยา: เริ่มที่รายการยา รพ.สต. (ครบทุกรายการ แยกหมวด) · ซ่อนส่วนคำนวณ', await visible(p, '#dosePaneInfo') && !(await visible(p, '#dosePaneCalc')) && nLocal >= 100 && await count(p, '#doseInfoList .di-item') === nLocal && await count(p, '#doseInfoList .di-cat') >= 5 && (await p.inputValue('#doseScope')) === 'local' && await p.$eval('#doseScope', (s) => s.closest('.form-grid') === document.querySelector('#doseInfoQ').closest('.form-grid')) && !(await visible(p, '#doseInfoMore')), String(nLocal)); }
@@ -750,6 +768,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#doseAge', '2'); await p.fill('#doseWeight', ''); await p.waitForTimeout(100);
     check('คำนวณขนาดยา (390px): ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.locator('#dosePaneCalc').screenshot({ path: path.join(SHOTS, 'dose-calc-390.png') });
+    await p.click('#doseTabs [data-dt="ddi"]'); await p.waitForTimeout(500);
+    await p.selectOption('#ddiSel0', { index: 3 }); await p.click('[data-ddi-add]'); await p.selectOption('#ddiSel1', { index: 8 }); await p.waitForTimeout(500);
+    check('Drug interaction (390px): คอลัมน์เลื่อนในกล่อง ไม่มี scroll แนวนอนทั้งหน้า', await count(p, '#ddiCols .ddi-col') >= 2 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+      JSON.stringify(await p.evaluate(() => ({ n: document.querySelectorAll('#ddiCols .ddi-col').length, sw: document.documentElement.scrollWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.offsetParent && !e.closest('#ddiCols') && !e.closest('#slides') && !e.closest('#newsGrid')).slice(0, 6).map((e) => `${e.tagName}#${e.id}.${e.className} ${Math.round(e.getBoundingClientRect().right)}`) }))));
+    await p.locator('#dosePaneDdi').screenshot({ path: path.join(SHOTS, 'dose-ddi-390.png') });
+    await p.click('#doseTabs [data-dt="calc"]');
     await p.fill('#doseAge', ''); await p.click('#doseTabs [data-dt="fluid"]'); await p.waitForTimeout(200);
     check('คำนวณสารน้ำ (390px): ไม่มี scroll แนวนอน (ตารางเลื่อนในกล่อง)', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.locator('#dosePaneFluid').screenshot({ path: path.join(SHOTS, 'dose-fluid-390.png') });
@@ -1029,6 +1053,23 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#faSectionsTh', '## ข้อบ่งใช้\n- รักษาความดันโลหิตสูง\n## ขนาดยาและวิธีใช้\nเริ่ม 5 มก. วันละครั้ง'); await p.click('#faSave'); await p.waitForTimeout(300);
     { const up = (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'update')).pop()?.payload || {};
       check('openFDA: ผู้ดูแลแก้ข้อความไทย → ตรวจแล้ว', up.th_reviewed === true && up.sections_th?.[0]?.body?.[0] === 'รักษาความดันโลหิตสูง' && up.sections_th[1].body[0] === 'เริ่ม 5 มก. วันละครั้ง', JSON.stringify(up.sections_th)); }
+    // Drug interaction (ผู้ดูแล): AI แปลไทย · แก้ไข (= ตรวจแล้ว) · ยา รพ.สต. ผูกยาใน DDInter
+    await go(p, '#/admin/drugs/db'); await p.waitForTimeout(700);
+    check('Drug interaction (ผู้ดูแล): รายการคู่ยา เรียงรุนแรงก่อน', await count(p, '#ddList .li') === 30 && (await text(p, '#ddList .li')).includes('Major') && (await text(p, '#ddCount')).includes('คู่'));
+    await p.selectOption('#ddLevel', 'Major'); await p.waitForTimeout(100);
+    await p.click('#ddList [data-dd-th]'); await p.waitForTimeout(6500);
+    check('Drug interaction: ให้ AI แปลไทยทีละคู่', (await calls(p, (c) => c.rpc === 'ai_ddi_th_start')).length === 1 && (await text(p, '#ddList')).includes('ภาษาไทย (AI แปล)'));
+    await p.click('#ddList [data-dd-edit]'); await p.waitForTimeout(100);
+    check('Drug interaction: แก้ไขเปิดข้อความไทย/อังกฤษ', await visible(p, '#ddForm') && (await p.inputValue('#ddDescTh')).includes('(ภาษาไทย)') && (await p.inputValue('#ddDesc')).length > 10);
+    await p.fill('#ddDescTh', 'ยาสองตัวนี้ทำให้ระดับยาในเลือดสูงขึ้น'); await p.click('#ddSave'); await p.waitForTimeout(300);
+    { const up = (await calls(p, (c) => c.table === 'ddi_pairs' && c.op === 'update')).pop()?.payload || {};
+      check('Drug interaction: บันทึกข้อความไทย = ตรวจแล้ว', up.description_th === 'ยาสองตัวนี้ทำให้ระดับยาในเลือดสูงขึ้น' && up.th_reviewed === true); }
+    { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1010280')?.id);
+      await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
+      check('ยา รพ.สต.: ช่องยาใน DDInter แสดงยาผสมครบ (Co-trimoxazole = 2 ตัว)', (await p.inputValue('#ldDdi')).split(',').length === 2, await p.inputValue('#ldDdi'));
+      await p.fill('#ldDdi', 'Sulfamethoxazole'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
+      const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
+      check('ยา รพ.สต.: แก้ยาใน DDInter → บันทึกเป็นรหัส', up.ddi_ids?.length === 1 && /^DDInter\d+$/.test(up.ddi_ids[0]), JSON.stringify(up.ddi_ids)); }
     await go(p, '#/admin/settings/dose'); await p.waitForTimeout(400);
     check('ผู้ดูแล: เมนูข้อมูลยาแยกจากตั้งค่า (ลิงก์เดิมพาไปเมนูใหม่)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/dose' && await visible(p, '[data-admin-view="drugs"] [data-admin-sub="dose"]') && await count(p, '#asTabs [data-sub="dose"]') === 0 && await count(p, '.sidenav [data-admin-tab="drugs"]') === 1);
     await go(p, '#/admin/settings/delivery'); await p.waitForTimeout(400);
