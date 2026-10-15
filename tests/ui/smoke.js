@@ -86,17 +86,25 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('คำนวณโดสยา: แสดงผลเป็นมิลลิกรัม', (await text(p, '#doseResult')).includes('มก.'));
     check('ข้อมูลยา/คำนวณขนาดยา: ชื่อเมนูและหัวข้อใหม่ + แยก 2 ส่วน (เริ่มที่คำนวณ)', (await text(p, '[data-panel-link="dose"]')).includes('ข้อมูลยา') && (await text(p, '[data-panel="dose"] h2')).includes('ข้อมูลยา / คำนวณขนาดยา')
       && await count(p, '#doseTabs [data-dt]') === 2 && await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')));
-    await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(150);
-    { const nDrugs = await p.evaluate(() => window.__db.dose_drugs.filter((d) => d.active).length);
-      check('ข้อมูลยา: แสดงยาที่เปิดใช้ทุกตัว (ขนาดยาตามข้อบ่งใช้ + ความแรง) · ซ่อนส่วนคำนวณ', await visible(p, '#dosePaneInfo') && !(await visible(p, '#dosePaneCalc')) && await count(p, '#doseInfoList .di-card') === nDrugs && (await text(p, '#doseInfoList')).includes('มก./กก.'), String(nDrugs)); }
-    { const first = await p.textContent('#doseInfoList .di-card h3');
-      await p.fill('#doseInfoQ', first); await p.waitForTimeout(100);
-      check('ข้อมูลยา: ค้นหาชื่อยา', await count(p, '#doseInfoList .di-card') >= 1 && (await text(p, '#doseInfoList .di-card h3')) === first);
-      await p.fill('#doseInfoQ', 'ไม่มียานี้แน่นอน'); await p.waitForTimeout(100);
-      check('ข้อมูลยา: ไม่พบ → แจ้ง', (await text(p, '#doseInfoList')).includes('ไม่พบยา'));
-      await p.fill('#doseInfoQ', first); await p.waitForTimeout(100);
-      await p.click('#doseInfoList [data-dose-calc]'); await p.waitForTimeout(150);
-      check('ข้อมูลยา: ปุ่ม "คำนวณขนาดยานี้" → กลับส่วนคำนวณพร้อมเลือกยานั้น', await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')) && (await p.$eval('#doseDrug', (s) => s.selectedOptions[0].textContent)) === first && (await text(p, '#doseResult')).includes('มก.')); }
+    await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
+    check('ข้อมูลยา: แสดงรายการยาจากบัญชียาหลักแห่งชาติ (ทีละ 40 + แสดงเพิ่ม) · ซ่อนส่วนคำนวณ', await visible(p, '#dosePaneInfo') && !(await visible(p, '#dosePaneCalc')) && await count(p, '#doseInfoList .di-item') === 40 && await visible(p, '#doseInfoMore') && (await text(p, '#doseInfoN')).includes('พบ'), await text(p, '#doseInfoN'));
+    check('ข้อมูลยา: โหลดรายการทีละ ≤1000 แถว (ครบเกิน 900 ยา)', (await calls(p, (c) => c.table === 'drug_monographs')).some((c) => c.range) && Number((await text(p, '#doseInfoN')).match(/\d+/)?.[0]) > 750);
+    await p.selectOption('#doseInfoGroup', '1'); await p.fill('#doseInfoQ', 'domperidone'); await p.waitForTimeout(150);
+    check('ข้อมูลยา: กรองกลุ่มยา + ค้นหาชื่อยา', await count(p, '#doseInfoList .di-item') === 1 && (await text(p, '#doseInfoList')).includes('Domperidone') && (await text(p, '#doseInfoList')).includes('และอีก 1 กลุ่ม'));
+    await p.click('#doseInfoList .di-item'); await p.waitForTimeout(300);
+    { const t = await text(p, '#doseMono');
+      check('ข้อมูลยา: เลือกยา → monograph (กลุ่มยาทุกกลุ่ม · รูปแบบยา/บัญชี · คำเตือน · ที่มา)', await visible(p, '#doseMono') && !(await visible(p, '#doseInfoPick')) && t.includes('Gastro-intestinal system') && t.includes('Central nervous system') && t.includes('บัญชียาพื้นฐาน') && t.includes('prolonged QT') && t.includes('คำเตือนและข้อควรระวัง') && t.includes('ราชกิจจานุเบกษา'), t.slice(0, 300)); }
+    await p.click('[data-mono-back]'); await p.waitForTimeout(100);
+    check('ข้อมูลยา: ปุ่มกลับ → รายการเดิม (คำค้นยังอยู่)', await visible(p, '#doseInfoPick') && (await p.inputValue('#doseInfoQ')) === 'domperidone');
+    await p.selectOption('#doseInfoGroup', 'all'); await p.fill('#doseInfoQ', 'ไม่มียานี้แน่นอน'); await p.waitForTimeout(100);
+    check('ข้อมูลยา: ไม่พบ → แจ้ง', (await text(p, '#doseInfoList')).includes('ไม่พบยา'));
+    await p.fill('#doseInfoQ', 'พาราเซตามอล'); await p.waitForTimeout(100);
+    check('ข้อมูลยา: ค้นชื่อไทยของยาในเครื่องคำนวณ → พบยาในบัญชี (จับคู่ชื่ออังกฤษ)', await count(p, '#doseInfoList .di-item') === 1 && (await text(p, '#doseInfoList')).includes('Paracetamol (Acetaminophen)') && (await text(p, '#doseInfoList')).includes('คำนวณขนาดยาได้'));
+    await p.click('#doseInfoList .di-item'); await p.waitForTimeout(300);
+    check('ข้อมูลยา: monograph มีขนาดยาจากเครื่องคำนวณ', (await text(p, '#doseMono')).includes('มก./กก./ครั้ง') && (await text(p, '#doseMono')).includes('Analgesics and antipyretics'));
+    await p.click('#doseMono [data-dose-calc]'); await p.waitForTimeout(150);
+    check('ข้อมูลยา: ปุ่ม "คำนวณขนาดยานี้" → ส่วนคำนวณพร้อมเลือกยานั้น', await visible(p, '#dosePaneCalc') && !(await visible(p, '#dosePaneInfo')) && (await p.$eval('#doseDrug', (s) => s.selectedOptions[0].textContent)).includes('Paracetamol') && (await text(p, '#doseResult')).includes('มก.'));
+    await p.click('#doseTabs [data-dt="info"]'); await p.click('[data-mono-back]'); await p.fill('#doseInfoQ', ''); await p.click('#doseTabs [data-dt="calc"]');
     await p.click('[data-panel-link="tracking"]'); await p.waitForTimeout(300);
     check('ผลการดำเนินงาน: ตัวเลขแสดง', (await text(p, '#trkVisits')).trim() !== '');
     await p.click('[data-panel-link="delivery"]'); await p.waitForTimeout(400);
@@ -681,10 +689,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.setViewportSize({ width: 390, height: 844 }); await go(p, '#/news'); await p.waitForTimeout(500);
     check('หน้าแรก ข่าว (390px): ปัดซ้าย-ขวาได้ ไม่มี scroll แนวนอนทั้งหน้า', await count(p, '#newsGrid .news-card') >= 4 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), JSON.stringify(await p.evaluate(() => ({ n: document.querySelectorAll('#newsGrid .news-card').length, sw: document.documentElement.scrollWidth, iw: innerWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.offsetParent && !e.closest('#newsGrid')).slice(0, 6).map((e) => e.tagName + '#' + e.id + '.' + e.className) }))));
     await p.screenshot({ path: path.join(SHOTS, 'home-news-strip-390.png') });
-    await go(p, '#/dose'); await p.waitForTimeout(400); await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(150);
-    check('ข้อมูลยา (390px): ไม่มี scroll แนวนอน', await count(p, '#doseInfoList .di-card') > 0 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await go(p, '#/dose'); await p.waitForTimeout(400); await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
+    check('ข้อมูลยา (390px): รายการยา ไม่มี scroll แนวนอน', await count(p, '#doseInfoList .di-item') > 0 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.screenshot({ path: path.join(SHOTS, 'dose-info-390.png') });
-    await p.click('#doseTabs [data-dt="calc"]');
+    await p.fill('#doseInfoQ', 'lansoprazole'); await p.waitForTimeout(100); await p.click('#doseInfoList .di-item'); await p.waitForTimeout(300);
+    check('ข้อมูลยา (390px): monograph ไม่มี scroll แนวนอน + ปุ่มสูง ≥ 44px', await visible(p, '#doseMono .mono-card') && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1) && (await p.$eval('[data-mono-back]', (b) => b.getBoundingClientRect().height)) >= 44);
+    await p.screenshot({ path: path.join(SHOTS, 'dose-mono-390.png'), fullPage: true });
+    await p.click('[data-mono-back]'); await p.fill('#doseInfoQ', ''); await p.click('#doseTabs [data-dt="calc"]');
     await go(p, '#/news/all'); await p.waitForTimeout(500);
     check('ดูข่าวทั้งหมด (390px): ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.screenshot({ path: path.join(SHOTS, 'news-all-390.png') });

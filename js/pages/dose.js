@@ -1,34 +1,42 @@
-// ข้อมูลยา / คำนวณขนาดยา (รายการยามาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
-//   2 ส่วน (#doseTabs): คำนวณขนาดยาตามน้ำหนักตัว · ข้อมูลยา (ขนาดยาตามข้อบ่งใช้/ความแรง/โรคไต + ค้นหา + ปุ่มไปคำนวณ)
+// ข้อมูลยา / คำนวณขนาดยา — 2 ส่วน (#doseTabs)
+//   คำนวณขนาดยา: ตามน้ำหนักตัว (รายการยาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
+//   ข้อมูลยา: monograph จากบัญชียาหลักแห่งชาติ พ.ศ. 2569 (ตาราง drug_monographs · 57_drug_monographs.sql · tools/nlem/)
+//            ค้นหา/กรองกลุ่มยา → เลือกยา → กลุ่มยา รูปแบบยา บัญชี เงื่อนไข คำเตือน คำแนะนำ หมายเหตุ + ขนาดยาจากเครื่องคำนวณ (จับคู่ชื่ออังกฤษ)
 import { sb } from '../supabase.js?v=4.4';
-import { $, esc } from '../util.js?v=4.4';
+import { $, esc, toast, errText } from '../util.js?v=4.4';
 
 let drugs = null, bound = false;
+let monos = null, items = null, shown = 40;   // ข้อมูลยา: รายการย่อจาก drug_monographs (โหลดเมื่อเปิดส่วนข้อมูลยา)
 
 /** ให้โหลดรายการยาใหม่ครั้งถัดไป (เรียกหลังผู้ดูแลแก้รายการยา) */
-export function resetDose() { drugs = null; }
+export function resetDose() { drugs = null; items = null; }
 
 export async function initDose() {
   if (drugs) return;
   const sel = $('#doseDrug');
   sel.innerHTML = '<option>กำลังโหลด…</option>';
   const { data, error } = await sb.from('dose_drugs').select('*').eq('active', true).order('sort');
-  drugs = error ? [] : data;
+  drugs = error ? [] : data; items = null;
   sel.innerHTML = drugs.length ? drugs.map((d, i) => `<option value="${i}">${esc(d.name)}</option>`).join('') : '<option value="">ยังไม่มีรายการยา</option>';
-  fillConc(); toggleRenal(); render(); renderInfo();
+  fillConc(); toggleRenal(); render();
+  if (!$('#dosePaneInfo').hidden) openInfo();
   if (bound) return;
   bound = true;
-  $('#doseTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-dt]'); if (b) showTab(b.dataset.dt); });
-  $('#doseInfoQ').addEventListener('input', renderInfo);
-  $('#doseInfoList').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-dose-calc]'); if (!b) return;
-    $('#doseDrug').value = b.dataset.doseCalc; fillConc(); render(); showTab('calc');
-    $('#doseWeight').focus();
-  });
   ['doseWeight', 'doseHeight', 'doseAge', 'doseCr'].forEach((id) => $('#' + id).addEventListener('input', render));
   ['doseConc', 'doseRenal', 'doseSex'].forEach((id) => $('#' + id).addEventListener('change', render));
   sel.addEventListener('change', () => { fillConc(); render(); });
   $('#doseRenalAdjust').addEventListener('change', () => { toggleRenal(); render(); });
+  $('#doseTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-dt]'); if (b) showTab(b.dataset.dt); });
+  $('#doseInfoQ').addEventListener('input', () => { shown = 40; renderList(); });
+  $('#doseInfoGroup').addEventListener('change', () => { shown = 40; renderList(); });
+  $('#doseInfoMore').addEventListener('click', () => { shown += 60; renderList(); });
+  $('#doseInfoList').addEventListener('click', (e) => { const b = e.target.closest('[data-mono]'); if (b) openMono(+b.dataset.mono); });
+  $('#doseMono').addEventListener('click', (e) => {
+    if (e.target.closest('[data-mono-back]')) { closeMono(); return; }
+    const b = e.target.closest('[data-dose-calc]'); if (!b) return;
+    $('#doseDrug').value = b.dataset.doseCalc; fillConc(); render(); showTab('calc');
+    $('#doseWeight').focus();
+  });
 }
 
 function drug() { return drugs?.[+$('#doseDrug').value || 0]; }
@@ -107,11 +115,126 @@ function render() {
     + '<p class="small muted">ตัวเลขนี้เป็นการประมาณตามช่วงขนาดยาทั่วไป โปรดตรวจสอบกับเอกสารกำกับยา/แนวทางการรักษาและดุลยพินิจทางคลินิกก่อนใช้จริงเสมอ</p>';
 }
 
-/* ---------- ส่วน "ข้อมูลยา" ---------- */
+/* ---------- ส่วน "ข้อมูลยา" (บัญชียาหลักแห่งชาติ) ---------- */
+const NLEM_PDF = 'https://ratchakitcha.soc.go.th/documents/111371.pdf';
+const ACCT = { b: 'บัญชียาพื้นฐาน', s: 'บัญชียาทางเลือก', ex: 'บัญชียาเฉพาะโรค', R1: 'บัญชียาสำหรับโครงการพิเศษของหน่วยงานของรัฐ', R2: 'บัญชียาพิเศษที่กำหนดแนวทางการใช้ยา' };
+const ABBR = 'cap = capsule · DPI = dry powder inhaler · EC = enteric coated · hosp = เภสัชตำรับโรงพยาบาล · inj = injection · IM = intramuscular · IU = International unit · '
+  + 'mcg = microgram · MDI = metered dose inhaler · mEq = milliequivalent · mixt = mixture · oint = ointment · pwdr = powder · sol = solution · SR = ยาออกฤทธิ์นาน · '
+  + 'supp = suppository · susp = suspension · syr = syrup · tab = tablet · U = unit';
+
 function showTab(t) {
   $('#doseTabs').querySelectorAll('[data-dt]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.dt === t)));
   $('#dosePaneCalc').hidden = t !== 'calc';
   $('#dosePaneInfo').hidden = t !== 'info';
+  if (t === 'info') openInfo();
+}
+/** ชื่ออังกฤษของยาในเครื่องคำนวณ เช่น "พาราเซตามอล (Paracetamol)" → "paracetamol" */
+const latinOf = (name) => { const m = String(name).match(/\(([^()]*[A-Za-z][^()]*)\)/); return (m ? m[1] : /[A-Za-z]/.test(name) ? name : '').trim().toLowerCase(); };
+/** ชื่อยาในบัญชี → ชื่อสำหรับจับคู่: "Paracetamol (Acetaminophen)" → ["paracetamol", "acetaminophen"] */
+const keysOf = (name) => String(name).toLowerCase().split(/[()]/).map((x) => x.trim()).filter(Boolean);
+const sameDrug = (key, dk) => !!dk && (key === dk || (key.startsWith(dk + ' ') && !key.includes('+')));
+
+async function openInfo() {
+  if (items) { renderList(); return; }
+  $('#doseInfoN').textContent = '';
+  $('#doseInfoList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
+  if (!monos) {
+    const all = [];
+    for (let from = 0; ; from += 1000) {   // Supabase ส่งได้ครั้งละ ≤ 1000 แถว
+      const { data, error } = await sb.from('drug_monographs').select('id,name,group_no,group_name,sub_code,sub_name,forms,sort').order('sort').range(from, from + 999);
+      if (error) { $('#doseInfoList').innerHTML = '<p class="empty">โหลดข้อมูลยาไม่สำเร็จ กรุณาลองใหม่</p>'; toast(errText(error), 'err'); return; }
+      all.push(...data);
+      if (data.length < 1000) break;
+    }
+    monos = all;
+  }
+  // รวมรายการชื่อเดียวกัน (ยาเดียวอยู่หลายกลุ่มยา) + ผูกยาในเครื่องคำนวณ
+  const byName = new Map();
+  for (const m of monos) {
+    const k = m.name.toLowerCase();
+    if (!byName.has(k)) byName.set(k, { name: m.name, rows: [], calc: [] });
+    byName.get(k).rows.push(m);
+  }
+  items = [...byName.values()];
+  (drugs || []).forEach((d, k) => {
+    const dk = latinOf(d.name);
+    const hit = items.filter((it) => it.rows.length && keysOf(it.name).some((key) => sameDrug(key, dk)));
+    if (hit.length) hit.forEach((it) => { it.calc.push(k); it.th = (it.th || '') + ' ' + d.name; });
+    else items.push({ name: d.name, rows: [], calc: [k] });
+  });
+  items.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+  items.forEach((it) => { it.q = [it.name, it.th, ...it.rows.flatMap((r) => [r.sub_name, r.group_name])].join(' ').toLowerCase(); });
+  const groups = new Map(monos.map((m) => [m.group_no, m.group_name]));
+  $('#doseInfoGroup').innerHTML = '<option value="all">ทุกกลุ่มยา</option>'
+    + [...groups].sort((a, b) => a[0] - b[0]).map(([n, g]) => `<option value="${n}">กลุ่มยา ${n} ${esc(g)}</option>`).join('');
+  renderList();
+}
+const acctChips = (forms) => [...new Set((forms || []).map((f) => f.acct).filter(Boolean))]
+  .map((a) => `<span class="chip c-role" title="${esc(ACCT[a] || a)}">${esc(a)}</span>`).join('');
+
+function renderList() {
+  const box = $('#doseInfoList');
+  if (!items) return;
+  const q = $('#doseInfoQ').value.trim().toLowerCase(), g = $('#doseInfoGroup').value;
+  const list = items.filter((it) => (!q || it.q.includes(q)) && (g === 'all' || it.rows.some((r) => String(r.group_no) === g)));
+  $('#doseInfoN').textContent = list.length ? `พบ ${list.length} รายการ · กดชื่อยาเพื่อดูข้อมูล` : '';
+  box.innerHTML = !items.length ? '<p class="empty">ยังไม่มีข้อมูลยา</p>' : !list.length ? '<p class="empty">ไม่พบยาที่ค้นหา</p>'
+    : list.slice(0, shown).map((it) => {
+      const r = it.rows[0];
+      const where = r ? `${esc(r.sub_code)} ${esc(r.sub_name || r.group_name)}${it.rows.length > 1 ? ` · และอีก ${it.rows.length - 1} กลุ่ม` : ''}` : 'ยาในเครื่องคำนวณขนาดยา';
+      return `<button type="button" class="di-item" data-mono="${items.indexOf(it)}"><span class="di-nm">${esc(it.name)}</span>`
+        + `<span class="di-sub small muted">${where}</span><span class="di-chips">${it.rows.length ? acctChips(it.rows.flatMap((x) => x.forms)) : ''}`
+        + `${it.calc.length ? '<span class="chip c-on">คำนวณขนาดยาได้</span>' : ''}</span></button>`;
+    }).join('');
+  $('#doseInfoMore').hidden = list.length <= shown;
+  if (list.length > shown) $('#doseInfoMore').textContent = `แสดงเพิ่ม (เหลืออีก ${list.length - shown} รายการ)`;
+}
+
+const para = (lines) => (lines.length === 1 ? `<p>${esc(lines[0])}</p>` : `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`);
+async function openMono(i) {
+  const it = items?.[i]; if (!it) return;
+  const box = $('#doseMono');
+  $('#doseInfoPick').hidden = true; box.hidden = false;
+  box.innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:60%;margin-top:10px"></div>';
+  let rows = [];
+  if (it.rows.length) {
+    const { data, error } = await sb.from('drug_monographs').select('*').in('id', it.rows.map((r) => r.id)).order('sort');
+    if (error) { toast(errText(error), 'err'); closeMono(); return; }
+    rows = data;
+  }
+  // รายการที่เนื้อหาเหมือนกัน (ยาเดียวกันอยู่หลายกลุ่มยา) แสดงรวมกล่องเดียว
+  const cards = [];
+  for (const r of rows) {
+    const sig = JSON.stringify([r.forms, r.sections, r.flags]);
+    const c = cards.find((x) => x.sig === sig);
+    if (c) c.rows.push(r); else cards.push({ sig, rows: [r] });
+  }
+  const flags = [...new Set(rows.flatMap((r) => r.flags || []))];
+  const dose = it.calc.map((k) => drugs[k]).filter(Boolean).map((d, n) => `<div class="mono-dose"><b>${esc(d.name)}</b>`
+    + (d.concs?.length ? `<div class="small muted">ความแรงที่มี: ${d.concs.map((c) => esc(c.label)).join(' · ')}</div>` : '')
+    + `<ul>${indsOf(d).map((x) => `<li><b>${esc(x.name || 'ข้อบ่งใช้')}</b>: ${esc(doseText(x))}${x.freq ? ` · ${esc(x.freq)}` : ''}`
+      + (x.renal ? `<div class="small di-renal"><b>ขนาดยาในโรคไต:</b> ${esc(x.renal)}</div>` : '') + '</li>').join('')}</ul>`
+    + `<button type="button" class="btn btn-p di-calc" data-dose-calc="${it.calc[n]}">คำนวณขนาดยานี้ตามน้ำหนักตัว</button></div>`).join('');
+  box.innerHTML = '<button type="button" class="btn btn-o di-back" data-mono-back>‹ กลับไปรายการยา</button>'
+    + `<h3 class="mono-name">${esc(it.name)}</h3>`
+    + (flags.length ? `<div class="di-chips">${flags.map((f) => `<span class="chip c-fix">${esc(f)}</span>`).join('')}</div>` : '')
+    + cards.map(({ rows: rs }) => {
+      const r = rs[0];
+      return '<section class="mono-card">'
+        + `<div class="mono-sec"><h4>กลุ่มยา</h4><ul>${rs.map((x) => `<li>กลุ่มยา ${x.group_no} ${esc(x.group_name)} › ${esc(x.sub_code)} ${esc(x.sub_name)}</li>`).join('')}</ul></div>`
+        + `<div class="mono-sec"><h4>รูปแบบยา / บัญชี</h4><ul>${(r.forms || []).map((f) => `<li>${esc(f.form || '-')} ${f.acct ? `<span class="chip c-role">${esc(f.acct)}</span> <span class="small muted">${esc(ACCT[f.acct] || '')}</span>` : ''}</li>`).join('')}</ul></div>`
+        + (r.sections || []).map((x) => `<div class="mono-sec"><h4>${esc(x.title)}</h4>${para(x.body || [])}</div>`).join('')
+        + `<p class="small muted">ที่มา: บัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙ · <a href="${NLEM_PDF}#page=${+r.page || 1}" target="_blank" rel="noopener">ราชกิจจานุเบกษา (PDF หน้า ${+r.page || '-'})</a></p>`
+        + '</section>';
+    }).join('')
+    + (dose ? `<section class="mono-card"><div class="mono-sec"><h4>ขนาดยา (จากเครื่องคำนวณขนาดยาของเว็บนี้)</h4>${dose}</div></section>`
+      : '<p class="small muted">บัญชียาหลักแห่งชาติระบุขนาดยาเฉพาะบางรายการ (อยู่ในเงื่อนไข/หมายเหตุ) · ขนาดยา อาการไม่พึงประสงค์ และยาตีกัน โปรดดูเอกสารกำกับยา</p>')
+    + (rows.length ? '' : '<p class="small muted">ยานี้ยังไม่มีข้อมูลในบัญชียาหลักแห่งชาติที่บันทึกไว้</p>')
+    + (rows.length ? `<details class="mono-abbr"><summary>คำย่อ</summary><p class="small">บัญชี: ${Object.entries(ACCT).map(([k, v]) => `${k} = ${v}`).join(' · ')}</p><p class="small">${ABBR}</p></details>` : '');
+  box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function closeMono() {
+  $('#doseMono').hidden = true; $('#doseInfoPick').hidden = false;
 }
 const num = (n) => (n == null || n === '' ? '' : String(+n));
 /** ข้อความขนาดยาของข้อบ่งใช้ เช่น "10–15 มก./กก./ครั้ง · สูงสุด 500 มก./ครั้ง" */
@@ -121,21 +244,4 @@ function doseText(i) {
   return i.per === 'day'
     ? `${r} มก./กก./วัน${i.times ? ` แบ่งให้วันละ ${num(i.times)} ครั้ง` : ''}`
     : `${r} มก./กก./ครั้ง${i.cap ? ` · สูงสุด ${num(i.cap)} มก./ครั้ง` : ''}`;
-}
-function renderInfo() {
-  const box = $('#doseInfoList');
-  if (!drugs?.length) { box.innerHTML = '<p class="empty">ยังไม่มีรายการยา</p>'; return; }
-  const q = $('#doseInfoQ').value.trim().toLowerCase();
-  const list = drugs.map((d, k) => ({ d, k })).filter(({ d }) => !q
-    || [d.name, d.form, ...indsOf(d).map((i) => i.name)].some((x) => String(x || '').toLowerCase().includes(q)));
-  box.innerHTML = !list.length ? '<p class="empty">ไม่พบยาที่ค้นหา</p>' : list.map(({ d, k }) => {
-    const concs = (d.concs || []).map((c) => `<span class="chip c-sub">${esc(c.label)}</span>`).join('');
-    const inds = indsOf(d).map((i) => `<li><b>${esc(i.name || 'ข้อบ่งใช้')}</b>: ${esc(doseText(i))}`
-      + (i.freq ? `<div class="small muted">ความถี่: ${esc(i.freq)}</div>` : '')
-      + (i.renal ? `<div class="small di-renal"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</div>` : '') + '</li>').join('');
-    return `<article class="di-card"><div class="di-head"><h3>${esc(d.name)}</h3><span class="chip c-off">${esc(d.form || 'อื่น ๆ')}</span></div>`
-      + (concs ? `<div class="di-concs"><span class="small muted">ความแรงที่มี:</span> ${concs}</div>` : '')
-      + `<ul class="di-inds">${inds}</ul>`
-      + `<button type="button" class="btn btn-o di-calc" data-dose-calc="${k}">คำนวณขนาดยานี้</button></article>`;
-  }).join('');
 }

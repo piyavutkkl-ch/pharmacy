@@ -909,5 +909,13 @@ check("staff cannot insert drafts", "s2", DRAFT, "deny")
 check("admin reviews → shown", "admin", f"update dose_drugs set active=true, ai_draft=false where id={dd} returning active", eq("t"))
 check("anon sees reviewed drug", "anon", f"select count(*) from dose_drugs where id={dd}", eq(1))
 
+print("== step 57: drug monographs (NLEM 2569) ==")
+check("monographs seeded from NLEM + readable by anon", "anon", "select count(*) > 900 from drug_monographs", eq("t"))
+check("monograph has group/forms/sections", "anon", "select group_name||'|'||(forms->0->>'acct')||'|'||(sections->0->>'title') from drug_monographs where name='Domperidone' and sub_code='1.2'", eq("Gastro-intestinal system|b|คำเตือนและข้อควรระวัง"))
+check("staff cannot edit monographs (RLS → 0 rows)", "s2", "update drug_monographs set name='x' where name='Domperidone' returning id", rows(0))
+check("staff cannot add monographs", "s2", "insert into drug_monographs(ref,group_no,group_name,sub_code,no,name) values ('x',1,'x','1',1,'x')", "deny")
+check("anon cannot add monographs", "anon", "insert into drug_monographs(ref,group_no,group_name,sub_code,no,name) values ('x',1,'x','1',1,'x')", "deny")
+check("admin edits monograph", "admin", "update drug_monographs set sections=sections||'[{\"title\":\"หมายเหตุ รพ.\",\"body\":[\"ทดสอบ\"]}]' where ref='2569:1.2:2' returning ref", eq("2569:1.2:2"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

@@ -679,14 +679,28 @@ button.fthumb:hover{border-color:var(--primary)}
 .ind-result{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
 .ind-result h4,.ind-result > summary{font-size:14px;font-weight:700;color:var(--primary)}
 details.ind-result > summary{cursor:pointer;min-height:32px}
-.dose-info-list{display:grid;gap:12px;margin-top:4px}
-.di-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
-.di-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.di-head h3{font-size:15px;font-weight:700;color:var(--primary);overflow-wrap:anywhere}
-.di-concs{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.di-inds{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px;overflow-wrap:anywhere}
+/* ข้อมูลยา (บัญชียาหลักแห่งชาติ): รายการยา → monograph */
+.di-list{display:grid;gap:8px;margin-top:4px}
+.di-item{appearance:none;font:inherit;text-align:left;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-height:44px;cursor:pointer;display:grid;gap:4px;min-width:0}
+.di-item:hover{border-color:var(--primary)}
+.di-item:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.di-nm{font-weight:700;color:var(--primary);overflow-wrap:anywhere}
+.di-sub{overflow-wrap:anywhere}
+.di-chips{display:flex;flex-wrap:wrap;gap:6px}
+.di-more{margin-top:10px;min-height:44px}
+.di-mono{display:flex;flex-direction:column;gap:12px;min-width:0}
+.di-back{align-self:flex-start;min-height:44px}
+.mono-name{font-size:18px;font-weight:700;color:var(--primary);overflow-wrap:anywhere}
+.mono-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.mono-sec h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.mono-sec ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.mono-sec p,.mono-sec li{font-size:14px;overflow-wrap:anywhere}
+.mono-dose{display:flex;flex-direction:column;gap:6px;padding-top:6px}
+.mono-dose + .mono-dose{border-top:1px solid var(--line);margin-top:6px}
+.mono-abbr summary{cursor:pointer;min-height:32px;font-size:14px;font-weight:600}
+.mono-abbr p{overflow-wrap:anywhere;margin-top:4px}
 .di-renal{color:var(--warning)}
-.di-calc{align-self:flex-start;min-height:44px}
+.di-calc{align-self:flex-start;min-height:44px;white-space:normal}
 @media (prefers-reduced-motion:reduce){.ind-box > summary::before{transition:none}}
 /* เยี่ยมบ้าน: รายชื่อผู้ป่วยอยู่บน · บันทึกการเยี่ยมอยู่ล่าง (เต็มความกว้าง) */
 .visits-stack{display:flex;flex-direction:column;gap:16px}

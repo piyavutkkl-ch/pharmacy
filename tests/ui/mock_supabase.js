@@ -210,7 +210,7 @@ function finish(st, rows) {
 }
 function run(st) {
   const { table } = st;
-  log({ table, op: st.op, payload: st.payload, filters: st.filters.map(([c, v]) => [c, v]) });
+  log({ table, op: st.op, payload: st.payload, filters: st.filters.map(([c, v]) => [c, v]), range: st.range });
   const rows = db[table] || (db[table] = []);
   const match = (r) => st.filters.every(([c, v, fn]) => fn(r[c], v));
   if (st.op === 'insert' || st.op === 'upsert') {
