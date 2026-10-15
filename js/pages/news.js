@@ -1,6 +1,6 @@
 // ข่าวประชาสัมพันธ์: สไลด์หน้าแรก, รายการข่าว, หน้าอ่านข่าว (ถูกใจ / ความคิดเห็น / ผู้เข้าชม)
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, esc, thaiDate, art, toast, errText, busy, deviceToken } from '../util.js?v=4.4';
+import { $, esc, thaiDate, art, toast, errText, busy, deviceToken, fiscalYearOf } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { fileLink, extFileLink } from './news-form.js?v=4.4';
 import { imageCarousel } from '../lightbox.js?v=4.4';
@@ -38,19 +38,37 @@ function cover(n) {
 let cur = 0, timer = null, paused = false;
 const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
+/** สไลด์หน้าแรก: สลับข่าวแต่ละประเภท (ข่าว/ประชาสัมพันธ์/ความรู้) กับช่องอื่นของเว็บ (ผลการดำเนินงาน · จัดส่งยาถึงบ้าน · ข้อมูลยา) */
+const FEATURES = [
+  { href: '#/tracking', tag: 'ผลการดำเนินงาน', title: 'ผลการดำเนินงานเภสัชกรรมปฐมภูมิ', d: () => `เยี่ยมบ้าน DRPs และผลงาน รพ.สต. · ปีงบประมาณ ${fiscalYearOf()}`, art: 'รายงาน' },
+  { href: '#/delivery', tag: 'บริการ', title: 'บริการจัดส่งยาถึงบ้าน · Health Rider', d: () => 'ผลการจัดส่งยาและบริการ Health Rider รายตำบล', art: 'visit' },
+  { href: '#/dose', tag: 'ข้อมูลยา', title: 'ข้อมูลยา / คำนวณขนาดยา / คำนวณสารน้ำ', d: () => 'รายการยา รพ.สต. · บัญชียาหลักแห่งชาติ · เครื่องคำนวณ', art: '' },
+];
+export function mixSlides(list) {
+  const by = ['ข่าว', 'ประชาสัมพันธ์', 'ความรู้'].map((t) => list.filter((n) => n.tag === t));
+  const other = list.filter((n) => !['ข่าว', 'ประชาสัมพันธ์', 'ความรู้'].includes(n.tag));
+  const news = [];
+  for (let i = 0; news.length < 6 && i < 6; i++) by.forEach((g) => { if (g[i] && news.length < 6) news.push(g[i]); });
+  other.forEach((n) => { if (news.length < 6) news.push(n); });
+  const out = [];
+  news.forEach((n, i) => { out.push({ news: n }); if (i % 2 === 0 && FEATURES[i / 2]) out.push({ feat: FEATURES[i / 2] }); });
+  FEATURES.slice(Math.ceil(news.length / 2)).forEach((f) => out.push({ feat: f }));
+  return out;
+}
 export function renderSlides(list) {
   const slides = $('#slides'), dots = $('#dots');
-  const top = list.slice(0, 6);
-  if (!top.length) {
-    slides.innerHTML = `<div class="slide"><div class="art">${art('')}</div><div class="cap"><span class="tag">ข่าว</span><b>ยังไม่มีข่าวประชาสัมพันธ์</b><span class="d">ข่าวที่ผู้ดูแลเผยแพร่จะแสดงที่นี่</span></div></div>`;
-    dots.innerHTML = '';
-    return;
-  }
-  slides.innerHTML = top.map((n, i) =>
-    `<a class="slide" href="#/news/${n.id}" aria-roledescription="slide" aria-label="${i + 1} จาก ${top.length}: ${esc(n.title)}">`
-    + `<div class="art">${cover(n)}</div><div class="cap"><span class="tag">${esc(n.tag)}</span><b>${esc(n.title)}</b><span class="d num">${esc(thaiDate(n.published_at))}</span></div></a>`).join('');
-  dots.innerHTML = top.map((_, i) => `<button type="button" data-dot="${i}" aria-label="ข่าวที่ ${i + 1}"></button>`).join('');
-  if (cur >= top.length) cur = 0;
+  const all = mixSlides(list || []);
+  if (!(list || []).length) all.unshift({ empty: true });
+  const label = (x) => (x.news ? x.news.title : x.feat ? x.feat.title : 'ยังไม่มีข่าวประชาสัมพันธ์');
+  slides.innerHTML = all.map((x, i) => {
+    const aria = `aria-roledescription="slide" aria-label="${i + 1} จาก ${all.length}: ${esc(label(x))}"`;
+    if (x.empty) return `<div class="slide" ${aria}><div class="art">${art('')}</div><div class="cap"><span class="tag">ข่าว</span><b>ยังไม่มีข่าวประชาสัมพันธ์</b><span class="d">ข่าวที่ผู้ดูแลเผยแพร่จะแสดงที่นี่</span></div></div>`;
+    if (x.feat) return `<a class="slide slide-feat" href="${x.feat.href}" ${aria}><div class="art">${art(x.feat.art)}</div><div class="cap"><span class="tag">${esc(x.feat.tag)}</span><b>${esc(x.feat.title)}</b><span class="d">${esc(x.feat.d())}</span></div></a>`;
+    const n = x.news;
+    return `<a class="slide" href="#/news/${n.id}" ${aria}><div class="art">${cover(n)}</div><div class="cap"><span class="tag">${esc(n.tag)}</span><b>${esc(n.title)}</b><span class="d num">${esc(thaiDate(n.published_at))}</span></div></a>`;
+  }).join('');
+  dots.innerHTML = all.map((_, i) => `<button type="button" data-dot="${i}" aria-label="สไลด์ที่ ${i + 1}"></button>`).join('');
+  if (cur >= all.length) cur = 0;
   mark();
 }
 function count() { return $('#slides').querySelectorAll('.slide').length; }

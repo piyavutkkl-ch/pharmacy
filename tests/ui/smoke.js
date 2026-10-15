@@ -66,6 +66,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     /* ================= ผู้เยี่ยมชม (ไม่ login) ================= */
     let p = await open(null);
     check('หน้าแรก: สไลด์ข่าวแสดง', await count(p, '#slides .slide') > 0);
+    { const tags = await p.$$eval('#slides .slide .tag', (x) => x.map((e) => e.textContent));
+      check('หน้าแรก: สไลด์สลับข่าว/ประชาสัมพันธ์/ความรู้ กับผลการดำเนินงานและช่องอื่น', tags.includes('ผลการดำเนินงาน') && tags.includes('ข้อมูลยา') && await count(p, '#slides a.slide-feat[href="#/tracking"]') === 1 && tags[0] !== tags[1] && await count(p, '#dots button') === tags.length, tags.join('|')); }
     check('หน้าแรก: เมนูมีปุ่มเข้าสู่ระบบ', (await text(p, '#topNav')).includes('เข้าสู่ระบบ'));
     {
       const before = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
