@@ -721,7 +721,7 @@
               <div class="field"><label for="faBrand">ชื่อการค้า (ถ้าต้องการเจาะจง)</label><input id="faBrand" class="input" maxlength="120" placeholder="เช่น humulin 70/30"></div>
             </div>
             <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="faFetch">ดึงจาก openFDA</button><button type="button" class="btn btn-o btn-sm" id="faThAll">ให้ AI แปลเป็นภาษาไทย (ทุกฉลากที่ยังไม่แปล)</button><button type="button" class="btn btn-o btn-sm" id="faThStop" hidden>หยุด</button><span class="small" id="faMsg" aria-live="polite"></span></div>
-            <p class="small muted">AI (Gemini ฟรี) แปลและเรียบเรียงเป็นข้อ ๆ ภาษาไทย · หน้าข้อมูลยาแสดงภาษาไทย และซ่อนต้นฉบับภาษาอังกฤษไว้ให้กดดู · ข้อความที่ AI แปลจะมีป้ายบอก จนผู้ดูแลกด "แก้ไข" แล้วบันทึก (ถือว่าตรวจแล้ว)</p>
+            <p class="small muted">AI (Gemini ฟรี) แปลและเรียบเรียงเป็นข้อ ๆ ภาษาไทย · หน้าข้อมูลยาแสดงภาษาไทย และซ่อนต้นฉบับภาษาอังกฤษไว้ให้กดดู · ข้อความที่ AI แปลจะมีป้ายบอก จนผู้ดูแลกด "แก้ไข" แล้วบันทึก (ถือว่าตรวจแล้ว) · <b>ระบบแปลให้เองวันละ 5 ฉลาก</b> (ผูกกับยา รพ.สต. ก่อน) กดปุ่มด้านบนเมื่อต้องการแปลทันที</p>
             <form id="faForm" class="form-grid dm-form" novalidate hidden>
               <h3 class="full" id="faTitle">แก้ไขฉลาก</h3>
               <div class="field full"><label for="faName">ชื่อที่แสดง</label><input id="faName" class="input" maxlength="200"></div>
@@ -734,7 +734,7 @@
           </div>
           <div class="panel">
             <h2>Drug interaction (DDInter) <span class="num muted" id="ddCount"></span></h2>
-            <p class="small muted">คู่ interaction ระหว่างยา รพ.สต. จาก DDInter (CC BY-NC-SA 4.0) · แสดงที่ ข้อมูลยา › Drug interaction · แปลไทยด้วย AI (Gemini ฟรี) แล้วแก้/ตรวจได้</p>
+            <p class="small muted">คู่ interaction ระหว่างยา รพ.สต. จาก DDInter (CC BY-NC-SA 4.0) · แสดงที่ ข้อมูลยา › Drug interaction · แปลไทยด้วย AI (Gemini ฟรี) แล้วแก้/ตรวจได้ · <b>ระบบแปลให้เองวันละ 5 คู่</b> (รุนแรงก่อน)</p>
             <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-o btn-sm" id="ddThAll">ให้ AI แปลเป็นภาษาไทย (คู่ที่ยังไม่แปล · รุนแรงก่อน)</button><button type="button" class="btn btn-o btn-sm" id="ddThStop" hidden>หยุด</button><span class="small" id="ddMsg" aria-live="polite"></span></div>
             <form id="ddForm" class="form-grid dm-form" novalidate hidden>
               <h3 class="full" id="ddTitle">แก้ไข</h3>

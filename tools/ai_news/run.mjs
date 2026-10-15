@@ -53,6 +53,7 @@ function supa() {
     get: (p) => call('/rest/v1/' + p),
     insert: (table, row) => call('/rest/v1/' + table, { method: 'POST', headers: { 'content-type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(row) }),
     upsert: (table, row) => call('/rest/v1/' + table, { method: 'POST', headers: { 'content-type': 'application/json', Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(row) }),
+    rpc: (fn, body = {}) => call('/rest/v1/rpc/' + fn, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
     upload: (p, buf, type) => call(`/storage/v1/object/public-images/${p}`, { method: 'POST', headers: { 'content-type': type, 'x-upsert': 'true' }, body: buf }),
   };
 }
@@ -290,6 +291,15 @@ export function buildBody(g) {
 
 async function status(db, row) { if (!OFFLINE) await db.insert('ai_news_log', row).catch((e) => log('บันทึก log ไม่ได้:', e.message)); }
 
+/** แปลฉลาก openFDA + คู่ drug interaction เป็นภาษาไทยทีละน้อยทุกชั่วโมง (63_ai_th_auto.sql · ฐานข้อมูลเรียก Gemini เอง) · ไม่สำเร็จก็ไม่ทำให้รอบนี้ล้ม */
+async function autoTranslate(db) {
+  if (OFFLINE) return;
+  try {
+    const r = await db.rpc('ai_th_auto');
+    log(`แปลไทยอัตโนมัติ (วันละ ${r.daily}): ฉลากส่ง ${r.fda.sent} · วันนี้ ${r.fda.today} · เหลือ ${r.fda.left} | คู่ยาส่ง ${r.ddi.sent} · วันนี้ ${r.ddi.today} · เหลือ ${r.ddi.left}${r.note ? ' · ' + r.note : ''}`);
+  } catch (e) { log('แปลไทยอัตโนมัติไม่ได้:', e.message.slice(0, 200)); }
+}
+
 async function main() {
   const db = OFFLINE ? null : supa();
   const settings = OFFLINE ? { auto: 'off', request: '', ...(fs.existsSync(path.join(OFFLINE.dir, 'settings.json')) ? JSON.parse(fs.readFileSync(path.join(OFFLINE.dir, 'settings.json'), 'utf8')) : {}) }
@@ -304,6 +314,7 @@ async function main() {
   const due = requested || (!finishedToday && errorsToday < 3 && thaiNow().getUTCHours() >= START_HOUR);
 
   if (args[0] === '--check') {
+    await autoTranslate(db);
     log(requested ? 'มีคำสั่ง "สร้างข่าวตอนนี้"' : due ? `ถึงเวลาทำข่าวของวันนี้${errorsToday ? ` (ลองใหม่ครั้งที่ ${errorsToday + 1})` : ''}` : 'วันนี้ทำแล้ว/ยังไม่ถึงเวลา');
     if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `run=${due}\n`);
     return;

@@ -1055,6 +1055,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('openFDA: ผู้ดูแลแก้ข้อความไทย → ตรวจแล้ว', up.th_reviewed === true && up.sections_th?.[0]?.body?.[0] === 'รักษาความดันโลหิตสูง' && up.sections_th[1].body[0] === 'เริ่ม 5 มก. วันละครั้ง', JSON.stringify(up.sections_th)); }
     // Drug interaction (ผู้ดูแล): AI แปลไทย · แก้ไข (= ตรวจแล้ว) · ยา รพ.สต. ผูกยาใน DDInter
     await go(p, '#/admin/drugs/db'); await p.waitForTimeout(700);
+    check('ผู้ดูแล › ฐานข้อมูลยา: บอกว่าระบบแปลไทยให้เองวันละ 5 ฉลาก / 5 คู่', (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองวันละ 5 ฉลาก') && (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองวันละ 5 คู่'));
     check('Drug interaction (ผู้ดูแล): รายการคู่ยา เรียงรุนแรงก่อน', await count(p, '#ddList .li') === 30 && (await text(p, '#ddList .li')).includes('Major') && (await text(p, '#ddCount')).includes('คู่'));
     await p.selectOption('#ddLevel', 'Major'); await p.waitForTimeout(100);
     await p.click('#ddList [data-dd-th]'); await p.waitForTimeout(6500);

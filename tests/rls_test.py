@@ -17,6 +17,8 @@ def run(sql, who=None):
     pre = ""
     if who == "anon":
         pre = "set local role anon;"
+    elif who == "service":
+        pre = "set local role service_role;"
     elif who:
         pre = f"set local role authenticated; set local request.jwt.claim.sub = '{U[who]}';"
     p = subprocess.run(PSQL, input=f"begin; {pre} {sql}; commit;", capture_output=True, text=True)
@@ -973,6 +975,24 @@ check("anon reads DDI Thai", "anon", f"select management_th from ddi_pairs where
 print("== step 62: FDA mechanism/PK sections ==")
 check("mechanism/PK sections added to untouched labels", "anon", "select count(*) > 30 from drug_fda_labels where sections @> '[{\"title\":\"กลไกการออกฤทธิ์\"}]' or sections @> '[{\"title\":\"เภสัชจลนศาสตร์\"}]'", eq("t"))
 check("62 rerun does not duplicate sections", None, "select max(n) from (select count(*) n from drug_fda_labels, jsonb_array_elements(sections) e where e->>'title'='กลไกการออกฤทธิ์' group by id) x", eq(1))
+
+print("== step 63: auto Thai translation (hourly, ≤5/day each) ==")
+check("anon cannot run auto translation", "anon", "select ai_th_auto()", "deny")
+check("admin (web) cannot run auto translation", "admin", "select ai_th_auto()", "deny")
+check("web cannot call internal sender", "admin", f"select ai_fda_th_send({fl})", "deny")
+check("auto round 1: 2 labels + 2 pairs sent", "service", "with r as (select ai_th_auto() j) select (j->'fda'->>'sent') || '|' || (j->'ddi'->>'sent') from r", eq("2|2"))
+check("auto picks labels linked to รพ.สต. drugs first", None, "select bool_and(exists (select 1 from local_drugs l where l.fda_key=f.key and l.active)) from drug_fda_labels f where th_auto_at is not null", eq("t"))
+check("auto picks Major pairs first", None, "select string_agg(distinct level, ',') from ddi_pairs where th_auto_at is not null", eq("Major"))
+check("auto does not touch already translated", None, f"select (select th_auto_at is null from drug_fda_labels where id={fl}) and (select th_auto_at is null from ddi_pairs where id={dp})", eq("t"))
+check("AI gets public label text only (key in header)", None, "select bool_and(q.headers->>'x-goog-api-key'='test-key-123' and convert_from(q.body,'utf8') not like '%test-key-123%') from drug_fda_labels f join net.http_request_queue q on q.id=f.th_request_id where f.th_auto_at is not null", eq("t"))
+ap = run("select id from ddi_pairs where th_auto_at is not null order by id limit 1")[1].strip()
+run(f"""insert into net._http_response(id,status_code,content) select th_request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${DTH}$q$))))))::text from ddi_pairs where id={ap}""")
+check("auto round 2: answers saved + 2 more each (today 4)", "service", "with r as (select ai_th_auto() j) select (j->'fda'->>'today') || '|' || (j->'ddi'->>'today') from r", eq("4|4"))
+check("pending answer saved by hourly round", "anon", f"select th_status || ':' || description_th from ddi_pairs where id={ap}", eq("done:ยาสองตัวนี้เพิ่มความเสี่ยงต่อกัน"))
+run("select ai_th_auto()", "service")
+check("daily cap 5 each", "service", "with r as (select ai_th_auto() j) select (j->'fda'->>'today') || '|' || (j->'ddi'->>'today') from r", eq("5|5"))
+run("insert into site_texts(key, body) values ('ai_th_daily','6') on conflict (key) do update set body='6'")
+check("admin setting ai_th_daily raises cap", "service", "select ai_th_auto()->'fda'->>'today'", eq("6"))
 
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
