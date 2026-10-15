@@ -138,8 +138,9 @@ async function fillCol(i, l) {
 /** ภาพเส้นทางยาในร่างกาย: ให้ยา → ดูดซึม → ตับ (เอนไซม์) → กระแสเลือด/ออกฤทธิ์ → ขับออก */
 function pathSvg(route, cyp) {
   const first = route === 'iv' ? ['ฉีด/หยดเข้าหลอดเลือด', 'เข้าสู่กระแสเลือดทันที'] : route === 'inh' ? ['พ่นสูดทางปาก', 'ออกฤทธิ์ที่ปอด/หลอดลม'] : ['รับประทาน', 'ดูดซึมที่กระเพาะ–ลำไส้'];
-  const sub = cyp.sub.length ? `ถูกเปลี่ยนโดย ${cyp.sub.join(', ')}` : cyp.known ? 'ไม่เด่นที่ CYP หลัก' : 'ไม่มีข้อมูลเอนไซม์';
-  const inh = cyp.inh.length ? `ยับยั้ง ${cyp.inh.join(', ')}` : '';
+  const cypList = (l) => `CYP ${l.map((e) => e.replace('CYP', '')).join(', ')}`;   // ย่อให้พอดีกล่อง เช่น "CYP 2D6, 3A4"
+  const sub = cyp.sub.length ? `ถูกเปลี่ยนโดย ${cypList(cyp.sub)}` : cyp.known ? 'ไม่เด่นที่ CYP หลัก' : 'ไม่มีข้อมูลเอนไซม์';
+  const inh = cyp.inh.length ? `ยับยั้ง ${cypList(cyp.inh)}` : '';
   const box = (y, cls, title, sub2, sub3 = '') => `<g transform="translate(0 ${y})"><rect x="8" y="0" width="244" height="${sub3 ? 58 : 46}" rx="12" class="${cls}"/>`
     + `<text x="130" y="19" class="ddi-t1">${esc(title)}</text><text x="130" y="37" class="ddi-t2">${esc(sub2)}</text>${sub3 ? `<text x="130" y="53" class="ddi-t3">${esc(sub3)}</text>` : ''}</g>`;
   const arrow = (y) => `<path d="M130 ${y}v14m-6-6 6 6 6-6" class="ddi-arrow"/>`;
