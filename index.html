@@ -110,13 +110,10 @@
     <div class="panel" id="dosePaneInfo" hidden>
       <p class="small muted">รายการยาของ รพ.สต. ในอำเภอควนกาหลง และข้อมูลยาตาม <b>บัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙</b> (ราชกิจจานุเบกษา) · เลือกยาเพื่อดูกลุ่มยา รูปแบบยา บัญชี เงื่อนไขการใช้ คำเตือนและข้อควรระวัง คำแนะนำ และขนาดยาจากเครื่องคำนวณ (ถ้ามี) · ใช้เป็นข้อมูลอ้างอิงเบื้องต้น โปรดตรวจสอบกับเอกสารกำกับยาก่อนใช้จริง</p>
       <div id="doseInfoPick">
-        <div class="unit-tabs uc-switch" id="doseScope" role="tablist" aria-label="เลือกฐานข้อมูลยา">
-          <button type="button" role="tab" data-scope="local" aria-current="true">ยา รพ.สต. ควนกาหลง</button>
-          <button type="button" role="tab" data-scope="nlem" aria-current="false">บัญชียาหลักแห่งชาติ</button>
-        </div>
-        <div class="form-grid">
+        <div class="form-grid three">
           <div class="field"><label for="doseInfoQ">ค้นหายา</label><input id="doseInfoQ" class="input" type="search" placeholder="ชื่อยา รหัสยา หรือกลุ่มยา เช่น paracetamol"></div>
-          <div class="field"><label for="doseInfoGroup" id="doseInfoGroupLbl">หมวดยา</label><select id="doseInfoGroup" class="input"><option value="all">ทุกหมวด</option></select></div>
+          <div class="field"><label for="doseScope">แหล่งข้อมูล</label><select id="doseScope" class="input"><option value="all">ทั้งหมด</option><option value="local" selected>ยา รพ.สต.</option><option value="nlem">บัญชียาหลักแห่งชาติ</option></select></div>
+          <div class="field"><label for="doseInfoGroup" id="doseInfoGroupLbl">หมวดยา</label><select id="doseInfoGroup" class="input"><option value="all">ทั้งหมด</option></select></div>
         </div>
         <p class="small muted" id="doseInfoN" aria-live="polite"></p>
         <div id="doseInfoList" class="di-list"></div>

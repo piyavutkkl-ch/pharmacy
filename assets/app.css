@@ -700,7 +700,6 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .mono-abbr summary{cursor:pointer;min-height:32px;font-size:14px;font-weight:600}
 .mono-abbr p{overflow-wrap:anywhere;margin-top:4px}
 .di-renal{color:var(--warning)}
-#doseScope{flex-wrap:wrap}
 .di-cat{font-size:15px;font-weight:700;margin-top:10px;padding-bottom:2px;border-bottom:1px solid var(--line)}
 .di-cat:first-child{margin-top:0}
 .mono-dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px;margin:0}

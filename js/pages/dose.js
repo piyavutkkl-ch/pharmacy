@@ -1,6 +1,6 @@
 // ข้อมูลยา / คำนวณขนาดยา — 2 ส่วน (#doseTabs)
 //   คำนวณขนาดยา: ตามน้ำหนักตัว (รายการยาจากตาราง dose_drugs — ผู้ดูแลแก้ได้)
-//   ข้อมูลยา: 2 ฐานข้อมูล (#doseScope) — รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql) · บัญชียาหลักแห่งชาติ 2569 (drug_monographs · 57)
+//   ข้อมูลยา: ตัวกรองแหล่งข้อมูล #doseScope (ทั้งหมด / ยา รพ.สต. [ค่าเริ่ม] / บัญชียาหลัก) — รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql) · บัญชียาหลักแห่งชาติ 2569 (drug_monographs · 57)
 //            ยา รพ.สต. ผูกกับ monograph ผ่าน local_drugs.mono_refs → drug_monographs.ref · ผู้ดูแลแก้ทั้งสองฐานใน ตั้งค่า › ฐานข้อมูลยา (admin-drugs.js)
 //            ค้นหา/กรองหมวด → เลือกยา → กลุ่มยา รูปแบบยา บัญชี เงื่อนไข คำเตือน คำแนะนำ หมายเหตุ + ขนาดยาจากเครื่องคำนวณ (จับคู่ชื่ออังกฤษ)
 import { sb } from '../supabase.js?v=4.4';
@@ -34,12 +34,7 @@ export async function initDose() {
   $('#doseInfoGroup').addEventListener('change', () => { shown = 40; renderList(); });
   $('#doseInfoMore').addEventListener('click', () => { shown += 60; renderList(); });
   $('#doseInfoList').addEventListener('click', (e) => { const b = e.target.closest('[data-mono]'); if (b) openMono((b.dataset.scope === 'local' ? litems : items)[+b.dataset.mono]); });
-  $('#doseScope').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-scope]'); if (!b || b.dataset.scope === scope) return;
-    scope = b.dataset.scope; shown = 40; $('#doseInfoGroup').value = 'all';
-    $('#doseScope').querySelectorAll('[data-scope]').forEach((x) => x.setAttribute('aria-current', String(x === b)));
-    fillGroups(); renderList();
-  });
+  $('#doseScope').addEventListener('change', () => { scope = $('#doseScope').value; shown = 40; fillGroups(); renderList(); });
   $('#doseMono').addEventListener('click', (e) => {
     if (e.target.closest('[data-mono-back]')) { closeMono(); return; }
     const b = e.target.closest('[data-dose-calc]'); if (!b) return;
@@ -191,12 +186,14 @@ async function openInfo() {
   });
   fillGroups(); renderList();
 }
+/** ตัวกรองหมวด: l:<หมวดยา รพ.สต.> · n:<เลขกลุ่มยาในบัญชียาหลัก> — ตามแหล่งข้อมูลที่เลือก */
 function fillGroups() {
-  const local = scope === 'local';
-  $('#doseInfoGroupLbl').textContent = local ? 'หมวดยา' : 'กลุ่มยา';
-  const opts = local ? [...new Set(litems.map((it) => it.loc.category))].map((c) => [c, c])
-    : [...new Map(monos.map((m) => [m.group_no, m.group_name]))].sort((a, b) => a[0] - b[0]).map(([n, g]) => [n, `กลุ่มยา ${n} ${g}`]);
-  $('#doseInfoGroup').innerHTML = `<option value="all">${local ? 'ทุกหมวด' : 'ทุกกลุ่มยา'}</option>` + opts.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('');
+  const lc = [...new Set(litems.map((it) => it.loc.category))].map((c) => [`l:${c}`, c]);
+  const ng = [...new Map(monos.map((m) => [m.group_no, m.group_name]))].sort((a, b) => a[0] - b[0]).map(([n, g]) => [`n:${n}`, `กลุ่มยา ${n} ${g}`]);
+  const opt = (o) => o.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('');
+  $('#doseInfoGroupLbl').textContent = { local: 'หมวดยา', nlem: 'กลุ่มยา' }[scope] || 'หมวด / กลุ่มยา';
+  $('#doseInfoGroup').innerHTML = '<option value="all">ทั้งหมด</option>' + (scope === 'local' ? opt(lc) : scope === 'nlem' ? opt(ng)
+    : `<optgroup label="ยา รพ.สต.">${opt(lc)}</optgroup><optgroup label="บัญชียาหลักแห่งชาติ">${opt(ng)}</optgroup>`);
 }
 const acctChips = (forms) => [...new Set((forms || []).map((f) => f.acct).filter(Boolean))]
   .map((a) => `<span class="chip c-role" title="${esc(ACCT[a] || a)}">${esc(a)}</span>`).join('');
@@ -204,30 +201,33 @@ const acctChips = (forms) => [...new Set((forms || []).map((f) => f.acct).filter
 function renderList() {
   const box = $('#doseInfoList');
   if (!items) return;
-  const local = scope === 'local', all = local ? litems : items;
   const q = $('#doseInfoQ').value.trim().toLowerCase(), g = $('#doseInfoGroup').value;
-  const list = all.filter((it) => (!q || it.q.includes(q)) && (g === 'all' || (local ? it.loc.category === g : it.rows.some((r) => String(r.group_no) === g))));
-  const lim = local ? list.length : shown;   // ยา รพ.สต. แสดงครบ · บัญชียาหลักทีละ 40
-  $('#doseInfoN').textContent = list.length ? `พบ ${list.length} รายการ · กดชื่อยาเพื่อดูข้อมูล` : '';
+  const hit = (it) => !q || it.q.includes(q);
+  const lList = scope === 'nlem' || g.startsWith('n:') ? [] : litems.filter((it) => hit(it) && (g === 'all' || it.loc.category === g.slice(2)));
+  const nList = scope === 'local' || g.startsWith('l:') ? [] : items.filter((it) => hit(it) && (g === 'all' || it.rows.some((r) => `n:${r.group_no}` === g)));
+  const total = lList.length + nList.length;   // ยา รพ.สต. แสดงครบ · บัญชียาหลักทีละ 40
+  $('#doseInfoN').textContent = total ? `พบ ${total} รายการ · กดชื่อยาเพื่อดูข้อมูล` : '';
+  const chipsOf = (it) => (it.rows.length ? acctChips(it.rows.flatMap((x) => x.forms)) : '') + (it.calc.length ? '<span class="chip c-on">คำนวณขนาดยาได้</span>' : '');
   let cat = null;
-  box.innerHTML = !all.length ? `<p class="empty">${local ? 'ยังไม่มีรายการยา รพ.สต.' : 'ยังไม่มีข้อมูลยา'}</p>` : !list.length ? '<p class="empty">ไม่พบยาที่ค้นหา</p>'
-    : list.slice(0, lim).map((it) => {
-      const chips = (it.rows.length ? acctChips(it.rows.flatMap((x) => x.forms)) : '') + (it.calc.length ? '<span class="chip c-on">คำนวณขนาดยาได้</span>' : '');
-      if (local) {
-        const l = it.loc, head = l.category !== cat ? `<h3 class="di-cat">${esc(l.category)}</h3>` : '';
-        cat = l.category;
-        const pack = [l.code && `รหัส ${l.code}`, (l.pack_size || l.unit) && `บรรจุ ${[l.pack_size, l.unit].filter(Boolean).join(' ')}`].filter(Boolean).join(' · ');
-        return head + `<button type="button" class="di-item" data-scope="local" data-mono="${all.indexOf(it)}"><span class="di-nm">${esc(l.name)}</span>`
-          + `<span class="di-sub small muted">${esc(pack)}${it.names.length ? ` · ${esc(it.names.join(', '))}` : ''}</span>`
-          + `<span class="di-chips">${chips || '<span class="chip c-off">ยังไม่มีข้อมูลยา</span>'}</span></button>`;
-      }
-      const r = it.rows[0];
-      const where = r ? `${esc(r.sub_code)} ${esc(r.sub_name || r.group_name)}${it.rows.length > 1 ? ` · และอีก ${it.rows.length - 1} กลุ่ม` : ''}` : 'ยาในเครื่องคำนวณขนาดยา';
-      return `<button type="button" class="di-item" data-scope="nlem" data-mono="${all.indexOf(it)}"><span class="di-nm">${esc(it.name)}</span>`
-        + `<span class="di-sub small muted">${where}</span><span class="di-chips">${chips}</span></button>`;
-    }).join('');
-  $('#doseInfoMore').hidden = list.length <= lim;
-  if (list.length > lim) $('#doseInfoMore').textContent = `แสดงเพิ่ม (เหลืออีก ${list.length - lim} รายการ)`;
+  const lHtml = lList.map((it) => {
+    const l = it.loc, head = l.category !== cat ? `<h3 class="di-cat">${scope === 'all' ? 'ยา รพ.สต. · ' : ''}${esc(l.category)}</h3>` : '';
+    cat = l.category;
+    const pack = [l.code && `รหัส ${l.code}`, (l.pack_size || l.unit) && `บรรจุ ${[l.pack_size, l.unit].filter(Boolean).join(' ')}`].filter(Boolean).join(' · ');
+    return head + `<button type="button" class="di-item" data-scope="local" data-mono="${litems.indexOf(it)}"><span class="di-nm">${esc(l.name)}</span>`
+      + `<span class="di-sub small muted">${esc(pack)}${it.names.length ? ` · ${esc(it.names.join(', '))}` : ''}</span>`
+      + `<span class="di-chips">${chipsOf(it) || '<span class="chip c-off">ยังไม่มีข้อมูลยา</span>'}</span></button>`;
+  }).join('');
+  const nHtml = nList.slice(0, shown).map((it) => {
+    const r = it.rows[0];
+    const where = r ? `${esc(r.sub_code)} ${esc(r.sub_name || r.group_name)}${it.rows.length > 1 ? ` · และอีก ${it.rows.length - 1} กลุ่ม` : ''}` : 'ยาในเครื่องคำนวณขนาดยา';
+    return `<button type="button" class="di-item" data-scope="nlem" data-mono="${items.indexOf(it)}"><span class="di-nm">${esc(it.name)}</span>`
+      + `<span class="di-sub small muted">${where}</span><span class="di-chips">${chipsOf(it)}</span></button>`;
+  }).join('');
+  const none = scope === 'local' ? !litems.length : scope === 'nlem' ? !items.length : !litems.length && !items.length;
+  box.innerHTML = none ? '<p class="empty">ยังไม่มีข้อมูลยา</p>' : !total ? '<p class="empty">ไม่พบยาที่ค้นหา</p>'
+    : lHtml + (scope === 'all' && nList.length ? '<h3 class="di-cat">บัญชียาหลักแห่งชาติ</h3>' : '') + nHtml;
+  $('#doseInfoMore').hidden = nList.length <= shown;
+  if (nList.length > shown) $('#doseInfoMore').textContent = `แสดงเพิ่ม (เหลืออีก ${nList.length - shown} รายการ)`;
 }
 
 const para = (lines) => (lines.length === 1 ? `<p>${esc(lines[0])}</p>` : `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`);
