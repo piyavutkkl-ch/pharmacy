@@ -129,27 +129,54 @@ async function fillCol(i, l) {
   $(`#ddiBody${i}`).innerHTML = `<h4 class="ddi-name">${esc(names.join(' + ') || l.name)}</h4>`
     + `<div class="di-chips">${grp.map((g) => `<span class="chip c-sub">${esc(g)}</span>`).join('')}${hl ? `<span class="chip c-role">ครึ่งชีวิต ≈ ${esc(hl)}</span>` : ''}</div>`
     + `<div class="ddi-struct">${names.map((n) => `<img src="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/PNG?image_size=220x150" alt="โครงสร้างเคมีของ ${esc(n)}" loading="lazy" width="220" height="150">`).join('')}</div>`
-    + pathSvg(route, cyp)
-    + textBlock('กลไกการออกฤทธิ์', moa, true) + textBlock('เภสัชจลนศาสตร์ (ดูดซึม · เปลี่ยนแปลง · ขับออก)', pk) + textBlock('ข้อบ่งใช้', ind)
-    + (lab ? '' : '<p class="small muted">ยังไม่มีข้อมูลฉลากยา (openFDA) ของยานี้</p>');
+    + pathSvg(route, cyp, names)
+    + '<div class="ddi-text">' + textBlock('กลไกการออกฤทธิ์', moa, true) + textBlock('เภสัชจลนศาสตร์ (ดูดซึม · เปลี่ยนแปลง · ขับออก)', pk) + textBlock('ข้อบ่งใช้', ind)
+    + (lab ? '' : '<p class="small muted">ยังไม่มีข้อมูลฉลากยา (openFDA) ของยานี้</p>') + '</div>';
   $(`#ddiBody${i}`).querySelectorAll('.ddi-struct img').forEach((img) => img.addEventListener('error', () => img.remove(), { once: true }));
 }
 
-/** ภาพเส้นทางยาในร่างกาย: ให้ยา → ดูดซึม → ตับ (เอนไซม์) → กระแสเลือด/ออกฤทธิ์ → ขับออก */
-function pathSvg(route, cyp) {
+/** ตับเปลี่ยนยาเป็นรูปไหน (ข้อมูลเภสัชวิทยาทั่วไป · ชื่อตาม DDInter ตัวพิมพ์เล็ก)
+ *  active = ยาตั้งต้น (prodrug) → รูปที่ออกฤทธิ์ · both = ได้สารที่ยังออกฤทธิ์ด้วย · inactive = รูปที่ไม่ออกฤทธิ์ · unchanged = แทบไม่ถูกเปลี่ยน ขับออกรูปเดิม
+ *  na = แร่ธาตุ/สารอาหาร/เกลือแร่ · none = ไม่ถูกดูดซึม */
+const MET = {
+  enalapril: ['active', 'enalaprilat'], losartan: ['active', 'E-3174'], simvastatin: ['active', 'simvastatin acid'], methyldopa: ['active', 'alpha-methylnorepinephrine (ในสมอง)'],
+  albendazole: ['active', 'albendazole sulfoxide'], 'acetylsalicylic acid': ['active', 'salicylic acid'], 'isosorbide dinitrate': ['active', 'isosorbide mononitrate'],
+  levothyroxine: ['active', 'T3 (liothyronine) ที่เนื้อเยื่อ'], 'folic acid': ['active', 'tetrahydrofolate'], dimenhydrinate: ['active', 'diphenhydramine'],
+  spironolactone: ['both', 'canrenone'], amitriptyline: ['both', 'nortriptyline'], dextromethorphan: ['both', 'dextrorphan'], hydroxyzine: ['both', 'cetirizine'],
+  allopurinol: ['both', 'oxypurinol'], pioglitazone: ['both', 'M-III, M-IV'], verapamil: ['both', 'norverapamil'], lidocaine: ['both', 'MEGX'],
+  metronidazole: ['both', 'hydroxymetronidazole'], propranolol: ['both', '4-hydroxypropranolol'],
+  acetaminophen: ['inactive'], amlodipine: ['inactive'], chlorpheniramine: ['inactive'], colchicine: ['inactive'], cyproheptadine: ['inactive'], dexamethasone: ['inactive'],
+  diclofenac: ['inactive'], dicyclomine: ['inactive'], doxazosin: ['inactive'], erythromycin: ['inactive'], gemfibrozil: ['inactive'], glipizide: ['inactive'], hydralazine: ['inactive'],
+  ibuprofen: ['inactive'], 'medroxyprogesterone acetate': ['inactive'], metoprolol: ['inactive'], naproxen: ['inactive'], nifedipine: ['inactive'], propylthiouracil: ['inactive'],
+  salbutamol: ['inactive'], sulfamethoxazole: ['inactive'], theophylline: ['inactive'], epinephrine: ['inactive'], 'insulin human': ['inactive'],
+  amoxicillin: ['unchanged'], dicloxacillin: ['unchanged'], metformin: ['unchanged'], furosemide: ['unchanged'], hydrochlorothiazide: ['unchanged'], norfloxacin: ['unchanged'],
+  trimethoprim: ['unchanged'], ipratropium: ['unchanged'],
+  'ascorbic acid': ['na'], 'calcium carbonate': ['na'], 'dextrose, unspecified form': ['na'], 'ferrous fumarate': ['na'], 'ferrous sulfate anhydrous': ['na'], iron: ['na'],
+  'magnesium hydroxide': ['na'], 'sodium bicarbonate': ['na'], 'sodium chloride': ['na'], simethicone: ['none'],
+};
+/** ข้อความในกล่องตับ: เปลี่ยนเป็นรูปที่ออกฤทธิ์ / ไม่ออกฤทธิ์ */
+export function metText(name) {
+  const [k, m] = MET[String(name || '').toLowerCase()] || [];
+  return { active: `เปลี่ยนเป็นรูปที่ออกฤทธิ์${m ? ` (${m})` : ''} · ยาตั้งต้นออกฤทธิ์น้อย`, both: `ได้สารที่ยังออกฤทธิ์${m ? ` (${m})` : ''} · ส่วนที่เหลือไม่ออกฤทธิ์`,
+    inactive: 'เปลี่ยนเป็นรูปที่ไม่ออกฤทธิ์ แล้วขับออก', unchanged: 'แทบไม่ถูกเปลี่ยนที่ตับ · ขับออกในรูปเดิม (ยังออกฤทธิ์)',
+    na: 'ไม่ผ่านการเปลี่ยนแปลงยาแบบทั่วไป (แร่ธาตุ/สารอาหาร)', none: 'ไม่ถูกดูดซึม · ออกฤทธิ์ในทางเดินอาหาร' }[k] || 'ยังไม่มีข้อมูลรูปที่ได้หลังเปลี่ยนแปลง';
+}
+const metClass = (name) => ({ active: 'met-on', both: 'met-on', inactive: 'met-off', unchanged: 'met-same' }[(MET[String(name || '').toLowerCase()] || [])[0]] || '');
+
+/** ภาพเส้นทางยาในร่างกาย: ให้ยา → ดูดซึม → ตับ (เอนไซม์ + รูปที่ได้) → กระแสเลือด/ออกฤทธิ์ → ขับออก (HTML · ข้อความตัดบรรทัดเองพอดีกล่อง) */
+function pathSvg(route, cyp, names = []) {
   const first = route === 'iv' ? ['ฉีด/หยดเข้าหลอดเลือด', 'เข้าสู่กระแสเลือดทันที'] : route === 'inh' ? ['พ่นสูดทางปาก', 'ออกฤทธิ์ที่ปอด/หลอดลม'] : ['รับประทาน', 'ดูดซึมที่กระเพาะ–ลำไส้'];
-  const cypList = (l) => `CYP ${l.map((e) => e.replace('CYP', '')).join(', ')}`;   // ย่อให้พอดีกล่อง เช่น "CYP 2D6, 3A4"
+  const cypList = (l) => `CYP ${l.map((e) => e.replace('CYP', '')).join(', ')}`;
   const sub = cyp.sub.length ? `ถูกเปลี่ยนโดย ${cypList(cyp.sub)}` : cyp.known ? 'ไม่เด่นที่ CYP หลัก' : 'ไม่มีข้อมูลเอนไซม์';
   const inh = cyp.inh.length ? `ยับยั้ง ${cypList(cyp.inh)}` : '';
-  const box = (y, cls, title, sub2, sub3 = '') => `<g transform="translate(0 ${y})"><rect x="8" y="0" width="244" height="${sub3 ? 58 : 46}" rx="12" class="${cls}"/>`
-    + `<text x="130" y="19" class="ddi-t1">${esc(title)}</text><text x="130" y="37" class="ddi-t2">${esc(sub2)}</text>${sub3 ? `<text x="130" y="53" class="ddi-t3">${esc(sub3)}</text>` : ''}</g>`;
-  const arrow = (y) => `<path d="M130 ${y}v14m-6-6 6 6 6-6" class="ddi-arrow"/>`;
-  return `<svg class="ddi-path" viewBox="0 0 260 318" role="img" aria-label="เส้นทางยา: ${esc(first[0])} ${esc(first[1])} → ตับ ${esc(sub)}${inh ? ' ' + esc(inh) : ''} → ออกฤทธิ์ → ขับออก">`
-    + box(0, 'ddi-b1', `1. ${first[0]}`, first[1]) + arrow(48)
-    + box(66, 'ddi-b2', '2. ตับ (การเปลี่ยนแปลงยา)', sub, inh) + arrow(126)
-    + box(144, 'ddi-b3', '3. กระแสเลือด → ออกฤทธิ์', 'ไปยังอวัยวะเป้าหมาย') + arrow(192)
-    + box(210, 'ddi-b4', '4. ขับออก', 'ทางไต (ปัสสาวะ) / น้ำดี (อุจจาระ)')
-    + `<text x="130" y="300" class="ddi-t3">เอนไซม์ = ค่าทำนาย ADMETlab 2.0 (≥ ${CYP_MIN})</text></svg>`;
+  const met = names.map((n) => `<span class="ddi-met ${metClass(n)}">${names.length > 1 ? `${esc(n)}: ` : ''}${esc(metText(n))}</span>`).join('');
+  const box = (cls, title, body) => `<li class="ddi-step ${cls}"><b>${esc(title)}</b>${body}</li>`;
+  return `<ol class="ddi-path" aria-label="${esc(`เส้นทางยา: ${first[0]} ${first[1]} → ตับ ${sub}${inh ? ' ' + inh : ''} ${names.map(metText).join(' ')} → ออกฤทธิ์ → ขับออก`)}">`
+    + box('ddi-b1', `1. ${first[0]}`, `<span>${esc(first[1])}</span>`)
+    + box('ddi-b2', '2. ตับ (การเปลี่ยนแปลงยา)', `<span>${esc(sub)}</span>${inh ? `<span class="ddi-inh-t">${esc(inh)}</span>` : ''}${met}`)
+    + box('ddi-b3', '3. กระแสเลือด → ออกฤทธิ์', '<span>ไปยังอวัยวะเป้าหมาย</span>')
+    + box('ddi-b4', '4. ขับออก', '<span>ทางไต (ปัสสาวะ) / น้ำดี (อุจจาระ)</span>')
+    + `</ol><p class="ddi-foot">เอนไซม์ = ค่าทำนาย ADMETlab 2.0 (≥ ${CYP_MIN}) · รูปที่ได้ = ข้อมูลเภสัชวิทยาทั่วไป</p>`;
 }
 
 /* ---------- แจ้งเตือน interaction ระหว่างยาที่เลือก ---------- */
@@ -203,19 +230,13 @@ export function sharedEnzymes(a, b) {
 }
 function pairSvg(p, A, B) {
   const m = (p.mech || [])[0] || 'Others', enz = m === 'Metabolism' ? sharedEnzymes(p.a, p.b) : [];
-  const site = { Absorption: ['ลำไส้', 'การดูดซึมยา'], Distribution: ['กระแสเลือด', 'การจับโปรตีน/กระจายยา'], Metabolism: ['ตับ', enz.length ? enz.map((x) => x.e).join(', ') : 'เอนไซม์ที่ตับ'],
+  const site = { Absorption: ['ลำไส้', 'การดูดซึมยา'], Distribution: ['กระแสเลือด', 'การจับโปรตีน/กระจายยา'], Metabolism: ['ตับ', enz.length ? `เอนไซม์ ${enz.map((x) => x.e).join(', ')}` : 'เอนไซม์ที่ตับ'],
     Excretion: ['ไต', 'การขับยาออก'], Synergy: ['ตัวรับ/อวัยวะเป้าหมาย', 'ฤทธิ์เสริมกัน (+)'], Antagonism: ['ตัวรับ/อวัยวะเป้าหมาย', 'ฤทธิ์หักล้างกัน (−)'], Others: ['ร่างกาย', 'กลไกอื่น'] }[m] || ['ร่างกาย', 'กลไกอื่น'];
-  const short = (s) => (String(s).length > 16 ? String(s).slice(0, 15) + '…' : String(s));
   const inhA = enz.some((x) => x.inh === p.a), inhB = enz.some((x) => x.inh === p.b);
-  const edge = (x1, x2, inh, label) => `<path d="M${x1} 70 H${x2}" class="${inh ? 'ddi-inh' : 'ddi-arrow'}"/>${inh ? `<path d="M${x2} 58v24" class="ddi-inh"/>` : ''}<text x="${(x1 + x2) / 2}" y="60" class="ddi-t3">${label}</text>`;
-  const roleA = m === 'Metabolism' && enz.length ? (inhA ? 'ยับยั้ง' : 'ถูกเปลี่ยน') : m === 'Antagonism' ? 'ต้าน' : m === 'Synergy' ? 'เสริม' : '';
-  const roleB = m === 'Metabolism' && enz.length ? (inhB ? 'ยับยั้ง' : 'ถูกเปลี่ยน') : m === 'Antagonism' ? 'ต้าน' : m === 'Synergy' ? 'เสริม' : '';
+  const role = (inh) => (m === 'Metabolism' && enz.length ? (inh ? 'ยับยั้ง' : 'ถูกเปลี่ยน') : m === 'Antagonism' ? 'ต้าน' : m === 'Synergy' ? 'เสริม' : '');
+  const link = (inh, dir) => `<span class="pp-link${inh ? ' pp-inh' : ''}" aria-hidden="true"><small>${esc(role(inh))}</small><i class="pp-line pp-${dir}"></i></span>`;
   const effect = enz.length ? enz.map((x) => `${drugs.get(x.inh)?.name} ยับยั้ง ${x.e} → ระดับ ${drugs.get(x.sub)?.name} ในเลือดอาจสูงขึ้น`).join(' · ') : '';
-  return `<svg class="ddi-pic" viewBox="0 0 340 150" role="img" aria-label="${esc(`${A} และ ${B} เกิด interaction ที่${site[0]} (${site[1]})`)}">`
-    + `<rect x="4" y="46" width="92" height="48" rx="10" class="ddi-b1"/><text x="50" y="75" class="ddi-t1">${esc(short(A))}</text>`
-    + `<rect x="244" y="46" width="92" height="48" rx="10" class="ddi-b1"/><text x="290" y="75" class="ddi-t1">${esc(short(B))}</text>`
-    + `<ellipse cx="170" cy="70" rx="58" ry="40" class="ddi-site"/><text x="170" y="66" class="ddi-t1">${esc(site[0])}</text><text x="170" y="84" class="ddi-t2">${esc(short(site[1]))}</text>`
-    + edge(96, 112, inhA, roleA) + edge(244, 228, inhB, roleB)
-    + (effect ? `<text x="170" y="134" class="ddi-t3">${esc(effect.length > 60 ? effect.slice(0, 59) + '…' : effect)}</text>` : '')
-    + '</svg>' + (effect.length > 60 ? `<p class="small">${esc(effect)}</p>` : '');
+  return `<div class="ddi-pic" role="img" aria-label="${esc(`${A} และ ${B} เกิด interaction ที่${site[0]} (${site[1]})`)}">`
+    + `<div class="pp-row"><span class="pp-drug">${esc(A)}</span>${link(inhA, 'r')}<span class="pp-site"><b>${esc(site[0])}</b><small>${esc(site[1])}</small></span>${link(inhB, 'l')}<span class="pp-drug">${esc(B)}</span></div>`
+    + (effect ? `<p class="pp-effect">${esc(effect)}</p>` : '') + '</div>';
 }
