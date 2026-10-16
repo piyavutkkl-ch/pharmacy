@@ -30,7 +30,6 @@ begin
   req := net.http_get('https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json',
                       params := jsonb_build_object('drug_name', q, 'pagesize', '30'), timeout_milliseconds := 20000);
   insert into public.dailymed_requests (id, query) values (req, q);
-  delete from public.dailymed_requests where created_at < now() - interval '7 days';   -- ล้างคำค้นเก่า (ตารางของระบบ)
   return req;
 end $$;
 
