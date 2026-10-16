@@ -217,7 +217,7 @@ function detail(p, A, B) {
     + `<h5>ควรทำอย่างไร</h5>${(mg || p.management) ? `<p class="ddi-mgmt">${esc(mg || p.management)}</p>` : '<p>-</p>'}`
     + (th ? `<details class="mono-en"><summary>ต้นฉบับภาษาอังกฤษ</summary>${enBlock}</details>` : '')
     + `<p class="small muted">${th ? (p.th_reviewed ? 'ภาษาไทย · ผู้ดูแลตรวจแล้ว · ' : 'แปลและเรียบเรียงโดย AI · โปรดตรวจกับต้นฉบับ · ') : ''}ที่มา: <a href="https://ddinter.scbdd.com/ddinter/interact/${+p.iid || ''}/" target="_blank" rel="noopener">DDInter</a> (CC BY-NC-SA 4.0) · ใช้ประกอบการตัดสินใจทางคลินิก ไม่ใช่คำสั่งการรักษา</p>`
-    + (isAdmin() ? `<a class="btn btn-o btn-sm mono-edit" href="#/admin/drugs/db" data-edit-drug="ddi:${p.id}">แก้ไขข้อมูลนี้</a>` : '') + '</div>';
+    + (isAdmin() ? `<a class="btn btn-o btn-sm mono-edit" href="#/admin/drugs/ddi" data-edit-drug="ddi:${p.id}">แก้ไขข้อมูลนี้</a>` : '') + '</div>';
 }
 /** ภาพ interaction: ยา A — [ตำแหน่งที่เกิด: ลำไส้/ตับ+เอนไซม์/ไต/เลือด/ตัวรับ] — ยา B */
 export function sharedEnzymes(a, b) {

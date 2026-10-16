@@ -730,6 +730,7 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .gc figcaption{margin-top:8px;line-height:1.6}
 .dose-label .panel{margin-top:14px}
 .dose-label-h{font-size:16px;margin:0 0 8px}
+.db-part{display:flex;flex-direction:column;gap:16px}
 .mono-abbr summary{cursor:pointer;min-height:32px;font-size:14px;font-weight:600}
 .mono-abbr p{overflow-wrap:anywhere;margin-top:4px}
 .di-renal{color:var(--warning)}

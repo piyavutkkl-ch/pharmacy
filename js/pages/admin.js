@@ -26,6 +26,7 @@ import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.', rider: 'จัดส่งยาถึงบ้าน · Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', drugs: 'ข้อมูลยา', settings: 'ตั้งค่า' };
 const SUBS = { contacts: initContactsAdmin, staff: initRoster, audit: initAudit, feedback: () => initFeedback() };
 // ย้ายจากตั้งค่า: ข้อมูลยา (คำนวณขนาดยา/ฐานข้อมูลยา) → เมนูข้อมูลยา · จัดส่งยาถึงบ้าน → เมนู Health Rider
+const DB_PARTS = ['local', 'nlem', 'fda', 'ddi'];
 const MOVED = { dose: '#/admin/drugs/dose', drugs: '#/admin/drugs/db', delivery: '#/admin/rider/delivery' };
 
 export async function showAdmin(tab, sub) {
@@ -50,11 +51,12 @@ export async function showAdmin(tab, sub) {
     if (d) { initDeliveryAdmin(); initDeliveryReportAdmin(); return; }
     return mountRiderEditor($('#adminRiderSlot'));
   }
-  if (tab === 'drugs') {   // ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา
-    const v = sub === 'db' ? 'db' : 'dose';
+  if (tab === 'drugs') {   // ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลแยกแท็บ (บัญชียา รพ.สต. · รายละเอียดยา · ฉลากยา · อันตรกิริยา) · /db เดิม = บัญชียา รพ.สต.
+    const v = sub === 'db' ? 'local' : DB_PARTS.includes(sub) ? sub : 'dose';
     subTabs('#adrTabs', v);
-    $$('[data-admin-view="drugs"] [data-admin-sub]').forEach((x) => { x.hidden = x.dataset.adminSub !== v; });
-    return v === 'db' ? initDrugsAdmin() : initDoseAdmin();
+    $$('[data-admin-view="drugs"] [data-admin-sub]').forEach((x) => { x.hidden = x.dataset.adminSub !== (v === 'dose' ? 'dose' : 'db'); });
+    $$('[data-db-part]').forEach((x) => { x.hidden = x.dataset.dbPart !== v; });
+    return v === 'dose' ? initDoseAdmin() : initDrugsAdmin();
   }
   if (tab === 'docs') return initAdminDocs();
   if (!SUBS[sub]) sub = 'contacts';

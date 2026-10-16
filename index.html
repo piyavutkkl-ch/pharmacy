@@ -681,11 +681,15 @@
       <div data-admin-view="drugs" hidden>
         <div class="unit-tabs" id="adrTabs" aria-label="เมนูข้อมูลยา">
           <a class="tab-link" href="#/admin/drugs/dose" data-sub="dose">คำนวณขนาดยา</a>
-          <a class="tab-link" href="#/admin/drugs/db" data-sub="db">ฐานข้อมูลยา</a>
+          <a class="tab-link" href="#/admin/drugs/local" data-sub="local">ฐานข้อมูลบัญชียา รพ.สต.</a>
+          <a class="tab-link" href="#/admin/drugs/nlem" data-sub="nlem">ฐานข้อมูลรายละเอียดยา (บัญชียาหลักแห่งชาติ)</a>
+          <a class="tab-link" href="#/admin/drugs/fda" data-sub="fda">ฐานข้อมูลฉลากยา (openFDA)</a>
+          <a class="tab-link" href="#/admin/drugs/ddi" data-sub="ddi">ฐานข้อมูลอันตรกิริยา (DDInter)</a>
         </div>
         <div data-admin-sub="db" hidden>
+          <div class="db-part" data-db-part="local">
           <div class="panel">
-            <h2>รายการยา รพ.สต. อ.ควนกาหลง <span class="num muted" id="ldCount"></span></h2>
+            <h2 id="ldFormTitle">เพิ่ม / แก้ไข · รายการยา รพ.สต. อ.ควนกาหลง</h2>
             <p class="small muted">แสดงที่หน้าหลัก › ข้อมูลยา / คำนวณขนาดยา › ข้อมูลยา · ผูกยาแต่ละรายการกับข้อมูลยาในบัญชียาหลักแห่งชาติ เพื่อให้ข้อมูลยา (กลุ่มยา เงื่อนไข คำเตือน ฯลฯ) ขึ้นเมื่อเลือกยานั้น</p>
             <form id="ldForm" class="form-grid" novalidate>
               <div class="field"><label for="ldName">ชื่อยา <span class="req">*</span></label><input id="ldName" class="input" maxlength="200" placeholder="เช่น PARACETAMOL 500 MG"></div>
@@ -706,14 +710,19 @@
               <label class="small" style="align-self:end"><input type="checkbox" id="ldActive" checked> แสดงที่หน้าหลัก</label>
               <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="ldSubmit">เพิ่มยา</button><button class="btn btn-o btn-sm" type="button" id="ldCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="ldMsg" aria-live="polite"></span></div>
             </form>
+          </div>
+          <div class="panel">
+            <h2>รายการยา รพ.สต. ที่บันทึกแล้ว <span class="num muted" id="ldCount"></span></h2>
             <div class="form-grid">
               <div class="field"><label for="ldQ">ค้นหา</label><input id="ldQ" class="input" type="search" placeholder="ชื่อยา รหัสยา หมวด"></div>
               <div class="field"><label for="ldFilter">แสดง</label><select id="ldFilter" class="input"><option value="all">ทั้งหมด</option><option value="unlinked">ยังไม่ผูกข้อมูลยา</option><option value="hidden">ซ่อนอยู่</option></select></div>
             </div>
             <div class="list" id="ldList"></div>
           </div>
+          </div>
+          <div class="db-part" data-db-part="fda">
           <div class="panel">
-            <h2>ฉลากยาสหรัฐฯ (openFDA) <span class="num muted" id="faCount"></span></h2>
+            <h2>ดึง / แก้ไข · ฉลากยาสหรัฐฯ (openFDA)</h2>
             <p class="small muted">ข้อมูลฉลากยาภาษาอังกฤษจาก openFDA (ฟรี · ข้อมูลสาธารณะ) แสดงในหน้าข้อมูลยาของยา รพ.สต. ที่ผูกไว้ · ดึงใหม่ได้เมื่อฉลากปรับปรุง</p>
             <div class="form-grid three">
               <div class="field"><label for="faGeneric">ชื่อสามัญที่สหรัฐฯ ใช้ <span class="req">*</span></label><input id="faGeneric" class="input" maxlength="120" placeholder="เช่น acetaminophen, albuterol sulfate"></div>
@@ -729,11 +738,16 @@
               <div class="field full"><label for="faSections">ต้นฉบับภาษาอังกฤษ (## หัวข้อ แล้วตามด้วยเนื้อหา)</label><textarea id="faSections" rows="8" maxlength="60000"></textarea></div>
               <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="faSave">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="faCancel">ยกเลิก</button></div>
             </form>
+          </div>
+          <div class="panel">
+            <h2>ฉลากยาที่บันทึกแล้ว <span class="num muted" id="faCount"></span></h2>
             <div class="field"><label for="faQ">ค้นหาฉลาก</label><input id="faQ" class="input" type="search" placeholder="ชื่อยา"></div>
             <div class="list" id="faList"></div>
           </div>
+          </div>
+          <div class="db-part" data-db-part="ddi">
           <div class="panel">
-            <h2>Drug interaction (DDInter) <span class="num muted" id="ddCount"></span></h2>
+            <h2>แปล / แก้ไข · Drug interaction (DDInter)</h2>
             <p class="small muted">คู่ interaction ระหว่างยา รพ.สต. จาก DDInter (CC BY-NC-SA 4.0) · แสดงที่ ข้อมูลยา › Drug interaction · แปลไทยด้วย AI (Gemini ฟรี) แล้วแก้/ตรวจได้ · <b>ระบบแปลให้เองต่อเนื่องทีละคู่</b> (รุนแรงก่อน · ต่อจากฉลากยา)</p>
             <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-o btn-sm" id="ddThAll">ให้ AI แปลเป็นภาษาไทย (คู่ที่ยังไม่แปล · รุนแรงก่อน)</button><button type="button" class="btn btn-o btn-sm" id="ddThStop" hidden>หยุด</button><span class="small" id="ddMsg" aria-live="polite"></span></div>
             <form id="ddForm" class="form-grid dm-form" novalidate hidden>
@@ -745,6 +759,9 @@
               <div class="field full"><label for="ddMgmt">Management (ต้นฉบับ)</label><textarea id="ddMgmt" rows="3" maxlength="6000"></textarea></div>
               <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="ddSave">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="ddCancel">ยกเลิก</button></div>
             </form>
+          </div>
+          <div class="panel">
+            <h2>คู่ยาที่บันทึกแล้ว <span class="num muted" id="ddCount"></span></h2>
             <div class="form-grid">
               <div class="field"><label for="ddQ">ค้นหาคู่ยา</label><input id="ddQ" class="input" type="search" placeholder="ชื่อยา"></div>
               <div class="field"><label for="ddLevel">ระดับ</label><select id="ddLevel" class="input"><option value="all">ทุกระดับ</option><option>Major</option><option>Moderate</option><option>Minor</option><option>Unknown</option></select></div>
@@ -752,8 +769,10 @@
             <div class="list" id="ddList"></div>
             <button type="button" class="btn btn-o btn-sm di-more" id="ddMore" hidden>แสดงเพิ่ม</button>
           </div>
+          </div>
+          <div class="db-part" data-db-part="nlem">
           <div class="panel">
-            <h2>บัญชียาหลักแห่งชาติ (ฐานข้อมูลส่วนกลาง) <span class="num muted" id="dmCount"></span></h2>
+            <h2>เพิ่ม / แก้ไข · บัญชียาหลักแห่งชาติ (ฐานข้อมูลส่วนกลาง)</h2>
             <p class="small muted">ข้อมูลตั้งต้นจากบัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙ (ราชกิจจานุเบกษา) · แก้ เพิ่ม หรือลบได้ · การแก้ไขมีผลกับยา รพ.สต. ที่ผูกไว้ทันที</p>
             <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dmNew">+ เพิ่มข้อมูลยาใหม่</button></div>
             <form id="dmForm" class="form-grid dm-form" novalidate hidden>
@@ -768,9 +787,13 @@
               <div class="field full"><label for="dmSections">เงื่อนไข / คำเตือน / คำแนะนำ / หมายเหตุ</label><textarea id="dmSections" rows="10" maxlength="30000" placeholder="## เงื่อนไข&#10;ใช้สำหรับ ...&#10;## คำเตือนและข้อควรระวัง&#10;1. ...&#10;2. ..."></textarea><span class="small muted">ขึ้นต้นบรรทัดด้วย ## ตามด้วยชื่อหัวข้อ · บรรทัดถัดไปคือเนื้อหา (บรรทัดละ 1 ข้อ)</span></div>
               <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dmSubmit">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="dmCancel">ยกเลิก</button><span class="small" id="dmMsg" aria-live="polite"></span></div>
             </form>
+          </div>
+          <div class="panel">
+            <h2>ข้อมูลยาที่บันทึกแล้ว <span class="num muted" id="dmCount"></span></h2>
             <div class="field"><label for="dmQ">ค้นหาข้อมูลยา</label><input id="dmQ" class="input" type="search" placeholder="ชื่อยา หรือกลุ่มยา"></div>
             <div class="list" id="dmList"></div>
             <button type="button" class="btn btn-o btn-sm di-more" id="dmMore" hidden>แสดงเพิ่ม</button>
+          </div>
           </div>
         </div>
         <div data-admin-sub="dose" hidden>
