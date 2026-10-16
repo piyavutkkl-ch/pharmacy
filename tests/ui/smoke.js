@@ -1022,7 +1022,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#dfBulkAi'); await p.waitForTimeout(9000);
     { const ins = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'insert')).slice(ins0).map((c) => c.payload);
       const d = ins[0] || {};
-      check('AI เก็บเป็นร่างทั้งหมด: บันทึกยาที่ดึงข้อมูลได้เป็นร่างซ่อนไว้ (ขนาดยา + ความแรงยากิน + ที่มา)', ins.length === 1 && d.name === 'ลอราทาดีน (Loratadine)' && d.active === false && d.ai_draft === true && d.indications?.length === 2 && d.concs?.length === 3 && !JSON.stringify(d.indications).includes('quote') && /openFDA/.test(d.ai_source), JSON.stringify(ins));
+      check('AI เก็บเป็นร่างทั้งหมด: บันทึกยาที่ดึงข้อมูลได้เป็นร่างซ่อนไว้ (ขนาดยา + ความแรงยากิน + ที่มา)', ins.length === 1 && d.name === 'ลอราทาดีน (Loratadine)' && d.active === false && d.ai_draft === true && d.indications?.length === 2 && d.concs?.length === 3 && d.indications.every((i) => i.quote && /^https:\/\/dailymed\.nlm\.nih\.gov\//.test(i.ref?.url || '')) && /openFDA/.test(d.ai_source), JSON.stringify(ins));
       check('AI เก็บเป็นร่าง: ยาที่ดึงไม่ได้/ไม่มีชื่ออังกฤษ → แจ้งให้กรอกเอง', (await text(p, '#dfBulkList')).includes('เก็บเป็นร่างแล้ว') && (await text(p, '#dfBulkList')).includes('ไม่มีชื่อภาษาอังกฤษ') && (await text(p, '#dfBulkMsg')).includes('เก็บเป็นร่างแล้ว 1 ยา'), await text(p, '#dfBulkMsg')); }
     await p.selectOption('#dfFForm', 'all'); await p.fill('#dfQ', ''); await p.waitForTimeout(150);
     check('รายการยา: ร่างจาก AI มีป้าย "AI ร่าง · รอตรวจ" + ปุ่มตรวจแล้ว · แสดง', (await text(p, '#dfList')).includes('AI ร่าง · รอตรวจ') && (await text(p, '#dfList')).includes('ตรวจแล้ว · แสดง'));
@@ -1034,19 +1034,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.evaluate(() => {
       const db = window.__db.dose_drugs;
       db.push({ ...db[0], id: 9901, name: 'Amoxicillin', form: 'ยาน้ำ', active: false, ai_draft: true, ai_source: 'AI ร่างจากฉลากยา openFDA Amoxil · ยังไม่ผ่านการตรวจ',
-        indications: [{ name: 'ติดเชื้อหู', per: 'day', min: 25, max: 45, times: 2, quote: '25 mg/kg/day in divided doses' }], concs: [{ label: 'ยาน้ำ 250 มก./5 มล.', mgPer5ml: 250 }] });
+        indications: [{ name: 'ติดเชื้อหู', per: 'day', min: 25, max: 45, times: 2, quote: '25 mg/kg/day in divided doses', ref: { label: 'ฉลากยาสหรัฐฯ (US FDA) Amoxil ฉบับ 1/1/2025', url: 'https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=abc' } }], concs: [{ label: 'ยาน้ำ 250 มก./5 มล.', mgPer5ml: 250 }] });
       const l = window.__db.local_drugs.find((x) => !x.dose_id && /เม็ด/.test(x.category));
       Object.assign(l, { dose_ai_status: 'none', dose_ai_note: 'ฉลากยาไม่มีขนาดยาแบบ มก./กก.' });
     });
     await go(p, '#/admin/drugs/db'); await dbAll(p); await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(600);
     { const card = '#dfReview form[data-rv="9901"]';
+      check('ร่างจาก AI: ข้อบ่งใช้ที่ AI กรอกมีข้อความจากฉลาก + อ้างอิงพร้อมลิงก์ (ตัวอักษรเล็ก)', (await text(p, `${card} .ai-src`)).includes('25 mg/kg/day') && (await p.getAttribute(`${card} .ai-src a`, 'href'))?.startsWith('https://dailymed.nlm.nih.gov/') && await p.$eval(`${card} .ai-src p`, (e) => parseFloat(getComputedStyle(e).fontSize) <= 13));
       check('ร่างจาก AI รอตรวจ: แสดงเป็นกล่องที่กรอกไว้แล้ว (ชื่อ/ขนาดยา/ความแรง/ข้อความจากฉลาก)', await visible(p, card) && (await p.inputValue(`${card} .r-name`)) === 'Amoxicillin' && (await p.inputValue(`${card} .i-min`)) === '25' && (await p.inputValue(`${card} .c-label`)) === 'ยาน้ำ 250 มก./5 มล.' && (await text(p, card)).includes('25 mg/kg/day') && (await text(p, '#dfRvCount')).includes('1'), await text(p, '#dfReview'));
       check('ร่างจาก AI: บอกความคืบหน้า + ยาที่ฉลากไม่มีขนาดยาตามน้ำหนัก', (await text(p, '#dfRvStatus')).includes('ระบบกำลังร่างให้') && (await text(p, '#dfRvStatus')).includes('ฉลากยาไม่มีขนาดยาตามน้ำหนักตัว 1 ยา'), await text(p, '#dfRvStatus'));
       check('ส่วนที่ย่อ/ขยายได้มีลูกศรสามเหลี่ยม (▸ ย่อ / หมุนเมื่อเปิด)', await p.$eval('.df-rv > summary', (el) => getComputedStyle(el, '::before').content.includes('▸') && getComputedStyle(el, '::before').transform !== 'none'));
       await p.fill(`${card} .i-min`, '30');
       await p.click(`${card} [type=submit]`); await p.waitForTimeout(500);
       const up = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload || {};
-      check('ร่างจาก AI: แก้ในกล่อง → ตรวจแล้ว · ใช้คำนวณ (บันทึกค่าที่แก้ + แสดงในเครื่องคำนวณ)', up.active === true && up.ai_draft === false && up.indications?.[0]?.min === 30 && up.mg_per_kg_min === 30 && !JSON.stringify(up.indications).includes('quote') && !(await p.$(card)), JSON.stringify(up)); }
+      check('ร่างจาก AI: แก้ในกล่อง → ตรวจแล้ว · ใช้คำนวณ (บันทึกค่าที่แก้ + แสดงในเครื่องคำนวณ)', up.active === true && up.ai_draft === false && up.indications?.[0]?.min === 30 && up.mg_per_kg_min === 30 && up.indications?.[0]?.quote === '25 mg/kg/day in divided doses' && !(await p.$(card)), JSON.stringify(up)); }
     await p.evaluate(() => localStorage.removeItem('pcps_dose_queue'));
     // ยาที่เพิ่มเองต้องผูกกับยา รพ.สต. ก่อนจึงขึ้นในเครื่องคำนวณ (เลือก "ข้อมูลคำนวณขนาดยา" ในฟอร์มยา รพ.สต.)
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(600);

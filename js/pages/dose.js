@@ -204,6 +204,7 @@ function render() {
     else if (cc?.mgPerTab) vol = fig(`${rng(minMg / cc.mgPerTab, maxMg / cc.mgPerTab, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`);
     return fig(`${rng(lo, hi, hi < 10 ? 1 : 0)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${rng(minMg, maxMg, 3)} มก.)` : ''}`) + vol + combo
       + `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
+      + (i.ref?.label ? `<p class="small muted">ที่มา: ${/^https:\/\//.test(i.ref.url || '') ? `<a href="${esc(i.ref.url)}" target="_blank" rel="noopener">${esc(i.ref.label)}</a>` : esc(i.ref.label)}${i.quote ? ` · <span lang="en">“${esc(i.quote)}”</span>` : ''}</p>` : '')
       + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '');
   };
   const inds = indsOf(d);

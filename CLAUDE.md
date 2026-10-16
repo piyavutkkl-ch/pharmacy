@@ -53,6 +53,7 @@ js/pages/dose.js      ข้อมูลยา / คำนวณขนาดย�
                       คำนวณ: อายุ(ปี/เดือน) → น้ำหนัก (บังคับ) → ส่วนสูง → เพศ · ไม่ได้ชั่งน้ำหนัก = ประมาณจากเกณฑ์ WHO 2006 (กรมอนามัย · 0–5 ปี · js/growth.js จาก tools/growth/build.py)
                         หน่วยขนาดยา: indications[].unit = 'mcg' (ไม่มี = มก.) → คำนวณเป็น mcg แล้ว ÷1000 ก่อนเทียบความแรง · ช่องเดิม mg_per_kg_* เก็บเป็น มก. เสมอ (65_dose_mcg.sql · AI ร่างบอก unit)
                         ยาสูตรผสม (66_combo_drugs.sql): local_drugs.ingredients [{name, mg, per}] (co-trimoxazole 400/80 · 200/40 ต่อ 5 มล.) + indications[].basis = สารที่ใช้คิดขนาดยา → คิดเม็ด/มล. จากสารนั้น + บอกปริมาณสารทุกตัว · ไม่มี basis = เตือน ไม่คิดจำนวนเม็ด
+                        ข้อบ่งใช้ที่ AI กรอก: quote (ข้อความจากฉลาก) + ref {label, url DailyMed} (67_dose_ref.sql · refOfLabel) แสดงในกล่องข้อบ่งใช้ (.ai-src) และ "ที่มา" ในหน้าคำนวณ
                         ใต้ผลคำนวณ #doseLabel = "ขนาดยาและวิธีใช้" จากฉลาก openFDA ของยา รพ.สต. ที่ผูกกับยาที่เลือก (labelDose)
                         กราฟการเจริญเติบโต #doseGrowth (js/pages/growth-chart.js): ภาพกราฟกรมอนามัย 2564 assets/growth/*.jpg + จุดแดงตามอายุ/น้ำหนัก/ส่วนสูง · ตำแหน่งแกน js/growth-charts.js ← tools/growth/charts.py <โฟลเดอร์ PDF> (0–5 ปี กรอบจากเส้นในไฟล์ · 6–19 ปี จากตัวเลขบนแกน)
                         กราฟการเจริญเติบโต #doseGrowth (js/pages/growth-chart.js): ภาพกราฟกรมอนามัย 2564 assets/growth/*.jpg + จุดแดงตามอายุ/น้ำหนัก/ส่วนสูง · ตำแหน่งแกน js/growth-charts.js ← tools/growth/charts.py <โฟลเดอร์ PDF> (0–5 ปี กรอบจากเส้นในไฟล์ · 6–19 ปี จากตัวเลขบนแกน)

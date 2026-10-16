@@ -1047,5 +1047,9 @@ run(f"""insert into net._http_response(id,status_code,content) select request_id
 check("AI result keeps basis", "admin", f"select ai_dose_poll({d4})->'result'->'ai'->0->>'basis'", eq("Trimethoprim"))
 check("old dose data: basis read from label quote (8 mg/kg trimethoprim)", None, "insert into dose_drugs(name,indication,per,mg_per_kg_min,mg_per_kg_max,concs,active,ai_draft,indications) values ('ทดสอบ basis','x','day',40,40,'[]',false,true,'[{\"name\":\"x\",\"per\":\"day\",\"min\":40,\"max\":40,\"quote\":\"8 mg/kg trimethoprim and 40 mg/kg sulfamethoxazole per 24 hours\"}]') returning id; " + open("supabase/66_combo_drugs.sql").read().split("-- ③")[1].split("select 'ok'")[0].split("\n",1)[1] + "; select indications->0->>'basis' from dose_drugs where name='ทดสอบ basis'", lambda o: o.strip().endswith('Sulfamethoxazole'))
 
+print("== step 67: AI dose source reference ==")
+check("dose_ref → DailyMed link (set_id) or search", None, "select dose_ref('{\"brand\":\"Amoxil\",\"effective\":\"20250101\",\"set_id\":\"abc-1\"}')->>'url' || ' ' || (dose_ref('{\"generic\":\"AMOXICILLIN\"}')->>'url')", eq("https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=abc-1 https://dailymed.nlm.nih.gov/dailymed/search.cfm?labeltype=all&query=amoxicillin"))
+check("auto draft indications carry quote + ref", None, "select bool_and(e ? 'ref' and e ? 'quote') from dose_drugs d, jsonb_array_elements(d.indications) e where d.name = 'Levothyroxine sodium (L-thyroxine sodium)'", eq("t"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

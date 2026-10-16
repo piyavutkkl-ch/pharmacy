@@ -34,7 +34,24 @@ function indBox(i = { per: 'dose' }, open = true) {
     + `<div class="field"><label>เพดานต่อครั้ง (หน่วยเดียวกัน)<input class="input i-cap" type="number" inputmode="decimal" min="0" step="0.1" value="${v('cap')}"></label></div>`
     + `<div class="field"><label>ความถี่ (ข้อความ)<input class="input i-freq" maxlength="120" placeholder="เช่น ทุก 4–6 ชั่วโมง" value="${v('freq')}"></label></div>`
     + `<div class="field full"><label>ขนาดยาในโรคไต<textarea class="i-renal" rows="2" maxlength="1000">${v('renal')}</textarea></label></div>`
-    + (i.quote ? `<p class="small muted dh-quote full">ข้อความจากฉลาก: “${esc(i.quote)}”</p>` : '') + '</div></details>';
+    + srcBlock(i) + '</div></details>';
+}
+/** ที่มาของข้อบ่งใช้ที่ AI กรอกให้: ข้อความจากฉลาก (quote) + อ้างอิงพร้อมลิงก์ (ref) · เก็บไว้กับข้อบ่งใช้แม้ผู้ดูแลแก้ตัวเลข */
+export function refOfLabel(lab) {
+  if (!lab) return null;
+  const e = /^\d{8}$/.test(lab.effective || '') ? ` ฉบับ ${+lab.effective.slice(6, 8)}/${+lab.effective.slice(4, 6)}/${lab.effective.slice(0, 4)}` : '';
+  const name = lab.brand || lab.generic || '';
+  return { label: `ฉลากยาสหรัฐฯ (US FDA) ${name}${e}`.trim().slice(0, 200),
+    url: lab.set_id ? `https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=${encodeURIComponent(lab.set_id)}` : `https://dailymed.nlm.nih.gov/dailymed/search.cfm?labeltype=all&query=${encodeURIComponent(lab.generic || name)}` };
+}
+const safeUrl = (u) => (/^https:\/\//.test(String(u || '')) ? String(u) : '');
+function srcBlock(i) {
+  if (!i.quote && !i.ref) return '';
+  const ref = i.ref || {};
+  return `<div class="full ai-src"><span class="chip c-fix">AI กรอกให้ · ตรวจกับต้นฉบับก่อนบันทึก</span>`
+    + (i.quote ? `<p class="small dh-quote">ข้อความจากฉลาก: “${esc(i.quote)}”</p>` : '')
+    + (ref.label ? `<p class="small">อ้างอิง: ${safeUrl(ref.url) ? `<a href="${esc(safeUrl(ref.url))}" target="_blank" rel="noopener">${esc(ref.label)}</a>` : esc(ref.label)}</p>` : '')
+    + `<input type="hidden" class="i-quote" value="${esc(i.quote || '')}"><input type="hidden" class="i-ref" value="${esc(i.ref ? JSON.stringify(i.ref) : '')}"></div>`;
 }
 function syncIndBoxes(root = $('#dfInds')) {
   root.querySelectorAll('.ind-box').forEach((b, k) => {
@@ -54,6 +71,9 @@ function readInds(root = $('#dfInds')) {
     if (i.max < i.min) bad('ขนาดสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด');
     if (i.per === 'day' && !(i.times >= 1)) bad('ยาแบบ "ต่อวัน" ต้องระบุจำนวนครั้งที่แบ่งให้ต่อวัน');
     if (i.per !== 'day') i.times = null;
+    const q = b.querySelector('.i-quote')?.value.trim(), r = b.querySelector('.i-ref')?.value;   // ที่มาจาก AI (เก็บไว้ให้ตรวจย้อนหลัง)
+    if (q) i.quote = q.slice(0, 400);
+    if (r) { try { const o = JSON.parse(r); if (o?.label) i.ref = { label: String(o.label).slice(0, 200), url: safeUrl(o.url).slice(0, 300) }; } catch { /* ไม่เป็นไร */ } }
     Object.keys(i).forEach((key) => { if (i[key] == null) delete i[key]; });
     out.push(i);
   });
@@ -157,7 +177,8 @@ export function draftRow(name, r, sort) {
   const res = r.result || {}, ai = (res.ai || []).filter((i) => i.name && i.min != null && i.max != null && +i.max >= +i.min);
   if (!ai.length) return null;
   const seen = new Set(), concs = (res.rx || []).map(rxConc).filter((c) => c && !seen.has(c.label) && seen.add(c.label));
-  const inds = ai.slice(0, 20).map(({ quote, ...i }) => Object.fromEntries(Object.entries({ ...i, times: i.per === 'day' ? i.times : null }).filter(([, v]) => v != null && v !== '')));
+  const ref = refOfLabel(res.label);
+  const inds = ai.slice(0, 20).map((i) => Object.fromEntries(Object.entries({ ...i, times: i.per === 'day' ? i.times : null, ref }).filter(([, v]) => v != null && v !== '')));
   const f = inds[0], lab = res.label || {};
   return {
     name: String(name).slice(0, 120), form: !concs.length ? 'อื่น ๆ' : concs.every((c) => c.mgPerTab != null) ? 'ยาเม็ด' : concs.every((c) => c.mgPerTab == null) ? 'ยาน้ำ' : 'อื่น ๆ',
@@ -316,7 +337,8 @@ function onHelpOut(e) {
     if (add.every((c) => c.mgPerTab != null)) $('#dfForm2').value = 'ยาเม็ด'; else if (add.every((c) => c.mgPerTab == null)) $('#dfForm2').value = 'ยาน้ำ';
     say($('#dfMsg'), `ใส่ความแรง ${add.length} รายการแล้ว · ตรวจก่อนกดบันทึก`, true);
   } else {
-    const add = picked('#dfHelpInds').map((k) => help.result.ai[k]);
+    const ref = refOfLabel(help.result.label);
+    const add = picked('#dfHelpInds').map((k) => ({ ...help.result.ai[k], ref }));
     if (!add.length) { say($('#dfMsg'), 'กรุณาติ๊กข้อบ่งใช้ที่ต้องการก่อน'); return; }
     const boxes = document.querySelectorAll('#dfInds .ind-box');
     if (boxes.length === 1 && !boxes[0].querySelector('.i-name').value.trim() && !boxes[0].querySelector('.i-min').value) boxes[0].remove();   // กล่องว่างเริ่มต้น
