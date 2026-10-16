@@ -25,6 +25,9 @@ insert into public.documents(title, category, for_unit, note, file_path, file_na
   ('แบบบันทึกอุณหภูมิตู้เย็นเก็บยา', 'แบบฟอร์ม', null, null, 'all/1-a.pdf', 'แบบบันทึกอุณหภูมิ.pdf', 120000, 'application/pdf', 1),
   ('คู่มือจัดการยา รพ.สต. ทุ่งนุ้ย', 'คู่มือ / แนวทาง', 2, 'ฉบับปรับปรุง', '2/1-b.pdf', 'manual.pdf', 2400000, 'application/pdf', 2),
   ('ประกาศเฉพาะ รพ.สต. กระทูน', 'หนังสือสั่งการ / ประกาศ', 1, null, '1/1-c.pdf', 'notice.pdf', 5000, 'application/pdf', 1);
+insert into public.documents(title, category, note, file_path, file_name, file_size, content_type, is_public, item_ids) values
+  ('แผ่นพับการใช้ยาอย่างปลอดภัย', 'คู่มือ / แนวทาง', 'สำหรับประชาชน', 'all/1-d.pdf', 'leaflet.pdf', 300000, 'application/pdf', true,
+   array(select id from public.criteria_items where fiscal_year = public.fiscal_year_of(current_date) order by sort limit 1));
 commit;
 
 -- เจ้าหน้าที่ รพ.สต. 2

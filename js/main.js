@@ -1,7 +1,7 @@
 // จุดเริ่มต้นของแอป: เส้นทางหน้า (hash router), แถบเมนูด้านบน, ฟอร์มท้ายเว็บ
 //
 // เส้นทาง (URL หลัง #):
-//   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/delivery (+ Health Rider · #/rider เลื่อนไปที่ผลงาน Health Rider) | #/achievements | #/contact  (หน้าแรก + เปิดหัวข้อนั้น)
+//   #/                 หน้าแรก            #/news | #/dose | #/tracking | #/delivery (+ Health Rider · #/rider เลื่อนไปที่ผลงาน Health Rider) | #/achievements | #/contact | #/documents ดาวน์โหลดเอกสาร (ปุ่มท้ายเว็บ · RLS กรองตามสิทธิ์)  (หน้าแรก + เปิดหัวข้อนั้น)
 //   #/news/<id>        อ่านข่าว           #/login            เข้าสู่ระบบ
 //   #/news/all         ข่าวทั้งหมด (เรียงแนวตั้ง + ค้นหา/หมวด/จัดเรียง)
 //   #/summary/<id>     สรุปผลงานเยี่ยมบ้าน (ภาพ A4)
@@ -15,6 +15,7 @@ import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePos
 import { loadNews, loadAchSlides, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState, showAllNews } from './pages/news.js?v=4.4';
 import { initDose } from './pages/dose.js?v=4.4';
 import { initTracking, initAchievements, initContacts, showAchievement } from './pages/stats.js?v=4.4';
+import { initDocs } from './pages/docs.js?v=4.4';
 import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
 import { bindTheme } from './theme.js?v=4.4';
@@ -23,16 +24,17 @@ import { initRider } from './pages/rider.js?v=4.4';
 import { initDeliveryReports } from './pages/delivery-report.js?v=4.4';
 import { showSummary } from './pages/summaries.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
-import { openProfile } from './profile.js?v=4.4';
+import { myAvatarUrl, paintAvatars } from './profile.js?v=4.4';
 import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4.4';
 import { unmountUnitChat } from './pages/unitchat.js?v=4.4';
 import { showStaff } from './pages/staff.js?v=4.4';
 
-const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'achievements', 'contact'];   // Health Rider อยู่ในช่อง delivery (#/rider เปิดช่องเดียวกัน)
+const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'achievements', 'contact', 'documents'];   // Health Rider อยู่ในช่อง delivery (#/rider เปิดช่องเดียวกัน)
 
 function showView(name) {
   $$('[data-view]').forEach((v) => { v.hidden = v.dataset.view !== name; });
-  $('.footer-cards').hidden = name !== 'home';   // ลิงก์ผลงาน/ช่องทางติดต่อ แสดงเฉพาะหน้าหลัก
+  $('.footer-cards').hidden = name !== 'home' && !['staff', 'admin'].includes(name);   // ปุ่มท้ายเว็บ: หน้าหลัก = ทั้งหมด · หน้าเจ้าหน้าที่/ผู้ดูแล = ดาวน์โหลดเอกสาร
+  $('[data-fc="contact"]').hidden = name !== 'home';
   document.body.classList.toggle('has-bottomnav', ['staff', 'admin'].includes(name));   // มือถือ: เมนูล่างจอ
   if (name === 'home') startAuto(); else stopAuto();
 }
@@ -53,7 +55,7 @@ function openPanel(id, scrollTo = null) {
   $$('[data-panel-link]').forEach((a) => a.setAttribute('aria-expanded', a.dataset.panelLink === id ? 'true' : 'false'));
   if (!id) return;
   ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: () => { initDelivery(); initRider(); initDeliveryReports(); },
-    achievements: initAchievements, contact: initContacts })[id]?.();
+    achievements: initAchievements, contact: initContacts, documents: initDocs })[id]?.();
   const el = scrollTo || document.querySelector(`[data-panel="${id}"]`);
   requestAnimationFrame(() => el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
 }
@@ -102,6 +104,7 @@ async function route() {
     }
     return;
   }
+  if (a === 'staff' && b === 'docs') { location.replace('#/documents'); return; }   // เมนูเดิม → หน้าดาวน์โหลดเอกสาร (ปุ่มท้ายเว็บ)
   if (a === 'staff') { if (requireRole(['staff'])) { showView('staff'); showStaff(b, parts[2]); } return; }
   if (a === 'admin') { if (requireRole(['admin'])) { showView('admin'); showAdmin(b, parts[2]); } return; }
   message('ไม่พบหน้านี้', 'ลิงก์อาจไม่ถูกต้อง');
@@ -116,12 +119,12 @@ function renderNav() {
     const p = auth.profile;
     const appLink = { admin: 'ระบบผู้ดูแล', staff: 'ระบบเจ้าหน้าที่', citizen: 'ของฉัน' }[p.role];
     nav.innerHTML = `<a href="#/" data-route="home">หน้าหลัก</a><a href="${ROLE_HOME[p.role]}" data-route="${ROLE_HOME[p.role].slice(2)}">${appLink}${p.role === 'citizen' ? ' <span id="navMsgBadge" class="badge num"></span>' : ''}</a>`
-      + `<button type="button" class="who-chip" id="profileBtn" title="แก้ไขข้อมูลส่วนตัว · ${esc(p.email)}" aria-label="ข้อมูลส่วนตัว: ${esc(p.full_name || p.email)}">${USER_SVG}<span>${esc(p.full_name || p.email)}</span></button><a href="#" id="logoutLink">ออกจากระบบ</a>`;
-    $('#logoutLink').addEventListener('click', (e) => { e.preventDefault(); signOut(); });
-    $('#profileBtn').addEventListener('click', openProfile);
+      + `<a class="who-chip" id="profileBtn" href="${ROLE_HOME[p.role]}" title="${appLink} · ${esc(p.email)}" aria-label="${appLink}: ${esc(p.full_name || p.email)}">${myAvatarUrl(p) ? `<img class="who-av" src="${esc(myAvatarUrl(p))}" alt="" referrerpolicy="no-referrer">` : USER_SVG}<span>${esc(p.full_name || p.email)}</span></a><a href="#" id="logoutLink">ออกจากระบบ</a>`;
+    $('#logoutLink').addEventListener('click', (e) => { e.preventDefault(); signOut(); });   // ชื่อบนเมนู = ไปหน้าเมนูตามสิทธิ์ · แก้ข้อมูลส่วนตัว = กดรูป/ชื่อที่หัวหน้า
   } else {
     nav.innerHTML = '<a href="#/" data-route="home">หน้าหลัก</a><a href="#/login" class="cta" data-route="login">เข้าสู่ระบบ</a>';
   }
+  paintAvatars();
   // ปุ่ม "แชทสอบถามเรื่องยา" หน้าแรก: ผู้ดูแล/เจ้าหน้าที่ = ไปหน้า "ข้อความ" ในระบบงาน · ประชาชน/ไม่ล็อกอิน = แชทถาม รพ.สต.
   const role = auth.session && auth.profile?.role;
   $('#homeChatLink').setAttribute('href', role === 'admin' ? '#/admin/messages' : role === 'staff' ? '#/staff/messages' : '#/me');

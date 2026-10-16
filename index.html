@@ -39,6 +39,7 @@
 <dialog class="pd-dialog" id="pdDialog" aria-labelledby="pdTitle">
   <form id="pdForm" class="form-grid" novalidate>
     <div class="full pd-head"><div><h2 id="pdTitle">ข้อมูลส่วนตัว</h2><span class="small muted" id="pdRole"></span></div><button type="button" class="pd-x" id="pdClose" aria-label="ปิด">×</button></div>
+    <div class="full pd-photo"><span class="avatar pd-av" data-my-avatar aria-hidden="true"></span><div class="row-btns"><label class="btn btn-o btn-sm" for="pdPhoto">เปลี่ยนรูป</label><input type="file" id="pdPhoto" class="sr-only" accept="image/jpeg,image/png,image/webp"><button type="button" class="btn btn-o btn-sm" id="pdPhotoDel">ลบรูป</button></div><span class="small muted" id="pdPhotoMsg" aria-live="polite">รูปประจำตัว (ไม่บังคับ) · ไม่มีรูปจะใช้รูปจากบัญชี Google</span></div>
     <div class="field full"><label for="pdName">ชื่อ-นามสกุล <span class="req">*</span></label><input id="pdName" class="input" autocomplete="name" maxlength="120"></div>
     <div class="field"><label for="pdPhone">เบอร์โทรศัพท์ <span class="req" id="pdPhoneReq">*</span></label><input id="pdPhone" class="input" type="tel" inputmode="tel" autocomplete="tel" placeholder="08x-xxx-xxxx" maxlength="15"></div>
     <div class="field" id="pdUnitField"><label for="pdUnit">รพ.สต. ใกล้บ้าน</label><select id="pdUnit" class="input"></select></div>
@@ -200,6 +201,14 @@
         <button type="button" class="poster-nav" data-poster-nav="next" aria-label="เลื่อนไปทางขวา">›</button>
       </div>
     </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>อันดับผลการประเมินเกณฑ์มาตรฐานงานเภสัชกรรมปฐมภูมิ</h2>
+        <div class="unit-tabs" id="lbYearTabs" aria-label="เลือกปีงบประมาณ"></div>
+      </div>
+      <div id="lbPodium"></div>
+      <div class="list" id="lbList"></div>
+    </div>
   </div>
 
   <div class="sec reveal" data-panel="delivery" hidden>
@@ -232,19 +241,21 @@
   <div class="sec reveal" data-panel="achievements" hidden>
     <div class="sec-head"><h2>ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.</h2></div>
     <div class="news" id="achGrid"></div>
-    <div class="panel">
-      <div class="panel-head">
-        <h2>อันดับผลการประเมินเกณฑ์มาตรฐานงานเภสัชกรรมปฐมภูมิ</h2>
-        <div class="unit-tabs" id="lbYearTabs" aria-label="เลือกปีงบประมาณ"></div>
-      </div>
-      <div id="lbPodium"></div>
-      <div class="list" id="lbList"></div>
-    </div>
   </div>
 
   <div class="sec reveal" data-panel="contact" hidden>
     <div class="sec-head"><h2>ช่องทางติดต่อ รพ.สต.</h2></div>
     <div class="centers" id="contactGrid"></div>
+  </div>
+
+  <div class="sec reveal" data-panel="documents" hidden>
+    <div class="sec-head"><h2>ดาวน์โหลดเอกสาร</h2></div>
+    <p class="small muted" id="sdWho"></p>
+    <div class="panel">
+      <div class="doc-tools"><div class="field doc-q"><label for="sdQ">ค้นหาชื่อเอกสาร</label><input id="sdQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อเอกสาร"></div><div class="field"><label for="sdSort">เรียงตาม</label><select id="sdSort" class="input"><option value="updated_desc">อัปเดตล่าสุดก่อน</option><option value="updated_asc">อัปเดตเก่าสุดก่อน</option><option value="title_asc">ชื่อ ก → ฮ</option><option value="title_desc">ชื่อ ฮ → ก</option><option value="dl_desc">ดาวน์โหลดมาก → น้อย</option><option value="dl_asc">ดาวน์โหลดน้อย → มาก</option></select></div></div>
+      <div class="unit-tabs" id="sdCats" aria-label="หมวดเอกสาร"></div>
+      <div class="list" id="sdList"></div>
+    </div>
   </div>
 </section>
 
@@ -346,7 +357,7 @@
 
 <!-- ============ ประชาชน (ขั้น 4.4) ============ -->
 <section data-view="me" class="app" hidden>
-  <div class="app-head"><div><span class="small muted" id="meRoleLbl">ประชาชนทั่วไป</span><h1 id="meHello">สวัสดี</h1></div></div>
+  <div class="app-head"><div class="me-head"><button type="button" class="avatar me-av" id="meAvatar" data-my-avatar data-edit-profile aria-label="รูปประจำตัว · แก้ไขข้อมูลส่วนตัว"></button><div><span class="small muted" id="meRoleLbl">ประชาชนทั่วไป</span><h1><button type="button" class="me-name" id="meHello" data-edit-profile title="แก้ไขข้อมูลส่วนตัว">สวัสดี</button></h1></div></div></div>
   <div class="citizen-split">
     <div class="panel">
       <h2>ข้อมูลส่วนตัว</h2>
@@ -394,7 +405,7 @@
 
 <!-- ============ เจ้าหน้าที่ รพ.สต. ============ -->
 <section data-view="staff" class="app" hidden>
-  <div class="app-head"><div><span class="small muted" id="staffUnit">รพ.สต.</span><h1 id="staffHello">สวัสดี</h1></div></div>
+  <div class="app-head"><div class="me-head"><button type="button" class="avatar me-av" id="staffAvatar" data-my-avatar data-edit-profile aria-label="รูปประจำตัว · แก้ไขข้อมูลส่วนตัว"></button><div><span class="small muted" id="staffUnit">รพ.สต.</span><h1><button type="button" class="me-name" id="staffHello" data-edit-profile title="แก้ไขข้อมูลส่วนตัว">สวัสดี</button></h1></div></div></div>
   <div class="app-body">
     <nav class="sidenav" aria-label="เมนูเจ้าหน้าที่">
       <a href="#/staff/news" data-staff-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="stfNewsBadge" class="badge num"></span></a>
@@ -403,7 +414,6 @@
       <a href="#/staff/achievements" data-staff-tab="achievements" title="ผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">ผลงาน</span></a>
       <div class="more-group" id="staffMore">
         <a href="#/staff/criteria" data-staff-tab="criteria" title="มาตรฐาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">มาตรฐาน</span><span id="stfCritBadge" class="badge num"></span></a>
-        <a href="#/staff/docs" data-staff-tab="docs" title="ดาวน์โหลดเอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">ดาวน์โหลดเอกสาร</span></a>
         <a href="#/staff/feedback" data-staff-tab="feedback" title="ข้อเสนอแนะ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><span class="lbl">ข้อเสนอแนะ</span></a>
       </div>
       <button type="button" class="more-btn" aria-expanded="false" aria-controls="staffMore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span class="lbl">เพิ่มเติม</span><span class="dot" aria-hidden="true"></span></button>
@@ -476,15 +486,6 @@
         <div id="staffUnitChatSlot" hidden></div>
       </div>
 
-      <!-- Health Rider: กรอก/นำเข้าตัวเลขผลงานของหน่วยตัวเอง (rider.js) -->
-      <div data-staff-view="docs" hidden>
-        <div class="panel">
-          <div class="doc-tools"><div class="field doc-q"><label for="sdQ">ค้นหาชื่อเอกสาร</label><input id="sdQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อเอกสาร"></div><div class="field"><label for="sdSort">เรียงตาม</label><select id="sdSort" class="input"><option value="updated_desc">อัปเดตล่าสุดก่อน</option><option value="updated_asc">อัปเดตเก่าสุดก่อน</option><option value="title_asc">ชื่อ ก → ฮ</option><option value="title_desc">ชื่อ ฮ → ก</option><option value="dl_desc">ดาวน์โหลดมาก → น้อย</option><option value="dl_asc">ดาวน์โหลดน้อย → มาก</option></select></div></div>
-          <div class="unit-tabs" id="sdCats" aria-label="หมวดเอกสาร"></div>
-          <div class="list" id="sdList"></div>
-        </div>
-      </div>
-
       <!-- ข้อเสนอแนะถึงทีมพัฒนา -->
       <div data-staff-view="feedback" hidden>
         <div class="panel">
@@ -503,7 +504,7 @@
 
 <!-- ============ ผู้ดูแล ============ -->
 <section data-view="admin" class="app" hidden>
-  <div class="app-head"><div><span class="small muted" id="adminSub">ผู้ดูแลระบบ · โรงพยาบาลควนกาหลง</span><h1 id="adminHello">สวัสดี</h1></div></div>
+  <div class="app-head"><div class="me-head"><button type="button" class="avatar me-av" id="adminAvatar" data-my-avatar data-edit-profile aria-label="รูปประจำตัว · แก้ไขข้อมูลส่วนตัว"></button><div><span class="small muted" id="adminSub">ผู้ดูแลระบบ · โรงพยาบาลควนกาหลง</span><h1><button type="button" class="me-name" id="adminHello" data-edit-profile title="แก้ไขข้อมูลส่วนตัว">สวัสดี</button></h1></div></div></div>
   <div class="app-body">
     <nav class="sidenav" aria-label="เมนูผู้ดูแล">
       <a href="#/admin/news" data-admin-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="admNewsBadge" class="badge num"></span></a>
@@ -858,9 +859,11 @@
           <form id="adForm" class="form-grid" novalidate>
             <div class="field full"><label for="adTitle">ชื่อเอกสาร <span class="req">*</span></label><input id="adTitle" class="input" maxlength="160" placeholder="เช่น แบบบันทึกอุณหภูมิตู้เย็นเก็บยา"></div>
             <div class="field"><label for="adCat">หมวดหมู่</label><select id="adCat" class="input"><option>แบบฟอร์ม</option><option>คู่มือ / แนวทาง</option><option>หนังสือสั่งการ / ประกาศ</option><option>อื่น ๆ</option></select></div>
-            <div class="field"><label for="adFor">สำหรับ</label><select id="adFor" class="input"></select></div>
+            <div class="field"><label for="adWho">ผู้ที่ดาวน์โหลดได้</label><select id="adWho" class="input"><option value="staff">เจ้าหน้าที่ รพ.สต. (ต้องล็อกอิน)</option><option value="public">ประชาชนทั่วไป (ทุกคน ไม่ต้องล็อกอิน)</option></select></div>
+            <div class="field"><label for="adFor">สำหรับ</label><select id="adFor" class="input"></select><span class="small muted" id="adForNote"></span></div>
             <div class="field full"><label for="adFile" id="adFileLabel">ไฟล์ <span class="req">*</span></label><input id="adFile" class="input" type="file" accept=".pdf,.jpg,.jpeg,.png,.csv,.txt"><span class="small muted" id="adFileNote"></span></div>
             <div class="field full"><label for="adNote">รายละเอียด (ถ้ามี)</label><input id="adNote" class="input" maxlength="240"></div>
+            <div class="field full"><details class="vs-pfold" id="adCritFold"><summary><span class="lbl-t">ตรงกับตรวจประเมินมาตรฐานข้อ (เลือกได้มากกว่า 1 ข้อ)</span><span class="small vs-people-n" id="adCritN" aria-live="polite"></span></summary><p class="small muted">เจ้าหน้าที่จะเห็นเอกสารนี้ให้ดาวน์โหลดในข้อที่เลือก (เมนูมาตรฐาน)</p><input id="adCritQ" class="input" type="search" maxlength="60" placeholder="ค้นหาเลขข้อหรือข้อความ เช่น 1.1" aria-label="ค้นหาข้อมาตรฐาน"><div class="crit-pick" id="adCrit" role="group" aria-label="ข้อมาตรฐานที่เกี่ยวข้อง"></div></details></div>
             <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="adSubmit">อัปโหลด</button><button class="btn btn-o btn-sm" type="button" id="adCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="adMsg" aria-live="polite"></span></div>
           </form>
         </div>
@@ -968,8 +971,8 @@
       <p>ฝ่ายเภสัชกรรมและงานคุ้มครองผู้บริโภค โรงพยาบาลควนกาหลง จังหวัดสตูล</p>
       <p>ติดต่อ 074-752-081 ต่อ 455 (ห้องยา)</p>
       <div class="footer-cards">
-        <a href="#/achievements" class="footer-card"><span class="fc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.5 12.9 17 22l-5-3-5 3 1.5-9.1"/></svg></span><span>ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.</span><svg class="fc-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
-        <a href="#/contact" class="footer-card"><span class="fc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span><span>ช่องทางติดต่อ รพ.สต.</span><svg class="fc-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+        <a href="#/documents" class="footer-card" data-fc="docs"><span class="fc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg></span><span>ดาวน์โหลดเอกสาร</span><svg class="fc-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+        <a href="#/contact" class="footer-card" data-fc="contact"><span class="fc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span><span>ช่องทางติดต่อ รพ.สต.</span><svg class="fc-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
       </div>
     </div>
     <div class="footer-col" style="min-width:240px">

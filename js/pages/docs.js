@@ -1,16 +1,18 @@
 // เอกสารดาวน์โหลด (bucket ส่วนตัว "documents" ≤ 5 MB)
 //   ผู้ดูแล: อัปโหลด / แก้ไขรายละเอียด / เปลี่ยนไฟล์ (เลขรุ่น +1) / ลบ   → initAdminDocs()
-//   เจ้าหน้าที่: ดาวน์โหลดเอกสาร "ทุก รพ.สต." + ของหน่วยตัวเอง            → initStaffDocs()
+//   หน้า "ดาวน์โหลดเอกสาร" (#/documents · ปุ่มท้ายเว็บ) → initDocs() · RLS กรองให้: ทุกคน = เอกสารที่ผู้ดูแลเลือก "ประชาชนทั่วไป" (is_public · 70_public_docs.sql)
+//     + เจ้าหน้าที่ = "ทุก รพ.สต." + ของหน่วยตัวเอง · ผู้ดูแล = ทั้งหมด
 // ที่เก็บไฟล์: all/<ชื่อสุ่ม>.<ext> (ทุกหน่วย) หรือ <unit>/<ชื่อสุ่ม>.<ext> — RLS ของ storage อ่านตามโฟลเดอร์นี้
 import { sb } from '../supabase.js?v=4.4';
-import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
-import { loadUnits, unitName } from '../data.js?v=4.4';
+import { $, esc, thaiDate, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
+import { loadUnits, unitName, sortItems } from '../data.js?v=4.4';
 import { extOf } from '../upload.js?v=4.4';
+import { auth } from '../auth.js?v=4.4';
 
 const CATS = ['แบบฟอร์ม', 'คู่มือ / แนวทาง', 'หนังสือสั่งการ / ประกาศ', 'อื่น ๆ'];
 const TYPES = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', csv: 'text/csv', txt: 'text/plain' };
 const MAX = 5 * 1024 * 1024;
-const COLS = 'id,title,category,for_unit,note,file_path,file_name,file_size,content_type,version,updated_at';
+const COLS = 'id,title,category,for_unit,note,file_path,file_name,file_size,content_type,version,updated_at,is_public,item_ids';
 
 const size = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
 const folderOf = (forUnit) => (forUnit == null ? 'all' : String(forUnit));
@@ -48,8 +50,8 @@ function applyTools(list, pre, catOverride) {
     .sort((a, b) => (key === 'title' ? a.title.localeCompare(b.title, 'th') : val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : 0) * k);
 }
 
-/** ดาวน์โหลดด้วยลิงก์ชั่วคราว 5 นาที (ตั้งชื่อไฟล์ตามต้นฉบับ) + นับจำนวนดาวน์โหลด */
-async function download(d, after) {
+/** ดาวน์โหลดด้วยลิงก์ชั่วคราว 5 นาที (ตั้งชื่อไฟล์ตามต้นฉบับ) + นับจำนวนดาวน์โหลด · ใช้ในหน้ามาตรฐาน (criteria.js) ด้วย */
+export async function download(d, after) {
   const { data, error } = await sb.storage.from('documents').createSignedUrl(d.file_path, 300, { download: d.file_name });
   if (error) { toast('เปิดไฟล์ไม่สำเร็จ: ' + errText(error), 'err'); return; }
   sb.rpc('bump_doc_download', { p_doc: d.id }).then(({ data: n }) => { if (n) { d.downloads = n; after?.(); } }, () => {});
@@ -59,8 +61,9 @@ async function download(d, after) {
 }
 
 const docRow = (d, actions) => `<div class="li"><div class="l"><b>${esc(d.title)}</b>`
-  + `<span class="small muted">${esc(d.category)} · ${d.for_unit == null ? 'ทุก รพ.สต.' : 'รพ.สต. ' + esc(unitName(d.for_unit))}`
+  + `<span class="small muted">${esc(d.category)} · ${d.is_public ? 'ประชาชนทั่วไป' : d.for_unit == null ? 'เจ้าหน้าที่ทุก รพ.สต.' : 'เจ้าหน้าที่ รพ.สต. ' + esc(unitName(d.for_unit))}`
   + ` · ${esc(d.file_name)} (${size(d.file_size || 0)})${d.version > 1 ? ' · ฉบับที่ ' + d.version : ''} · ปรับปรุง ${esc(thaiDate(d.updated_at))} · ดาวน์โหลด ${(d.downloads || 0).toLocaleString('th-TH')} ครั้ง</span>`
+  + (critLabel(d.item_ids) ? `<span class="small">ตรวจประเมินมาตรฐานข้อ ${esc(critLabel(d.item_ids))}</span>` : '')
   + (d.note ? `<span class="small">${esc(d.note)}</span>` : '') + `</div><div class="actions">${actions}</div></div>`;
 
 /* ======================= ผู้ดูแล ======================= */
@@ -72,6 +75,13 @@ export async function initAdminDocs() {
     adminBound = true;
     $('#adFor').innerHTML = '<option value="">ทุก รพ.สต.</option>' + units.map((u) => `<option value="${u.id}">เฉพาะ รพ.สต. ${esc(u.name)}</option>`).join('');
     $('#adForm').addEventListener('submit', saveDoc);
+    $('#adWho').addEventListener('change', syncWho);
+    $('#adCritQ').addEventListener('input', renderCritPick);
+    $('#adCrit').addEventListener('change', (e) => {
+      const id = +e.target.value; if (!id) return;
+      if (e.target.checked) picked.add(id); else picked.delete(id);
+      critCount();
+    });
     $('#adCancel').addEventListener('click', resetDocForm);
     $('#adFile').addEventListener('change', () => {
       const f = $('#adFile').files[0];
@@ -80,7 +90,33 @@ export async function initAdminDocs() {
     $('#adList').addEventListener('click', onAdminList);
     ['#adQ', '#adFCat', '#adSort'].forEach((s) => $(s).addEventListener(s === '#adQ' ? 'input' : 'change', renderAdminDocs));
   }
-  await reloadDocs();
+  await Promise.all([reloadDocs(), loadCrit()]);
+}
+
+/* ข้อมาตรฐาน (ปีงบปัจจุบัน + ข้อของปีก่อนที่ผูกไว้เดิม) → documents.item_ids */
+let critItems = [];
+const picked = new Set();
+const critLabel = (ids) => critItems.filter((it) => ids?.includes(it.id)).map((it) => it.item_no).join(', ');
+async function loadCrit() {
+  const { data, error } = await sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,item_no,body,sort').eq('fiscal_year', fiscalYearOf()).order('sort');
+  if (error) { $('#adCrit').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+  critItems = sortItems(data || []);
+  renderCritPick();
+  renderAdminDocs();
+}
+function renderCritPick() {
+  const q = $('#adCritQ').value.trim().toLowerCase();
+  const list = critItems.filter((it) => !q || `${it.item_no} ${it.body} ${it.topic_title}`.toLowerCase().includes(q));
+  let last = null;
+  $('#adCrit').innerHTML = list.map((it) => {
+    const head = it.topic_no !== last ? `<p class="crit-pick-h">${esc(it.topic_title)}</p>` : ''; last = it.topic_no;
+    return head + `<label class="crit-opt"><input type="checkbox" value="${it.id}"${picked.has(it.id) ? ' checked' : ''}><span><b>${esc(it.item_no)}</b> ${esc(it.body)}</span></label>`;
+  }).join('') || `<p class="empty">${critItems.length ? 'ไม่พบข้อที่ค้นหา' : `ยังไม่มีเกณฑ์มาตรฐานของปีงบ ${fiscalYearOf()}`}</p>`;
+  critCount();
+}
+function critCount() {
+  const l = critLabel([...picked]);
+  $('#adCritN').textContent = l ? `เลือกแล้ว: ข้อ ${l}` : 'ไม่ระบุ · กดเพื่อเลือก';
 }
 
 async function reloadDocs() {
@@ -100,11 +136,21 @@ function renderAdminDocs() {
     + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button>`)).join('');
 }
 
+/** ประชาชนทั่วไป = เอกสาร "ทุก รพ.สต." เท่านั้น (ฐานข้อมูลไม่แสดงเอกสารเฉพาะหน่วยให้ประชาชน) */
+function syncWho() {
+  const pub = $('#adWho').value === 'public';
+  if (pub) $('#adFor').value = '';
+  $('#adFor').disabled = pub;
+  $('#adForNote').textContent = pub ? 'ทุกคนดาวน์โหลดได้จากปุ่ม "ดาวน์โหลดเอกสาร" ท้ายเว็บ' : '';
+}
+
 function msg(text, ok) { const m = $('#adMsg'); m.style.color = ok ? 'var(--success)' : 'var(--error)'; m.textContent = text; }
 
 function resetDocForm() {
   editing = null;
   $('#adForm').reset();
+  syncWho();
+  picked.clear(); $('#adCritFold').open = false; renderCritPick();
   $('#adFormTitle').textContent = 'อัปโหลดเอกสาร';
   $('#adFileLabel').innerHTML = 'ไฟล์ <span class="req">*</span>';
   $('#adFileNote').textContent = '';
@@ -117,6 +163,8 @@ function startEdit(d) {
   editing = d;
   $('#adTitle').value = d.title; $('#adCat').value = CATS.includes(d.category) ? d.category : 'อื่น ๆ';
   $('#adFor').value = d.for_unit == null ? '' : String(d.for_unit); $('#adNote').value = d.note || ''; $('#adFile').value = '';
+  $('#adWho').value = d.is_public ? 'public' : 'staff'; syncWho();
+  picked.clear(); (d.item_ids || []).forEach((id) => picked.add(id)); $('#adCritQ').value = ''; renderCritPick(); $('#adCritFold').open = picked.size > 0;
   $('#adFormTitle').textContent = 'แก้ไขเอกสาร';
   $('#adFileLabel').textContent = 'เปลี่ยนไฟล์ (ถ้ามีฉบับใหม่)';
   $('#adFileNote').textContent = `ไฟล์ปัจจุบัน: ${d.file_name} · ฉบับที่ ${d.version} — เลือกไฟล์ใหม่จะแทนที่และนับเป็นฉบับที่ ${d.version + 1}`;
@@ -129,10 +177,11 @@ function startEdit(d) {
 async function saveDoc(e) {
   e.preventDefault();
   const title = $('#adTitle').value.trim(), f = $('#adFile').files[0];
-  const forUnit = $('#adFor').value === '' ? null : +$('#adFor').value;
+  const pub = $('#adWho').value === 'public';
+  const forUnit = pub || $('#adFor').value === '' ? null : +$('#adFor').value;
   if (!title) { msg('กรุณาใส่ชื่อเอกสาร'); $('#adTitle').focus(); return; }
   if (!editing && !f) { msg('กรุณาเลือกไฟล์'); return; }
-  const row = { title, category: $('#adCat').value, for_unit: forUnit, note: $('#adNote').value.trim() || null };
+  const row = { title, category: $('#adCat').value, for_unit: forUnit, note: $('#adNote').value.trim() || null, is_public: pub, item_ids: [...picked] };
   const btn = $('#adSubmit'); busy(btn, true, 'กำลังบันทึก…'); msg('');
   let uploaded = null;
   try {
@@ -170,7 +219,7 @@ async function onAdminList(e) {
   const d = docs.find((x) => x.id === (b.dataset.dl || b.dataset.edit || b.dataset.del)); if (!d) return;
   if (b.dataset.dl) return download(d, renderAdminDocs);
   if (b.dataset.edit) return startEdit(d);
-  if (!confirm(`ลบเอกสาร "${d.title}"? เจ้าหน้าที่จะดาวน์โหลดไม่ได้อีก`)) return;
+  if (!confirm(`ลบเอกสาร "${d.title}"? ผู้ที่เคยดาวน์โหลดได้จะดาวน์โหลดไม่ได้อีก`)) return;
   const { error } = await sb.from('documents').delete().eq('id', d.id);
   if (error) { toast(errText(error), 'err'); return; }
   await sb.storage.from('documents').remove([d.file_path]);
@@ -179,10 +228,10 @@ async function onAdminList(e) {
   reloadDocs();
 }
 
-/* ======================= เจ้าหน้าที่ ======================= */
+/* ======================= หน้าดาวน์โหลดเอกสาร (ทุกคน) ======================= */
 let staffDocs = [], cat = 'all', staffBound = false;
 
-export async function initStaffDocs() {
+export async function initDocs() {
   await loadUnits();
   if (!staffBound) {
     staffBound = true;
@@ -193,6 +242,10 @@ export async function initStaffDocs() {
     });
     ['#sdQ', '#sdSort'].forEach((s) => $(s).addEventListener(s === '#sdQ' ? 'input' : 'change', renderStaff));
   }
+  const role = auth.profile?.role;
+  $('#sdWho').textContent = role === 'admin' ? 'ผู้ดูแลเห็นเอกสารทั้งหมด · อัปโหลด/แก้ไขที่เมนูผู้ดูแล › เอกสาร'
+    : role === 'staff' ? 'เอกสารสำหรับประชาชนทั่วไป และเอกสารสำหรับเจ้าหน้าที่ รพ.สต. ของคุณ'
+    : 'เอกสารที่ผู้ดูแลเผยแพร่ให้ประชาชนทั่วไป · เจ้าหน้าที่ รพ.สต. ล็อกอินเพื่อดูเอกสารสำหรับเจ้าหน้าที่';
   $('#sdList').innerHTML = '<div class="skeleton"></div>';
   const { data, error } = await sb.from('documents').select(COLS).order('category').order('title');   // RLS กรองให้เห็นเฉพาะที่มีสิทธิ์
   if (error) { $('#sdList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }

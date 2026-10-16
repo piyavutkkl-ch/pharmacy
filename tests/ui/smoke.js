@@ -81,7 +81,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('โหมดมืด/สว่าง: เปิดหน้าใหม่ยังเป็นโหมดที่เลือก', (await p.evaluate(() => document.documentElement.dataset.theme)) === after.t && (await p.getAttribute('#themeBtn', 'aria-label')).includes(after.t === 'dark' ? 'สว่าง' : 'มืด'));
       await p.click('#themeBtn'); await p.waitForTimeout(100);
     }
-    check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ เป็นกล่องมีไอคอน (หน้าหลัก)', await count(p, '.footer-card .fc-ic svg') === 2 && await visible(p, '.footer-cards'));
+    check('ท้ายเว็บ: ดาวน์โหลดเอกสาร/ช่องทางติดต่อ เป็นกล่องมีไอคอน (หน้าหลัก)', await count(p, '.footer-card .fc-ic svg') === 2 && await visible(p, '.footer-cards')
+      && (await text(p, '[data-fc="docs"]')).trim() === 'ดาวน์โหลดเอกสาร' && (await p.getAttribute('[data-fc="docs"]', 'href')) === '#/documents' && await visible(p, '[data-fc="contact"]'));
     check('ท้ายเว็บ: นโยบาย/ข้อตกลง อยู่ใต้ช่องส่งความคิดเห็น', await p.$eval('.footer-legal', (e) => !!e.closest('.footer-col')?.querySelector('#fbForm') && e.querySelectorAll('a[href="privacy.html"],a[href="terms.html"]').length === 2));
     await p.click('[data-panel-link="news"]'); await p.waitForTimeout(300);
     check('ข่าว: การ์ดข่าวแสดง (เฉพาะที่เผยแพร่)', await count(p, '#newsGrid .news-card') === 3, String(await count(p, '#newsGrid .news-card')));
@@ -252,7 +253,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('Health Rider: ผลงานอยู่ในช่องบริการจัดส่งยาถึงบ้าน (ข้อความแนะนำ + ตัวเลขรวม + ราย รพ.สต.) · ไม่มีปุ่มเมนูแยก', await visible(p, '[data-panel="delivery"] #hrBlock') && (await text(p, '#hrInfo')).includes('Health Rider') && (await text(p, '#hrFigs')).includes('48') && await count(p, '#hrBars .bar-row') === 2
       && !(await p.$('[data-panel-link="rider"]')) && (await text(p, '[data-panel-link="delivery"]')).includes('บริการจัดส่งยาถึงบ้าน (Health Rider)'));
     await go(p, '#/achievements');
-    check('ผลงาน รพ.สต.: การ์ดผลงานแสดง', await count(p, '#achGrid .news-card') >= 2);
+    check('ผลงาน รพ.สต.: การ์ดผลงานแสดง (ลิงก์เดิมยังเปิดได้)', await count(p, '#achGrid .news-card') >= 2);
+    await go(p, '#/tracking'); await p.waitForTimeout(400);
+    check('อันดับผลการประเมินเกณฑ์มาตรฐาน: อยู่ในช่องผลการดำเนินงาน ใต้ "ผลงานด้านเภสัชกรรมปฐมภูมิ" (ไม่อยู่ในช่องผลงานแล้ว)',
+      await visible(p, '[data-panel="tracking"] #lbPodium') && await count(p, '[data-panel="achievements"] #lbPodium') === 0 && await count(p, '#lbYearTabs button') > 0
+      && await p.evaluate(() => { const a = document.getElementById('trkSums').closest('.panel'), b = document.getElementById('lbPodium').closest('.panel'); return a.nextElementSibling === b; }));
+    await p.click('[data-fc="docs"]'); await p.waitForTimeout(500);
+    check('ดาวน์โหลดเอกสาร (ไม่ล็อกอิน): ปุ่มท้ายเว็บ → หน้าเอกสาร เห็นเฉพาะที่ผู้ดูแลเลือก "ประชาชนทั่วไป"', (await p.evaluate(() => location.hash)) === '#/documents' && await visible(p, '[data-panel="documents"]')
+      && await count(p, '#sdList .li') === 1 && (await text(p, '#sdList')).includes('แผ่นพับการใช้ยาอย่างปลอดภัย') && (await text(p, '#sdWho')).includes('ประชาชนทั่วไป'), String(await count(p, '#sdList .li')));
+    await p.click('#sdList [data-dl]'); await p.waitForTimeout(400);
+    check('ดาวน์โหลดเอกสาร (ไม่ล็อกอิน): กดดาวน์โหลด → ลิงก์ชั่วคราว + นับจำนวน', (await calls(p, (c) => c.signed === 'documents' && c.path === 'all/1-d.pdf')).length === 1 && (await calls(p, (c) => c.rpc === 'bump_doc_download')).length === 1);
     await go(p, '#/contact');
     check('ช่องทางติดต่อ: ครบ 7 รพ.สต.', await count(p, '#contactGrid .center') === 7);
     const newsId = await p.evaluate(() => window.__db.news.find((n) => n.status === 'published' && !n.comments_closed).id);
@@ -326,7 +336,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ประชาชนที่ยังไม่กรอกเบอร์: ช่องแชทปิดไว้', await p.$eval('#meInput', (e) => e.disabled));
     await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(200);
     check('ข้อมูลส่วนตัว (มือถือ): ปุ่มรูปคน ≥ 44px บนเมนู + ไม่ล้นจอ', await visible(p, '#profileBtn') && await p.$eval('#profileBtn', (e) => e.getBoundingClientRect().height >= 44) && await overflow(p) <= 0);
-    await p.click('#profileBtn'); await p.waitForTimeout(300);
+    check('ประชาชน: ชื่อบนแถบเมนู = ลิงก์ไปหน้าเมนูของประชาชน (#/me) · หัวหน้ามีรูปวงกลมหน้าชื่อ', (await p.getAttribute('#profileBtn', 'href')) === '#/me' && await visible(p, '#meAvatar') && !(await p.$eval('#meHello', (e) => e.disabled)));
+    await p.click('#meHello'); await p.waitForTimeout(300);
+    check('ประชาชน: กดชื่อที่หัวหน้า → หน้าต่างแก้ข้อมูลส่วนตัว', await p.$eval('#pdDialog', (d) => d.open));
     await p.fill('#pdPhone', '0899999999'); await p.selectOption('#pdUnit', '3');
     await p.screenshot({ path: path.join(SHOTS, 'profile-dialog-390.png') });
     await p.click('#pdSave'); await p.waitForTimeout(400);
@@ -370,20 +382,33 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= เจ้าหน้าที่ รพ.สต. ================= */
     p = await open('staff', '#/staff');
-    check('เมนูเจ้าหน้าที่: เรียง ข่าว › ข้อความ › เยี่ยมบ้าน › ผลงาน › มาตรฐาน › เอกสาร › ข้อเสนอแนะ (ไม่มี Health Rider)', (await p.$$eval('.sidenav [data-staff-tab]', (a) => a.map((x) => x.dataset.staffTab).join(','))) === 'news,messages,visits,achievements,criteria,docs,feedback');
-    for (const tab of ['news', 'messages', 'visits', 'achievements', 'criteria', 'docs', 'feedback']) {
+    check('เมนูเจ้าหน้าที่: เรียง ข่าว › ข้อความ › เยี่ยมบ้าน › ผลงาน › มาตรฐาน › ข้อเสนอแนะ (เอกสาร = ปุ่มท้ายเว็บ · ไม่มี Health Rider)', (await p.$$eval('.sidenav [data-staff-tab]', (a) => a.map((x) => x.dataset.staffTab).join(','))) === 'news,messages,visits,achievements,criteria,feedback');
+    check('เจ้าหน้าที่ล็อกอิน: ปุ่ม "ดาวน์โหลดเอกสาร" ท้ายเว็บยังแสดง (ช่องทางติดต่อซ่อน)', await visible(p, '[data-fc="docs"]') && !(await visible(p, '[data-fc="contact"]')));
+    for (const tab of ['news', 'messages', 'visits', 'achievements', 'criteria', 'feedback']) {
       await go(p, '#/staff/' + tab); await p.waitForTimeout(250);
       const shown = await p.$eval(`[data-staff-view="${tab}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
       check(`เจ้าหน้าที่: เมนู ${tab} เปิดได้`, shown && (await text(p, '#staffViewTitle')));
     }
-    await p.click('#profileBtn'); await p.waitForTimeout(200);
-    check('ข้อมูลส่วนตัว: กดชื่อบนเมนู → หน้าต่างแก้ไข (เจ้าหน้าที่: ไม่มีช่อง รพ.สต. ใกล้บ้าน)', await p.$eval('#pdDialog', (d) => d.open) && (await p.inputValue('#pdName')) === 'สมศรี ใจดี' && !(await visible(p, '#pdUnitField')) && (await p.getAttribute('#pdEmail', 'readonly')) !== null);
+    check('เจ้าหน้าที่: ชื่อบนแถบเมนู = ลิงก์ไประบบเจ้าหน้าที่ (ไม่เปิดหน้าต่างแก้ข้อมูล)', (await p.getAttribute('#profileBtn', 'href')) === '#/staff' && (await p.getAttribute('#profileBtn', 'aria-label')).includes('ระบบเจ้าหน้าที่'));
+    check('เจ้าหน้าที่: รูปวงกลมหน้าชื่อ (ไม่มีรูป = ตัวอักษรย่อ) ด้านบนซ้าย', await visible(p, '#staffAvatar') && (await text(p, '#staffAvatar')).trim().length > 0
+      && await p.evaluate(() => { const a = document.getElementById('staffAvatar').getBoundingClientRect(), h = document.getElementById('staffHello').getBoundingClientRect(); return a.right <= h.left + 1 && Math.round(a.width) === Math.round(a.height); }));
+    await p.click('#staffAvatar'); await p.waitForTimeout(200);
+    check('ข้อมูลส่วนตัว: กดรูปวงกลม → หน้าต่างแก้ไข (เจ้าหน้าที่: ไม่มีช่อง รพ.สต. ใกล้บ้าน)', await p.$eval('#pdDialog', (d) => d.open) && (await p.inputValue('#pdName')) === 'สมศรี ใจดี' && !(await visible(p, '#pdUnitField')) && (await p.getAttribute('#pdEmail', 'readonly')) !== null);
     await p.fill('#pdName', ''); await p.click('#pdSave'); await p.waitForTimeout(150);
     check('ข้อมูลส่วนตัว: ชื่อว่างถูกเตือน', (await text(p, '#pdMsg')).includes('ชื่อ') && await p.$eval('#pdDialog', (d) => d.open));
     await p.fill('#pdName', 'สมศรี ใจดีมาก'); await p.fill('#pdPhone', '081-222-3333'); await p.click('#pdSave'); await p.waitForTimeout(400);
     const pu = (await calls(p, (c) => c.table === 'profiles' && c.op === 'update')).pop()?.payload || {};
     check('ข้อมูลส่วนตัว: บันทึกเฉพาะช่องที่แก้ได้ + ชื่อบนเมนู/คำทักทายเปลี่ยนตาม', pu.full_name === 'สมศรี ใจดีมาก' && pu.phone === '081-222-3333' && !('role' in pu) && !('unit_id' in pu) && !('home_unit_id' in pu)
       && !(await p.$eval('#pdDialog', (d) => d.open)) && (await text(p, '#profileBtn')).includes('ใจดีมาก') && (await text(p, '#staffHello')).includes('ใจดีมาก'), JSON.stringify(pu));
+    await p.click('#staffHello'); await p.waitForTimeout(200);
+    check('ข้อมูลส่วนตัว: กดชื่อที่หัวหน้า → หน้าต่างแก้ไขเหมือนกัน', await p.$eval('#pdDialog', (d) => d.open) && !(await visible(p, '#pdPhotoDel')));
+    await p.setInputFiles('#pdPhoto', { name: 'me.png', mimeType: 'image/png', buffer: PNG }); await p.waitForTimeout(800);
+    { const up = (await calls(p, (c) => c.table === 'profiles' && c.op === 'update')).pop()?.payload || {};
+      check('รูปประจำตัว: อัปโหลดไปโฟลเดอร์ของตัวเอง + บันทึก avatar_path + รูปขึ้นที่หัวหน้า/แถบเมนู/หน้าต่าง', /^avatars\/[^/]+\/.+\.webp$/.test(up.avatar_path || '') && (await calls(p, (c) => c.upload === 'public-images' && /^avatars\//.test(c.path || ''))).length === 1
+        && await count(p, '#staffAvatar img') === 1 && await count(p, '#profileBtn img') === 1 && await count(p, '#pdDialog .pd-av img') === 1 && await visible(p, '#pdPhotoDel'), JSON.stringify(up)); }
+    await p.click('#pdPhotoDel'); await p.waitForTimeout(400);
+    check('รูปประจำตัว: ลบรูปได้ (กลับเป็นตัวอักษรย่อ)', (await calls(p, (c) => c.table === 'profiles' && c.op === 'update')).pop()?.payload?.avatar_path === null && await count(p, '#staffAvatar img') === 0);
+    await p.click('#pdClose');
     await go(p, '#/staff/news');
     await p.click('#snSubmit'); await p.waitForTimeout(100);
     check('เจ้าหน้าที่: ส่งข่าวว่างถูกเตือน', (await text(p, '#snMsg')).length > 0);
@@ -536,15 +561,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/staff/visits/summary'); await p.waitForTimeout(400);
     await p.click('#vsList [data-del]'); await p.waitForTimeout(400);
     check('สรุปผลงาน: ลบได้', await count(p, '#vsList .da-poster') === 0);
-    await go(p, '#/staff/docs');
-    check('เจ้าหน้าที่: เอกสารเห็นเฉพาะทุกหน่วย + หน่วยตัวเอง', await count(p, '#sdList .li') === 2, String(await count(p, '#sdList .li')));
+    await go(p, '#/staff/docs'); await p.waitForTimeout(400);
+    check('เจ้าหน้าที่: ลิงก์เมนูเอกสารเดิม → หน้าดาวน์โหลดเอกสาร · เห็นทุกหน่วย + หน่วยตัวเอง + ของประชาชน', (await p.evaluate(() => location.hash)) === '#/documents' && await count(p, '#sdList .li') === 3 && (await text(p, '#sdWho')).includes('เจ้าหน้าที่'), String(await count(p, '#sdList .li')));
     await p.click('#sdList [data-dl]'); await p.waitForTimeout(400);
     check('เอกสาร: ดาวน์โหลดแล้วนับจำนวน + แสดงจำนวนครั้ง', (await calls(p, (c) => c.rpc === 'bump_doc_download')).length === 1 && (await text(p, '#sdList')).includes('ดาวน์โหลด 1 ครั้ง'));
     await p.fill('#sdQ', 'ไม่มีเอกสารชื่อนี้'); await p.waitForTimeout(150);
     check('เอกสาร: ค้นหาชื่อ (ไม่พบ → แจ้ง)', (await text(p, '#sdList')).includes('ไม่พบเอกสาร'));
     await p.fill('#sdQ', ''); await p.selectOption('#sdSort', 'title_asc'); await p.waitForTimeout(150);
     const titles = await p.$$eval('#sdList .li b', (b) => b.map((x) => x.textContent));
-    check('เอกสาร: เรียงตามชื่อได้', titles.join('|') === [...titles].sort((a, b) => a.localeCompare(b, 'th')).join('|') && titles.length === 2);
+    check('เอกสาร: เรียงตามชื่อได้', titles.join('|') === [...titles].sort((a, b) => a.localeCompare(b, 'th')).join('|') && titles.length === 3);
     await go(p, '#/staff/messages');
     await p.click('#staffInboxSlot [data-conv]'); await p.waitForTimeout(400);
     await p.fill('#staffInboxSlot .ib-input', 'ตอบกลับจากเจ้าหน้าที่'); await p.click('#staffInboxSlot .ib-form button'); await p.waitForTimeout(400);
@@ -740,7 +765,22 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#anReview [data-decide="close"]'); await p.waitForTimeout(150);
       check('ข่าวที่เผยแพร่แล้ว: ปิดกล่องได้', !(await visible(p, '#anReview')));
     }
-    check('ท้ายเว็บ: ลิงก์ผลงาน/ช่องทางติดต่อ ไม่แสดงในหน้าผู้ดูแล', !(await visible(p, '.footer-cards')));
+    check('ท้ายเว็บ: หน้าผู้ดูแลแสดงเฉพาะปุ่มดาวน์โหลดเอกสาร', await visible(p, '[data-fc="docs"]') && !(await visible(p, '[data-fc="contact"]')));
+    await go(p, '#/admin/docs'); await p.waitForTimeout(500);
+    check('เอกสาร (ผู้ดูแล): รายการบอกผู้ที่ดาวน์โหลดได้ + ข้อมาตรฐานที่ผูก', (await text(p, '#adList')).includes('ประชาชนทั่วไป') && (await text(p, '#adList')).includes('ตรวจประเมินมาตรฐานข้อ') && (await text(p, '#adList')).includes('เจ้าหน้าที่ทุก รพ.สต.'));
+    await p.selectOption('#adFor', '2'); await p.selectOption('#adWho', 'public');
+    check('เอกสาร (ผู้ดูแล): เลือก "ประชาชนทั่วไป" → สำหรับ = ทุก รพ.สต. (ล็อก)', (await p.inputValue('#adFor')) === '' && await p.$eval('#adFor', (e) => e.disabled));
+    await p.fill('#adTitle', 'คู่มือทดสอบ');
+    await p.click('#adCritFold summary'); await p.waitForTimeout(100);
+    await p.fill('#adCritQ', '1.2'); await p.waitForTimeout(100);
+    await p.check('#adCrit input[type=checkbox] >> nth=0');
+    check('เอกสาร (ผู้ดูแล): กล่องเลือกข้อตรวจประเมินมาตรฐาน', (await text(p, '#adCritN')).includes('1.2'));
+    await p.setInputFiles('#adFile', { name: 'guide.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') });
+    await p.click('#adSubmit'); await p.waitForTimeout(500);
+    { const ins = (await calls(p, (c) => c.table === 'documents' && c.op === 'insert')).pop()?.payload || {};
+      check('เอกสาร (ผู้ดูแล): บันทึก is_public + for_unit null + item_ids', ins.is_public === true && ins.for_unit === null && ins.item_ids?.length === 1, JSON.stringify(ins)); }
+    await p.selectOption('#adWho', 'staff');
+    check('เอกสาร (ผู้ดูแล): กลับเป็นเจ้าหน้าที่ → เลือก รพ.สต. ได้อีก', !(await p.$eval('#adFor', (e) => e.disabled)));
     check('เมนูผู้ดูแล: ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,achievements,rider,review,docs,drugs,settings' && await count(p, '#afList .li') > 0);
     await go(p, '#/admin/feedback'); await p.waitForTimeout(250);
     check('ลิงก์เดิม #/admin/feedback ยังเปิดได้ (พาไปตั้งค่า)', (await p.evaluate(() => location.hash)) === '#/admin/settings/feedback');
@@ -1239,7 +1279,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('[data-withdraw]'); await p.waitForTimeout(500);
     check('หลักฐาน: กดยกเลิกการส่งได้', (await calls(p, (c) => c.rpc === 'withdraw_item_status')).length === 1 && await p.evaluate((id) => window.__db.item_status.find((x) => x.item_id === id && x.unit_id === 2)?.status === 'none', i13));
     check('มาตรฐาน: ผลงานที่ผูกข้อนี้ขึ้นเป็นหลักฐาน (ป้าย "ผลงาน 1" + การ์ดผลงาน · ไม่ต้องส่งตรวจ)', (await text(p, `#ci-${i13}`)).includes('ผลงาน 1') && (await text(p, '.crit-editbox')).includes('ผลงาน: ตู้เย็นเก็บยาได้มาตรฐาน') && (await text(p, '.crit-editbox')).includes('ไม่ต้องส่งตรวจ'));
-    check('เมนูเจ้าหน้าที่: "ดาวน์โหลดเอกสาร"', (await text(p, '[data-staff-tab="docs"]')).trim() === 'ดาวน์โหลดเอกสาร');
+    check('เมนูเจ้าหน้าที่: ไม่มีเมนูเอกสาร (ย้ายไปปุ่มท้ายเว็บ)', !(await p.$('[data-staff-tab="docs"]')));
+    { const first = await p.evaluate(() => window.__db.documents.find((d) => d.is_public)?.item_ids?.[0]);
+      await p.click(`[data-open="${first}"]`); await p.waitForTimeout(300);
+      check('มาตรฐาน: เอกสารที่ผู้ดูแลผูกกับข้อขึ้นให้ดาวน์โหลดในข้อนั้น', (await text(p, '.crit-editbox .ci-docs')).includes('แผ่นพับการใช้ยาอย่างปลอดภัย'));
+      await p.click('.ci-docs [data-docdl]'); await p.waitForTimeout(300);
+      check('มาตรฐาน: กดเอกสาร → ดาวน์โหลด', (await calls(p, (c) => c.signed === 'documents' && c.path === 'all/1-d.pdf')).length >= 1);
+      await p.click('.crit-editbox [data-close]'); await p.waitForTimeout(150); }
     const i11 = await itemId(p, '1.1'), i21 = await itemId(p, '2.1.1');
     await go(p, '#/staff/achievements'); await p.waitForTimeout(400);
     check('ผลงาน: กล่อง "สอดคล้องกับมาตรฐานข้อ" ย่อได้ (ค่าเริ่มต้นย่อ · หัวบอกว่ายังไม่ได้เลือก)', !(await p.isVisible('#saCrit')) && (await p.textContent('#saCritN')).includes('ยังไม่ได้เลือก'));

@@ -9,7 +9,6 @@ import { newsForm, removeNewsFiles } from './news-form.js?v=4.4';
 import { initCriteria } from './criteria.js?v=4.4';
 import { initVisits } from './visits.js?v=4.4';
 import { mountSummaries } from './summaries.js?v=4.4';
-import { initStaffDocs } from './docs.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 import { setCurrent } from '../nav.js?v=4.4';
@@ -20,7 +19,6 @@ export const STAFF_TABS = {   // เรียงตามเมนู: ข่า
   visits: 'เยี่ยมบ้าน',
   achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.',
   criteria: 'ประเมินมาตรฐานด้านยา รพ.สต.',
-  docs: 'ดาวน์โหลดเอกสาร',
   feedback: 'ข้อเสนอแนะถึงทีมพัฒนา',
 };
 let bound = false;
@@ -34,7 +32,7 @@ export function showStaff(tab, sub) {
   setCurrent('data-staff-tab', tab);
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindFeedback(); }
-  ({ news: loadNews, achievements: () => mountAch($('#staffAchSlot'), auth.profile.unit_id), criteria: initCriteria, visits: () => showVisitTab(sub), messages: () => showMessages(sub), docs: initStaffDocs, feedback: loadFeedback })[tab]();
+  ({ news: loadNews, achievements: () => mountAch($('#staffAchSlot'), auth.profile.unit_id), criteria: initCriteria, visits: () => showVisitTab(sub), messages: () => showMessages(sub), feedback: loadFeedback })[tab]();
   refreshBadges();
 }
 

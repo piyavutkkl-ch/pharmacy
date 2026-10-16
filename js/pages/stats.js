@@ -23,6 +23,7 @@ export async function initTracking() {
     document.querySelectorAll('[data-trk]').forEach((b) => b.addEventListener('click', () => { trkOpen = trkOpen === b.dataset.trk ? null : b.dataset.trk; renderTrkDetail(); }));
   }
   renderTracking(units, years);
+  initLeaderboard(years);   // ใต้ "ผลงานด้านเภสัชกรรมปฐมภูมิ" = อันดับผลการประเมินเกณฑ์มาตรฐาน (เลือกปีงบของตัวเอง)
 }
 
 async function renderTracking(units, years) {
@@ -122,22 +123,25 @@ export async function showAchievement(id) {
   }
 }
 
-/* ---------- ผลงาน รพ.สต. + อันดับ ---------- */
-let lbYear = null, achBound = false;
+/* ---------- ผลงาน รพ.สต. (#/achievements) ---------- */
 
 export async function initAchievements() {
-  const [units, years] = await Promise.all([loadUnits(), loadYears()]);
+  await loadUnits();
   const { data, error } = await sb.from('achievements').select('id,unit_id,title,image_path,created_at').eq('hidden', false).order('created_at', { ascending: false }).limit(30);
   const list = error ? [] : data;
   $('#achGrid').innerHTML = list.length
     ? list.map((a) => `<a class="news-card" href="#/achievement/${esc(a.id)}"><div class="thumb">${a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block">` : art('รายงาน')}</div>`
       + `<div class="body"><span class="tag">รพ.สต. ${esc(unitName(a.unit_id))}</span><h3>${esc(a.title)}</h3><span class="d num">${esc(thaiDate(a.created_at))}</span></div></a>`).join('')
     : '<p class="empty" style="grid-column:1/-1">ยังไม่มีผลงานที่เผยแพร่</p>';
+}
 
+/* ---------- อันดับเกณฑ์มาตรฐาน (อยู่ในช่องผลการดำเนินงาน ใต้ "ผลงานด้านเภสัชกรรมปฐมภูมิ") ---------- */
+let lbYear = null, lbBound = false;
+function initLeaderboard(years) {
   const critYears = years.filter((y) => y <= CUR_FY);
   if (lbYear === null) lbYear = critYears.includes(CUR_FY) ? CUR_FY : critYears[critYears.length - 1];
-  if (!achBound) {
-    achBound = true;
+  if (!lbBound) {
+    lbBound = true;
     $('#lbYearTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (!b) return; lbYear = +b.dataset.y; renderLeaderboard(critYears); });
   }
   renderLeaderboard(critYears);

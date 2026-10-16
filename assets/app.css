@@ -1081,3 +1081,24 @@ details[open] > summary::before{transform:rotate(90deg)}
 .dmd-box p{margin:0}
 .dmd-bar{display:flex;gap:8px;flex-wrap:wrap}
 .dmd-bar .input{flex:1 1 220px;min-width:0}
+/* หน้ามาตรฐาน: เอกสารที่ผู้ดูแลผูกกับข้อ (criteria.js docsHtml) */
+.ci-docs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.ci-docs p{flex-basis:100%;margin:0}
+.ci-docs .btn{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* รูปประจำตัว + ชื่อที่หัวหน้า (กด = แก้ข้อมูลส่วนตัว · profile.js) */
+.me-head{display:flex;align-items:center;gap:14px;min-width:0}
+.me-head > div{min-width:0}
+.avatar.me-av{width:60px;height:60px;font-size:20px;border:2px solid var(--surface);box-shadow:0 0 0 2px var(--primary-soft);padding:0;cursor:pointer;font-family:inherit}
+.avatar.me-av:hover{box-shadow:0 0 0 2px var(--primary)}
+.avatar.me-av:focus-visible,.me-name:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.me-name{all:unset;cursor:pointer;overflow-wrap:anywhere;border-radius:6px}
+.me-name:not(:disabled):hover{color:var(--primary);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.me-name:disabled{cursor:default}
+@media (max-width:600px){.avatar.me-av{width:48px;height:48px;font-size:16px}}
+.pd-photo{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pd-photo .row-btns{margin:0}
+.pd-photo .small{flex-basis:100%}
+.avatar.pd-av{width:72px;height:72px;font-size:22px}
+.nav .who-chip{text-decoration:none}
+.nav .who-chip .who-av{width:24px;height:24px;border-radius:999px;object-fit:cover;flex-shrink:0}

@@ -30,7 +30,7 @@ const convOk = (c) => c && (isAdmin() || c.citizen_id === ME?.id || (isStaff() &
 function visible(t, r) {
   switch (t) {
     case 'news': return r.status === 'published' || isAdmin() || (ME && r.author_id === ME.id);
-    case 'documents': return isAdmin() || (isStaff() && (r.for_unit == null || r.for_unit === ME.unit_id));
+    case 'documents': return (r.is_public && r.for_unit == null) || isAdmin() || (isStaff() && (r.for_unit == null || r.for_unit === ME.unit_id));
     case 'conversations': return convOk(r);
     case 'unit_chats': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id);
     case 'unit_messages': return isAdmin() || (isStaff() && r.unit_id === ME.unit_id && (r.staff_id == null || r.staff_id === ME.id));

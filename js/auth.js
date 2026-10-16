@@ -13,7 +13,7 @@ async function loadProfile() {
   auth.profile = null; auth.error = null;
   if (!auth.session) return;
   const { data, error } = await sb.from('profiles')
-    .select('id,email,full_name,avatar_url,role,unit_id,phone,address,home_unit_id,unit:units!profiles_unit_id_fkey(name)')
+    .select('id,email,full_name,avatar_url,avatar_path,role,unit_id,phone,address,home_unit_id,unit:units!profiles_unit_id_fkey(name)')
     .eq('id', auth.session.user.id).single();
   if (error) { auth.error = error; return; }
   if (['staff', 'admin'].includes(data.role)) {   // ตำแหน่งจากบัญชีเจ้าหน้าที่ (ผู้ดูแลตั้ง · อ่านแถวของตัวเองได้)

@@ -7,11 +7,13 @@ import { loadYears, sortItems } from '../data.js?v=4.4';
 import { uploadEvidence, removeFiles, previewFiles, fileCard, hydrateSigned, openPrivateFile, linkMap, linkedHtml } from '../upload.js?v=4.4';
 import { openLightbox } from '../lightbox.js?v=4.4';
 import { refreshBadges } from './staff.js?v=4.4';
+import { download as downloadDoc } from './docs.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 let year = null, items = [], status = new Map(), linked = new Map(), openId = null, bound = false;   // linked: item_id → ผลงานที่ผูกข้อนั้น
 const pendingRemove = new Set();   // ไฟล์ที่กดลบ — ลบจริงตอนกดส่ง
 const pickedAch = new Set();       // รูปจาก "ผลงาน" ที่เลือกเป็นหลักฐาน — คัดลอกเข้า evidence ตอนกดส่ง
+let docs = [];                      // เอกสารที่ผู้ดูแลผูกกับข้อมาตรฐาน (documents.item_ids · 70_public_docs.sql)
 let achList = null;                 // ผลงานที่มีรูปของหน่วยตัวเอง (โหลดเมื่อกดเลือกครั้งแรก)
 
 const ST = { none: ['ยังไม่ส่ง', 'c-off'], submitted: ['ส่งแล้ว รอตรวจ', 'c-rev'], fix: ['ต้องแก้ไข', 'c-fix'], approved: ['ผ่านแล้ว', 'c-ok'] };
@@ -28,15 +30,17 @@ export async function initCriteria() {
 
 async function load() {
   $('#scList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
-  const [ci, st, ach] = await Promise.all([
+  const [ci, st, ach, dc] = await Promise.all([
     sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,sub_label,evidence,evidence_samples,item_no,body,sort').eq('fiscal_year', year).order('sort'),
     sb.from('item_status').select('id,item_id,status,detail,evidence_paths,review_comment,review_files,submitted_at,trashed_at').eq('unit_id', auth.profile.unit_id),
     sb.from('achievements').select('id,title,image_path,item_ids,created_at').eq('unit_id', auth.profile.unit_id).order('created_at', { ascending: false }),
+    sb.from('documents').select('id,title,file_path,file_name,item_ids').order('title'),   // RLS: เฉพาะที่หน่วยนี้เห็น
   ]);
   if (ci.error) { $('#scList').innerHTML = `<p class="empty">${esc(errText(ci.error))}</p>`; return; }
   items = sortItems(ci.data);
   status = new Map((st.data || []).map((s) => [s.item_id, s]));
   linked = linkMap(ach.data || []);
+  docs = (dc.data || []).filter((d) => d.item_ids?.length);
   render();
 }
 
@@ -114,9 +118,16 @@ function box(it, editable) {
       : (s?.detail ? `<p class="small"><b>รายละเอียด:</b> ${esc(s.detail)}</p>` : '<p class="small muted">ยังไม่มีการส่งหลักฐาน</p>'))
     + (files ? `<p class="small" style="font-weight:600">ไฟล์หลักฐานที่ส่งแล้ว (กดเพื่อเปิด)</p><div class="fthumbs">${files}</div>` : '')
     + linkedHtml(linked.get(it.id))
+    + docsHtml(it.id)
     + '<div class="row-btns" style="align-items:center">'
     + (canEdit ? `<button type="button" class="btn btn-p btn-sm" data-submit="${it.id}">${st === 'none' ? 'ส่งให้ผู้ดูแลตรวจ' : 'ส่งตรวจอีกครั้ง'}</button>` : '')
     + '<button type="button" class="btn btn-o btn-sm" data-close="1">ปิด</button><span class="small" id="ev-msg" aria-live="polite"></span></div></div>';
+}
+
+/** เอกสารดาวน์โหลดที่ผู้ดูแลผูกกับข้อนี้ */
+function docsHtml(id) {
+  const list = docs.filter((d) => d.item_ids.includes(id));
+  return list.length ? `<div class="ci-docs"><p class="small muted">เอกสารที่เกี่ยวข้อง (จากผู้ดูแล)</p>${list.map((d) => `<button type="button" class="btn btn-o btn-sm" data-docdl="${esc(d.id)}">⬇ ${esc(d.title)}</button>`).join('')}</div>` : '';
 }
 
 function bind() {
@@ -139,6 +150,8 @@ function bind() {
     if (e.target.closest('[data-ach-pick]')) { toggleAchPicker(e.target.closest('[data-ach-pick]')); return; }
     const ao = e.target.closest('[data-ach-opt]');
     if (ao) { const id = ao.dataset.achOpt; if (pickedAch.has(id)) pickedAch.delete(id); else pickedAch.add(id); ao.setAttribute('aria-pressed', String(pickedAch.has(id))); achCount(); return; }
+    const dd = e.target.closest('[data-docdl]');
+    if (dd) { const d = docs.find((x) => x.id === dd.dataset.docdl); if (d) downloadDoc(d); return; }
     const f = e.target.closest('[data-file]');
     if (f) { try { await openPrivateFile(f); } catch (err) { toast(errText(err), 'err'); } return; }
     const al = e.target.closest('[data-achlink]');

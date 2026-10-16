@@ -23,6 +23,7 @@ export async function showMe(openRequest = false) {
   $('#meAttach').hidden = guest;
   $('#meInput').placeholder = guest ? `พิมพ์สั้น ๆ ไม่เกิน ${GUEST_MAX} ตัวอักษร` : 'พิมพ์ข้อความ…';
   $('#meChatHint').textContent = '';
+  $('#meHello').disabled = guest;   // ยังไม่ล็อกอิน = ไม่มีข้อมูลส่วนตัวให้แก้
   if (guest) {
     $('#meRoleLbl').textContent = 'ประชาชนทั่วไป · ยังไม่ได้เข้าสู่ระบบ';
     $('#meHello').textContent = 'สอบถามเรื่องยา';
