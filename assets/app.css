@@ -170,6 +170,10 @@ main section[hidden]{display:none!important}
 @media (max-width:760px){.news{grid-template-columns:1fr}}
 /* หน้าแรก › ข่าวประชาสัมพันธ์: 6 ข่าวล่าสุด ปัด/กด ‹ › ซ้าย-ขวา */
 /* หน้าแรก: ข่าว 6 กล่อง 3 บน 3 ล่าง (มือถือ 2 คอลัมน์) */
+.news-strip{position:relative}
+.news-strip .car-btn.prev{left:-22px}.news-strip .car-btn.next{right:-22px}
+.news-page{text-align:center;margin:10px 0 0}
+@media (max-width:760px){.news-strip .car-btn.prev{left:-6px}.news-strip .car-btn.next{right:-6px}}
 @media (max-width:760px){.news.news-six{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.news-six .news-card .body{padding:10px 12px}.news-six .news-card h3{font-size:14px}}
 /* หน้าข่าวทั้งหมด (#/news/all) */
 .nl-find #nlSearch{flex:1 1 220px;min-width:0}

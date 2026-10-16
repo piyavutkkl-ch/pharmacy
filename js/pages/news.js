@@ -89,21 +89,38 @@ export function bindSlider() {
   ['mouseleave', 'focusout'].forEach((ev) => sl.addEventListener(ev, () => { paused = false; }));
 }
 
-/* ---------- รายการข่าวหน้าแรก: 6 กล่องพร้อมกัน (3 บน · 3 ล่าง) สุ่มข่าวใหม่ทุกครั้งที่เปิดเว็บ (ไม่ซ้ำกันในหน้าเดียว) · ปุ่ม "ดูข่าวทั้งหมด" → #/news/all ---------- */
+/* ---------- รายการข่าวหน้าแรก: 6 กล่องพร้อมกัน (3 บน · 3 ล่าง) สุ่มข่าวใหม่ทุกครั้งที่เปิดเว็บ (ไม่ซ้ำกันในหน้าเดียว)
+   ปุ่ม ‹ › ซ้าย-ขวา = ดูข่าวชุดถัดไป/ก่อนหน้า ทีละ 6 ข่าว (วนรอบ) · ปุ่ม "ดูข่าวทั้งหมด" → #/news/all ---------- */
 const HOME_NEWS = 6;
-let homePick = null;   // สุ่มครั้งเดียวต่อการเปิดเว็บ (กลับมาหน้าเดิมระหว่างใช้งานไม่สลับ)
+let homePick = null, homePage = 0, gridBound = false;   // สุ่มครั้งเดียวต่อการเปิดเว็บ (กลับมาหน้าเดิมระหว่างใช้งานไม่สลับ)
 export function shuffled(list) {
   const a = [...list];
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
-export function renderNewsGrid(list) {
-  if (!homePick || homePick.src !== list) homePick = { src: list, top: shuffled(list).slice(0, HOME_NEWS) };
-  const top = homePick.top;
+const pages = () => Math.ceil((homePick?.all.length || 0) / HOME_NEWS);
+function drawNewsPage() {
+  const n = pages(), top = homePick.all.slice(homePage * HOME_NEWS, homePage * HOME_NEWS + HOME_NEWS);
   $('#newsGrid').innerHTML = top.length
-    ? top.map((n) => `<a class="news-card" href="#/news/${n.id}"><div class="thumb">${cover(n)}</div>`
-      + `<div class="body"><span class="tag">${esc(n.tag)}</span><h3>${esc(n.title)}</h3><span class="d num">${esc(thaiDate(n.published_at))}</span></div></a>`).join('')
+    ? top.map((x) => `<a class="news-card" href="#/news/${x.id}"><div class="thumb">${cover(x)}</div>`
+      + `<div class="body"><span class="tag">${esc(x.tag)}</span><h3>${esc(x.title)}</h3><span class="d num">${esc(thaiDate(x.published_at))}</span></div></a>`).join('')
     : '<p class="empty" style="grid-column:1/-1">ยังไม่มีข่าวประชาสัมพันธ์</p>';
+  $('#newsPrev').hidden = $('#newsNext').hidden = $('#newsPage').hidden = n < 2;
+  $('#newsPage').textContent = `ชุดที่ ${homePage + 1} จาก ${n}`;
+}
+function stepNews(dir) {
+  const n = pages(); if (n < 2) return;
+  homePage = (homePage + dir + n) % n;
+  drawNewsPage();
+}
+export function renderNewsGrid(list) {
+  if (!gridBound) {
+    gridBound = true;
+    $('#newsPrev').addEventListener('click', () => stepNews(-1));
+    $('#newsNext').addEventListener('click', () => stepNews(1));
+  }
+  if (!homePick || homePick.src !== list) { homePick = { src: list, all: shuffled(list) }; homePage = 0; }
+  drawNewsPage();
   $('#newsAllLink').hidden = !list.length;
 }
 

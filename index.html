@@ -91,7 +91,12 @@
 
   <div class="sec reveal" data-panel="news" hidden>
     <div class="sec-head"><h2>ข่าวประชาสัมพันธ์</h2><a class="btn btn-o btn-sm" href="#/news/all" id="newsAllLink">ดูข่าวทั้งหมด</a></div>
-    <div class="news news-six" id="newsGrid" aria-label="ข่าว 6 เรื่อง (สุ่มใหม่ทุกครั้งที่เปิดเว็บ)"></div>
+    <div class="news-strip">
+      <button type="button" class="car-btn prev" id="newsPrev" aria-label="ข่าวชุดก่อนหน้า" hidden>‹</button>
+      <div class="news news-six" id="newsGrid" aria-label="ข่าว 6 เรื่อง (สุ่มใหม่ทุกครั้งที่เปิดเว็บ)" aria-live="polite"></div>
+      <button type="button" class="car-btn next" id="newsNext" aria-label="ข่าวชุดถัดไป" hidden>›</button>
+    </div>
+    <p class="small muted news-page" id="newsPage" hidden></p>
   </div>
 
   <div class="sec reveal" data-panel="dose" hidden>

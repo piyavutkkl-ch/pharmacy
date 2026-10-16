@@ -749,6 +749,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const orders = new Set();
       for (let k = 0; k < 6; k++) orders.add(await p.evaluate(async () => { const m = await import(`./js/pages/news.js?v=4.4`); return m.shuffled([1, 2, 3, 4, 5, 6, 7, 8]).slice(0, 6).join(','); }));
       check('หน้าแรก ข่าว: สุ่มข่าวทุกครั้งที่เปิดเว็บ (ไม่ซ้ำกันในหน้า)', new Set(ids).size === ids.length && orders.size > 1, [...orders].join(' | ')); }
+    { const first = await p.$$eval('#newsGrid .news-card', (c) => c.map((e) => e.getAttribute('href')).join());
+      const ok0 = await visible(p, '#newsPrev') && await visible(p, '#newsNext') && (await text(p, '#newsPage')).includes('ชุดที่ 1 จาก 2');
+      await p.click('#newsNext'); await p.waitForTimeout(200);
+      const second = await p.$$eval('#newsGrid .news-card', (c) => c.map((e) => e.getAttribute('href')));
+      check('หน้าแรก ข่าว: ปุ่ม › ด้านขวา → ดูข่าวชุดถัดไป (ไม่ซ้ำชุดแรก)', ok0 && second.length === allN - 6 && !second.some((h) => first.split(',').includes(h)) && (await text(p, '#newsPage')).includes('ชุดที่ 2 จาก 2'), JSON.stringify({ ok0, second, page: await text(p, '#newsPage') }));
+      await p.click('#newsPrev'); await p.waitForTimeout(200);
+      check('หน้าแรก ข่าว: ปุ่ม ‹ ด้านซ้าย → กลับชุดก่อนหน้า', (await p.$$eval('#newsGrid .news-card', (c) => c.map((e) => e.getAttribute('href')).join())) === first); }
     await p.click('#newsAllLink'); await p.waitForTimeout(600);
     check('ดูข่าวทั้งหมด: หน้าแยก ข่าวเรียงแนวตั้งครบทุกข่าว', await visible(p, '[data-view="allnews"]') && await count(p, '#nlList .newsrow') === allN && (await text(p, '#nlCount')).includes(String(allN)));
     await p.fill('#nlSearch', 'ข่าวเก่าลำดับ 4'); await p.waitForTimeout(150);
@@ -760,6 +767,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ดูข่าวทั้งหมด: จัดเรียงเก่า → ใหม่', (await p.textContent('#nlList .newsrow b')).includes('ข่าวเก่าลำดับ 1'));
     await p.setViewportSize({ width: 390, height: 844 }); await go(p, '#/news'); await p.waitForTimeout(500);
     check('หน้าแรก ข่าว (390px): 2 คอลัมน์ ไม่มี scroll แนวนอนทั้งหน้า', await count(p, '#newsGrid .news-card') >= 4 && await p.$$eval('#newsGrid .news-card', (c) => new Set(c.map((e) => Math.round(e.getBoundingClientRect().left))).size === 2) && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), JSON.stringify(await p.evaluate(() => ({ n: document.querySelectorAll('#newsGrid .news-card').length, sw: document.documentElement.scrollWidth, iw: innerWidth, wide: [...document.querySelectorAll('body *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.offsetParent && !e.closest('#newsGrid')).slice(0, 6).map((e) => e.tagName + '#' + e.id + '.' + e.className) }))));
+    check('หน้าแรก ข่าว (390px): ปุ่ม ‹ › ไม่ล้นจอ + สูง ≥ 44px', await p.$$eval('#newsPrev, #newsNext', (b) => b.every((x) => x.getBoundingClientRect().left >= 0 && x.getBoundingClientRect().right <= innerWidth && x.getBoundingClientRect().height >= 44)));
     await p.screenshot({ path: path.join(SHOTS, 'home-news-strip-390.png') });
     await go(p, '#/dose'); await p.waitForTimeout(400); await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
     check('ข้อมูลยา (390px): รายการยา ไม่มี scroll แนวนอน', await count(p, '#doseInfoList .di-item') > 0 && await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
