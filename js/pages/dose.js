@@ -161,26 +161,30 @@ function render() {
   renderGrowth($('#doseGrowth'), { months: ga ? ga.months : null, w: +$('#doseWeight').value, h: +$('#doseHeight').value, sex: $('#doseSex').value });
   const out = $('#doseResult');
   const w = +$('#doseWeight').value, d = drug();
+  labelDose();
   if (!d) { out.innerHTML = '<p class="small muted">ยังไม่มีรายการยาที่มีข้อมูลขนาดยา</p>'; return; }
   if (!(w > 0)) { out.innerHTML = '<p class="small muted">กรอกน้ำหนักตัว (จำเป็น) และเลือกรายการยาเพื่อคำนวณ · อายุและส่วนสูงไม่บังคับ</p>'; return; }
   const c = conc();
   /** ขนาดยาของข้อบ่งใช้ i สำหรับน้ำหนัก w */
+  //   หน่วย mcg (เช่น levothyroxine): คิดเป็น mcg แล้วแปลงเป็น มก. (÷1000) ก่อนเทียบกับความแรงของยา (มก./เม็ด · มก./มล.)
   const doseOf = (i) => {
-    let minMg, maxMg, label;
+    const mcg = i.unit === 'mcg', U = mcg ? 'mcg' : 'มก.', k = mcg ? 1 / 1000 : 1;
+    let lo, hi, label;
     if (i.per !== 'day') {
-      minMg = w * i.min; maxMg = w * i.max;
-      if (i.cap) { minMg = Math.min(minMg, i.cap); maxMg = Math.min(maxMg, i.cap); }
+      lo = w * i.min; hi = w * i.max;
+      if (i.cap) { lo = Math.min(lo, i.cap); hi = Math.min(hi, i.cap); }
       label = 'ต่อครั้ง';
     } else {
       const dayMin = w * i.min, dayMax = w * i.max, n = i.times || 1;
-      minMg = dayMin / n; maxMg = dayMax / n;
-      label = `ต่อครั้ง (แบ่งจากขนาดรวม ${dayMin.toFixed(0)}–${dayMax.toFixed(0)} มก./วัน)`;
+      lo = dayMin / n; hi = dayMax / n;
+      label = n > 1 ? `ต่อครั้ง (แบ่งจากขนาดรวม ${rng(dayMin, dayMax, dayMax < 10 ? 1 : 0)} ${U}/วัน)` : 'ต่อวัน (วันละครั้ง)';
     }
+    const minMg = lo * k, maxMg = hi * k;
     let vol = '';
     if (c?.mgPer5ml) vol = fig(`${rng(minMg / c.mgPer5ml * 5, maxMg / c.mgPer5ml * 5, 1)} มล.`, `ปริมาณยา (${esc(c.label)}) ${label}`);
     else if (c?.mgPerMl) vol = fig(`${rng(minMg / c.mgPerMl, maxMg / c.mgPerMl, 2)} มล.`, `ปริมาณยา (${esc(c.label)}) ${label}`);
     else if (c?.mgPerTab) vol = fig(`${rng(minMg / c.mgPerTab, maxMg / c.mgPerTab, 2)} เม็ด/แคปซูล`, `จาก ${esc(c.label)} ${label}`);
-    return fig(`${rng(minMg, maxMg, 0)} มก.`, `ขนาดยา ${label}`) + vol
+    return fig(`${rng(lo, hi, hi < 10 ? 1 : 0)} ${U}`, `ขนาดยา ${label}${mcg ? ` (= ${rng(minMg, maxMg, 3)} มก.)` : ''}`) + vol
       + `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
       + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '');
   };
@@ -399,6 +403,31 @@ async function openMono(it) {
     + (rows.length ? `<details class="mono-abbr"><summary>คำย่อ</summary><p class="small">บัญชี: ${Object.entries(ACCT).map(([k, v]) => `${k} = ${v}`).join(' · ')}</p><p class="small">${ABBR}</p></details>` : '');
   box.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
+/** ใต้ผลคำนวณ: "ขนาดยาและวิธีใช้" จากฉลากยา openFDA ของยา รพ.สต. ที่ผูกกับยาที่เลือก (ไทยจาก AI + ต้นฉบับอังกฤษพับไว้) */
+const labelRows = new Map();
+async function labelDose() {
+  const box = $('#doseLabel'), k = +$('#doseDrug').value || 0;
+  const keys = drugs?.[k] ? [...new Set(localsOf(k).map((it) => it.loc.fda_key).filter(Boolean))] : [];
+  box.dataset.k = String(k);
+  if (!keys.length) { box.innerHTML = ''; return; }
+  const need = keys.filter((x) => !labelRows.has(x));
+  if (need.length) {
+    const { data } = await sb.from('drug_fda_labels').select('id,key,title,generic,set_id,effective,sections,sections_th,th_reviewed').in('key', need);
+    need.forEach((x) => labelRows.set(x, (data || []).find((r) => r.key === x) || null));
+  }
+  if (box.dataset.k !== String(k)) return;   // ผู้ใช้เปลี่ยนยาระหว่างโหลด
+  const parts = keys.map((x) => labelRows.get(x)).filter(Boolean).map((f) => {
+    const th = f.sections_th?.find((x) => x.title === 'ขนาดยาและวิธีใช้'), en = f.sections?.find((x) => x.title === 'ขนาดยาและวิธีใช้')?.body;
+    if (!th && !en) return '';
+    const enHtml = en ? `<div lang="en">${fdaBody(en)}</div>` : '';
+    return `<details class="mono-fold" open><summary>ขนาดยาและวิธีใช้ · ${esc(f.title || f.generic)}</summary>`
+      + (th ? `<ul>${(th.body || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${enHtml ? `<details class="mono-en"><summary>ต้นฉบับภาษาอังกฤษ</summary>${enHtml}</details>` : ''}` : enHtml)
+      + `<p class="small muted">${th ? (f.th_reviewed ? 'ภาษาไทย · ผู้ดูแลตรวจแล้ว' : 'แปลและเรียบเรียงโดย AI · โปรดตรวจกับต้นฉบับ') : 'ภาษาอังกฤษตามต้นฉบับ (AI กำลังทยอยแปล)'} · ที่มา: ฉลากยาสหรัฐฯ openFDA`
+      + `${f.set_id ? ` · <a href="https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=${encodeURIComponent(f.set_id)}" target="_blank" rel="noopener">ฉลากเต็ม (DailyMed)</a>` : ''} · ขนาดยาในสหรัฐฯ อาจต่างจากประเทศไทย</p></details>`;
+  }).filter(Boolean);
+  box.innerHTML = parts.length ? `<section class="panel"><h3 class="dose-label-h">ข้อมูลขนาดยาจากฉลากยา</h3>${parts.join('')}</section>` : '';
+}
+
 /** ผู้ดูแล: ลิงก์ไปแก้ข้อมูลส่วนนี้ใน ตั้งค่า › ฐานข้อมูลยา (เปิดฟอร์มของรายการนั้นให้เลย) */
 const editLink = (key) => (isAdmin() ? `<a class="btn btn-o btn-sm mono-edit" href="#/admin/drugs/db" data-edit-drug="${esc(key)}">แก้ไขข้อมูลนี้</a>` : '');
 /** ข้อความในฉลาก openFDA: ขึ้นต้นด้วย • หลายข้อ → รายการ */
@@ -432,6 +461,6 @@ function doseText(i) {
   if (!(+i.min > 0 || +i.max > 0)) return '-';
   const r = num(i.min) === num(i.max) || !+i.max ? num(i.min || i.max) : `${num(i.min)}–${num(i.max)}`;
   return i.per === 'day'
-    ? `${r} มก./กก./วัน${i.times ? ` แบ่งให้วันละ ${num(i.times)} ครั้ง` : ''}`
-    : `${r} มก./กก./ครั้ง${i.cap ? ` · สูงสุด ${num(i.cap)} มก./ครั้ง` : ''}`;
+    ? `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก./วัน${i.times ? ` แบ่งให้วันละ ${num(i.times)} ครั้ง` : ''}`
+    : `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก./ครั้ง${i.cap ? ` · สูงสุด ${num(i.cap)} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/ครั้ง` : ''}`;
 }

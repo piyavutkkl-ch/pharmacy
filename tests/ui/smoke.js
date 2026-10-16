@@ -117,7 +117,25 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('กราฟเด็ก: อายุ 8 ปี → กราฟ 6–19 ปี (ส่วนสูงตามอายุ / น้ำหนักตามส่วนสูง)', (await p.$$eval('#doseGrowth .gc-tabs button', (b) => b.map((x) => x.dataset.gc).join())) === 'hfa619,wfh619');
     await p.fill('#doseAge', '60'); await p.fill('#doseWeight', '60'); await p.fill('#doseHeight', '160'); await p.check('#doseRenalAdjust'); await p.fill('#doseCr', '1'); await p.waitForTimeout(100);
     check('กราฟเด็ก: ผู้ใหญ่ (60 ปี) → ไม่แสดงกราฟ', await p.$eval('#doseGrowth', (e) => e.hidden));
-    check('กราฟเด็ก: ผู้ใหญ่ (60 ปี) → ไม่แสดงกราฟ', await p.$eval('#doseGrowth', (e) => e.hidden));
+    { // ขนาดยาหน่วยไมโครกรัม (65_dose_mcg.sql): levothyroxine mcg/กก. → แปลงเป็น มก. ก่อนคิดจำนวนเม็ด (เม็ด 100 MCG)
+      const saved = await p.evaluate(() => ({ age: document.querySelector('#doseAge').value, w: document.querySelector('#doseWeight').value, h: document.querySelector('#doseHeight').value, cr: document.querySelector('#doseCr').value, ren: document.querySelector('#doseRenalAdjust').checked, drug: document.querySelector('#doseDrug').value }));
+      await p.evaluate(async () => {
+        const db = window.__db, base = db.dose_drugs.find((x) => x.active);
+        db.dose_drugs.push({ ...base, id: 9902, name: 'Levothyroxine sodium', active: true, ai_draft: false, form: 'ยาเม็ด', ai_source: null,
+          indications: [{ name: 'ภาวะพร่องไทรอยด์แต่กำเนิด', unit: 'mcg', per: 'day', min: 10, max: 15, times: 1 }], concs: [] });
+        db.local_drugs.find((x) => /THYROXINE/i.test(x.name)).dose_id = 9902;
+        const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose();
+      });
+      await p.uncheck('#doseRenalAdjust'); await p.fill('#doseAge', ''); await p.fill('#doseWeight', '10');
+      const v = await p.$$eval('#doseDrug option', (o) => o.find((x) => /Levothyroxine/.test(x.textContent))?.value);
+      await p.selectOption('#doseDrug', v); await p.waitForTimeout(400);
+      const t = await text(p, '#doseResult');
+      check('ขนาดยาหน่วย mcg: 10–15 mcg/กก./วัน × 10 กก. = 100–150 mcg → เม็ด 100 MCG 1–1.5 เม็ด', t.includes('100–150 mcg') && t.includes('1.00–1.50 เม็ด'), t.slice(0, 300));
+      check('ใต้ผลคำนวณ: ขนาดยาและวิธีใช้จากฉลากยา (openFDA) ของยาที่เลือก', (await text(p, '#doseLabel')).includes('ขนาดยาและวิธีใช้') && (await text(p, '#doseLabel')).includes('openFDA'), await text(p, '#doseLabel'));
+      await p.evaluate(async () => { const db = window.__db; db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9902); db.local_drugs.find((x) => /THYROXINE/i.test(x.name)).dose_id = null; const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
+      await p.fill('#doseAge', saved.age); await p.fill('#doseWeight', saved.w); await p.fill('#doseHeight', saved.h);
+      if (saved.ren) { await p.check('#doseRenalAdjust'); await p.fill('#doseCr', saved.cr); }
+      await p.selectOption('#doseDrug', saved.drug); await p.waitForTimeout(200); }
     { const t = await text(p, '#doseResult');
       check('ไต: CrCl Cockcroft-Gault ตาม MDCalc (ใส่ส่วนสูง → BMI ปกติใช้ IBW)', (await p.inputValue('#doseCrClOut')).startsWith('49.') && t.includes('IBW (BMI 18.5–24.9)') && t.includes('ไตเสื่อมเล็กน้อย'), `${await p.inputValue('#doseCrClOut')} ${t.slice(0, 200)}`); }
     await p.selectOption('#doseRenalMethod', 'egfr'); await p.waitForTimeout(100);

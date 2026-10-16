@@ -1017,5 +1017,19 @@ check("staff saves age (no birth date) for own unit patient", "s2", "update pati
 check("bad age rejected", "s2", "update patients set age_years=200 where unit_id=2 and first_name='ประยูร'", "deny")
 check("other unit staff cannot change age (RLS → 0 rows)", "s1", "update patients set age_years=1 where first_name='ประยูร' returning id", rows(0))
 
+print("== step 65: mcg/kg doses + drug search name ==")
+check("dose_query uses English name outside brackets", None, "select dose_query('Levothyroxine sodium (L-thyroxine sodium)') || '|' || dose_query('พาราเซตามอล (Paracetamol)')", eq("levothyroxine sodium|acetaminophen"))
+d3 = check("admin starts dose helper (levothyroxine)", "admin", "select ai_dose_start('levothyroxine sodium')", lambda o: o.strip().isdigit()).strip()
+LT = '{"results":[{"openfda":{"brand_name":["Synthroid"],"generic_name":["LEVOTHYROXINE SODIUM"]},"effective_time":"20250101","dosage_and_administration":["Pediatric: 10-15 mcg/kg/day once daily."]}]}'
+run(f"insert into net._http_response(id,status_code,content) select rx_req, 200, '{{\"drugGroup\":{{}}}}' from ai_dose_drafts where id={d3}")
+run(f"insert into net._http_response(id,status_code,content) select fda_req, 200, $q${LT}$q$ from ai_dose_drafts where id={d3}")
+run(f"select ai_dose_poll({d3})", "admin")
+check("AI asked with unit rule (mg|mcg)", None, f"select (convert_from(q.body,'utf8') like '%mcg/kg%unit%' or convert_from(q.body,'utf8') like '%\"unit\": \"mg|mcg\"%')::text from ai_dose_drafts d join net.http_request_queue q on q.id=d.request_id where d.id={d3}", lambda o: o.strip().endswith('true'))
+LAI = '{"indications":[{"name":"พร่องไทรอยด์ในเด็ก","unit":"mcg","per":"day","min":10,"max":15,"times":1,"quote":"10-15 mcg/kg/day once daily"},{"name":"ไม่บอกหน่วย","per":"day","min":2,"max":3,"times":1,"quote":"2-3 mcg/kg/day"}]}'
+run(f"""insert into net._http_response(id,status_code,content) select request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${LAI}$q$))))))::text from ai_dose_drafts where id={d3}""")
+check("AI result keeps unit mcg (also from quote when AI forgets)", "admin", f"select ai_dose_poll({d3})->'result'->'ai'", lambda o: o.count('"unit": "mcg"') == 2)
+run(f"update ai_dose_drafts set auto_name='Levothyroxine sodium (L-thyroxine sodium)', converted=false where id={d3}")
+check("auto draft: mcg kept in indications + old columns stored in mg", None, f"select ai_dose_convert({d3}); select (indications->0->>'unit') || ':' || mg_per_kg_min::text from dose_drugs where id=(select max(id) from dose_drugs)", lambda o: o.split()[-1] in ('mcg:0.010', 'mcg:0.0100', 'mcg:0.01', 'mcg:0.01000'))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
