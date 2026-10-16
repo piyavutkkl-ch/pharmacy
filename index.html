@@ -680,10 +680,11 @@
       <!-- ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา (เฉพาะผู้ดูแลแก้ไขได้) -->
       <div data-admin-view="drugs" hidden>
         <div class="unit-tabs" id="adrTabs" aria-label="เมนูข้อมูลยา">
+          <a class="tab-link" href="#/admin/drugs/ai" data-sub="ai">ร่างขนาดยาจาก AI · เพิ่มหลายรายการ</a>
           <a class="tab-link" href="#/admin/drugs/dose" data-sub="dose">คำนวณขนาดยา</a>
           <a class="tab-link" href="#/admin/drugs/local" data-sub="local">ฐานข้อมูลบัญชียา รพ.สต.</a>
           <a class="tab-link" href="#/admin/drugs/nlem" data-sub="nlem">ฐานข้อมูลรายละเอียดยา (บัญชียาหลักแห่งชาติ)</a>
-          <a class="tab-link" href="#/admin/drugs/fda" data-sub="fda">ฐานข้อมูลฉลากยา (openFDA)</a>
+          <a class="tab-link" href="#/admin/drugs/fda" data-sub="fda">ฐานข้อมูลฉลากยา (openFDA · DailyMed)</a>
           <a class="tab-link" href="#/admin/drugs/ddi" data-sub="ddi">ฐานข้อมูลอันตรกิริยา (DDInter)</a>
         </div>
         <div data-admin-sub="db" hidden>
@@ -725,7 +726,7 @@
           </div>
           <div class="db-part" data-db-part="fda">
           <div class="panel">
-            <h2>ดึง / แก้ไข · ฉลากยาสหรัฐฯ (openFDA)</h2>
+            <h2>ดึง / แก้ไข · ฉลากยาสหรัฐฯ (openFDA · DailyMed)</h2>
             <p class="small muted">ข้อมูลฉลากยาภาษาอังกฤษจาก openFDA (ฟรี · ข้อมูลสาธารณะ) แสดงในหน้าข้อมูลยาของยา รพ.สต. ที่ผูกไว้ · ดึงใหม่ได้เมื่อฉลากปรับปรุง</p>
             <div class="form-grid three">
               <div class="field"><label for="faGeneric">ชื่อสามัญที่สหรัฐฯ ใช้ <span class="req">*</span></label><input id="faGeneric" class="input" maxlength="120" placeholder="เช่น acetaminophen, albuterol sulfate"></div>
@@ -733,6 +734,11 @@
               <div class="field"><label for="faBrand">ชื่อการค้า (ถ้าต้องการเจาะจง)</label><input id="faBrand" class="input" maxlength="120" placeholder="เช่น humulin 70/30"></div>
             </div>
             <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="faFetch">ดึงจาก openFDA</button><button type="button" class="btn btn-o btn-sm" id="faThAll">ให้ AI แปลเป็นภาษาไทย (ทุกฉลากที่ยังไม่แปล)</button><button type="button" class="btn btn-o btn-sm" id="faThStop" hidden>หยุด</button><span class="small" id="faMsg" aria-live="polite"></span></div>
+            <div class="dmd-box"><h3>ค้นจาก DailyMed (เลือกฉลากของผู้ผลิต/รูปแบบที่ต้องการ)</h3>
+              <p class="small muted">DailyMed (NLM สหรัฐฯ) รวมฉลากยาทุกผู้ผลิต · กด "นำเข้าฉลากนี้" ระบบดึงฉลากชุดเดียวกันผ่าน openFDA มาเก็บ แล้วผูกกับยา รพ.สต. ได้เหมือนเดิม</p>
+              <div class="dmd-bar"><input id="dmdQ" class="input" type="search" maxlength="80" placeholder="ชื่อยาภาษาอังกฤษ เช่น amoxicillin" aria-label="ค้นชื่อยาใน DailyMed"><button type="button" class="btn btn-o btn-sm" id="dmdGo">ค้น DailyMed</button></div>
+              <span class="small" id="dmdMsg" aria-live="polite"></span>
+              <div class="list" id="dmdOut"></div></div>
             <p class="small muted">AI (Gemini ฟรี) แปลและเรียบเรียงเป็นข้อ ๆ ภาษาไทย · หน้าข้อมูลยาแสดงภาษาไทย และซ่อนต้นฉบับภาษาอังกฤษไว้ให้กดดู · ข้อความที่ AI แปลจะมีป้ายบอก จนผู้ดูแลกด "แก้ไข" แล้วบันทึก (ถือว่าตรวจแล้ว) · <b>ระบบแปลให้เองต่อเนื่องทีละฉลาก</b> (ผูกกับยา รพ.สต. ก่อน · AI ไม่ว่างจะพักแล้วส่งใหม่เอง) กดปุ่มด้านบนเมื่อต้องการแปลทันที</p>
             <form id="faForm" class="form-grid dm-form" novalidate hidden>
               <h3 class="full" id="faTitle">แก้ไขฉลาก</h3>
@@ -799,7 +805,7 @@
           </div>
           </div>
         </div>
-        <div data-admin-sub="dose" hidden>
+        <div data-admin-sub="ai" hidden>
           <div class="panel" id="dfRvPanel">
             <h2>ร่างขนาดยาจาก AI · รอตรวจ <span class="num muted" id="dfRvCount"></span></h2>
             <p class="small muted">ระบบดึงข้อมูลให้ยารับประทานของ รพ.สต. ทุกตัวเอง ทีละยา (ฉลากยา openFDA + ความแรงจาก RxNorm → AI ร่างขนาดยา มก./กก.) · ตรวจ/แก้ตัวเลขในกล่องกับเอกสารอ้างอิง แล้วกด <b>"ตรวจแล้ว · ใช้คำนวณ"</b> ยานั้นจึงขึ้นในหน้าคำนวณขนาดยา</p>
@@ -807,9 +813,8 @@
             <div id="dfReview" class="df-rv-list"></div>
           </div>
           <div class="panel">
-            <h2 id="dfTitle">เพิ่มรายการยา</h2>
-            <p class="small muted">รายการนี้ใช้ในหน้าข้อมูลยา / คำนวณขนาดยาที่หน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
-            <details class="vs-pfold df-bulk" id="dfBulkFold"><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
+            <h2>เพิ่มหลายรายการ (วางรายชื่อยา · ให้ AI ร่าง)</h2>
+            <details class="vs-pfold df-bulk" id="dfBulkFold" open><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
               <p class="small muted">พิมพ์หรือวางรายชื่อยา บรรทัดละ 1 ยา เช่น พาราเซตามอล (Paracetamol) · กด "สร้างรายการ" แล้วระบบเปิดยาทีละตัวในฟอร์มด้านล่าง พร้อมช่วยกรอกจากฐานข้อมูลยาให้ · ตรวจแล้วกด "เพิ่มยา" ระบบไปยาตัวถัดไปเอง (ไม่บันทึกยาที่ยังไม่ได้ตรวจ)</p>
               <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>
               <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด</button><button type="button" class="btn btn-o btn-sm" id="dfFromRpst">ดึงขนาดยาจาก openFDA ให้ยา รพ.สต. ที่ยังไม่มี</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
@@ -817,6 +822,12 @@
               <span class="small" id="dfBulkMsg" aria-live="polite"></span>
               <div class="list" id="dfBulkList"></div>
             </details>
+          </div>
+        </div>
+        <div data-admin-sub="dose" hidden>
+          <div class="panel">
+            <h2 id="dfTitle">เพิ่มรายการยา</h2>
+            <p class="small muted">รายการนี้ใช้ในหน้าข้อมูลยา / คำนวณขนาดยาที่หน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
             <datalist id="dfIngList"><option value="Sulfamethoxazole"></option><option value="Trimethoprim"></option></datalist>
             <form id="dfForm" class="form-grid" novalidate>
               <div class="field"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>

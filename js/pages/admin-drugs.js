@@ -77,6 +77,9 @@ function bind() {
     links = links.filter((r) => byRef(r)?.name !== b.dataset.unlink && r !== b.dataset.unlink); renderLinks();
   });
   $('#faFetch').addEventListener('click', () => fetchAndSave($('#faGeneric').value, $('#faRoute').value, $('#faBrand').value, $('#faFetch')));
+  $('#dmdGo').addEventListener('click', searchDailyMed);
+  $('#dmdQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); searchDailyMed(); } });
+  $('#dmdOut').addEventListener('click', (e) => { const b = e.target.closest('[data-dmd-imp]'); if (b) importBySetId(b.dataset.dmdImp, b); });
   $('#faQ').addEventListener('input', renderFdas);
   $('#faList').addEventListener('click', onFdaList);
   $('#faForm').addEventListener('submit', saveFda);
@@ -351,6 +354,55 @@ export async function fetchFdaLabel(generic, route, brand) {
   const o = lab.openfda || {};
   return { key: [g, route, ...(brand?.trim() ? [brand.trim().toLowerCase()] : [])].join('|'), generic: g, route, brand: brand?.trim().toLowerCase() || null,
     title: ((o.brand_name || o.generic_name || [g])[0] || g).slice(0, 200), set_id: lab.set_id || null, effective: lab.effective_time || null, sections: fdaSections(lab) };
+}
+/* ---- DailyMed (69_dailymed.sql): ค้นผ่านฐานข้อมูล (DailyMed ไม่เปิดให้เบราว์เซอร์เรียกตรง) → นำเข้าฉลากชุดเดียวกันผ่าน openFDA ด้วย set_id ---- */
+async function searchDailyMed() {
+  const q = $('#dmdQ').value.trim(), btn = $('#dmdGo'), out = $('#dmdOut'), msg = $('#dmdMsg');
+  if (q.length < 2) { $('#dmdQ').focus(); msg.textContent = 'กรุณาพิมพ์ชื่อยาภาษาอังกฤษ'; return; }
+  busy(btn, true, 'กำลังค้น…'); msg.textContent = ''; out.innerHTML = '<div class="skeleton"></div>';
+  try {
+    const { data: id, error } = await sb.rpc('dailymed_search', { p_q: q });
+    if (error) throw error;
+    let r = { status: 'pending' };
+    for (let i = 0; r.status === 'pending' && i < 20; i++) {
+      await new Promise((ok) => setTimeout(ok, i ? 1500 : 800));
+      const { data, error: e2 } = await sb.rpc('dailymed_result', { p_id: id });
+      if (e2) throw e2;
+      r = data;
+    }
+    if (r.status !== 'done') throw new Error('DailyMed ไม่ตอบ กรุณาลองใหม่');
+    msg.textContent = r.data.length ? `พบ ${r.data.length} ฉลาก (ล่าสุดก่อน)` : 'ไม่พบฉลากใน DailyMed · ลองชื่อสามัญที่สหรัฐฯ ใช้';
+    out.innerHTML = r.data.map((x) => `<div class="li"><div class="l"><b>${esc(x.title)}</b><span class="small muted">ปรับปรุง ${esc(x.published_date || '-')} · ฉบับที่ ${esc(x.spl_version ?? '-')}</span></div>`
+      + `<div class="actions"><a class="btn btn-o btn-sm" href="https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=${encodeURIComponent(x.setid)}" target="_blank" rel="noopener">เปิดใน DailyMed</a>`
+      + `<button type="button" class="btn btn-p btn-sm" data-dmd-imp="${esc(x.setid)}">นำเข้าฉลากนี้</button></div></div>`).join('');
+  } catch (err) { out.innerHTML = ''; msg.style.color = 'var(--error)'; msg.textContent = errText(err); return; }
+  finally { busy(btn, false); }
+  msg.style.color = '';
+}
+/** ฉลากจาก openFDA ด้วย set_id (ฉลากชุดเดียวกับ DailyMed) → แถว drug_fda_labels */
+export async function fetchFdaBySetId(setid) {
+  const res = await fetch(`https://api.fda.gov/drug/label.json?search=set_id:"${encodeURIComponent(setid)}"&limit=1`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`openFDA ไม่ตอบ (รหัส ${res.status}) กรุณาลองใหม่`);
+  const lab = ((await res.json()).results || [])[0];
+  if (!lab) return null;
+  const o = lab.openfda || {}, g = String((o.generic_name || [])[0] || '').toLowerCase().slice(0, 150), route = String((o.route || ['ORAL'])[0]).toUpperCase();
+  const brand = String((o.brand_name || [])[0] || '').toLowerCase().slice(0, 120);
+  if (!g) return null;
+  return { key: [g, route, ...(brand && brand !== g ? [brand] : [])].join('|').slice(0, 200), generic: g, route, brand: brand && brand !== g ? brand : null,
+    title: ((o.brand_name || o.generic_name || [g])[0] || g).slice(0, 200), set_id: lab.set_id || setid, effective: lab.effective_time || null, sections: fdaSections(lab) };
+}
+async function importBySetId(setid, btn) {
+  const msg = $('#dmdMsg'); busy(btn, true, 'กำลังนำเข้า…');
+  try {
+    const row = await fetchFdaBySetId(setid);
+    if (!row || !row.sections.length) { msg.style.color = 'var(--error)'; msg.textContent = 'ฉลากนี้ยังไม่มีใน openFDA (หรือไม่มีหัวข้อที่ใช้ได้) · เปิดอ่านใน DailyMed ได้'; return; }
+    const { error } = await sb.from('drug_fda_labels').upsert({ ...row, fetched_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    if (error) throw error;
+    msg.style.color = 'var(--success)'; msg.textContent = `นำเข้าฉลาก "${row.title}" แล้ว (${row.sections.length} หัวข้อ) · ผูกกับยา รพ.สต. ได้ที่แท็บบัญชียา รพ.สต.`;
+    changed(); await loadFdas();
+  } catch (err) { msg.style.color = 'var(--error)'; msg.textContent = errText(err); }
+  finally { busy(btn, false); }
 }
 async function fetchAndSave(generic, route, brand, btn) {
   if (!generic.trim()) { $('#faGeneric').focus(); $('#faMsg').textContent = 'กรุณากรอกชื่อสามัญภาษาอังกฤษ'; return; }

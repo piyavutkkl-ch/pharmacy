@@ -1013,8 +1013,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.locator('#dfHelpOut').screenshot({ path: path.join(SHOTS, 'admin-dose-help-390.png') });
     await p.setViewportSize({ width: 1280, height: 900 });
     // เพิ่มหลายรายการ: วางรายชื่อยายาว ๆ → คิว → เปิดทีละตัวในฟอร์ม + ช่วยกรอกให้ → บันทึกแล้วไปตัวถัดไป (ไม่บันทึกเอง)
-    await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(400);
-    await p.click('#dfBulkFold > summary'); await p.waitForTimeout(100);
+    await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(400);
+    check('ผู้ดูแล › ข้อมูลยา: แท็บ "ร่างขนาดยาจาก AI · เพิ่มหลายรายการ" อยู่หน้าแท็บคำนวณขนาดยา · แท็บคำนวณขนาดยาเพิ่มทีละตัว', (await p.$$eval('#adrTabs [data-sub]', (a) => a.map((x) => x.dataset.sub).join())).startsWith('ai,dose') && await visible(p, '#dfReview') && await visible(p, '#dfBulk') && !(await visible(p, '#dfForm')));
+    if (!(await p.$eval('#dfBulkFold', (d) => d.open))) await p.click('#dfBulkFold > summary');
     await p.fill('#dfBulk', '1. ไดเฟนไฮดรามีน (Diphenhydramine)\n- ไอบูโพรเฟน (Ibuprofen)\nเซทิริซีน (Cetirizine)\n\nไดเฟนไฮดรามีน (Diphenhydramine)');
     const saves0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length;
     await p.click('#dfBulkMake'); await p.waitForTimeout(3800);
@@ -1023,11 +1024,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#dfInds .i-name', 'ลดไข้'); await p.fill('#dfInds .i-min', '5'); await p.fill('#dfInds .i-max', '10');
     await p.click('#dfSubmit'); await p.waitForTimeout(3800);
     check('เพิ่มหลายรายการ: บันทึกแล้ว → ตัวนั้นเพิ่มแล้ว + เปิดยาตัวถัดไปเอง', (await text(p, '#dfBulkList')).includes('✓ เพิ่มแล้ว') && (await p.inputValue('#dfName')) === 'เซทิริซีน (Cetirizine)' && (await text(p, '#dfBulkN')).includes('เพิ่มแล้ว 1'));
+    await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(300);
     await p.click('#dfBulkList [data-bulk-skip]'); await p.waitForTimeout(200);
     check('เพิ่มหลายรายการ: ข้ามได้ + จำรายการไว้ในเครื่อง', (await text(p, '#dfBulkN')).includes('รอเพิ่ม 0') && await p.evaluate(() => JSON.parse(localStorage.getItem('pcps_dose_queue') || '[]').length === 3));
     await p.evaluate(() => localStorage.removeItem('pcps_dose_queue'));
     // ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด (56_dose_ai_drafts.sql): ร่างซ่อนจากเครื่องคำนวณจนผู้ดูแลกด "ตรวจแล้ว · แสดง"
-    await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(400);
+    await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(400);
     if (!(await p.$eval('#dfBulkFold', (d) => d.open))) await p.click('#dfBulkFold > summary');
     await p.fill('#dfBulk', 'ลอราทาดีน (Loratadine)\nยาที่ไม่มี (Notfoundium)\nยาไทยล้วนไม่มีชื่ออังกฤษ');
     const ins0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'insert')).length;
@@ -1036,6 +1038,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const d = ins[0] || {};
       check('AI เก็บเป็นร่างทั้งหมด: บันทึกยาที่ดึงข้อมูลได้เป็นร่างซ่อนไว้ (ขนาดยา + ความแรงยากิน + ที่มา)', ins.length === 1 && d.name === 'ลอราทาดีน (Loratadine)' && d.active === false && d.ai_draft === true && d.indications?.length === 2 && d.concs?.length === 3 && d.indications.every((i) => i.quote && /^https:\/\/dailymed\.nlm\.nih\.gov\//.test(i.ref?.url || '')) && /openFDA/.test(d.ai_source), JSON.stringify(ins));
       check('AI เก็บเป็นร่าง: ยาที่ดึงไม่ได้/ไม่มีชื่ออังกฤษ → แจ้งให้กรอกเอง', (await text(p, '#dfBulkList')).includes('เก็บเป็นร่างแล้ว') && (await text(p, '#dfBulkList')).includes('ไม่มีชื่อภาษาอังกฤษ') && (await text(p, '#dfBulkMsg')).includes('เก็บเป็นร่างแล้ว 1 ยา'), await text(p, '#dfBulkMsg')); }
+    await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(400);
     await p.selectOption('#dfFForm', 'all'); await p.fill('#dfQ', ''); await p.waitForTimeout(150);
     check('รายการยา: ร่างจาก AI มีป้าย "AI ร่าง · รอตรวจ" + ปุ่มตรวจแล้ว · แสดง', (await text(p, '#dfList')).includes('AI ร่าง · รอตรวจ') && (await text(p, '#dfList')).includes('ตรวจแล้ว · แสดง'));
     { const id = await p.evaluate(() => window.__db.dose_drugs.find((x) => x.ai_draft)?.id);
@@ -1050,7 +1053,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const l = window.__db.local_drugs.find((x) => !x.dose_id && /เม็ด/.test(x.category));
       Object.assign(l, { dose_ai_status: 'none', dose_ai_note: 'ฉลากยาไม่มีขนาดยาแบบ มก./กก.' });
     });
-    await go(p, '#/admin/drugs/db'); await dbAll(p); await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(600);
+    await go(p, '#/admin/drugs/db'); await dbAll(p); await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(600);
     { const card = '#dfReview form[data-rv="9901"]';
       check('ร่างจาก AI: ข้อบ่งใช้ที่ AI กรอกมีข้อความจากฉลาก + อ้างอิงพร้อมลิงก์ (ตัวอักษรเล็ก)', (await text(p, `${card} .ai-src`)).includes('25 mg/kg/day') && (await p.getAttribute(`${card} .ai-src a`, 'href'))?.startsWith('https://dailymed.nlm.nih.gov/') && await p.$eval(`${card} .ai-src p`, (e) => parseFloat(getComputedStyle(e).fontSize) <= 13));
       check('ร่างจาก AI รอตรวจ: แสดงเป็นกล่องที่กรอกไว้แล้ว (ชื่อ/ขนาดยา/ความแรง/ข้อความจากฉลาก)', await visible(p, card) && (await p.inputValue(`${card} .r-name`)) === 'Amoxicillin' && (await p.inputValue(`${card} .i-min`)) === '25' && (await p.inputValue(`${card} .c-label`)) === 'ยาน้ำ 250 มก./5 มล.' && (await text(p, card)).includes('25 mg/kg/day') && (await text(p, '#dfRvCount')).includes('1'), await text(p, '#dfReview'));
@@ -1137,6 +1140,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#faList [data-fa-del]'); await p.waitForTimeout(300);
     check('openFDA: ลบฉลาก', (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'delete')).length === 1);
     await p.unroute('https://api.fda.gov/**');
+    // DailyMed (69_dailymed.sql): ค้นผ่านฐานข้อมูล → เลือกฉลาก → นำเข้าผ่าน openFDA ด้วย set_id
+    await p.route('https://api.fda.gov/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ results: [
+      { set_id: 'aaaa1111-2222-3333-4444-555566667777', effective_time: '20261001', openfda: { generic_name: ['LORATADINE'], brand_name: ['Loratadine Test'], route: ['ORAL'] }, indications_and_usage: ['Uses: temporarily relieves allergy symptoms'], dosage_and_administration: ['adults: 10 mg once daily'] }] }) }));
+    await p.fill('#dmdQ', 'loratadine'); await p.click('#dmdGo'); await p.waitForTimeout(1500);
+    check('DailyMed: ค้นแล้วแสดงรายการฉลาก + ลิงก์เปิดใน DailyMed', await count(p, '#dmdOut .li') === 1 && (await p.getAttribute('#dmdOut a', 'href')).startsWith('https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=aaaa1111') && (await calls(p, (c) => c.rpc === 'dailymed_search')).pop()?.args?.p_q === 'loratadine');
+    await p.click('#dmdOut [data-dmd-imp]'); await p.waitForTimeout(500);
+    { const up = (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'upsert')).pop()?.payload || {};
+      check('DailyMed: นำเข้าฉลากที่เลือก (openFDA ด้วย set_id) → บันทึกเป็นฉลากยา', up.set_id === 'aaaa1111-2222-3333-4444-555566667777' && up.key === 'loratadine|ORAL|loratadine test' && up.sections?.length >= 2 && (await text(p, '#dmdMsg')).includes('นำเข้าฉลาก'), JSON.stringify({ key: up.key, n: up.sections?.length, msg: await text(p, '#dmdMsg') })); }
+    await p.unroute('https://api.fda.gov/**');
     // ฉลาก openFDA ภาษาไทย (AI แปล · 60_drug_calc_th.sql) → หน้าข้อมูลยาแสดงไทย ซ่อนอังกฤษ · ผู้ดูแลแก้ข้อความไทย = ตรวจแล้ว
     await p.fill('#faQ', 'amlodipine'); await p.waitForTimeout(100);
     await p.click('#faList [data-fa-th]'); await p.waitForTimeout(6500);
@@ -1159,8 +1171,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const shown = await p.$$eval('[data-db-part]', (x) => x.filter((e) => !e.hidden).map((e) => e.dataset.dbPart).join());
       await go(p, '#/admin/drugs/ddi'); await p.waitForTimeout(300);
       const shown2 = await p.$$eval('[data-db-part]', (x) => x.filter((e) => !e.hidden).map((e) => e.dataset.dbPart).join());
-      check('ผู้ดูแล › ข้อมูลยา: แต่ละแท็บแยก 2 กล่อง (บน = เพิ่ม/แก้ไข · ล่าง = รายการที่บันทึกแล้ว)', await p.$$eval('[data-db-part]', (x) => x.every((e) => e.querySelectorAll(':scope > .panel').length === 2 && /บันทึกแล้ว/.test(e.querySelectorAll(':scope > .panel')[1].querySelector('h2').textContent) && !e.querySelectorAll(':scope > .panel')[0].querySelector('.list'))));
-      check('ผู้ดูแล › ข้อมูลยา: ฐานข้อมูลแยกแท็บ (บัญชียา รพ.สต. · รายละเอียดยา · ฉลากยา · อันตรกิริยา)', tabs.length === 5 && tabs.includes('ฐานข้อมูลบัญชียา รพ.สต.') && tabs.some((t) => t.startsWith('ฐานข้อมูลอันตรกิริยา')) && shown === 'local' && shown2 === 'ddi', JSON.stringify({ tabs, shown, shown2 })); }
+      check('ผู้ดูแล › ข้อมูลยา: แต่ละแท็บแยก 2 กล่อง (บน = เพิ่ม/แก้ไข · ล่าง = รายการที่บันทึกแล้ว)', await p.$$eval('[data-db-part]', (x) => x.every((e) => e.querySelectorAll(':scope > .panel').length === 2 && /บันทึกแล้ว/.test(e.querySelectorAll(':scope > .panel')[1].querySelector('h2').textContent) && !e.querySelectorAll(':scope > .panel')[0].querySelector('.list:not(#dmdOut)'))));
+      check('ผู้ดูแล › ข้อมูลยา: ฐานข้อมูลแยกแท็บ (บัญชียา รพ.สต. · รายละเอียดยา · ฉลากยา · อันตรกิริยา)', tabs.length === 6 && tabs.includes('ฐานข้อมูลบัญชียา รพ.สต.') && tabs.some((t) => t.startsWith('ฐานข้อมูลอันตรกิริยา')) && shown === 'local' && shown2 === 'ddi', JSON.stringify({ tabs, shown, shown2 })); }
     await go(p, '#/admin/drugs/db'); await dbAll(p);
     check('ผู้ดูแล › ฐานข้อมูลยา: บอกว่าระบบแปลไทยให้เองต่อเนื่อง (ฉลาก/คู่ยา)', (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองต่อเนื่องทีละฉลาก') && (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองต่อเนื่องทีละคู่'));
     check('Drug interaction (ผู้ดูแล): รายการคู่ยา เรียงรุนแรงก่อน', await count(p, '#ddList .li') === 30 && (await text(p, '#ddList .li')).includes('Major') && (await text(p, '#ddCount')).includes('คู่'));
@@ -1187,7 +1199,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/settings/delivery'); await p.waitForTimeout(400);
     check('ผู้ดูแล: จัดส่งยาถึงบ้านย้ายไปรวมกับ Health Rider', (await p.evaluate(() => location.hash)) === '#/admin/rider/delivery' && await visible(p, '[data-rider-sub="delivery"]') && !(await visible(p, '[data-rider-sub="rider"]')) && await count(p, '#arTabs [data-sub]') === 2);
     // ยา รพ.สต. ที่ยังไม่มีข้อมูลคำนวณ → ให้ AI ร่างขนาดยาจากฉลาก openFDA (ใช้ชื่อสามัญสหรัฐฯ) → ร่างซ่อนจนตรวจ
-    await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(400);
+    await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(400);
     await p.click('#dfFromRpst'); await p.waitForTimeout(700); await p.click('#dfBulkStop'); await p.waitForTimeout(6000);
     { const q = await p.evaluate(() => JSON.parse(localStorage.getItem('pcps_dose_queue') || '[]'));
       const first = (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args?.p_name;

@@ -52,11 +52,11 @@ export async function showAdmin(tab, sub) {
     return mountRiderEditor($('#adminRiderSlot'));
   }
   if (tab === 'drugs') {   // ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลแยกแท็บ (บัญชียา รพ.สต. · รายละเอียดยา · ฉลากยา · อันตรกิริยา) · /db เดิม = บัญชียา รพ.สต.
-    const v = sub === 'db' ? 'local' : DB_PARTS.includes(sub) ? sub : 'dose';
+    const v = sub === 'db' ? 'local' : DB_PARTS.includes(sub) || sub === 'ai' ? sub : 'dose';   // ai = ร่างขนาดยาจาก AI + เพิ่มหลายรายการ
     subTabs('#adrTabs', v);
-    $$('[data-admin-view="drugs"] [data-admin-sub]').forEach((x) => { x.hidden = x.dataset.adminSub !== (v === 'dose' ? 'dose' : 'db'); });
+    $$('[data-admin-view="drugs"] [data-admin-sub]').forEach((x) => { x.hidden = x.dataset.adminSub !== (DB_PARTS.includes(v) ? 'db' : v); });
     $$('[data-db-part]').forEach((x) => { x.hidden = x.dataset.dbPart !== v; });
-    return v === 'dose' ? initDoseAdmin() : initDrugsAdmin();
+    return DB_PARTS.includes(v) ? initDrugsAdmin() : initDoseAdmin();
   }
   if (tab === 'docs') return initAdminDocs();
   if (!SUBS[sub]) sub = 'contacts';

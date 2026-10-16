@@ -1054,5 +1054,17 @@ check("auto draft indications carry quote + ref", None, "select bool_and(e ? 're
 print("== step 68: system-filled ingredients flagged for review ==")
 check("co-trimoxazole susp ingredients flagged auto (needs admin review)", "anon", "select bool_and((e->>'auto')::boolean) from local_drugs, jsonb_array_elements(ingredients) e where code='1010290'", eq("t"))
 
+print("== step 69: DailyMed search via database ==")
+check("staff cannot search DailyMed", "s2", "select dailymed_search('amoxicillin')", "deny")
+check("bad query rejected", "admin", "select dailymed_search('x\" or 1')", "deny")
+dmr = check("admin searches DailyMed (GET · no key)", "admin", "select dailymed_search('Amoxicillin')", lambda o: o.strip().isdigit()).strip()
+check("request goes to DailyMed spls API with drug name only", None, f"select (url like 'https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?%drug_name=amoxicillin%' and method='GET')::text from net.http_request_queue where id={dmr}", eq("true"))
+check("web cannot read request table directly", "admin", "select count(*) from dailymed_requests", "deny")
+check("result pending before response", "admin", f"select dailymed_result({dmr})->>'status'", eq("pending"))
+DM = '{"data":[{"title":"AMOXICILLIN CAPSULE [X]","setid":"4ecf56fe-3e72-713a-e063-6294a90ac3d5","published_date":"Oct 14, 2026","spl_version":1},{"title":"bad","setid":"bad id!"}]}'
+run(f"insert into net._http_response(id,status_code,content) values ({dmr}, 200, $q${DM}$q$)")
+check("result: titles + set ids (invalid ids dropped)", "admin", f"select dailymed_result({dmr})->'data'", lambda o: '4ecf56fe' in o and o.count('setid') == 1)
+check("unknown request id rejected", "admin", "select dailymed_result(999999)", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

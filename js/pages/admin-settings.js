@@ -148,6 +148,7 @@ function renderBulk() {
 }
 function openBulk(i) {
   const x = bulk[i]; if (!x) return;
+  if (location.hash !== '#/admin/drugs/dose') location.hash = '#/admin/drugs/dose';   // ฟอร์มกรอกทีละตัวอยู่ในแท็บคำนวณขนาดยา
   resetDrugForm(); bulkCur = i; renderBulk();
   $('#dfName').value = x.name;
   $('#dfForm').scrollIntoView({ behavior: 'smooth', block: 'start' });

@@ -551,6 +551,15 @@ function rpc(name, a = {}) {
       const r = (db.ddi_pairs || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบคู่ยานี้', 'P0001');
       Object.assign(r, { th_status: 'pending', th_polls: 0 }); return { data: null, error: null };
     }
+    /* แทน dailymed_search / dailymed_result (69_dailymed.sql) */
+    case 'dailymed_search': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      return { data: 777, error: null };
+    }
+    case 'dailymed_result': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      return { data: { status: 'done', query: 'loratadine', data: [{ title: 'LORATADINE TABLET [TEST PHARMA]', setid: 'aaaa1111-2222-3333-4444-555566667777', published_date: 'Oct 01, 2026', spl_version: 3 }] }, error: null };
+    }
     case 'ai_ddi_th_poll': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
       const r = (db.ddi_pairs || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบคู่ยานี้', 'P0001');
