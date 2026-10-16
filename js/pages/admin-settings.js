@@ -19,12 +19,13 @@ export const indsOf = (d) => (d.indications?.length ? d.indications
 export const unitTh = (i) => (i?.unit === 'mcg' ? 'mcg' : 'มก.');
 /** ค่าต่อ กก. เป็น มก. สำหรับช่องเดิม (mg_per_kg_* · max_mg_per_dose) */
 export const asMg = (i, v) => (v == null ? null : i?.unit === 'mcg' ? +(v / 1000).toFixed(6) : v);
-const perText = (i) => `${i.min ?? '?'}–${i.max ?? '?'} ${unitTh(i)}/กก./${i.per === 'day' ? 'วัน' + (i.times ? ' แบ่ง ' + i.times + ' ครั้ง' : '') : 'ครั้ง'}${i.cap ? ' · สูงสุด ' + i.cap + ` ${unitTh(i)}/ครั้ง` : ''}`;
+const perText = (i) => `${i.basis ? `[${i.basis}] ` : ''}${i.min ?? '?'}–${i.max ?? '?'} ${unitTh(i)}/กก./${i.per === 'day' ? 'วัน' + (i.times ? ' แบ่ง ' + i.times + ' ครั้ง' : '') : 'ครั้ง'}${i.cap ? ' · สูงสุด ' + i.cap + ` ${unitTh(i)}/ครั้ง` : ''}`;
 
 function indBox(i = { per: 'dose' }, open = true) {
   const v = (k) => esc(i[k] ?? '');
   return `<details class="ind-box"${open ? ' open' : ''}><summary><span class="ind-sum"></span><button type="button" class="btn btn-no btn-sm" data-rmind>ลบ</button></summary><div class="form-grid">`
     + `<div class="field full"><label>ข้อบ่งใช้ <span class="req">*</span><input class="input i-name" maxlength="200" placeholder="เช่น ลดไข้" value="${v('name')}"></label></div>`
+    + `<div class="field"><label>คิดจากสารสำคัญ (ยาสูตรผสม)<input class="input i-basis" maxlength="60" list="dfIngList" placeholder="ยาเดี่ยวเว้นว่าง · เช่น Trimethoprim" value="${v('basis')}"></label></div>`
     + `<div class="field"><label>หน่วยขนาดยา<select class="input i-unit"><option value="mg"${i.unit !== 'mcg' ? ' selected' : ''}>มก. (mg)</option><option value="mcg"${i.unit === 'mcg' ? ' selected' : ''}>ไมโครกรัม (mcg)</option></select></label></div>`
     + `<div class="field"><label>คิดขนาดยาแบบ<select class="input i-per"><option value="dose"${i.per !== 'day' ? ' selected' : ''}>ต่อ กก. ต่อครั้ง</option><option value="day"${i.per === 'day' ? ' selected' : ''}>ต่อ กก. ต่อวัน (แบ่งให้)</option></select></label></div>`
     + `<div class="field i-times-wrap"${i.per === 'day' ? '' : ' hidden'}><label>แบ่งให้วันละ (ครั้ง)<input class="input i-times" type="number" inputmode="numeric" min="1" max="12" value="${v('times')}"></label></div>`
@@ -39,14 +40,14 @@ function syncIndBoxes(root = $('#dfInds')) {
   root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value;
     b.querySelector('.i-times-wrap').hidden = g('.i-per') !== 'day';
-    b.querySelector('.ind-sum').textContent = `ข้อบ่งใช้ ${k + 1}: ${g('.i-name').trim() || '(ยังไม่ระบุ)'} · ${perText({ unit: g('.i-unit'), per: g('.i-per'), min: g('.i-min') || null, max: g('.i-max') || null, times: g('.i-times') || null, cap: g('.i-cap') || null })}`;
+    b.querySelector('.ind-sum').textContent = `ข้อบ่งใช้ ${k + 1}: ${g('.i-name').trim() || '(ยังไม่ระบุ)'} · ${perText({ basis: g('.i-basis').trim(), unit: g('.i-unit'), per: g('.i-per'), min: g('.i-min') || null, max: g('.i-max') || null, times: g('.i-times') || null, cap: g('.i-cap') || null })}`;
   });
 }
 function readInds(root = $('#dfInds')) {
   const out = [];
   root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value.trim(), n = `ข้อบ่งใช้ ${k + 1}`;
-    const i = { name: g('.i-name'), unit: g('.i-unit') === 'mcg' ? 'mcg' : null, per: g('.i-per'), min: num(g('.i-min')), max: num(g('.i-max')), times: num(g('.i-times')), cap: num(g('.i-cap')), freq: g('.i-freq') || null, renal: g('.i-renal') || null };
+    const i = { name: g('.i-name'), basis: g('.i-basis') || null, unit: g('.i-unit') === 'mcg' ? 'mcg' : null, per: g('.i-per'), min: num(g('.i-min')), max: num(g('.i-max')), times: num(g('.i-times')), cap: num(g('.i-cap')), freq: g('.i-freq') || null, renal: g('.i-renal') || null };
     const bad = (t) => { b.open = true; throw new Error(`${n}: ${t}`); };
     if (!i.name) bad('กรุณาใส่ชื่อข้อบ่งใช้');
     if (i.min == null || i.max == null || i.min < 0) bad('กรุณาใส่ขนาดยาต่ำสุดและสูงสุด (ต่อ กก.)');

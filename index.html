@@ -702,6 +702,7 @@
               <div class="field full"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้</span><div class="di-chips" id="ldLinks"></div>
                 <input id="ldLinkQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="ldLinkOut"></div></div>
               <div class="field"><label for="ldStrMg">ความแรง (สำหรับเครื่องคำนวณ)</label><div class="dose-age ld-str"><input id="ldStrMg" class="input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="มก."><select id="ldStrPer" class="input" aria-label="ต่อ"><option value="tab">มก./เม็ด</option><option value="5ml">มก./5 มล.</option><option value="ml">มก./มล.</option></select></div><span class="small muted" id="ldStrHint">ว่าง = อ่านจากชื่อยา</span></div>
+              <div class="field full"><label for="ldIng">สารสำคัญ (ยาสูตรผสม)</label><textarea id="ldIng" rows="2" maxlength="600" placeholder="Sulfamethoxazole | 400&#10;Trimethoprim | 80"></textarea><span class="small muted">บรรทัดละ 1 ตัว: ชื่อ | มก. ต่อหน่วยตามช่องความแรง (เม็ด / 5 มล. / มล.) · ยาเดี่ยวเว้นว่าง · เครื่องคำนวณใช้ตัวที่ข้อบ่งใช้ระบุว่า "คิดจากสารสำคัญ"</span></div>
               <div class="field"><label for="ldDose">ข้อมูลคำนวณขนาดยา</label><select id="ldDose" class="input"><option value="">อัตโนมัติ (จับคู่ตามชื่อยา)</option></select></div>
               <div class="field full"><label for="ldDdi">ยาใน DDInter (สำหรับ Drug interaction)</label><input id="ldDdi" class="input" list="ddiNames" maxlength="300" placeholder="ชื่อยาภาษาอังกฤษ คั่นด้วย , เช่น Sulfamethoxazole, Trimethoprim"><datalist id="ddiNames"></datalist><span class="small muted">ว่าง = ไม่ตรวจ interaction ของยานี้ (เช่น ยาทาภายนอก)</span></div>
               <div class="field full"><label for="ldFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="ldFda" class="input"><option value="">— ไม่ผูก —</option></select><span class="small muted">ยังไม่มีในรายการ → ดึงเพิ่มได้ในกล่อง "ฉลากยาสหรัฐฯ (openFDA)" ด้านล่าง</span></div>
@@ -814,6 +815,7 @@
               <span class="small" id="dfBulkMsg" aria-live="polite"></span>
               <div class="list" id="dfBulkList"></div>
             </details>
+            <datalist id="dfIngList"><option value="Sulfamethoxazole"></option><option value="Trimethoprim"></option></datalist>
             <form id="dfForm" class="form-grid" novalidate>
               <div class="field"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>
               <div class="field"><label for="dfForm2">รูปแบบยา</label><select id="dfForm2" class="input"><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>

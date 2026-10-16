@@ -133,6 +133,23 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.selectOption('#doseDrug', v); await p.waitForTimeout(400);
       const t = await text(p, '#doseResult');
       check('ขนาดยาหน่วย mcg: 10–15 mcg/กก./วัน × 10 กก. = 100–150 mcg → เม็ด 100 MCG 1–1.5 เม็ด', t.includes('100–150 mcg') && t.includes('1.00–1.50 เม็ด'), t.slice(0, 300));
+      // ยาสูตรผสม (66_combo_drugs.sql): co-trimoxazole เม็ด 400/80 · คิดจาก Trimethoprim 8–12 มก./กก./วัน แบ่ง 2 ครั้ง
+      await p.evaluate(async () => {
+        const db = window.__db, base = db.dose_drugs.find((x) => x.active);
+        db.dose_drugs.push({ ...base, id: 9903, name: 'Co-trimoxazole', active: true, ai_draft: false, form: 'ยาเม็ด', ai_source: null, concs: [],
+          indications: [{ name: 'ติดเชื้อทางเดินปัสสาวะ', basis: 'Trimethoprim', per: 'day', min: 8, max: 12, times: 2 }, { name: 'ยังไม่ระบุสารที่ใช้คิด', per: 'day', min: 8, max: 12, times: 2 }] });
+        db.local_drugs.find((x) => x.code === '1010280').dose_id = 9903;
+        const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose();
+      });
+      await p.fill('#doseWeight', '20');
+      { const v2 = await p.$$eval('#doseDrug option', (o) => o.find((x) => x.textContent === 'Co-trimoxazole')?.value);
+        await p.selectOption('#doseDrug', v2); await p.waitForTimeout(400);
+        const t2 = await text(p, '#doseResult'), opt = await text(p, '#doseConc');
+        check('ยาสูตรผสม: ความแรงแสดงสารสำคัญทุกตัว (400/80 มก./เม็ด)', opt.includes('400/80') && opt.includes('Sulfamethoxazole + Trimethoprim'), opt);
+        check('ยาสูตรผสม: คิดจาก Trimethoprim → 80–120 มก./ครั้ง = 1–1.5 เม็ด + ได้รับ SMX 400–600 · TMP 80–120 มก.', t2.includes('คิดจาก Trimethoprim') && t2.includes('80–120 มก.') && t2.includes('1.00–1.50 เม็ด') && t2.includes('Sulfamethoxazole 400–600 มก.') && t2.includes('Trimethoprim 80–120 มก.'), t2.slice(0, 600));
+        check('ยาสูตรผสม: ข้อบ่งใช้ที่ยังไม่ระบุสารที่ใช้คิด → เตือน ไม่คิดจำนวนเม็ด (กันคิดผิด 5 เท่า)', t2.includes('ยังไม่ได้ระบุว่าคิดขนาดยาจากสารสำคัญตัวใด')); }
+      await p.evaluate(async () => { const db = window.__db; db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9903); db.local_drugs.find((x) => x.code === '1010280').dose_id = null; });
+      await p.fill('#doseWeight', '10'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
       check('ใต้ผลคำนวณ: ขนาดยาและวิธีใช้จากฉลากยา (openFDA) ของยาที่เลือก', (await text(p, '#doseLabel')).includes('ขนาดยาและวิธีใช้') && (await text(p, '#doseLabel')).includes('openFDA'), await text(p, '#doseLabel'));
       await p.evaluate(async () => { const db = window.__db; db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9902); db.local_drugs.find((x) => /THYROXINE/i.test(x.name)).dose_id = null; const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
       await p.fill('#doseAge', saved.age); await p.fill('#doseWeight', saved.w); await p.fill('#doseHeight', saved.h);
@@ -1144,6 +1161,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('Drug interaction: บันทึกข้อความไทย = ตรวจแล้ว', up.description_th === 'ยาสองตัวนี้ทำให้ระดับยาในเลือดสูงขึ้น' && up.th_reviewed === true); }
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1010280')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
+      check('ยา รพ.สต.: ยาสูตรผสมแสดงสารสำคัญแต่ละตัว (Co-trimoxazole: Sulfamethoxazole | 400 · Trimethoprim | 80)', (await p.inputValue('#ldIng')).includes('Trimethoprim | 80') && (await p.inputValue('#ldIng')).includes('Sulfamethoxazole | 400'), await p.inputValue('#ldIng'));
       check('ยา รพ.สต.: ช่องยาใน DDInter แสดงยาผสมครบ (Co-trimoxazole = 2 ตัว)', (await p.inputValue('#ldDdi')).split(',').length === 2, await p.inputValue('#ldDdi'));
       await p.fill('#ldDdi', 'Sulfamethoxazole'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
       const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};

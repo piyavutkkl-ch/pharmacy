@@ -1031,5 +1031,21 @@ check("AI result keeps unit mcg (also from quote when AI forgets)", "admin", f"s
 run(f"update ai_dose_drafts set auto_name='Levothyroxine sodium (L-thyroxine sodium)', converted=false where id={d3}")
 check("auto draft: mcg kept in indications + old columns stored in mg", None, f"select ai_dose_convert({d3}); select (indications->0->>'unit') || ':' || mg_per_kg_min::text from dose_drugs where id=(select max(id) from dose_drugs)", lambda o: o.split()[-1] in ('mcg:0.010', 'mcg:0.0100', 'mcg:0.01', 'mcg:0.01000'))
 
+print("== step 66: combination drugs (ingredients + basis) ==")
+check("co-trimoxazole tab/susp have ingredients 400/80 · 200/40 per 5 ml", "anon", "select string_agg(ingredients->1->>'mg' || '/' || (ingredients->1->>'per'), ',' order by code) from local_drugs where code in ('1010280','1010290')", eq("80/tab,40/5ml"))
+check("staff cannot edit ingredients (RLS → 0 rows)", "s2", "update local_drugs set ingredients='[]' where code='1010280' returning id", rows(0))
+check("bad ingredients rejected (not array)", "admin", "update local_drugs set ingredients='{}' where code='1010280'", "deny")
+check("admin edits ingredients", "admin", "update local_drugs set ingredients='[{\"name\":\"Sulfamethoxazole\",\"mg\":400,\"per\":\"tab\"},{\"name\":\"Trimethoprim\",\"mg\":80,\"per\":\"tab\"}]' where code='1010280' returning ingredients->0->>'name'", eq("Sulfamethoxazole"))
+d4 = check("admin starts dose helper (co-trimoxazole)", "admin", "select ai_dose_start('sulfamethoxazole and trimethoprim')", lambda o: o.strip().isdigit()).strip()
+CT = '{"results":[{"openfda":{"generic_name":["SULFAMETHOXAZOLE AND TRIMETHOPRIM"]},"dosage_and_administration":["Children: 8 mg/kg trimethoprim and 40 mg/kg sulfamethoxazole per 24 hours, in two divided doses."]}]}'
+run(f"insert into net._http_response(id,status_code,content) select rx_req, 200, '{{\"drugGroup\":{{}}}}' from ai_dose_drafts where id={d4}")
+run(f"insert into net._http_response(id,status_code,content) select fda_req, 200, $q${CT}$q$ from ai_dose_drafts where id={d4}")
+run(f"select ai_dose_poll({d4})", "admin")
+check("AI asked for basis of combination drugs", None, f"select (convert_from(q.body,'utf8') like '%basis%')::text from ai_dose_drafts d join net.http_request_queue q on q.id=d.request_id where d.id={d4}", eq("true"))
+CAI = '{"indications":[{"name":"ติดเชื้อทางเดินปัสสาวะ","basis":"Trimethoprim","per":"day","min":8,"max":8,"times":2,"quote":"8 mg/kg trimethoprim and 40 mg/kg sulfamethoxazole per 24 hours"}]}'
+run(f"""insert into net._http_response(id,status_code,content) select request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${CAI}$q$))))))::text from ai_dose_drafts where id={d4}""")
+check("AI result keeps basis", "admin", f"select ai_dose_poll({d4})->'result'->'ai'->0->>'basis'", eq("Trimethoprim"))
+check("old dose data: basis read from label quote (8 mg/kg trimethoprim)", None, "insert into dose_drugs(name,indication,per,mg_per_kg_min,mg_per_kg_max,concs,active,ai_draft,indications) values ('ทดสอบ basis','x','day',40,40,'[]',false,true,'[{\"name\":\"x\",\"per\":\"day\",\"min\":40,\"max\":40,\"quote\":\"8 mg/kg trimethoprim and 40 mg/kg sulfamethoxazole per 24 hours\"}]') returning id; " + open("supabase/66_combo_drugs.sql").read().split("-- ③")[1].split("select 'ok'")[0].split("\n",1)[1] + "; select indications->0->>'basis' from dose_drugs where name='ทดสอบ basis'", lambda o: o.strip().endswith('Sulfamethoxazole'))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

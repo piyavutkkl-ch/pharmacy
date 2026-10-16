@@ -139,7 +139,7 @@ function resetLocal() {
   editLocal = null; links = [];
   ['#ldName', '#ldCode', '#ldCat', '#ldPack', '#ldUnit', '#ldNote', '#ldLinkQ'].forEach((s) => { $(s).value = ''; });
   $('#ldSort').value = locals.length ? Math.max(...locals.map((l) => l.sort)) + 1 : 1; $('#ldActive').checked = true; $('#ldFda').value = '';
-  $('#ldStrMg').value = ''; $('#ldStrPer').value = 'tab'; $('#ldDose').value = ''; $('#ldDdi').value = ''; strHint();
+  $('#ldStrMg').value = ''; $('#ldStrPer').value = 'tab'; $('#ldDose').value = ''; $('#ldDdi').value = ''; $('#ldIng').value = ''; strHint();
   $('#ldSubmit').textContent = 'เพิ่มยา'; $('#ldCancel').hidden = true; $('#ldMsg').textContent = '';
   renderLinks(); renderPick();
 }
@@ -147,7 +147,8 @@ function editLocalForm(l) {
   editLocal = l; links = [...(l.mono_refs || [])];
   $('#ldName').value = l.name; $('#ldCode').value = l.code || ''; $('#ldCat').value = l.category; $('#ldPack').value = l.pack_size || '';
   $('#ldUnit').value = l.unit || ''; $('#ldNote').value = l.note || ''; $('#ldFda').value = l.fda_key || '';
-  $('#ldStrMg').value = l.strength?.mg ?? ''; $('#ldStrPer').value = l.strength?.per || 'tab'; $('#ldDose').value = l.dose_id ?? ''; strHint();
+  $('#ldStrMg').value = l.strength?.mg ?? ''; $('#ldStrPer').value = l.ingredients?.[0]?.per || l.strength?.per || 'tab'; $('#ldDose').value = l.dose_id ?? '';
+  $('#ldIng').value = (l.ingredients || []).map((x) => `${x.name} | ${x.mg}`).join('\n'); strHint();
   $('#ldDdi').value = (l.ddi_ids || []).map((i) => ddDrugs.find((d) => d.id === i)?.name || i).join(', '); $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
   $('#ldSubmit').textContent = 'บันทึกการแก้ไข'; $('#ldCancel').hidden = false; $('#ldMsg').textContent = '';
   renderLinks();
@@ -163,6 +164,11 @@ async function saveLocal(e) {
   const row = { name, code, category, pack_size: $('#ldPack').value.trim(), unit: $('#ldUnit').value.trim(), note: $('#ldNote').value.trim() || null,
     mono_refs: links, fda_key: $('#ldFda').value || null, dose_id: +$('#ldDose').value || null,
     strength: +$('#ldStrMg').value > 0 ? { mg: +$('#ldStrMg').value, per: $('#ldStrPer').value } : null, sort: +$('#ldSort').value || 0, active: $('#ldActive').checked, updated_at: new Date().toISOString() };
+  // สารสำคัญ (ยาสูตรผสม): "ชื่อ | มก." บรรทัดละ 1 · หน่วยตามช่องความแรง
+  const ingLines = $('#ldIng').value.split('\n').map((x) => x.trim()).filter(Boolean);
+  const ings = ingLines.map((x) => { const [n, mg] = x.split('|').map((y) => y.trim()); return { name: n, mg: +mg, per: $('#ldStrPer').value }; });
+  if (ings.some((x) => !x.name || !(x.mg > 0))) { $('#ldIng').focus(); $('#ldMsg').textContent = 'สารสำคัญ: กรอกบรรทัดละ 1 ตัว แบบ "ชื่อ | มก." เช่น Trimethoprim | 80'; return; }
+  row.ingredients = ings.length ? ings : null;
   const ddiNames = $('#ldDdi').value.split(',').map((x) => x.trim()).filter(Boolean);
   const ddiIds = ddiNames.map((n) => ddDrugs.find((d) => d.name.toLowerCase() === n.toLowerCase() || d.id === n)?.id);
   if (ddiIds.some((x) => !x)) { $('#ldDdi').focus(); $('#ldMsg').textContent = `ไม่พบยาใน DDInter: ${ddiNames.filter((n, i) => !ddiIds[i]).join(', ')} (เลือกจากรายการที่แนะนำ)`; return; }
