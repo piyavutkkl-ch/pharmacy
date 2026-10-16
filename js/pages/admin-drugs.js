@@ -10,6 +10,7 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { resetDrugInfo, strengthOf } from './dose.js?v=4.4';
 
+let doseOpts = '<option value="">ข้อมูลคำนวณ: อัตโนมัติ (จับคู่ตามชื่อยา)</option>';
 let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30;
 
 export async function initDrugsAdmin() {
@@ -32,9 +33,8 @@ function openPending() {
 async function loadDoses() {
   const { data } = await sb.from('dose_drugs').select('id,name,active,ai_draft').order('sort');
   doses = data || [];
-  const cur = $('#ldDose').value;
-  $('#ldDose').innerHTML = '<option value="">อัตโนมัติ (จับคู่ตามชื่อยา)</option>' + doses.map((d) => `<option value="${d.id}">${esc(d.name)}${d.ai_draft ? ' (ร่าง · รอตรวจ)' : d.active ? '' : ' (ซ่อน)'}</option>`).join('');
-  $('#ldDose').value = cur;
+  doseOpts = '<option value="">ข้อมูลคำนวณ: อัตโนมัติ (จับคู่ตามชื่อยา)</option>' + doses.map((d) => `<option value="${d.id}">${esc(d.name)}${d.ai_draft ? ' (ร่าง · รอตรวจ)' : d.active ? '' : ' (ซ่อน)'}</option>`).join('');
+  document.querySelectorAll('#ldIngs .r-dose').forEach((x) => { const v = x.value; x.innerHTML = doseOpts; x.value = v; });
 }
 
 async function loadLocals() {
@@ -90,7 +90,10 @@ function bind() {
   $('#ddForm').addEventListener('submit', saveDd);
   $('#ddCancel').addEventListener('click', () => { $('#ddForm').hidden = true; editDd = null; });
   $('#faThStop').addEventListener('click', () => { thStop = true; });
-  ['#ldName', '#ldUnit', '#ldStrMg'].forEach((x) => $(x).addEventListener('input', strHint));
+  ['#ldName', '#ldUnit'].forEach((x) => $(x).addEventListener('input', strHint));
+  $('#ldIngs').addEventListener('input', strHint);
+  $('#ldIngAdd').addEventListener('click', () => { $('#ldIngs').insertAdjacentHTML('beforeend', ingRow()); ingRows(); $('#ldIngs').lastElementChild.querySelector('.r-n').focus(); });
+  $('#ldIngs').addEventListener('click', (e) => { const b = e.target.closest('[data-ing-rm]'); if (!b) return; b.closest('.ld-ing-row').remove(); if (!$('#ldIngs').children.length) $('#ldIngs').innerHTML = ingRow(); ingRows(); });
   $('#faCancel').addEventListener('click', () => { $('#faForm').hidden = true; editFda = null; });
   $('#dmNew').addEventListener('click', () => openMonoForm(null));
   $('#dmCancel').addEventListener('click', () => { $('#dmForm').hidden = true; editMono = null; });
@@ -117,9 +120,52 @@ function renderLocals() {
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-ld-edit="${l.id}">แก้ไข</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-ld-del="${l.id}">ลบ</button></div></div>`).join('');
 }
+/* ---- สารสำคัญ · ความแรง · ข้อมูลคำนวณขนาดยา: แถวละ 1 สาร (ยาเดี่ยว 1 แถว → strength + dose_id · ยาสูตรผสม ≥ 2 แถว → ingredients[] พร้อม dose_id รายสาร) ---- */
+const UNITS = [['mg|tab', 'มก./เม็ด'], ['mg|5ml', 'มก./5 มล.'], ['mg|ml', 'มก./มล.'], ['mcg|tab', 'mcg/เม็ด'], ['mcg|ml', 'mcg/มล.']];
+function ingRow(x = {}) {
+  const u = `${x.u || 'mg'}|${x.per || 'tab'}`;
+  return `<div class="ld-ing-row"><input class="input r-n" maxlength="60" placeholder="ชื่อสารสำคัญ เช่น Trimethoprim" aria-label="ชื่อสารสำคัญ" value="${esc(x.name || '')}">`
+    + `<input class="input r-mg" type="number" inputmode="decimal" min="0" step="0.001" placeholder="ความแรง" aria-label="ความแรง" value="${esc(x.amt ?? '')}">`
+    + `<select class="input r-u" aria-label="หน่วยความแรง">${UNITS.map(([v, l]) => `<option value="${v}"${v === u ? ' selected' : ''}>${l}</option>`).join('')}</select>`
+    + `<select class="input r-dose" aria-label="ข้อมูลคำนวณขนาดยาของสารนี้">${doseOpts}</select>`
+    + '<button type="button" class="btn btn-no btn-sm" data-ing-rm aria-label="ลบแถวนี้">×</button></div>';
+}
+/** ปรับป้ายตามจำนวนแถว (ยาเดี่ยว: ไม่ต้องใส่ชื่อ) */
+function ingRows() {
+  const rows = [...document.querySelectorAll('#ldIngs .ld-ing-row')];
+  rows.forEach((r) => { r.querySelector('.r-n').placeholder = rows.length > 1 ? 'ชื่อสารสำคัญ เช่น Trimethoprim' : 'ชื่อสารสำคัญ (ยาเดี่ยวเว้นว่างได้)'; });
+  strHint();
+}
+function fillIngs(l) {
+  const ings = l?.ingredients || [];
+  const rows = ings.length ? ings.map((x) => ({ name: x.name, amt: x.amt ?? x.mg, u: x.u || 'mg', per: x.per || 'tab', dose: x.dose_id }))
+    : [{ name: '', amt: l?.strength ? (l.strength.u === 'mcg' ? l.strength.amt : l.strength.mg) : '', u: l?.strength?.u || 'mg', per: l?.strength?.per || 'tab', dose: l?.dose_id }];
+  $('#ldIngs').innerHTML = rows.map(ingRow).join('');
+  [...$('#ldIngs').children].forEach((r, k) => { r.querySelector('.r-dose').value = rows[k].dose ?? ''; });
+  $('#ldIngWarn').hidden = !ings.some((x) => x.auto);
+  ingRows();
+}
+/** อ่านแถว → { strength, dose_id, ingredients } หรือ throw ข้อความผิดพลาด */
+function readIngs() {
+  const rows = [...document.querySelectorAll('#ldIngs .ld-ing-row')].map((r) => {
+    const [u, per] = r.querySelector('.r-u').value.split('|'), amt = +r.querySelector('.r-mg').value;
+    return { name: r.querySelector('.r-n').value.trim(), amt: amt > 0 ? amt : null, u, per, dose_id: +r.querySelector('.r-dose').value || null };
+  }).filter((x) => x.name || x.amt || x.dose_id);
+  const mgOf = (x) => (x.u === 'mcg' ? +(x.amt / 1000).toFixed(6) : x.amt);
+  if (rows.length <= 1) {
+    const r = rows[0];
+    return { strength: r?.amt ? { mg: mgOf(r), per: r.per, ...(r.u === 'mcg' ? { u: 'mcg', amt: r.amt } : {}) } : null, dose_id: r?.dose_id || null, ingredients: null };
+  }
+  const bad = rows.find((x) => !x.name || !x.amt);
+  if (bad) throw new Error('ยาสูตรผสม: กรอกชื่อและความแรงของสารสำคัญให้ครบทุกแถว');
+  if (new Set(rows.map((x) => x.per)).size > 1) throw new Error('ยาสูตรผสม: หน่วยของทุกสารต้องเป็นต่อเม็ด หรือต่อ มล. เหมือนกัน');
+  return { strength: null, dose_id: null, ingredients: rows.map((x) => ({ name: x.name, mg: mgOf(x), per: x.per, ...(x.u === 'mcg' ? { u: 'mcg', amt: x.amt } : {}), ...(x.dose_id ? { dose_id: x.dose_id } : {}) })) };
+}
 /** ช่องความแรงว่าง → บอกว่าระบบอ่านจากชื่อยาได้เท่าไร */
 function strHint() {
-  if (+$('#ldStrMg').value > 0) { $('#ldStrHint').textContent = 'ใช้ความแรงที่กรอก'; return; }
+  const rows = document.querySelectorAll('#ldIngs .ld-ing-row');
+  if (rows.length > 1) { $('#ldStrHint').textContent = 'ยาสูตรผสม: เลือกข้อมูลคำนวณขนาดยาของสารที่ต้องการ · หน้าคำนวณคิดจำนวนเม็ด/มล. จากสารนั้น'; return; }
+  if (+rows[0]?.querySelector('.r-mg').value > 0) { $('#ldStrHint').textContent = 'ใช้ความแรงที่กรอก'; return; }
   const st = strengthOf({ name: $('#ldName').value, unit: $('#ldUnit').value });
   $('#ldStrHint').textContent = st ? `ว่าง = อ่านจากชื่อยา: ${+st.mg.toFixed(3)} ${{ tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' }[st.per]}` : 'อ่านจากชื่อยาไม่ได้ · กรอกความแรงเพื่อใช้ในเครื่องคำนวณ (เช่น ยาน้ำ 120 มก./5 มล.)';
 }
@@ -139,7 +185,7 @@ function resetLocal() {
   editLocal = null; links = [];
   ['#ldName', '#ldCode', '#ldCat', '#ldPack', '#ldUnit', '#ldNote', '#ldLinkQ'].forEach((s) => { $(s).value = ''; });
   $('#ldSort').value = locals.length ? Math.max(...locals.map((l) => l.sort)) + 1 : 1; $('#ldActive').checked = true; $('#ldFda').value = '';
-  $('#ldStrMg').value = ''; $('#ldStrPer').value = 'tab'; $('#ldDose').value = ''; $('#ldDdi').value = ''; $('#ldIng').value = ''; strHint();
+  $('#ldDdi').value = ''; fillIngs(null);
   $('#ldSubmit').textContent = 'เพิ่มยา'; $('#ldCancel').hidden = true; $('#ldMsg').textContent = '';
   renderLinks(); renderPick();
 }
@@ -147,8 +193,7 @@ function editLocalForm(l) {
   editLocal = l; links = [...(l.mono_refs || [])];
   $('#ldName').value = l.name; $('#ldCode').value = l.code || ''; $('#ldCat').value = l.category; $('#ldPack').value = l.pack_size || '';
   $('#ldUnit').value = l.unit || ''; $('#ldNote').value = l.note || ''; $('#ldFda').value = l.fda_key || '';
-  $('#ldStrMg').value = l.strength?.mg ?? ''; $('#ldStrPer').value = l.ingredients?.[0]?.per || l.strength?.per || 'tab'; $('#ldDose').value = l.dose_id ?? '';
-  $('#ldIng').value = (l.ingredients || []).map((x) => `${x.name} | ${x.mg}`).join('\n'); strHint();
+  fillIngs(l);
   $('#ldDdi').value = (l.ddi_ids || []).map((i) => ddDrugs.find((d) => d.id === i)?.name || i).join(', '); $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
   $('#ldSubmit').textContent = 'บันทึกการแก้ไข'; $('#ldCancel').hidden = false; $('#ldMsg').textContent = '';
   renderLinks();
@@ -162,13 +207,8 @@ async function saveLocal(e) {
   const code = $('#ldCode').value.trim() || null;
   if (code && locals.some((l) => l.code === code && l.id !== editLocal?.id)) { $('#ldCode').focus(); $('#ldMsg').textContent = 'รหัสยานี้มีในรายการแล้ว'; return; }
   const row = { name, code, category, pack_size: $('#ldPack').value.trim(), unit: $('#ldUnit').value.trim(), note: $('#ldNote').value.trim() || null,
-    mono_refs: links, fda_key: $('#ldFda').value || null, dose_id: +$('#ldDose').value || null,
-    strength: +$('#ldStrMg').value > 0 ? { mg: +$('#ldStrMg').value, per: $('#ldStrPer').value } : null, sort: +$('#ldSort').value || 0, active: $('#ldActive').checked, updated_at: new Date().toISOString() };
-  // สารสำคัญ (ยาสูตรผสม): "ชื่อ | มก." บรรทัดละ 1 · หน่วยตามช่องความแรง
-  const ingLines = $('#ldIng').value.split('\n').map((x) => x.trim()).filter(Boolean);
-  const ings = ingLines.map((x) => { const [n, mg] = x.split('|').map((y) => y.trim()); return { name: n, mg: +mg, per: $('#ldStrPer').value }; });
-  if (ings.some((x) => !x.name || !(x.mg > 0))) { $('#ldIng').focus(); $('#ldMsg').textContent = 'สารสำคัญ: กรอกบรรทัดละ 1 ตัว แบบ "ชื่อ | มก." เช่น Trimethoprim | 80'; return; }
-  row.ingredients = ings.length ? ings : null;
+    mono_refs: links, fda_key: $('#ldFda').value || null, sort: +$('#ldSort').value || 0, active: $('#ldActive').checked, updated_at: new Date().toISOString() };
+  try { Object.assign(row, readIngs()); } catch (err) { $('#ldMsg').textContent = err.message; $('#ldIngs .r-n')?.focus(); return; }   // บันทึกโดยผู้ดูแล = ทวนสอบแล้ว (ไม่มี auto)
   const ddiNames = $('#ldDdi').value.split(',').map((x) => x.trim()).filter(Boolean);
   const ddiIds = ddiNames.map((n) => ddDrugs.find((d) => d.name.toLowerCase() === n.toLowerCase() || d.id === n)?.id);
   if (ddiIds.some((x) => !x)) { $('#ldDdi').focus(); $('#ldMsg').textContent = `ไม่พบยาใน DDInter: ${ddiNames.filter((n, i) => !ddiIds[i]).join(', ')} (เลือกจากรายการที่แนะนำ)`; return; }

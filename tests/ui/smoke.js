@@ -148,6 +148,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ยาสูตรผสม: ความแรงแสดงสารสำคัญทุกตัว (400/80 มก./เม็ด)', opt.includes('400/80') && opt.includes('Sulfamethoxazole + Trimethoprim'), opt);
         check('ยาสูตรผสม: คิดจาก Trimethoprim → 80–120 มก./ครั้ง = 1–1.5 เม็ด + ได้รับ SMX 400–600 · TMP 80–120 มก.', t2.includes('คิดจาก Trimethoprim') && t2.includes('80–120 มก.') && t2.includes('1.00–1.50 เม็ด') && t2.includes('Sulfamethoxazole 400–600 มก.') && t2.includes('Trimethoprim 80–120 มก.'), t2.slice(0, 600));
         check('ยาสูตรผสม: ข้อบ่งใช้ที่ยังไม่ระบุสารที่ใช้คิด → เตือน ไม่คิดจำนวนเม็ด (กันคิดผิด 5 เท่า)', t2.includes('ยังไม่ได้ระบุว่าคิดขนาดยาจากสารสำคัญตัวใด')); }
+      // ผูกข้อมูลคำนวณไว้กับสาร (ingredients[].dose_id) → คิดจากสารนั้นเลย ไม่ต้องระบุในข้อบ่งใช้
+      await p.evaluate(async () => {
+        const db = window.__db, l = db.local_drugs.find((x) => x.code === '1010280');
+        db.dose_drugs.push({ ...db.dose_drugs.find((x) => x.id === 9903), id: 9904, name: 'Trimethoprim (ทดสอบ)', indications: [{ name: 'ติดเชื้อ', per: 'day', min: 8, max: 12, times: 2 }] });
+        l.dose_id = null; l.ingredients = l.ingredients.map((x) => (x.name === 'Trimethoprim' ? { ...x, dose_id: 9904 } : x));
+        const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose();
+      });
+      { const v3 = await p.$$eval('#doseDrug option', (o) => o.find((x) => x.textContent === 'Trimethoprim (ทดสอบ)')?.value);
+        await p.selectOption('#doseDrug', v3); await p.waitForTimeout(400);
+        const t3 = await text(p, '#doseResult');
+        check('ยาสูตรผสม: ข้อมูลคำนวณผูกกับสาร Trimethoprim → ยา co-trimoxazole ขึ้นในเครื่องคำนวณ + คิดจาก TMP 1–1.5 เม็ด', t3.includes('คิดจาก Trimethoprim') && t3.includes('1.00–1.50 เม็ด') && t3.includes('Sulfamethoxazole 400–600 มก.'), t3.slice(0, 500)); }
+      await p.evaluate(() => { const db = window.__db, l = db.local_drugs.find((x) => x.code === '1010280'); l.ingredients = l.ingredients.map(({ dose_id, ...x }) => x); db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9904); });
       await p.evaluate(async () => { const db = window.__db; db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9903); db.local_drugs.find((x) => x.code === '1010280').dose_id = null; });
       await p.fill('#doseWeight', '10'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
       check('ใต้ผลคำนวณ: ขนาดยาและวิธีใช้จากฉลากยา (openFDA) ของยาที่เลือก', (await text(p, '#doseLabel')).includes('ขนาดยาและวิธีใช้') && (await text(p, '#doseLabel')).includes('openFDA'), await text(p, '#doseLabel'));
@@ -1052,12 +1064,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     // ยาที่เพิ่มเองต้องผูกกับยา รพ.สต. ก่อนจึงขึ้นในเครื่องคำนวณ (เลือก "ข้อมูลคำนวณขนาดยา" ในฟอร์มยา รพ.สต.)
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(600);
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1200110')?.id);
-      await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100); await p.selectOption('#ldDose', { label: 'ยาทดสอบ' }); await p.click('#ldSubmit'); await p.waitForTimeout(300);
+      await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100); await p.selectOption('#ldIngs .r-dose', { label: 'ยาทดสอบ' }); await p.click('#ldSubmit'); await p.waitForTimeout(300);
       check('ยา รพ.สต.: ผูกกับข้อมูลคำนวณขนาดยาเอง (dose_id)', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.dose_id === await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id)); }
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1050060')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
       check('ยา รพ.สต.: ช่องความแรงว่าง → บอกว่าอ่านจากชื่อยาไม่ได้', (await text(p, '#ldStrHint')).includes('อ่านจากชื่อยาไม่ได้'));
-      await p.fill('#ldStrMg', '120'); await p.selectOption('#ldStrPer', '5ml'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
+      await p.fill('#ldIngs .r-mg', '120'); await p.selectOption('#ldIngs .r-u', 'mg|5ml'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
       const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
       check('ยา รพ.สต.: กรอกความแรงยาน้ำ (120 มก./5 มล.)', up.strength?.mg === 120 && up.strength?.per === '5ml', JSON.stringify(up.strength)); }
     await go(p, '#/dose'); await p.waitForTimeout(300);
@@ -1162,10 +1174,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('Drug interaction: บันทึกข้อความไทย = ตรวจแล้ว', up.description_th === 'ยาสองตัวนี้ทำให้ระดับยาในเลือดสูงขึ้น' && up.th_reviewed === true); }
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1010280')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
-      check('ยา รพ.สต.: ยาสูตรผสมแสดงสารสำคัญแต่ละตัว (Co-trimoxazole: Sulfamethoxazole | 400 · Trimethoprim | 80)', (await p.inputValue('#ldIng')).includes('Trimethoprim | 80') && (await p.inputValue('#ldIng')).includes('Sulfamethoxazole | 400'), await p.inputValue('#ldIng'));
+      { const rows = await p.$$eval('#ldIngs .ld-ing-row', (r) => r.map((x) => `${x.querySelector('.r-n').value}|${x.querySelector('.r-mg').value}|${x.querySelector('.r-u').value}`));
+        check('ยา รพ.สต.: ยาสูตรผสมกรอกแยกรายสาร (ชื่อ · ความแรง · หน่วย · ข้อมูลคำนวณ) + เตือนให้ทวนสอบข้อมูลที่ระบบใส่ให้', rows.join() === 'Sulfamethoxazole|400|mg|tab,Trimethoprim|80|mg|tab' && await count(p, '#ldIngs .r-dose') === 2 && await visible(p, '#ldIngWarn'), rows.join()); }
+      await p.selectOption('#ldIngs .ld-ing-row:nth-child(2) .r-dose', { label: 'ยาทดสอบ' });
       check('ยา รพ.สต.: ช่องยาใน DDInter แสดงยาผสมครบ (Co-trimoxazole = 2 ตัว)', (await p.inputValue('#ldDdi')).split(',').length === 2, await p.inputValue('#ldDdi'));
       await p.fill('#ldDdi', 'Sulfamethoxazole'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
       const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
+      check('ยา รพ.สต.: บันทึกสารสำคัญรายตัว + ข้อมูลคำนวณของ Trimethoprim (ทวนสอบแล้ว = ไม่มีป้ายระบบใส่ให้)', up.ingredients?.length === 2 && up.ingredients[1].dose_id === await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id) && !up.ingredients[0].dose_id && !JSON.stringify(up.ingredients).includes('auto') && up.dose_id === null, JSON.stringify(up.ingredients));
       check('ยา รพ.สต.: แก้ยาใน DDInter → บันทึกเป็นรหัส', up.ddi_ids?.length === 1 && /^DDInter\d+$/.test(up.ddi_ids[0]), JSON.stringify(up.ddi_ids)); }
     await go(p, '#/admin/settings/dose'); await p.waitForTimeout(400);
     check('ผู้ดูแล: เมนูข้อมูลยาแยกจากตั้งค่า (ลิงก์เดิมพาไปเมนูใหม่)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/dose' && await visible(p, '[data-admin-view="drugs"] [data-admin-sub="dose"]') && await count(p, '#asTabs [data-sub="dose"]') === 0 && await count(p, '.sidenav [data-admin-tab="drugs"]') === 1);

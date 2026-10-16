@@ -98,7 +98,13 @@ function fillConc(pick) {
 }
 function conc() {
   const v = $('#doseConc').value || '', d = drug();
-  if (v.startsWith('l:')) { const it = litems[+v.slice(2)], st = it && strengthOf(it.loc); return st ? concOf(st, `${it.loc.name} ${mgText(st)}`) : null; }
+  if (v.startsWith('l:')) {
+    const it = litems[+v.slice(2)], st = it && strengthOf(it.loc);
+    if (!st) return null;
+    const c = concOf(st, `${it.loc.name} ${mgText(st)}`), ing = (it.loc.ingredients || []).find((x) => x.dose_id && x.dose_id === d?.id);
+    if (ing && c.ings) c.fixed = ing.name;   // ผูกข้อมูลคำนวณไว้กับสารนี้ = คิดจากสารนี้เสมอ
+    return c;
+  }
   if (v.startsWith('c:')) return (d?.concs || [])[+v.slice(2)];
   return null;
 }
@@ -188,7 +194,8 @@ function render() {
     // ยาสูตรผสม: คิดจำนวนเม็ด/มล. จากปริมาณของสารสำคัญที่ใช้คิดขนาดยา (basis) + บอกปริมาณสารสำคัญทุกตัวที่ได้รับ
     let cc = c, combo = '', basisName = i.basis ? ` · คิดจาก ${i.basis}` : '';
     if (c?.ings) {
-      const ing = basisOf(c.ings, i.basis);
+      const ing = c.fixed ? c.ings.find((x) => x.name === c.fixed) : basisOf(c.ings, i.basis);
+      if (ing && !i.basis) basisName = ` · คิดจาก ${ing.name}`;
       if (ing) {
         cc = concOf({ mg: ing.mg, per: c.per }, `${c.label} · คิดจาก ${ing.name} ${num(ing.mg)} ${PER[c.per]}`);
         const uLo = minMg / ing.mg, uHi = maxMg / ing.mg;
@@ -316,7 +323,9 @@ async function loadInfo() {
     const names = [...new Set(rows.map((r) => r.name))];
     const nat = items.filter((it) => names.includes(it.name));
     const own = (drugs || []).findIndex((d) => d.id === l.dose_id);
-    const dose = own >= 0 ? [own] : [...new Set(nat.flatMap((it) => it.calc))];
+    // ยาสูตรผสม: ข้อมูลคำนวณรายสาร (ingredients[].dose_id) → ยานี้ขึ้นในเครื่องคำนวณของสารนั้นด้วย
+    const ingDose = (l.ingredients || []).map((x) => (drugs || []).findIndex((d) => d.id === x.dose_id)).filter((k) => k >= 0);
+    const dose = own >= 0 || ingDose.length ? [...new Set([...(own >= 0 ? [own] : []), ...ingDose])] : [...new Set(nat.flatMap((it) => it.calc))];
     return { name: l.name, loc: l, rows, names, calc: dose, dose, q: [l.name, l.code, l.category, ...names, ...nat.map((it) => it.th || '')].join(' ').toLowerCase() };
   });
   return true;

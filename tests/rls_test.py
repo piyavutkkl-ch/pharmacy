@@ -1051,5 +1051,8 @@ print("== step 67: AI dose source reference ==")
 check("dose_ref → DailyMed link (set_id) or search", None, "select dose_ref('{\"brand\":\"Amoxil\",\"effective\":\"20250101\",\"set_id\":\"abc-1\"}')->>'url' || ' ' || (dose_ref('{\"generic\":\"AMOXICILLIN\"}')->>'url')", eq("https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=abc-1 https://dailymed.nlm.nih.gov/dailymed/search.cfm?labeltype=all&query=amoxicillin"))
 check("auto draft indications carry quote + ref", None, "select bool_and(e ? 'ref' and e ? 'quote') from dose_drugs d, jsonb_array_elements(d.indications) e where d.name = 'Levothyroxine sodium (L-thyroxine sodium)'", eq("t"))
 
+print("== step 68: system-filled ingredients flagged for review ==")
+check("co-trimoxazole susp ingredients flagged auto (needs admin review)", "anon", "select bool_and((e->>'auto')::boolean) from local_drugs, jsonb_array_elements(ingredients) e where code='1010290'", eq("t"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

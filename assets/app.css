@@ -1070,3 +1070,9 @@ details[open] > summary::before{transform:rotate(90deg)}
 .df-rv-btns{align-items:center}
 .df-rv-none{margin-top:6px}
 .df-rv-none ul{margin:6px 0 0;padding-left:20px}
+/* ผู้ดูแล › บัญชียา รพ.สต.: สารสำคัญ · ความแรง · ข้อมูลคำนวณ (แถวละ 1 สาร) */
+.ld-ings{display:flex;flex-direction:column;gap:8px;margin:6px 0}
+.ld-ing-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,.8fr) minmax(0,.9fr) minmax(0,1.6fr) auto;gap:6px;align-items:center}
+.ld-ing-row .btn{min-height:44px}
+.ld-ing-bar{align-items:center}
+@media (max-width:640px){.ld-ing-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}.ld-ing-row .r-n,.ld-ing-row .r-dose{grid-column:1/3}}
