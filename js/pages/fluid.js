@@ -1,5 +1,6 @@
 // คำนวณสารน้ำ (#dosePaneFluid): เตรียม Dextrose ความเข้มข้นที่ไม่มีในคลัง จากถุงที่มี + 50% Dextrose (+ 3% NaCl ถ้าต้องการเพิ่มเกลือ)
 //   วิธีที่ 1 (แนะนำ): ดูดออกก่อนแล้วเติม → ปริมาตรเท่าเดิม · วิธีที่ 2: เติมโดยไม่ดูดออก → ปริมาตรเพิ่ม · ปรับ NaCl ด้วย = แก้สมการ 2 ตัวแปร (50%D a มล. + 3% NaCl b มล.)
+//   ต้องการเกลือน้อยกว่าถุงเดิม (เช่น N/2 → N/4) = เจือจางด้วยน้ำกลั่นสำหรับฉีด (Sterile water) แทน 3% NaCl: เก็บถุงเดิมไว้ k มล. + 50%D a + น้ำกลั่น w (methodWater)
 //   แต่ละขั้นมีภาพประกอบ (SVG วาดในหน้า) · ท้ายช่อง = ตารางเตรียมน้ำเกลือที่ใช้บ่อย (คำนวณด้วยสูตรเดียวกัน)
 import { $, esc } from '../util.js?v=4.4';
 
@@ -28,6 +29,14 @@ export function methodNaCl(d1, d2, n1, n2, v) {
   if (a < 0 || b < 0 || a + b >= v) return null;
   const rest = v - a - b;
   return { a, b, out: a + b, vol: v, d: (D50 * a + d1 * rest) / v, n: (NACL_ADD * b + n1 * rest) / v };
+}
+
+/** ลดเกลือ (n2 < n1) + ปรับ Dextrose: เก็บถุงเดิม keep มล. (ดูดออกที่เหลือ) แล้วเติม 50%D a + น้ำกลั่น w (ปริมาตรคงเดิม) · null = ทำไม่ได้ */
+export function methodWater(d1, d2, n1, n2, v) {
+  if (!(n1 > 0) || !(n2 < n1) || n2 < 0) return null;
+  const keep = Math.round((n2 * v) / n1), a = Math.round((d2 * v - d1 * keep) / (D50 - 0)), w = v - keep - a;
+  if (a < 0 || w < 0) return null;
+  return { keep, out: v - keep, a, w, vol: v, d: (D50 * a + d1 * keep) / v, n: (n1 * keep) / v };
 }
 
 /* ---------- ภาพประกอบขั้นตอน (SVG) ---------- */
@@ -66,8 +75,21 @@ export function renderFluid() {
   const to = bagName(d2, n2);
   const head = `<p class="fx-goal"><b>${esc(from)} ${v} มล.</b> → <b>${esc(to)}</b></p>`;
   if (nSel !== 'same' && Math.abs(n2 - n1) > 1e-9) {
+    if (n2 < n1) {   // เกลือน้อยกว่าถุงเดิม → เจือจางด้วยน้ำกลั่น (เติม 3% NaCl ไม่ได้ · ค่าติดลบ)
+      const m = methodWater(d1, d2, n1, n2, v);
+      if (!m) { out.innerHTML = head + '<p class="small fx-warn">ทำไม่ได้จากถุงนี้ (Dextrose ที่ต้องการต่ำเกินกว่าจะเจือจางได้) · เลือกถุงตั้งต้นอื่น</p>'; return; }
+      out.innerHTML = head + card('เจือจางเกลือด้วยน้ำกลั่น แล้วเติม 50% Dextrose', true, [
+        step(1, bagSvg(1, `${fmt(d1)}%D`), 'เตรียมถุง', `${esc(from)} ${v} มล.`),
+        step(2, syringeSvg(m.out, 'น้ำเกลือ', true), 'ดูดน้ำเกลือออก', `ดูดออก <b>${m.out} มล.</b>${syr(m.out)} ทิ้ง (เหลือในถุง ${m.keep} มล.)`),
+        ...(m.a ? [step(3, syringeSvg(m.a, '50% Dextrose', false), 'เติม 50% Dextrose', `เติม <b>${m.a} มล.</b>${syr(m.a)}`)] : []),
+        step(m.a ? 4 : 3, syringeSvg(m.w, 'น้ำกลั่น', false), 'เติมน้ำกลั่นสำหรับฉีด (Sterile water for injection)', `เติม <b>${m.w} มล.</b>${syr(m.w)}`),
+        step(m.a ? 5 : 4, mixSvg(`${fmt(m.d)}%D`), 'ผสมให้เข้ากัน + ติดฉลาก', 'พลิกถุงกลับไปมา 5–10 ครั้ง · ติดฉลากชื่อสารน้ำ วันเวลาที่เตรียม และผู้เตรียม'),
+      ], `ได้ Dextrose <b>${fmt(m.d, 2)}%</b> · NaCl <b>${fmt(m.n, 3)}%</b> (${esc(nLabel(+m.n.toFixed(3)))}) · ปริมาตร ${v} มล.`,
+      peripheralWarn(m.d) + '<p class="small muted">ต้องการเกลือน้อยกว่าถุงเดิม จึงเติม 3% NaCl ไม่ได้ (จะได้ค่าติดลบ) ต้องเจือจางด้วยน้ำกลั่นแทน · ห้ามให้น้ำกลั่นเข้าหลอดเลือดโดยตรง ใช้ผสมในถุงเท่านั้น</p>');
+      return;
+    }
     const m = methodNaCl(d1, d2, n1, n2, v);
-    if (!m) { out.innerHTML = head + '<p class="small fx-warn">ทำไม่ได้ด้วยวิธีเติม 50%D + 3% NaCl (เช่น ต้องการเกลือน้อยกว่าถุงเดิม หรือ Dextrose ต่ำกว่าเดิม) · เลือกถุงตั้งต้นอื่น</p>'; return; }
+    if (!m) { out.innerHTML = head + '<p class="small fx-warn">ทำไม่ได้ด้วยวิธีเติม 50%D + 3% NaCl (เช่น Dextrose ต่ำกว่าถุงเดิม) · เลือกถุงตั้งต้นอื่น</p>'; return; }
     out.innerHTML = head + card('เติม 50% Dextrose และ 3% NaCl', true, [
       step(1, bagSvg(1, `${fmt(d1)}%D`), 'เตรียมถุง', `${esc(from)} ${v} มล.`),
       step(2, syringeSvg(m.out, 'น้ำเกลือ', true), 'ดูดน้ำเกลือออก', `ดูดออก <b>${m.out} มล.</b>${syr(m.out)} ทิ้ง`),

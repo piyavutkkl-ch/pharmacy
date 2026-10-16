@@ -98,11 +98,26 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('คำนวณ: ไม่ได้ชั่งน้ำหนัก → ประมาณจากเกณฑ์ WHO (กรมอนามัย) ตามอายุ + บอกให้กรอกน้ำหนัก', (await text(p, '#doseEst')).includes('ช่วงปกติ 7.7–12 กก.') && (await text(p, '#doseResult')).includes('น้ำหนักตัว (จำเป็น)'), await text(p, '#doseEst'));
     await p.click('#doseEst [data-use-weight]'); await p.waitForTimeout(100);
     check('คำนวณ: กด "ใช้น้ำหนักนี้" → ใส่น้ำหนักแล้วคำนวณ', +(await p.inputValue('#doseWeight')) > 9 && (await text(p, '#doseResult')).includes('อายุ 12 เดือน'));
+    { const g = await p.evaluate(() => { const i = document.querySelector('#doseGrowth img'), d = document.querySelector('#doseGrowth .gc-dot'), w = document.querySelector('#doseGrowth .gc-wrap').getBoundingClientRect(), r = d.getBoundingClientRect();
+        return { src: i?.getAttribute('src'), x: (r.left + r.width / 2 - w.left) / w.width, y: (r.top + r.height / 2 - w.top) / w.height, cap: document.querySelector('#doseGrowth figcaption').innerText, hidden: document.querySelector('#doseGrowth').hidden }; });
+      const wgt = +(await p.inputValue('#doseWeight'));
+      const exp = await p.evaluate(async (wg) => { const { GROWTH_CHARTS: C } = await import('./js/growth-charts.js?v=4.4'); const s = C.find((c) => c.id === 'm-wfa').segs[0]; return { x: s.ax * 12 + s.bx, y: s.ay * wg + s.by }; }, wgt);
+      check('กราฟเด็ก: อายุ 12 เดือน + น้ำหนัก → กราฟน้ำหนักตามอายุ (ชาย) + จุดแดงตรงตำแหน่ง', !g.hidden && g.src === 'assets/growth/m-wfa.jpg' && Math.abs(g.x - exp.x) < 0.01 && Math.abs(g.y - exp.y) < 0.01 && g.cap.includes('กรมอนามัย'), JSON.stringify({ g, exp })); }
     await p.fill('#doseHeight', '95'); await p.fill('#doseAge', '3'); await p.selectOption('#doseAgeUnit', 'y'); await p.selectOption('#doseSex', 'f'); await p.waitForTimeout(100);
+    { const tabs = await p.$$eval('#doseGrowth .gc-tabs button', (b) => b.map((x) => x.dataset.gc).join());
+      await p.click('#doseGrowth [data-gc="wfh"]'); await p.waitForTimeout(150);
+      check('กราฟเด็ก: มีน้ำหนัก+ส่วนสูง+อายุ 3 ปี → เลือกได้ 3 กราฟ · กดน้ำหนักตามส่วนสูง (หญิง 2–5 ปี)', tabs === 'wfa,hfa,wfh' && (await p.getAttribute('#doseGrowth img', 'src')) === 'assets/growth/f-wfh.jpg', tabs); }
+    await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(150);
+    check('กราฟเด็ก (390px): ไม่ล้นจอ', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && document.querySelector('#doseGrowth').getBoundingClientRect().right <= innerWidth));
+    await p.$eval('#doseGrowth', (e) => e.scrollIntoView()); await p.screenshot({ path: path.join(SHOTS, 'dose-growth-390.png') });
+    await p.setViewportSize({ width: 1280, height: 900 }); await p.waitForTimeout(100);
     check('คำนวณ: ใส่ส่วนสูง → ประมาณจากน้ำหนักตามส่วนสูง', (await text(p, '#doseEst')).includes('ส่วนสูง 95 ซม.') && (await text(p, '#doseEst')).includes('11.7–16.7'), await text(p, '#doseEst'));
     await p.fill('#doseAge', '8'); await p.waitForTimeout(100);
     check('คำนวณ: อายุเกิน 5 ปี → แจ้งว่าเกณฑ์ใช้ได้ 0–5 ปี', (await text(p, '#doseEst')).includes('0–5 ปี'));
+    check('กราฟเด็ก: อายุ 8 ปี → กราฟ 6–19 ปี (ส่วนสูงตามอายุ / น้ำหนักตามส่วนสูง)', (await p.$$eval('#doseGrowth .gc-tabs button', (b) => b.map((x) => x.dataset.gc).join())) === 'hfa619,wfh619');
     await p.fill('#doseAge', '60'); await p.fill('#doseWeight', '60'); await p.fill('#doseHeight', '160'); await p.check('#doseRenalAdjust'); await p.fill('#doseCr', '1'); await p.waitForTimeout(100);
+    check('กราฟเด็ก: ผู้ใหญ่ (60 ปี) → ไม่แสดงกราฟ', await p.$eval('#doseGrowth', (e) => e.hidden));
+    check('กราฟเด็ก: ผู้ใหญ่ (60 ปี) → ไม่แสดงกราฟ', await p.$eval('#doseGrowth', (e) => e.hidden));
     { const t = await text(p, '#doseResult');
       check('ไต: CrCl Cockcroft-Gault ตาม MDCalc (ใส่ส่วนสูง → BMI ปกติใช้ IBW)', (await p.inputValue('#doseCrClOut')).startsWith('49.') && t.includes('IBW (BMI 18.5–24.9)') && t.includes('ไตเสื่อมเล็กน้อย'), `${await p.inputValue('#doseCrClOut')} ${t.slice(0, 200)}`); }
     await p.selectOption('#doseRenalMethod', 'egfr'); await p.waitForTimeout(100);
@@ -117,6 +132,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('สารน้ำ: ตารางเตรียมน้ำเกลือที่ใช้บ่อยท้ายช่อง (วิธีที่ 1: 7 แถว · วิธีที่ 2: 5 แถว)', await count(p, '#fxTable table') === 2 && await count(p, '#fxTable tbody tr') === 12 && (await text(p, '#fxTable')).includes('10%D - N/2'));
     await p.selectOption('#fxN2', '0.9'); await p.waitForTimeout(100);
     check('สารน้ำ: ปรับ NaCl ด้วย (N/2 → S) → ดูดออก 333 · เติม 50%D 133 + 3% NaCl 200 มล.', (await text(p, '#fxOut')).includes('ดูดออก 333 มล.') && (await text(p, '#fxOut')).includes('เติม 133 มล.') && (await text(p, '#fxOut')).includes('เติม 200 มล.'), await text(p, '#fxOut'));
+    await p.selectOption('#fxD1', '0'); await p.fill('#fxD2', '7.5'); await p.selectOption('#fxN2', '0.225'); await p.waitForTimeout(100);
+    check('สารน้ำ: เกลือน้อยกว่าถุงเดิม (0%D-N/2 1000 → 7.5%D-N/4) → ดูดออก 500 · เติม 50%D 150 + น้ำกลั่น 350 มล. (ไม่ใช่ 3% NaCl ติดลบ)', await p.evaluate(() => { const t = document.querySelector('#fxOut').innerText; return ['ดูดออก 500 มล.', 'เติม 150 มล.', 'เติม 350 มล.', 'น้ำกลั่น', 'Dextrose 7.5%', 'NaCl 0.225%'].every((x) => t.includes(x)) && !/-\d+ มล/.test(t); }), await text(p, '#fxOut'));
+    await p.selectOption('#fxD1', '5'); await p.fill('#fxD2', '10');
     await p.selectOption('#fxN2', 'same'); await p.fill('#fxD2', '15'); await p.waitForTimeout(100);
     check('สารน้ำ: Dextrose > 12.5% เตือนให้ทาง central line', (await text(p, '#fxOut')).includes('central line'));
     await p.fill('#fxD2', '10');

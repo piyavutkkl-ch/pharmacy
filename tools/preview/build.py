@@ -125,6 +125,7 @@ def main():
     (OUT / "fixtures.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
     shutil.copy(ROOT / "assets/app.css", OUT / "assets/app.css")
+    shutil.copytree(ROOT / "assets/growth", OUT / "assets/growth")   # กราฟการเจริญเติบโต (กรมอนามัย)
     for f in (ROOT / "js").rglob("*.js"):
         dst = OUT / f.relative_to(ROOT)
         dst.parent.mkdir(parents=True, exist_ok=True)

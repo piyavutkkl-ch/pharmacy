@@ -9,6 +9,7 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText } from '../util.js?v=4.4';
 import { isAdmin } from '../auth.js?v=4.4';
 import { estimateWeight } from '../growth.js?v=4.4';
+import { renderGrowth } from './growth-chart.js?v=4.4';
 import { initFluid } from './fluid.js?v=4.4';
 import { initDdi, resetDdi } from './ddi.js?v=4.4';
 
@@ -156,6 +157,8 @@ function renderEst() {
 
 function render() {
   renderEst();
+  const ga = ageOf();   // กราฟการเจริญเติบโต (กรมอนามัย) + จุดแดงของเด็กคนนี้
+  renderGrowth($('#doseGrowth'), { months: ga ? ga.months : null, w: +$('#doseWeight').value, h: +$('#doseHeight').value, sex: $('#doseSex').value });
   const out = $('#doseResult');
   const w = +$('#doseWeight').value, d = drug();
   if (!d) { out.innerHTML = '<p class="small muted">ยังไม่มีรายการยาที่มีข้อมูลขนาดยา</p>'; return; }

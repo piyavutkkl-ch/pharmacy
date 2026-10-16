@@ -714,6 +714,20 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .dose-age{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:6px}
 .dose-est-box{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;border-radius:12px;background:var(--primary-soft);margin-bottom:12px}
 .dose-est-box .btn{min-height:40px}
+/* กราฟการเจริญเติบโต (กรมอนามัย) + จุดแดง */
+.gc{margin:0 0 14px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.gc-head{margin-bottom:8px;font-size:14px}
+.gc-tabs{margin-bottom:10px}
+.gc-tabs button{min-height:40px}
+.gc-fig{margin:0}
+.gc-wrap{position:relative;border-radius:10px;overflow:hidden;background:#fff}
+.gc-wrap img{display:block;width:100%;height:auto}
+.gc-dot{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:#e11d1d;border:2.5px solid #fff;box-shadow:0 0 0 2px #e11d1d,0 2px 6px rgba(0,0,0,.35);pointer-events:none}
+.gc-dot::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:2px solid #e11d1d;opacity:.6;animation:gcPulse 1.6s ease-out infinite}
+.gc-dot.out{background:#fff}
+@keyframes gcPulse{from{transform:scale(.5);opacity:.8}to{transform:scale(1.4);opacity:0}}
+@media (prefers-reduced-motion:reduce){.gc-dot::after{animation:none}}
+.gc figcaption{margin-top:8px;line-height:1.6}
 .mono-abbr summary{cursor:pointer;min-height:32px;font-size:14px;font-weight:600}
 .mono-abbr p{overflow-wrap:anywhere;margin-top:4px}
 .di-renal{color:var(--warning)}
