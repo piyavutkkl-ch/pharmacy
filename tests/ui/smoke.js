@@ -1000,6 +1000,24 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const v = async (t, k) => p.inputValue(`#hrStats [data-tambon="${t}"] [data-k="${k}"]`);
       check('นำเข้าไฟล์ประวัติการจัดส่งยา: นับเฉพาะ rider แยกปีงบ × ตำบล (สำเร็จ 2 · คน 1 · ส่งฟรี 2 · ยกเลิก 1)', (await text(p, '#hrImportMsg')).includes('2569') && (await text(p, '#hrImportMsg')).includes('2570') && await visible(p, '#hrSaveAll')
         && (await p.inputValue('#hrYear')) === '2570' && (await v('อุใดเจริญ', 'delivered')) === '1' && (await text(p, '#hrStats')).includes('ส่งฟรี'), await text(p, '#hrImportMsg'));
+      // ไฟล์ที่วันที่ไม่ใช่รูปแบบ "วันที่ 01/09/2569 เวลา …" (บันทึกจาก Excel: วันที่จริง / ค.ศ. / ปี 2 หลัก) + ชื่อบริการ "Health Rider"
+      { const r2 = (i, svc, d) => [i, svc, 'สำเร็จ', '00000009' + i, 'ชื่อสมมติ', d, 0, '"ตำบล ทุ่งนุ้ย อำเภอ ตัวอย่าง"'].join(',');
+        const csv2 = [H, r2(1, 'Health Rider', '2026-10-05 09:00'), r2(2, 'RIDER', '6/10/69 10:15'), r2(3, 'rider', '07-10-2026'), r2(4, 'rider', '46302.4')].join('\n');
+        await p.setInputFiles('#hrFile', { name: 'h2.csv', mimeType: 'text/csv', buffer: Buffer.from(csv2) }); await p.waitForTimeout(500);
+        check('นำเข้าไฟล์ Health Rider: อ่านวันที่ได้หลายรูปแบบ (ค.ศ./ปี 2 หลัก/เลขวันที่ Excel) + ชื่อบริการ "Health Rider"', (await text(p, '#hrImportMsg')).includes('2570: 4 ครั้ง'), await text(p, '#hrImportMsg'));
+        // ไฟล์อีกรุ่น (ส่งออกจากหน้าลงทะเบียน): ไม่มี "วันเวลาที่สร้างออเดอร์"/"ค่าจัดส่ง" · ใช้ "วันเวลาที่ลงทะเบียน" แทน
+        const H5 = 'ลำดับ,รหัสโรงพยาบาล,โรงพยาบาล,บริการขนส่ง,สถานะ,HN,ชื่อผู้ใช้บริการ,วันเวลาที่ลงทะเบียน,ที่อยู่จัดส่งยา';
+        const r5 = (i, st, d, tam) => [i, '10000', 'รพ.ตัวอย่าง', 'rider', st, '0000005' + i, 'ชื่อสมมติ', `วันที่ ${d} เวลา 10:00 น.`, `"ตำบล ${tam} อำเภอ ตัวอย่าง"`].join(',');
+        const csv5 = ['รายการลงทะเบียน', H5, r5(1, 'สำเร็จ', '01/09/2569', 'ทุ่งนุ้ย'), r5(2, 'สำเร็จ', '02/10/2569', 'ทุ่งนุ้ย'), r5(3, 'ยกเลิก', '03/10/2569', 'ควนกาหลง')].join('\n');
+        await p.setInputFiles('#hrFile', { name: 'reg.csv', mimeType: 'text/csv', buffer: Buffer.from(csv5) }); await p.waitForTimeout(500);
+        check('นำเข้าไฟล์ Health Rider: ไฟล์ที่ใช้ "วันเวลาที่ลงทะเบียน" (ไม่มีวันสร้างออเดอร์/ค่าจัดส่ง) อ่านได้', /2569: 1 ครั้ง/.test(await text(p, '#hrImportMsg')) && /2570: 1 ครั้ง/.test(await text(p, '#hrImportMsg')), await text(p, '#hrImportMsg'));
+        const csv3 = [H, r2(1, 'post (Flash Express)', '2026-10-05'), r2(2, 'post (ไปรษณีย์ไทย)', '2026-10-06')].join('\n');
+        await p.setInputFiles('#hrFile', { name: 'h3.csv', mimeType: 'text/csv', buffer: Buffer.from(csv3) }); await p.waitForTimeout(400);
+        check('นำเข้าไฟล์ Health Rider: ไม่มีบริการ rider → บอกเหตุผล + บริการที่พบในไฟล์', (await text(p, '#hrImportMsg')).includes('ไม่พบบริการขนส่ง rider') && (await text(p, '#hrImportMsg')).includes('ไปรษณีย์'), await text(p, '#hrImportMsg'));
+        const csv4 = [H, r2(1, 'rider', 'ไม่ระบุ')].join('\n');
+        await p.setInputFiles('#hrFile', { name: 'h4.csv', mimeType: 'text/csv', buffer: Buffer.from(csv4) }); await p.waitForTimeout(400);
+        check('นำเข้าไฟล์ Health Rider: อ่านวันที่ไม่ได้ → บอกตัวอย่างวันที่ในไฟล์', (await text(p, '#hrImportMsg')).includes('อ่าน "วันเวลาที่สร้างออเดอร์" ไม่ได้'), await text(p, '#hrImportMsg'));
+        await p.setInputFiles('#hrFile', { name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('\uFEFF' + csv) }); await p.waitForTimeout(500); }
       await p.selectOption('#hrYear', '2569'); await p.waitForTimeout(400);
       check('นำเข้าไฟล์: ปีงบ 2569 ต.ควนกาหลง สำเร็จ 2 ผู้รับบริการ 1 ส่งฟรี 2 · ต.ทุ่งนุ้ย ยกเลิก 1 (ไปรษณีย์ไม่นับ)', (await v('ควนกาหลง', 'delivered')) === '2' && (await v('ควนกาหลง', 'clients')) === '1' && (await v('ควนกาหลง', 'free')) === '2' && (await v('ทุ่งนุ้ย', 'cancelled')) === '1' && (await v('ทุ่งนุ้ย', 'delivered')) === '0'); }
     await p.click('#hrSaveAll'); await p.waitForTimeout(400);

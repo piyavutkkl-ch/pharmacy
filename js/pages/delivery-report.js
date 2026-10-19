@@ -9,25 +9,35 @@ import { $, esc, toast, errText, busy, thaiDate, fiscalYearOf } from '../util.js
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
 const TH_MONTH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const COLS = {   // หัวตาราง (ตามไฟล์ของระบบจัดส่งยา) → ชื่อในโค้ด · หาจากชื่อหัว ไม่ยึดลำดับคอลัมน์
-  status: 'สถานะ', service: 'บริการขนส่ง', hn: 'HN', created: 'วันเวลาที่สร้างออเดอร์', done: 'วัน-เวลา จัดส่งพัสดุสำเร็จ',
+  status: 'สถานะ', service: 'บริการขนส่ง', hn: 'HN', created: ['วันเวลาที่สร้างออเดอร์', 'วันเวลาที่ลงทะเบียน'], done: 'วัน-เวลา จัดส่งพัสดุสำเร็จ',   // ไฟล์บางรุ่นใช้ "วันเวลาที่ลงทะเบียน" แทน
   cover: 'ประเภทสิทธิการรักษา', rights: 'รายละเอียดสิทธิการรักษา', fee: 'ค่าจัดส่ง', address: 'ที่อยู่จัดส่งยา',
 };
 
-/** "วันที่ 01/05/2569 เวลา 9:17 น." → Date (ปี พ.ศ. → ค.ศ.) */
-function thDate(s) {
-  const m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D+(\d{1,2}):(\d{2}))?/);
-  if (!m) return null;
-  const y = +m[3] > 2400 ? +m[3] - 543 : +m[3];
-  const d = new Date(y, +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
-  return Number.isNaN(d.getTime()) ? null : d;
+/** วันที่จากไฟล์ → Date: "วันที่ 01/05/2569 เวลา 9:17 น." · "1/5/69" · "01-05-2026" · "2026-05-01 09:17" · เลขวันที่ของ Excel (45778.38)
+ *  ปี พ.ศ. → ค.ศ. · ปี 2 หลัก: ≥ 50 = พ.ศ. 25xx (69 = 2569) · < 50 = ค.ศ. 20xx */
+export function thDate(s) {
+  const t = String(s ?? '').trim();
+  let m = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/), y, mo, d;
+  if (m) [y, mo, d] = [+m[1], +m[2], +m[3]];
+  else if ((m = t.match(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})(?:\D+(\d{1,2})[:.](\d{2}))?/))) {
+    [d, mo, y] = [+m[1], +m[2], +m[3]];
+    if (m[3].length === 2) y = y >= 50 ? 2500 + y : 2000 + y;
+    m = [m[0], , , , m[4], m[5]];
+  } else if (/^\d{5}(\.\d+)?$/.test(t) && +t > 30000 && +t < 80000) {   // เลขวันที่ของ Excel (นับจาก 30 ธ.ค. 1899)
+    const x = new Date(Math.round((+t - 25569) * 86400000)); return new Date(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), x.getUTCHours(), x.getUTCMinutes());
+  } else return null;
+  if (y > 2400) y -= 543;
+  const dt = new Date(y, mo - 1, d, +(m[4] || 0), +(m[5] || 0));
+  return Number.isNaN(dt.getTime()) || dt.getMonth() !== mo - 1 ? null : dt;
 }
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const clean = (s) => String(s ?? '').replace(/\d{6,}/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);   // ป้ายกำกับ: ตัดตัวเลขยาว ๆ ทิ้งเสมอ
 const top = (m, k = 12) => [...m.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'th')).slice(0, k);
 const add = (m, key, by = 1) => { if (key) m.set(key, (m.get(key) || 0) + by); };
+const isRider = (s) => /rider|ไรเดอร์/i.test(String(s || ''));   // "rider", "Health Rider", "ไรเดอร์ …"
 function serviceName(s) {
   const t = String(s || '').trim();
-  if (/^rider/i.test(t)) return 'ไรเดอร์ (Health Rider)';
+  if (isRider(t)) return 'ไรเดอร์ (Health Rider)';
   const inner = t.match(/\(([^()]+)/)?.[1];
   if (/^post/i.test(t)) return `ไปรษณีย์/ขนส่ง${inner ? ' ' + clean(inner.replace(/\(.*$/, '')) : ''}`;
   return clean(t) || 'ไม่ระบุ';
@@ -38,7 +48,7 @@ function tableCols(rows) {
   const hi = rows.findIndex((r) => r.some((c) => String(c).trim() === COLS.status) && r.some((c) => String(c).trim() === COLS.service));
   if (hi < 0) throw new Error('ไม่พบหัวตาราง "สถานะ" และ "บริการขนส่ง" — ใช้ไฟล์ประวัติรายการจัดส่งยาจากระบบจัดส่งยา');
   const head = rows[hi].map((c) => String(c).trim()), col = {};
-  for (const [k, name] of Object.entries(COLS)) col[k] = head.indexOf(name);
+  for (const [k, name] of Object.entries(COLS)) col[k] = [].concat(name).map((x) => head.indexOf(x)).find((i) => i >= 0) ?? -1;
   return { hi, col };
 }
 const tambonOf = (addr) => clean(String(addr || '').match(/ตำบล\s*([^\s]+)/)?.[1]) || 'ไม่ระบุ';
@@ -48,10 +58,13 @@ const tambonOf = (addr) => clean(String(addr || '').match(/ตำบล\s*([^\s]
 export function riderByTambon(rows) {
   const { hi, col } = tableCols(rows);
   const get = (r, k) => (col[k] >= 0 ? String(r[col[k]] ?? '').trim() : '');
-  const out = new Map();
+  const out = new Map(), diag = { rows: 0, riders: 0, badDate: 0, sample: '', services: new Map() };
   for (const r of rows.slice(hi + 1)) {
-    const st = get(r, 'status'); if (!st || !/^rider/i.test(get(r, 'service'))) continue;
-    const c = thDate(get(r, 'created')); if (!c) continue;
+    const st = get(r, 'status'); if (!st) continue;
+    diag.rows++; add(diag.services, serviceName(get(r, 'service')));
+    if (!isRider(get(r, 'service'))) continue;
+    diag.riders++;
+    const c = thDate(get(r, 'created')); if (!c) { diag.badDate++; diag.sample ||= get(r, 'created').slice(0, 40); continue; }
     const fy = fiscalYearOf(c), tam = tambonOf(get(r, 'address'));
     const y = out.get(fy) || new Map(); out.set(fy, y);
     const t = y.get(tam) || { tambon: tam, delivered: 0, hn: new Set(), cancelled: 0, free: 0 }; y.set(tam, t);
@@ -63,6 +76,7 @@ export function riderByTambon(rows) {
   }
   const res = {};
   for (const [fy, m] of out) res[fy] = [...m.values()].map(({ hn, ...t }) => ({ ...t, clients: hn.size })).sort((a, b) => b.delivered - a.delivered);
+  Object.defineProperty(res, 'diag', { value: { ...diag, services: top(diag.services, 6).map(([k, v]) => `${k} ${v}`) } });   // ไว้บอกเหตุผลเมื่อไม่พบรายการ (ไม่มีข้อมูลรายบุคคล)
   return res;
 }
 
@@ -125,8 +139,11 @@ export function parseText(text) {
 export async function readTable(f) {
   if (/\.csv$/i.test(f.name) || f.type === 'text/csv') return parseText((await f.text()).replace(/^﻿/, ''));
   const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
-  const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
-  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+  const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
+  // ช่องวันที่ของ Excel เป็นวันที่จริง (ไม่ใช่ข้อความ "วันที่ 01/05/2569") → แปลงเป็น วว/ดด/ปปปป ชช:นน (ค.ศ.) ให้อ่านแบบเดียวกับ CSV
+  const pad = (x) => String(x).padStart(2, '0');
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' })
+    .map((r) => r.map((c) => (c instanceof Date ? `${pad(c.getDate())}/${pad(c.getMonth() + 1)}/${c.getFullYear()} ${pad(c.getHours())}:${pad(c.getMinutes())}` : c)));
 }
 
 /* ======================= แสดงผล (ใช้ทั้งหน้าหลักและตัวอย่างของผู้ดูแล) ======================= */

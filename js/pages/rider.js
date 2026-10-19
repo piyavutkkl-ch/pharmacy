@@ -189,7 +189,12 @@ async function importFile(e) {
   const msg = $('#hrImportMsg'); msg.style.color = ''; msg.textContent = 'กำลังอ่านไฟล์ในเครื่อง…';
   try {
     const res = riderByTambon(await readTable(f)), ys = Object.keys(res).map(Number).sort((a, b) => a - b);
-    if (!ys.length) throw new Error('ไม่พบรายการบริการขนส่ง rider ในไฟล์');
+    if (!ys.length) {   // บอกเหตุผลให้ชัด: ไม่มีบริการ rider / อ่านวันที่สร้างออเดอร์ไม่ได้
+      const d = res.diag || {};
+      throw new Error(!d.rows ? 'ไม่พบรายการในไฟล์ (มีแต่หัวตาราง)'
+        : !d.riders ? `ไม่พบบริการขนส่ง rider ในไฟล์ (พบ ${d.rows} รายการ · บริการที่พบ: ${d.services.join(', ')})`
+        : `พบบริการ rider ${d.riders} รายการ แต่อ่าน "วันเวลาที่สร้างออเดอร์" ไม่ได้ (ตัวอย่างในไฟล์: "${d.sample}")`);
+    }
     E.draft = res;
     const cur = +$('#hrYear').value, show = ys.includes(cur) ? cur : ys[ys.length - 1];
     if (![...$('#hrYear').options].some((o) => +o.value === show)) $('#hrYear').insertAdjacentHTML('beforeend', `<option value="${show}">ปีงบประมาณ ${show}</option>`);
@@ -197,7 +202,7 @@ async function importFile(e) {
     $('#hrSaveAll').hidden = ys.length < 2;
     msg.style.color = 'var(--success)';
     msg.textContent = `นับแล้ว ปีงบ ${ys.join(', ')} · ${ys.map((y) => `${y}: ${res[y].reduce((a, r) => a + r.delivered, 0)} ครั้ง ${res[y].length} ตำบล`).join(' · ')} — ตรวจตัวเลขแล้วกดบันทึก${ys.length > 1 ? ' (หรือ "บันทึกทุกปีงบจากไฟล์")' : ''}`;
-  } catch (err) { msg.style.color = 'var(--error)'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + errText(err) + ' · ลองบันทึกเป็น .csv แล้วเลือกใหม่'; }
+  } catch (err) { msg.style.color = 'var(--error)'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + errText(err); }
   finally { e.target.value = ''; }
 }
 
