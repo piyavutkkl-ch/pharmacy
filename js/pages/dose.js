@@ -121,7 +121,14 @@ function toggleRenal() {
 const indsOf = (d) => (d.indications?.length ? d.indications
   : [{ name: d.indication, per: d.per, min: d.mg_per_kg_min, max: d.mg_per_kg_max, times: d.dose_freq_per_day, cap: d.max_mg_per_dose, freq: d.freq, renal: d.renal_note }]);
 const SHOW_OPEN = 3;   // แสดงพร้อมกันได้ 3 ข้อบ่งใช้ ที่เหลือย่อไว้ กดเพื่อขยาย
-const rng = (a, b, dp) => (a.toFixed(dp) === b.toFixed(dp) ? a.toFixed(dp) : `${a.toFixed(dp)}–${b.toFixed(dp)}`);
+/** ตัวเลขไม่ถูกปัดจนเป็น 0: ค่าที่มากกว่า 0 แต่ปัดแล้วเป็น 0 → แสดง 2 หลักนัยสำคัญ (audit F-06) */
+const fx = (x, dp) => { const t = x.toFixed(dp); return x > 0 && +t === 0 ? String(+x.toPrecision(2)) : t; };
+const rng = (a, b, dp) => (fx(a, dp) === fx(b, dp) ? fx(a, dp) : `${fx(a, dp)}–${fx(b, dp)}`);
+/** ทศนิยมของขนาดยา: ≥ 10 ไม่มีทศนิยม · 1–9.9 หนึ่งตำแหน่ง · < 1 ให้ค่าสูงสุดมี 2 หลักนัยสำคัญ (เช่น 0.030 · 0.35) */
+const dpOf = (hi) => (!(hi > 0) || hi >= 10 ? 0 : hi >= 1 ? 1 : Math.min(6, 1 - Math.floor(Math.log10(hi))));
+const drng = (a, b) => rng(a, b, dpOf(b));
+/** ปริมาณที่ตวง/แบ่งจริงไม่ได้ (มล. ทศนิยม 1–2 ตำแหน่ง · เม็ด ทศนิยม 2 ตำแหน่ง ปัดแล้วเป็น 0) */
+const tooSmall = (hi, dp) => hi > 0 && +hi.toFixed(dp) === 0;
 const fig = (n, t) => `<div class="fig"><div class="n num">${n}</div><div class="t">${t}</div></div>`;
 
 /** การทำงานของไต: CrCl (Cockcroft-Gault ตาม MDCalc · ใส่ส่วนสูง = เลือกน้ำหนัก IBW/AdjBW ตาม BMI) หรือ eGFR (CKD-EPI 2021 · อายุ < 18 ปี = Bedside Schwartz) */
@@ -202,14 +209,14 @@ function render() {
       const dayMin = w * i.min, dayMax = w * i.max;
       n = i.times || 1;
       lo = dayMin / n; hi = dayMax / n;
-      label = n > 1 ? `ต่อครั้ง (แบ่งจากขนาดรวม ${rng(dayMin, dayMax, dayMax < 10 ? 1 : 0)} ${U}/วัน)` : 'ต่อวัน (วันละครั้ง)';
+      label = n > 1 ? `ต่อครั้ง (แบ่งจากขนาดรวม ${drng(dayMin, dayMax)} ${U}/วัน)` : 'ต่อวัน (วันละครั้ง)';
     }
     // ขนาดสูงสุดต่อครั้ง (cap · หน่วยเดียวกับขนาดยา) ใช้ทั้งแบบต่อครั้งและแบบต่อวันที่แบ่งให้ · ถูกจำกัด = บอกขนาดตามน้ำหนักเดิม (audit F-02)
     let capNote = '';
     if (+i.cap > 0 && hi > +i.cap) {
       const cap = +i.cap, rawLo = lo, rawHi = hi;
       lo = Math.min(lo, cap); hi = cap;
-      capNote = `<p class="small fx-warn" data-capped>จำกัดที่ขนาดสูงสุด ${num(cap)} ${U}/ครั้ง · ขนาดตามน้ำหนักคือ ${rng(rawLo, rawHi, rawHi < 10 ? 1 : 0)} ${U}/ครั้ง`
+      capNote = `<p class="small fx-warn" data-capped>จำกัดที่ขนาดสูงสุด ${num(cap)} ${U}/ครั้ง · ขนาดตามน้ำหนักคือ ${drng(rawLo, rawHi)} ${U}/ครั้ง`
         + `${i.per === 'day' && n > 1 ? ` · รวมได้ไม่เกิน ${num(+(cap * n).toFixed(3))} ${U}/วัน` : ''}</p>`;
     }
     const minMg = lo * k, maxMg = hi * k;
@@ -221,17 +228,18 @@ function render() {
       if (ing) {
         cc = concOf({ mg: ing.mg, per: c.per }, `${c.label} · คิดจาก ${ing.name} ${num(ing.mg)} ${PER[c.per]}`);
         const uLo = minMg / ing.mg, uHi = maxMg / ing.mg;
-        combo = `<p class="small">ได้รับสารสำคัญ: ${c.ings.map((x) => `${esc(x.name)} ${rng(uLo * x.mg, uHi * x.mg, uHi * x.mg < 10 ? 1 : 0)} มก.`).join(' · ')}</p>`;
+        combo = `<p class="small">ได้รับสารสำคัญ: ${c.ings.map((x) => `${esc(x.name)} ${drng(uLo * x.mg, uHi * x.mg)} มก.`).join(' · ')}</p>`;
       } else {
         cc = null;
         combo = `<p class="small fx-warn">ยาสูตรผสม (${esc(c.ings.map((x) => x.name).join(' + '))}): ข้อบ่งใช้นี้ยังไม่ได้ระบุว่าคิดขนาดยาจากสารสำคัญตัวใด จึงยังไม่คิดจำนวนเม็ด/มล. · ผู้ดูแลระบุได้ในข้อมูลคำนวณขนาดยา (ช่อง "คิดจากสารสำคัญ")</p>`;
       }
     }
-    let vol = '';
-    if (cc?.mgPer5ml) vol = fig(`${rng(minMg / cc.mgPer5ml * 5, maxMg / cc.mgPer5ml * 5, 1)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`);
-    else if (cc?.mgPerMl) vol = fig(`${rng(minMg / cc.mgPerMl, maxMg / cc.mgPerMl, 2)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`);
-    else if (cc?.mgPerTab) vol = fig(`${rng(minMg / cc.mgPerTab, maxMg / cc.mgPerTab, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`);
-    return fig(`${rng(lo, hi, hi < 10 ? 1 : 0)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${rng(minMg, maxMg, 3)} มก.)` : ''}`) + capNote + vol + combo;
+    let vol = '', tiny = false;
+    if (cc?.mgPer5ml) { const a = minMg / cc.mgPer5ml * 5, b = maxMg / cc.mgPer5ml * 5; tiny = tooSmall(b, 1); vol = fig(`${rng(a, b, 1)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`); }
+    else if (cc?.mgPerMl) { const a = minMg / cc.mgPerMl, b = maxMg / cc.mgPerMl; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`); }
+    else if (cc?.mgPerTab) { const a = minMg / cc.mgPerTab, b = maxMg / cc.mgPerTab; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`); }
+    if (tiny) vol += '<p class="small fx-warn" data-too-small>ปริมาณน้อยเกินกว่าจะตวง/แบ่งจากความแรงนี้ได้ · ใช้ยาความแรงที่เหมาะกว่า หรือปรึกษาเภสัชกร</p>';
+    return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}`) + capNote + vol + combo;
   };
   const inds = indsOf(d);
 

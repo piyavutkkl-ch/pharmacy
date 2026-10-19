@@ -195,6 +195,17 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           n.trim() === '300 mcg' && t.includes('จำกัดที่ขนาดสูงสุด 300 mcg/ครั้ง') && t.includes('ขนาดตามน้ำหนักคือ 500 mcg/ครั้ง') && t.includes('รวมได้ไม่เกิน 600 mcg/วัน') && t.includes('3.00 เม็ด'), `${n} | ${t.slice(0, 300)}`);
         await p.fill('#doseWeight', '5'); await p.waitForTimeout(200);
         check('ขนาดต่ำกว่าเพดาน → ไม่ขึ้นข้อความจำกัด (250 mcg)', (await p.$eval('#doseResult .fig .n', (e) => e.innerText)).trim() === '250 mcg' && !(await p.$('#doseResult [data-capped]'))); }
+      { // audit F-06: ขนาดยาเล็กมากต้องไม่ถูกปัดเป็น 0 · ปริมาณที่ตวง/แบ่งไม่ได้ → เตือน
+        const setInd = (i) => p.evaluate(async (i) => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [i];
+          const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }, i);
+        await setInd({ name: 'ทดสอบขนาดเล็ก', per: 'dose', min: 0.01, max: 0.01 });
+        await p.fill('#doseWeight', '3'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
+        let figs = await p.$$eval('#doseResult .fig .n', (e) => e.map((x) => x.innerText.trim()));
+        check('ขนาดยาเล็ก 0.01 มก./กก. × 3 กก. = 0.030 มก. (ไม่ปัดเป็น 0.0) · เม็ด 100 mcg = 0.30 เม็ด', figs[0] === '0.030 มก.' && figs[1] === '0.30 เม็ด/แคปซูล' && !(await p.$('#doseResult [data-too-small]')), figs.join(' | '));
+        await setInd({ name: 'ทดสอบขนาดเล็กมาก', per: 'dose', min: 0.0001, max: 0.0001 });
+        await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
+        figs = await p.$$eval('#doseResult .fig .n', (e) => e.map((x) => x.innerText.trim()));
+        check('ปริมาณน้อยเกินกว่าจะแบ่งจากความแรงนี้ (0.003 เม็ด) → แสดงค่าจริง ไม่ใช่ 0.00 + เตือน', figs[0] === '0.00030 มก.' && figs[1] === '0.003 เม็ด/แคปซูล' && !!(await p.$('#doseResult [data-too-small]')), figs.join(' | ')); }
       { // audit F-03: ชื่อยาสูตรผสม "400/80 MG" ไม่ใช่ความแรงเดี่ยว → ไม่คิดจำนวนเม็ดจนกว่าจะกรอกสารสำคัญ (ingredients)
         const r = await p.evaluate(async () => { const m = await import('./js/pages/dose.js?v=4.4');
           const f = (name, unit = 'TAB') => JSON.stringify(m.strengthOf({ name, unit }));
