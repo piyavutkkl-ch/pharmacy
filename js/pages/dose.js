@@ -183,7 +183,8 @@ function render() {
     const ts = [i.times, ...(i.times_alt || [])].map(Number).filter((n) => n >= 1);
     const tail = `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
       + (i.ref?.label ? `<p class="small muted">ที่มา: ${/^https:\/\//.test(i.ref.url || '') ? `<a href="${esc(i.ref.url)}" target="_blank" rel="noopener">${esc(i.ref.label)}</a>` : esc(i.ref.label)}${i.quote ? ` · <span lang="en">“${esc(i.quote)}”</span>` : ''}</p>` : '')
-      + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '');
+      + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '')
+      + (renal === 'unknown' ? '<p class="small fx-warn">ขนาดยานี้ยังไม่ได้ปรับตามการทำงานของไต (ยังประเมินไตไม่ได้)</p>' : '');
     if (i.per === 'day' && ts.length > 1) return ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + tail;
     return doseCore(i) + tail;
   };
@@ -225,22 +226,28 @@ function render() {
   const h = +$('#doseHeight').value, ag = ageOf(), age = ag ? ag.years : 0;
   const bmi = h > 0 ? fig((w / Math.pow(h / 100, 2)).toFixed(1), `BMI (น้ำหนัก ${w} กก. ส่วนสูง ${h.toFixed(0)} ซม.)`) : '';
 
-  let renal = 'normal', crclNote = '';
+  // สถานะไต: normal | mild | moderate | severe | unknown (เปิดคำนวณไตแต่คำนวณไม่ได้ — ห้ามถือว่าไตปกติ · audit F-01)
+  let renal = 'normal', crclNote = '', renalWhy = '';
   const method = $('#doseRenalMethod').value;
   $('#doseCrClLbl').textContent = method === 'egfr' ? 'eGFR' : 'CrCl (Cockcroft-Gault)';
   if ($('#doseRenalAdjust').checked) {
     const k = kidney({ method, age, w, h, cr: +$('#doseCr').value, female: $('#doseSex').value === 'f' });
-    if (k.v != null) {
+    if (k.v != null && Number.isFinite(k.v)) {
       $('#doseCrClOut').value = `${k.v.toFixed(1)} ${k.unit}`;
       renal = k.v >= 60 ? 'normal' : k.v >= 30 ? 'mild' : k.v >= 10 ? 'moderate' : 'severe';
       crclNote = `<p class="small muted">${k.name} ≈ ${k.v.toFixed(1)} ${k.unit} · ${esc(k.note)}</p>`;
-    } else { $('#doseCrClOut').value = ''; crclNote = `<p class="small muted">${esc(k.msg)}</p>`; }
+    } else { $('#doseCrClOut').value = ''; renal = 'unknown'; renalWhy = k.msg || 'ข้อมูลไม่พอสำหรับคำนวณ'; }
   } else renal = $('#doseRenal').value;
 
   const labels = { mild: 'ไตเสื่อมเล็กน้อย–ปานกลาง (30–60 มล./นาที)', moderate: 'ไตเสื่อมปานกลาง–รุนแรง (10–30 มล./นาที)', severe: 'ไตเสื่อมรุนแรง / ฟอกไต (<10 มล./นาที)' };
   let alert = '';
-  if (renal !== 'normal') {
-    alert = `<div class="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>`
+  const warnIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
+  if (renal === 'unknown') {
+    alert = `<div class="alert" data-renal="unknown">${warnIcon}<div><b>ยังประเมินการทำงานของไตไม่ได้</b>`
+      + `<div class="small">เหตุผล: ${esc(renalWhy)}</div>`
+      + `<div class="small">ขนาดยาด้านล่างเป็นขนาดปกติ <b>ยังไม่ได้ปรับตามการทำงานของไต</b> · กรอกข้อมูลให้ครบ หรือเอาเครื่องหมายออกจากช่อง "ปรับขนาดยาตามการทำงานของไต" แล้วเลือกระดับไตเอง</div></div></div>`;
+  } else if (renal !== 'normal') {
+    alert = `<div class="alert">${warnIcon}`
       + `<div><b>ขนาดยาในโรคไต — ${esc(labels[renal])}</b><div class="small">${inds.some((i) => i.renal) ? 'ดูคำแนะนำ "ขนาดยาในโรคไต" ของแต่ละข้อบ่งใช้ด้านล่าง' : 'ยานี้ยังไม่มีคำแนะนำการปรับขนาดยาในโรคไตในระบบ กรุณาปรึกษาเภสัชกรก่อนใช้'}</div>${crclNote}</div></div>`;
   } else if (crclNote) alert = /≈/.test(crclNote) ? `<p class="small muted">การทำงานของไตปกติ (≥ 60) — ไม่จำเป็นต้องปรับขนาดยา</p>${crclNote}` : crclNote;
 

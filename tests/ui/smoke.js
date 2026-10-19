@@ -196,6 +196,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ไต: เลือก eGFR (CKD-EPI 2021)', (await p.inputValue('#doseCrClOut')).startsWith('64.') && (await text(p, '#doseCrClLbl')) === 'eGFR' && (await text(p, '#doseResult')).includes('CKD-EPI 2021'), await p.inputValue('#doseCrClOut'));
     await p.fill('#doseHeight', ''); await p.selectOption('#doseRenalMethod', 'crcl'); await p.waitForTimeout(100);
     check('ไต: ไม่ใส่ส่วนสูง → CrCl ใช้น้ำหนักจริง', (await p.inputValue('#doseCrClOut')).startsWith('56.') && (await text(p, '#doseResult')).includes('น้ำหนักจริง'), await p.inputValue('#doseCrClOut'));
+    { // audit F-01: เปิดปรับขนาดยาตามไตแต่คำนวณไม่ได้ → ต้องเตือนว่ายังประเมินไตไม่ได้ (ไม่ถือว่าไตปกติ)
+      await p.fill('#doseCr', ''); await p.waitForTimeout(100);
+      const t = await text(p, '#doseResult');
+      check('ไต: ไม่กรอก Cr → เตือน "ยังประเมินการทำงานของไตไม่ได้" + เหตุผล + ขนาดยายังไม่ได้ปรับตามไต (ไม่ขึ้นว่าไตปกติ)',
+        await p.$('#doseResult [data-renal="unknown"]') && t.includes('เหตุผล: กรอกค่า Serum creatinine') && t.includes('ยังไม่ได้ปรับตามการทำงานของไต') && !t.includes('การทำงานของไตปกติ') && !(await p.inputValue('#doseCrClOut')), t.slice(0, 300));
+      await p.fill('#doseCr', '1'); await p.fill('#doseAge', ''); await p.waitForTimeout(100);
+      check('ไต: ไม่กรอกอายุ → เตือนประเมินไตไม่ได้ (บอกให้กรอกอายุ)', (await text(p, '#doseResult')).includes('เหตุผล: กรอกอายุเพื่อคำนวณ CrCl'));
+      await p.fill('#doseAge', '60'); await p.waitForTimeout(100);
+      check('ไต: กรอกครบแล้ว → ไม่มีคำเตือนประเมินไตไม่ได้', !(await p.$('#doseResult [data-renal="unknown"]')) && (await p.inputValue('#doseCrClOut')).startsWith('56.'));
+      await p.uncheck('#doseRenalAdjust'); await p.waitForTimeout(100);
+      check('ไต: ไม่เลือกปรับตามไต → ไม่มีคำเตือนประเมินไตไม่ได้', !(await p.$('#doseResult [data-renal="unknown"]')));
+      await p.check('#doseRenalAdjust'); }
     await p.fill('#doseCr', ''); await p.uncheck('#doseRenalAdjust'); await p.fill('#doseAge', ''); await p.fill('#doseWeight', '20'); await p.selectOption('#doseSex', 'm');
     // คำนวณสารน้ำ
     await p.click('#doseTabs [data-dt="fluid"]'); await p.waitForTimeout(200);
