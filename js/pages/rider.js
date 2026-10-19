@@ -7,7 +7,7 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { paras } from './delivery.js?v=4.4';
-import { readTable, riderByTambon } from './delivery-report.js?v=4.4';
+import { readTable, riderByTambon, exportHeads, exportRows, downloadXlsx } from './delivery-report.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
@@ -76,6 +76,15 @@ const TEMPLATE = `
       <p class="small muted">เลือกไฟล์ .xlsx หรือ .csv จากระบบจัดส่งยา · ระบบนับในเครื่องนี้ <b>ไม่อัปโหลดไฟล์</b> และเก็บเฉพาะตัวเลขรวม · แยกปีงบจากวันที่สร้างออเดอร์</p>
       <div class="field"><label for="hrFile">เลือกไฟล์</label><input id="hrFile" class="input" type="file" accept=".xlsx,.xls,.csv,text/csv"></div>
       <span class="small" id="hrImportMsg" aria-live="polite"></span>
+      <div class="hr-export" id="hrExport" hidden>
+        <h3>ส่งออกข้อมูลจากไฟล์นี้เป็น Excel</h3>
+        <p class="small fx-warn">ไฟล์ที่ส่งออกมีข้อมูลส่วนบุคคล (PDPA) · ทำในเครื่องนี้ ไม่อัปโหลดและไม่บันทึกในระบบ · เก็บไฟล์ให้ปลอดภัย</p>
+        <div class="field"><label for="hrExRows">รายการที่ส่งออก</label><select id="hrExRows" class="input">
+          <option value="ok">เฉพาะรายการที่จัดส่งสำเร็จ</option><option value="all">ทุกรายการ</option>
+          <option value="rider_ok">Health Rider ที่จัดส่งสำเร็จ</option><option value="rider">Health Rider ทุกสถานะ</option></select></div>
+        <fieldset class="hr-excols"><legend class="small">ข้อมูลที่ส่งออก · ติ๊กตามลำดับคอลัมน์ที่ต้องการ (ข้อมูลของแต่ละรายการอยู่ในแถวเดียวกัน)</legend><div id="hrExCols" class="hr-excol-list"></div></fieldset>
+        <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="hrExBtn">ส่งออก Excel</button><span class="small" id="hrExMsg" aria-live="polite"></span></div>
+      </div>
     </details>
     <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="hrStatSave">บันทึกและแสดงผลงาน</button><button type="button" class="btn btn-o btn-sm" id="hrSaveAll" hidden>บันทึกทุกปีงบจากไฟล์</button></div>
   </div>
@@ -101,6 +110,8 @@ export async function mountRiderEditor(slot) {
   $('#hrStatSave').addEventListener('click', saveStats);
   $('#hrSaveAll').addEventListener('click', saveAll);
   $('#hrFile').addEventListener('change', importFile);
+  $('#hrExCols').addEventListener('change', onExPick);
+  $('#hrExBtn').addEventListener('click', doExport);
   $('#hrAddTambon').addEventListener('click', addTambon);
   $('#hrNewTambon').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTambon(); } });
   $('#hrStats').addEventListener('click', delTambon);
@@ -188,7 +199,9 @@ async function importFile(e) {
   const f = e.target.files[0]; if (!f) return;
   const msg = $('#hrImportMsg'); msg.style.color = ''; msg.textContent = 'กำลังอ่านไฟล์ในเครื่อง…';
   try {
-    const res = riderByTambon(await readTable(f)), ys = Object.keys(res).map(Number).sort((a, b) => a - b);
+    const table = await readTable(f);
+    showExport(table);   // ส่งออกได้แม้ไม่มีบริการ rider (เลือกรายการ "ทุกรายการ")
+    const res = riderByTambon(table), ys = Object.keys(res).map(Number).sort((a, b) => a - b);
     if (!ys.length) {   // บอกเหตุผลให้ชัด: ไม่มีบริการ rider / อ่านวันที่สร้างออเดอร์ไม่ได้
       const d = res.diag || {};
       throw new Error(!d.rows ? 'ไม่พบรายการในไฟล์ (มีแต่หัวตาราง)'
@@ -204,6 +217,35 @@ async function importFile(e) {
     msg.textContent = `นับแล้ว ปีงบ ${ys.join(', ')} · ${ys.map((y) => `${y}: ${res[y].reduce((a, r) => a + r.delivered, 0)} ครั้ง ${res[y].length} ตำบล`).join(' · ')} — ตรวจตัวเลขแล้วกดบันทึก${ys.length > 1 ? ' (หรือ "บันทึกทุกปีงบจากไฟล์")' : ''}`;
   } catch (err) { msg.style.color = 'var(--error)'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + errText(err); }
   finally { e.target.value = ''; }
+}
+
+/* ---- ส่งออกจากไฟล์ที่เลือก (อยู่ในหน่วยความจำของหน้านี้เท่านั้น) ---- */
+let exTable = null, exPick = [];
+function showExport(table) {
+  let heads;
+  try { heads = exportHeads(table); } catch { $('#hrExport').hidden = true; exTable = null; return; }
+  exTable = table; exPick = [];
+  $('#hrExCols').innerHTML = heads.map((h) => `<label><input type="checkbox" value="${esc(h)}"> <span>${esc(h)}</span> <b class="hr-exn"></b></label>`).join('');
+  $('#hrExMsg').textContent = ''; $('#hrExport').hidden = false;
+}
+function onExPick(e) {
+  const v = e.target.value;
+  exPick = e.target.checked ? [...exPick.filter((x) => x !== v), v] : exPick.filter((x) => x !== v);
+  $('#hrExCols').querySelectorAll('label').forEach((l) => { const k = exPick.indexOf(l.querySelector('input').value); l.querySelector('.hr-exn').textContent = k >= 0 ? String(k + 1) : ''; });
+}
+async function doExport() {
+  const msg = $('#hrExMsg'); msg.style.color = '';
+  if (!exTable) { msg.textContent = 'กรุณาเลือกไฟล์ก่อน'; return; }
+  if (!exPick.length) { msg.style.color = 'var(--error)'; msg.textContent = 'กรุณาติ๊กข้อมูลที่ต้องการส่งออกอย่างน้อย 1 หัวข้อ'; return; }
+  const aoa = exportRows(exTable, exPick, $('#hrExRows').value);
+  if (aoa.length < 2) { msg.style.color = 'var(--error)'; msg.textContent = 'ไม่มีรายการตามที่เลือก'; return; }
+  const btn = $('#hrExBtn'); busy(btn, true, 'กำลังสร้างไฟล์…');
+  try {
+    const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    await downloadXlsx(aoa, `ส่งออกประวัติจัดส่งยา-${stamp}.xlsx`);
+    msg.style.color = 'var(--success)'; msg.textContent = `ส่งออกแล้ว ${aoa.length - 1} รายการ · ${exPick.length} หัวข้อ`;
+  } catch (err) { msg.style.color = 'var(--error)'; msg.textContent = 'สร้างไฟล์ไม่สำเร็จ: ' + errText(err); }
+  finally { busy(btn, false); }
 }
 
 async function saveInfo() {
