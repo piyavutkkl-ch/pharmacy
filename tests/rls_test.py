@@ -1093,6 +1093,10 @@ check("age out of 0–120 rejected", None, """select public.dose_inds_problem('[
 check("max per day ≤ 0 rejected", None, """select public.dose_inds_problem('[{"name":"x","per":"dose","min":1,"max":2,"cap_day":0}]')""", lambda o: 'ต่อวัน' in o)
 check("shown drug saved with bad age range rejected", "admin", """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('อายุผิด76','x',1,2,'dose','[{"name":"x","per":"dose","min":1,"max":2,"age_min":12,"age_max":2}]','[]',true)""", "deny")
 
+print("== step 77: openFDA search oral labels, newest first (audit F-11) ==")
+check("AI dose label search filters oral route + newest first", "admin", "select ai_dose_start('ibuprofen')", lambda o: o.strip().isdigit())
+check("request URL has route ORAL + sort effective_time desc", None, "select (f.url like '%openfda.route:%ORAL%' and f.url like '%sort=effective_time:desc%')::text from ai_dose_drafts d join net.http_request_queue f on f.id=d.fda_req where d.query='ibuprofen' order by d.id desc limit 1", eq("true"))
+
 print("== step 66: combination drugs (ingredients + basis) ==")
 check("co-trimoxazole tab/susp have ingredients 400/80 · 200/40 per 5 ml", "anon", "select string_agg(ingredients->1->>'mg' || '/' || (ingredients->1->>'per'), ',' order by code) from local_drugs where code in ('1010280','1010290')", eq("80/tab,40/5ml"))
 check("staff cannot edit ingredients (RLS → 0 rows)", "s2", "update local_drugs set ingredients='[]' where code='1010280' returning id", rows(0))
