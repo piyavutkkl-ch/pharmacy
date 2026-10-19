@@ -412,6 +412,7 @@ function renderDrugs() {
     + `<div class="meta"><span class="chip ${d.active ? 'c-on' : 'c-off'}">${d.active ? 'แสดงอยู่' : 'ซ่อน'}</span>${d.ai_draft ? '<span class="chip c-fix">AI ร่าง · รอตรวจ</span>' : ''}</div></div>`
     + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">${d.ai_draft ? 'ตรวจ/แก้ไข' : 'แก้ไข'}</button>`
     + (d.ai_draft ? '' : `<button type="button" class="btn btn-o btn-sm" data-toggle="${d.id}">${d.active ? 'ซ่อน' : 'แสดง'}</button>`)
+    + `<button type="button" class="btn btn-o btn-sm" data-hist="${d.id}" aria-expanded="false">ประวัติ</button>`
     + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button></div></div>`).join('');
   keepForm($('#dfForm'), $('#dfList'), editDrug && `[data-edit="${editDrug.id}"]`);
 }
@@ -469,8 +470,28 @@ async function saveDrug(e) {
   if (fromBulk) { const i = bulkCur; resetDrugForm(); bulkCur = i; bulkSaved(); } else resetDrugForm();
 }
 
+/* ---- ประวัติการแก้ไขข้อมูลขนาดยา (79_drug_data_history.sql · ผู้ดูแลอ่านได้อย่างเดียว · audit F-13) ---- */
+const HIST_FIELD = { name: 'ชื่อยา', form: 'รูปแบบยา', indications: 'ข้อบ่งใช้/ขนาดยา', concs: 'ความแรง', active: 'การแสดง', ai_draft: 'สถานะร่าง',
+  per: 'ช่องเดิม', mg_per_kg_min: 'ช่องเดิม', mg_per_kg_max: 'ช่องเดิม', max_mg_per_dose: 'ช่องเดิม', dose_freq_per_day: 'ช่องเดิม', renal_note: 'ช่องเดิม' };
+const HIST_ACT = { insert: 'เพิ่ม', update: 'แก้ไข', delete: 'ลบ' };
+const histVal = (k, v) => (v == null ? '–' : k === 'indications' && Array.isArray(v) ? v.map((i) => `${i.name || '-'} ${perText(i)}`).join(' | ')
+  : k === 'concs' && Array.isArray(v) ? v.map((c) => c.label).join(', ') : k === 'active' ? (v ? 'แสดง' : 'ซ่อน') : k === 'ai_draft' ? (v ? 'ร่าง AI' : 'ตรวจแล้ว') : typeof v === 'object' ? JSON.stringify(v) : String(v));
+async function toggleHistory(b) {
+  const row = b.closest('.li'), open = row.nextElementSibling?.classList.contains('df-hist');
+  if (open) { row.nextElementSibling.remove(); b.setAttribute('aria-expanded', 'false'); return; }
+  row.insertAdjacentHTML('afterend', '<div class="df-hist"><div class="skeleton"></div></div>'); b.setAttribute('aria-expanded', 'true');
+  const box = row.nextElementSibling;
+  const { data, error } = await sb.from('drug_data_history').select('id,action,fields,old_values,new_values,changed_at,changer:profiles!drug_data_history_changed_by_fkey(full_name)')
+    .eq('table_name', 'dose_drugs').eq('row_id', +b.dataset.hist).order('changed_at', { ascending: false }).limit(30);
+  if (error) { box.innerHTML = `<p class="small ai-err">${esc(errText(error))}</p>`; return; }
+  box.innerHTML = !data.length ? '<p class="small muted">ยังไม่มีประวัติการแก้ไข (เริ่มบันทึกตั้งแต่ระบบประวัติเปิดใช้)</p>'
+    : `<p class="small muted">ประวัติการแก้ไข ${data.length} ครั้งล่าสุด</p><ol class="df-hist-list">${data.map((h) => `<li><b>${esc(thaiDateTime(h.changed_at))}</b> · ${esc(h.changer?.full_name || 'ระบบ')} · ${esc(HIST_ACT[h.action] || h.action)}`
+      + (h.action === 'update' ? `<ul>${(h.fields || []).filter((k) => !/^(per|mg_per_kg_|max_mg_per_dose|dose_freq_per_day|renal_note)/.test(k)).map((k) => `<li>${esc(HIST_FIELD[k] || k)}: <span class="muted">${esc(histVal(k, h.old_values?.[k]))}</span> → ${esc(histVal(k, h.new_values?.[k]))}</li>`).join('')}</ul>` : '')
+      + '</li>').join('')}</ol>`;
+}
 async function onDrugList(e) {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.hist) return toggleHistory(b);
   const d = drugs.find((x) => String(x.id) === (b.dataset.edit || b.dataset.toggle || b.dataset.del)); if (!d) return;
   if (b.dataset.edit) return startEditDrug(d);
   if (b.dataset.toggle && d.ai_draft) return startEditDrug(d);   // ร่าง AI อนุมัติผ่านฟอร์มตรวจเท่านั้น (audit F-04)

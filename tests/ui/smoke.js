@@ -1294,6 +1294,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ฟอร์มข้อบ่งใช้: 20,000 มก./กก. → บันทึกไม่ได้ (เกินเป็นไปได้)', (await text(p, '#dfMsg')).includes('สูงเกินกว่าจะเป็นไปได้'));
         await p.evaluate(() => { window.confirm = window.__confirm0; });
         await p.click(`#dfList [data-edit="${id4}"]`); await p.waitForTimeout(450); }
+      { // audit F-13: ประวัติการแก้ไขข้อมูลขนาดยา (ใคร/เมื่อไร/ค่าก่อน→หลัง) ผู้ดูแลเปิดดูได้
+        const id5 = await p.evaluate(() => { const db = window.__db, d = db.dose_drugs.find((x) => x.active && !x.ai_draft), adm = db.profiles.find((x) => x.role === 'admin');
+          (db.drug_data_history ||= []).push({ id: 1, table_name: 'dose_drugs', row_id: d.id, action: 'update', fields: ['indications'], changed_by: adm.id, changed_at: '2026-10-19T03:00:00Z',
+            old_values: { indications: [{ name: 'ลดไข้', per: 'dose', min: 10, max: 15 }] }, new_values: { indications: [{ name: 'ลดไข้', per: 'dose', min: 10, max: 20 }] } });
+          return d.id; });
+        await p.click(`#dfList [data-hist="${id5}"]`); await p.waitForTimeout(400);
+        const t = await text(p, '#dfList .df-hist');
+        check('รายการยา: กด "ประวัติ" → เห็นผู้แก้ + เวลา + ข้อบ่งใช้/ขนาดยา ค่าเดิม → ค่าใหม่', t.includes('แก้ไข') && t.includes('ข้อบ่งใช้/ขนาดยา') && t.includes('10–15') && t.includes('10–20'), t.slice(0, 300));
+        await p.click(`#dfList [data-hist="${id5}"]`); await p.waitForTimeout(200);
+        check('รายการยา: กด "ประวัติ" ซ้ำ → ย่อ', !(await p.$('#dfList .df-hist'))); }
       check('ไม่มีคำสั่งอนุมัติแบบไม่ส่งข้อมูลขนาดยา (คลิกเดียวแบบเดิม)', !(await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).some((c) => c.payload?.ai_draft === false && !('indications' in c.payload)));
       await p.evaluate(async () => { const db = window.__db, adm = db.profiles.find((x) => x.role === 'admin');
         Object.assign(db.dose_drugs.find((x) => x.id === 1), { approved_by: adm.id, approved_at: '2026-10-19T03:00:00Z' });
