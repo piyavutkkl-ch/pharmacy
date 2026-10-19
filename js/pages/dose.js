@@ -208,7 +208,8 @@ function render() {
     const tail = `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
       + (i.ref?.label ? `<p class="small muted">ที่มา: ${/^https:\/\//.test(i.ref.url || '') ? `<a href="${esc(i.ref.url)}" target="_blank" rel="noopener">${esc(i.ref.label)}</a>` : esc(i.ref.label)}${i.quote ? ` · <span lang="en">“${esc(i.quote)}”</span>` : ''}</p>` : '')
       + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '')
-      + (renal === 'unknown' ? '<p class="small fx-warn">ขนาดยานี้ยังไม่ได้ปรับตามการทำงานของไต (ยังประเมินไตไม่ได้)</p>' : '');
+      + (renal === 'unknown' ? '<p class="small fx-warn">ขนาดยานี้ยังไม่ได้ปรับตามการทำงานของไต (ยังประเมินไตไม่ได้)</p>' : '')
+      + (renal !== 'normal' && renal !== 'unknown' ? `<p class="small fx-warn" data-renal-unadjusted>ตัวเลขด้านบนเป็นขนาดปกติ ยังไม่ได้ปรับตามการทำงานของไต · ${i.renal ? 'ปรับตาม "ขนาดยาในโรคไต" ด้านบน' : 'ยังไม่มีคำแนะนำในระบบ ปรึกษาเภสัชกรก่อนใช้'}</p>` : '');
     // ช่วงอายุของข้อบ่งใช้ (age_min/age_max ปี · audit F-09): อายุผู้ป่วยนอกช่วง = ไม่แสดงขนาดยา · ไม่ได้กรอกอายุ = เตือนให้กรอก
     const aMin = i.age_min != null ? +i.age_min : null, aMax = i.age_max != null ? +i.age_max : null;
     const aTxt = aMin != null && aMax != null ? `อายุ ${num(aMin)}–${num(aMax)} ปี` : aMin != null ? `อายุตั้งแต่ ${num(aMin)} ปี` : aMax != null ? `อายุไม่เกิน ${num(aMax)} ปี` : '';
@@ -273,7 +274,8 @@ function render() {
     else if (cc?.mgPerMl) { const a = minMg / cc.mgPerMl, b = maxMg / cc.mgPerMl; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`); }
     else if (cc?.mgPerTab) { const a = minMg / cc.mgPerTab, b = maxMg / cc.mgPerTab; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`); }
     if (tiny) vol += '<p class="small fx-warn" data-too-small>ปริมาณน้อยเกินกว่าจะตวง/แบ่งจากความแรงนี้ได้ · ใช้ยาความแรงที่เหมาะกว่า หรือปรึกษาเภสัชกร</p>';
-    return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}`) + capNote + dayCapNote + vol + combo;
+    const unadj = renal !== 'normal' ? ' · ขนาดปกติ ยังไม่ปรับตามไต' : '';   // audit F-10: ไตเสื่อม/ประเมินไม่ได้ → ตัวเลขยังไม่ได้ปรับ
+    return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}${unadj}`) + capNote + dayCapNote + vol + combo;
   };
   const inds = indsOf(d);
 

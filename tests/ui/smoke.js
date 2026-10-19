@@ -241,6 +241,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.selectOption('#doseDrug', v); await p.waitForTimeout(250);
         check('ข้อบ่งใช้ไม่มีขนาดสูงสุดเลย → เตือนให้ตรวจขนาดสูงสุดตามเอกสารกำกับยา', !!(await p.$('#doseResult [data-no-max]')));
         await p.selectOption('#doseSex', sex0); }
+      { // audit F-10: ไตเสื่อม → ตัวเลขขนาดยาระบุว่าเป็นขนาดปกติที่ยังไม่ปรับตามไต
+        await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [{ name: 'ทดสอบไต', per: 'dose', min: 10, max: 10, cap: 1000, renal: 'CrCl < 30: ลดขนาดลงครึ่งหนึ่ง (ข้อความทดสอบ)' }];
+          const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
+        await p.selectOption('#doseDrug', v); await p.fill('#doseWeight', '20'); await p.uncheck('#doseRenalAdjust'); await p.selectOption('#doseRenal', 'severe'); await p.waitForTimeout(250);
+        const t = await text(p, '#doseResult');
+        check('ไตเสื่อมรุนแรง → ตัวเลขระบุ "ขนาดปกติ ยังไม่ปรับตามไต" + ให้ปรับตามคำแนะนำโรคไต', t.includes('ขนาดปกติ ยังไม่ปรับตามไต') && !!(await p.$('#doseResult [data-renal-unadjusted]')) && t.includes('ปรับตาม "ขนาดยาในโรคไต"'), t.slice(0, 300));
+        await p.selectOption('#doseRenal', 'normal'); await p.waitForTimeout(200);
+        check('ไตปกติ → ไม่มีป้ายยังไม่ปรับตามไต', !(await text(p, '#doseResult')).includes('ยังไม่ปรับตามไต')); }
       { // audit F-03: ชื่อยาสูตรผสม "400/80 MG" ไม่ใช่ความแรงเดี่ยว → ไม่คิดจำนวนเม็ดจนกว่าจะกรอกสารสำคัญ (ingredients)
         const r = await p.evaluate(async () => { const m = await import('./js/pages/dose.js?v=4.4');
           const f = (name, unit = 'TAB') => JSON.stringify(m.strengthOf({ name, unit }));
