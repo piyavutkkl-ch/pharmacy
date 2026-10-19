@@ -118,8 +118,9 @@ function renderNav() {
   if (auth.session && auth.profile) {
     const p = auth.profile;
     const appLink = { admin: 'ระบบผู้ดูแล', staff: 'ระบบเจ้าหน้าที่', citizen: 'ของฉัน' }[p.role];
-    nav.innerHTML = `<a href="#/" data-route="home">หน้าหลัก</a><a href="${ROLE_HOME[p.role]}" data-route="${ROLE_HOME[p.role].slice(2)}">${appLink}${p.role === 'citizen' ? ' <span id="navMsgBadge" class="badge num"></span>' : ''}</a>`
-      + `<a class="who-chip" id="profileBtn" href="${ROLE_HOME[p.role]}" title="${appLink} · ${esc(p.email)}" aria-label="${appLink}: ${esc(p.full_name || p.email)}">${myAvatarUrl(p) ? `<img class="who-av" src="${esc(myAvatarUrl(p))}" alt="" referrerpolicy="no-referrer">` : USER_SVG}<span>${esc(p.full_name || p.email)}</span></a><a href="#" id="logoutLink">ออกจากระบบ</a>`;
+    const roleShort = { admin: 'ผู้ดูแล', staff: 'เจ้าหน้าที่', citizen: 'ประชาชน' }[p.role];   // ช่องเดียว "ชื่อ - สิทธิ" = ลิงก์ไปหน้าเมนูตามสิทธิ์
+    nav.innerHTML = '<a href="#/" data-route="home">หน้าหลัก</a>'
+      + `<a class="who-chip" id="profileBtn" href="${ROLE_HOME[p.role]}" data-route="${ROLE_HOME[p.role].slice(2)}" title="${appLink} · ${esc(p.email)}" aria-label="${appLink}: ${esc(p.full_name || p.email)} (${roleShort})">${myAvatarUrl(p) ? `<img class="who-av" src="${esc(myAvatarUrl(p))}" alt="" referrerpolicy="no-referrer">` : USER_SVG}<span class="who-t">${esc(p.full_name || p.email)} <span class="who-r">- ${roleShort}</span></span>${p.role === 'citizen' ? '<span id="navMsgBadge" class="badge num"></span>' : ''}</a><a href="#" id="logoutLink">ออกจากระบบ</a>`;
     $('#logoutLink').addEventListener('click', (e) => { e.preventDefault(); signOut(); });   // ชื่อบนเมนู = ไปหน้าเมนูตามสิทธิ์ · แก้ข้อมูลส่วนตัว = กดรูป/ชื่อที่หัวหน้า
   } else {
     nav.innerHTML = '<a href="#/" data-route="home">หน้าหลัก</a><a href="#/login" class="cta" data-route="login">เข้าสู่ระบบ</a>';

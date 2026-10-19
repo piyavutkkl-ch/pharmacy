@@ -528,11 +528,13 @@ body.has-bottomnav .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
 .chip.c-on{background:var(--success-soft);color:var(--success)}
 .chip.c-off{background:var(--sunken);color:var(--muted)}
 .chip.c-role{background:var(--primary-soft);color:var(--primary)}
-.nav .who-chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;max-width:200px}
-.nav .who-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav .who-chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;justify-content:center;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;max-width:300px}
+.nav .who-chip .who-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav .who-chip .who-r{color:var(--primary);font-weight:700}
+.nav .who-chip[aria-current="page"]{border-color:var(--primary);background:var(--primary-soft)}
 .nav .who-chip svg{width:18px;height:18px;flex-shrink:0;color:var(--primary)}
 .nav .who-chip:hover{border-color:var(--primary)}
-@media (max-width:900px){.nav .who-chip{padding:0}.nav .who-chip span{display:none}}  /* จอเล็ก: เหลือไอคอน กันเมนูล้นจอ */
+@media (max-width:900px){.nav .who-chip{padding:0 6px}.nav .who-chip .who-t{display:none}}  /* จอเล็ก: เหลือไอคอน กันเมนูล้นจอ */
 /* หน้าต่างข้อมูลส่วนตัว (js/profile.js) */
 .pd-dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .pd-dialog::backdrop{background:rgba(8,12,15,.5)}
@@ -1138,3 +1140,5 @@ details[open] > summary::before{transform:rotate(90deg)}
 .trk-day:empty{display:none}
 .trk-day{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line);padding-top:14px}
 .trk-day h3{margin:0}
+/* ผลงาน (เจ้าหน้าที่/ผู้ดูแล): เว้นระยะระหว่างกล่องเพิ่มผลงาน กับ รายการผลงาน */
+#achWs{display:flex;flex-direction:column;gap:16px}

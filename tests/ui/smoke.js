@@ -430,6 +430,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('เจ้าหน้าที่: เปิดรายชื่อ + เปิดดูผู้ป่วย ถูกบันทึก (PDPA)', logs.some((c) => c.args.p_unit === 2 && !c.args.p_patient) && logs.some((c) => c.args.p_patient));
     check('เจ้าหน้าที่: มีข้อความแจ้งว่าการเข้าถึงถูกบันทึก', (await text(p, '.pdpa-note')).includes('PDPA'));
     check('เยี่ยมบ้าน: แยกช่อง "รายชื่อผู้ป่วยเยี่ยมบ้าน" กับ "One page summary" (หน้ารายชื่อไม่มีฟอร์มสรุป)', (await p.getAttribute('#vtStaffSwitch [data-vt="list"]', 'aria-current')) === 'page' && !(await p.isVisible('#staffSumSlot')) && !(await p.isVisible('#vsFold')));
+    check('เยี่ยมบ้าน: ช่อง One page summary อยู่ก่อนรายชื่อผู้ป่วยเยี่ยมบ้าน (เจ้าหน้าที่ + ผู้ดูแล)', await p.$$eval('#vtStaffSwitch [data-vt], #vtAdminSwitch [data-vt]', (a) => a.map((x) => x.dataset.vt).join()) === 'summary,list,summary,list');
     await p.click('#vtStaffSwitch [data-vt="summary"]'); await p.waitForTimeout(500);
     check('เยี่ยมบ้าน › One page summary: ฟอร์ม + รายการสรุปอยู่ในช่องนี้ (ไม่มีรายชื่อผู้ป่วย)', (await p.getAttribute('#vtStaffSwitch [data-vt="summary"]', 'aria-current')) === 'page' && !(await p.isVisible('#ptList')) && await p.evaluate(() => location.hash === '#/staff/visits/summary'));
     await p.waitForSelector('#vsFold', { state: 'attached' });
@@ -608,7 +609,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผู้ดูแล: ลบความคิดเห็นไม่เหมาะสมในหน้าอ่านข่าวได้', n0 >= 1 && (await calls(p, (c) => c.table === 'news_comments' && c.op === 'delete')).length === 1 && await count(p, '#arComments [data-del-comment]') === n0 - 1);
     }
     await go(p, '#/admin/messages'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: แถบเมนูบนใช้คำว่า "ระบบผู้ดูแล"', (await text(p, '#topNav')).includes('ระบบผู้ดูแล') && !(await text(p, '#topNav')).includes('ผู้ดูแลระบบ'));
+    check('แถบเมนูบน: ชื่อกับสิทธิ์รวมเป็นช่องเดียว "ชื่อ - สิทธิ" (ไม่มีปุ่มระบบผู้ดูแลแยก) · ลิงก์ไประบบผู้ดูแล', (await text(p, '#profileBtn')).replace(/\s+/g, ' ').trim().endsWith('- ผู้ดูแล') && (await p.getAttribute('#profileBtn', 'href')) === '#/admin'
+      && await count(p, '#topNav a[href="#/admin"]') === 1 && !(await text(p, '#topNav')).includes('ผู้ดูแลระบบ') && (await p.getAttribute('#profileBtn', 'aria-label')).includes('ระบบผู้ดูแล'));
     check('ผู้ดูแล: เมนูข้อความมีแท็บ "คุยกับ รพ.สต." + ตัวเลขยังไม่อ่าน', (await text(p, '#ucAdminSwitch [data-uc="admin"] [data-uc-badge]')).trim() === '1');
     check('ผู้ดูแล: ข้อความจากประชาชนเลือกดูตาม รพ.สต. (เปิดหน่วยที่มีข้อความค้างก่อน) · ห้องยาเดิมเป็นแท็บท้าย', (await p.getAttribute('#amTargets [data-t="2"]', 'aria-current')) === 'true'
       && (await p.$$eval('#amTargets [data-t]', (b) => b.map((x) => x.dataset.t))).at(-1) === '' && await count(p, '#amTargets [data-t]') === 8);
@@ -781,7 +783,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('เอกสาร (ผู้ดูแล): บันทึก is_public + for_unit null + item_ids', ins.is_public === true && ins.for_unit === null && ins.item_ids?.length === 1, JSON.stringify(ins)); }
     await p.selectOption('#adWho', 'staff');
     check('เอกสาร (ผู้ดูแล): กลับเป็นเจ้าหน้าที่ → เลือก รพ.สต. ได้อีก', !(await p.$eval('#adFor', (e) => e.disabled)));
-    check('เมนูผู้ดูแล: ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,achievements,rider,review,docs,drugs,settings' && await count(p, '#afList .li') > 0);
+    check('เมนูผู้ดูแล: Health Rider อยู่ใต้ตรวจประเมิน · ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,achievements,review,rider,docs,drugs,settings' && await count(p, '#afList .li') > 0);
     await go(p, '#/admin/feedback'); await p.waitForTimeout(250);
     check('ลิงก์เดิม #/admin/feedback ยังเปิดได้ (พาไปตั้งค่า)', (await p.evaluate(() => location.hash)) === '#/admin/settings/feedback');
     await go(p, '#/admin/news');
@@ -1324,6 +1326,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('.crit-editbox [data-close]'); await p.waitForTimeout(150); }
     const i11 = await itemId(p, '1.1'), i21 = await itemId(p, '2.1.1');
     await go(p, '#/staff/achievements'); await p.waitForTimeout(400);
+    check('ผลงาน: เว้นระยะระหว่างกล่องเพิ่มผลงานกับรายการผลงาน', await p.$eval('#achWs', (w) => { const [a, b] = w.querySelectorAll(':scope > .panel'); return b.getBoundingClientRect().top - a.getBoundingClientRect().bottom >= 12; }));
     check('ผลงาน: กล่อง "สอดคล้องกับมาตรฐานข้อ" ย่อได้ (ค่าเริ่มต้นย่อ · หัวบอกว่ายังไม่ได้เลือก)', !(await p.isVisible('#saCrit')) && (await p.textContent('#saCritN')).includes('ยังไม่ได้เลือก'));
     await p.click('#saCritFold > summary'); await p.waitForTimeout(100);
     check('ผลงาน: กล่องเลือกข้อมาตรฐานปีงบปัจจุบัน (ข้อ + รายละเอียด)', await count(p, '#saCrit .crit-opt') > 3 && (await text(p, '#saCrit')).includes('1.1'));
