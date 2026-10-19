@@ -1,13 +1,33 @@
 // ผู้ดูแล › ตั้งค่า › คำนวณโดสยา (ตาราง dose_drugs) และ ช่องทางติดต่อ รพ.สต. (ตาราง units)
 // ความแรงยาเก็บใน dose_drugs.concs เป็น [{label, mgPer5ml}] หรือ [{label, mgPerMl}] (ยาน้ำ) หรือ [{label, mgPerTab}] (เม็ด/แคปซูล)
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, esc, toast, errText, busy } from '../util.js?v=4.4';
+import { $, esc, toast, errText, busy, thaiDateTime } from '../util.js?v=4.4';
 import { loadUnits } from '../data.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { resetDose, latinOf, keysOf, sameDrug } from './dose.js?v=4.4';
 import { showForm, closeForm, parkForm, keepForm, isOpenAt } from './admin-drugs.js?v=4.4';
 
 const num = (v) => (v === '' || v == null ? null : Number(v));
+/** ข้อบ่งใช้ใช้คำนวณได้หรือไม่ (กฎเดียวกับ public.dose_inds_problem ใน 73_dose_approval.sql) → null = ใช้ได้ */
+export function indsProblem(inds) {
+  if (!Array.isArray(inds) || !inds.length) return 'ต้องมีข้อบ่งใช้อย่างน้อย 1 ข้อ';
+  const T = (x) => Number.isInteger(x) && x >= 1 && x <= 12;
+  for (const [k, i] of inds.entries()) {
+    const w = `ข้อบ่งใช้ ${k + 1}: `;
+    if (!i || typeof i !== 'object') return w + 'รูปแบบข้อมูลไม่ถูกต้อง';
+    if (!String(i.name || '').trim()) return w + 'ยังไม่มีชื่อข้อบ่งใช้';
+    if (!['dose', 'day'].includes(i.per)) return w + 'ต้องระบุว่าเป็นขนาดต่อครั้งหรือต่อวัน';
+    if (typeof i.min !== 'number' || typeof i.max !== 'number') return w + 'ต้องมีขนาดยาต่ำสุดและสูงสุดเป็นตัวเลข';
+    if (i.min < 0) return w + 'ขนาดยาต้องไม่ติดลบ';
+    if (i.max <= 0) return w + 'ขนาดยาสูงสุดต้องมากกว่า 0';
+    if (i.max < i.min) return w + 'ขนาดสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด';
+    if (i.per === 'day' && !T(i.times)) return w + 'ขนาดต่อวันต้องระบุจำนวนครั้งที่แบ่งให้ (1–12 ครั้ง)';
+    if (i.times_alt != null && !(Array.isArray(i.times_alt) && i.times_alt.every(T))) return w + 'จำนวนครั้งแบบอื่นต้องเป็น 1–12';
+    if (i.cap != null && !(typeof i.cap === 'number' && i.cap > 0)) return w + 'ขนาดสูงสุดต่อครั้งต้องเป็นตัวเลขมากกว่า 0';
+    if (i.unit != null && !['mg', 'mcg'].includes(i.unit)) return w + 'หน่วยขนาดยาต้องเป็น มก. หรือ mcg';
+  }
+  return null;
+}
 function say(el, text, ok) { el.style.color = ok ? 'var(--success)' : 'var(--error)'; el.textContent = text; }
 
 /* ======================= คำนวณโดสยา ======================= */
@@ -347,8 +367,9 @@ function readConcs(root = $('#dfConcs')) {
 }
 
 async function reloadDrugs() {
+  parkForm($('#dfForm'));   // ฟอร์มที่ขยายอยู่ใต้รายการต้องย้ายออกก่อนล้างรายการ (ไม่งั้นฟอร์มหายไปด้วย)
   $('#dfList').innerHTML = '<div class="skeleton"></div>';
-  const { data, error } = await sb.from('dose_drugs').select('*').order('sort').order('name');
+  const { data, error } = await sb.from('dose_drugs').select('*, approver:profiles!dose_drugs_approved_by_fkey(full_name)').order('sort').order('name');
   if (error) { $('#dfList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   drugs = data;
   renderDrugs(); renderReview();
@@ -369,9 +390,12 @@ function renderDrugs() {
     + indsOf(d).map((i) => `<span class="small muted">${esc(i.name || 'ข้อบ่งใช้')}: ${esc(perText(i))}</span>`).join('')
     + `<span class="small muted">${indsOf(d).length} ข้อบ่งใช้ · ${(d.concs || []).length} ความแรง · ลำดับ ${d.sort}</span>`
     + (d.ai_draft && d.ai_source ? `<span class="small muted">${esc(d.ai_source)}</span>` : '')
+    + (d.approved_at ? `<span class="small muted" data-approved>ตรวจ/อนุมัติ: ${esc(d.approver?.full_name || 'ผู้ดูแล')} · ${esc(thaiDateTime(d.approved_at))}</span>` : '')
+    + (() => { const why = !d.ai_draft && indsProblem(indsOf(d)); return why ? `<span class="small fx-warn" data-inds-problem>ข้อมูลขนาดยาไม่ครบ: ${esc(why)} · กดแก้ไขเพื่อแก้</span>` : ''; })()
+    + (d.ai_draft ? '<span class="small muted">ร่างจาก AI: กด "ตรวจ/แก้ไข" ตรวจตัวเลขกับเอกสารอ้างอิง แล้วกดบันทึก = อนุมัติ</span>' : '')
     + `<div class="meta"><span class="chip ${d.active ? 'c-on' : 'c-off'}">${d.active ? 'แสดงอยู่' : 'ซ่อน'}</span>${d.ai_draft ? '<span class="chip c-fix">AI ร่าง · รอตรวจ</span>' : ''}</div></div>`
     + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">${d.ai_draft ? 'ตรวจ/แก้ไข' : 'แก้ไข'}</button>`
-    + `<button type="button" class="btn btn-o btn-sm" data-toggle="${d.id}">${d.ai_draft ? 'ตรวจแล้ว · แสดง' : d.active ? 'ซ่อน' : 'แสดง'}</button>`
+    + (d.ai_draft ? '' : `<button type="button" class="btn btn-o btn-sm" data-toggle="${d.id}">${d.active ? 'ซ่อน' : 'แสดง'}</button>`)
     + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button></div></div>`).join('');
   keepForm($('#dfForm'), $('#dfList'), editDrug && `[data-edit="${editDrug.id}"]`);
 }
@@ -399,7 +423,7 @@ function startEditDrug(d) {
   $('#dfSort').value = d.sort; $('#dfActive').checked = d.active;
   $('#dfConcs').innerHTML = (d.concs || []).map(concRow).join('') || concRow();
   $('#dfTitle').textContent = 'แก้ไข: ' + d.name;
-  $('#dfSubmit').textContent = 'บันทึกการแก้ไข';
+  $('#dfSubmit').textContent = d.ai_draft ? 'ตรวจแล้ว · บันทึก (อนุมัติ)' : 'บันทึกการแก้ไข';
   $('#dfCancel').hidden = false;
   say($('#dfMsg'), '');
   showForm($('#dfForm'), $('#dfList'), `[data-edit="${d.id}"]`, $('#dfName'));   // ขยายใต้ยาที่กด
@@ -422,7 +446,7 @@ async function saveDrug(e) {
   const { error } = editDrug ? await sb.from('dose_drugs').update(row).eq('id', editDrug.id) : await sb.from('dose_drugs').insert(row);
   busy(btn, false);
   if (error) { say(m, errText(error)); return; }
-  toast(editDrug ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มยาแล้ว');
+  toast(editDrug?.ai_draft ? 'ตรวจแล้ว · อนุมัติแล้ว' : editDrug ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มยาแล้ว');
   const fromBulk = !editDrug && bulkCur >= 0;
   resetDose();
   await reloadDrugs();
@@ -433,18 +457,16 @@ async function onDrugList(e) {
   const b = e.target.closest('button'); if (!b) return;
   const d = drugs.find((x) => String(x.id) === (b.dataset.edit || b.dataset.toggle || b.dataset.del)); if (!d) return;
   if (b.dataset.edit) return startEditDrug(d);
+  if (b.dataset.toggle && d.ai_draft) return startEditDrug(d);   // ร่าง AI อนุมัติผ่านฟอร์มตรวจเท่านั้น (audit F-04)
   let res;
-  if (b.dataset.toggle && d.ai_draft) {
-    if (!confirm(`ตรวจตัวเลขของ "${d.name}" กับเอกสารอ้างอิงแล้วใช่ไหม?\nกดตกลงแล้วยานี้จะแสดงในเครื่องคำนวณโดสยาหน้าหลักทันที`)) return;
-    res = await sb.from('dose_drugs').update({ active: true, ai_draft: false }).eq('id', d.id);
-  } else if (b.dataset.toggle) res = await sb.from('dose_drugs').update({ active: !d.active }).eq('id', d.id);
+  if (b.dataset.toggle) res = await sb.from('dose_drugs').update({ active: !d.active }).eq('id', d.id);
   else {
     if (!confirm(`ลบ "${d.name}" ออกจากเครื่องคำนวณ? (ถ้าอาจใช้อีก แนะนำกด "ซ่อน" แทน)`)) return;
     res = await sb.from('dose_drugs').delete().eq('id', d.id);
     if (editDrug?.id === d.id) resetDrugForm();
   }
   if (res.error) { toast(errText(res.error), 'err'); return; }
-  toast(b.dataset.del ? 'ลบแล้ว' : d.ai_draft ? 'ตรวจแล้ว · แสดงในเครื่องคำนวณแล้ว' : d.active ? 'ซ่อนแล้ว' : 'แสดงแล้ว');
+  toast(b.dataset.del ? 'ลบแล้ว' : d.active ? 'ซ่อนแล้ว' : 'แสดงแล้ว');
   resetDose();
   reloadDrugs();
 }

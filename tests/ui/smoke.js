@@ -1177,11 +1177,34 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('AI เก็บเป็นร่าง: ยาที่ดึงไม่ได้/ไม่มีชื่ออังกฤษ → แจ้งให้กรอกเอง', (await text(p, '#dfBulkList')).includes('เก็บเป็นร่างแล้ว') && (await text(p, '#dfBulkList')).includes('ไม่มีชื่อภาษาอังกฤษ') && (await text(p, '#dfBulkMsg')).includes('เก็บเป็นร่างแล้ว 1 ยา'), await text(p, '#dfBulkMsg')); }
     await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(400);
     await p.selectOption('#dfFForm', 'all'); await p.fill('#dfQ', ''); await p.waitForTimeout(150);
-    check('รายการยา: ร่างจาก AI มีป้าย "AI ร่าง · รอตรวจ" + ปุ่มตรวจแล้ว · แสดง', (await text(p, '#dfList')).includes('AI ร่าง · รอตรวจ') && (await text(p, '#dfList')).includes('ตรวจแล้ว · แสดง'));
-    { const id = await p.evaluate(() => window.__db.dose_drugs.find((x) => x.ai_draft)?.id);
-      await p.click(`#dfList [data-toggle="${id}"]`); await p.waitForTimeout(400);
+    { // audit F-04: ร่าง AI ไม่มีปุ่มอนุมัติคลิกเดียว → อนุมัติได้เฉพาะผ่านฟอร์มตรวจ (readInds) + บันทึกผู้อนุมัติ
+      const id = await p.evaluate(() => window.__db.dose_drugs.find((x) => x.ai_draft)?.id);
+      check('รายการยา: ร่างจาก AI มีป้าย "AI ร่าง · รอตรวจ" + บอกวิธีอนุมัติ + ไม่มีปุ่มอนุมัติคลิกเดียว',
+        (await text(p, '#dfList')).includes('AI ร่าง · รอตรวจ') && (await text(p, '#dfList')).includes('กดบันทึก = อนุมัติ') && !(await p.$(`#dfList [data-toggle="${id}"]`)) && !(await text(p, '#dfList')).includes('ตรวจแล้ว · แสดง'));
+      await p.click(`#dfList [data-edit="${id}"]`); await p.waitForTimeout(450);
+      check('ร่างจาก AI: กด "ตรวจ/แก้ไข" → ฟอร์มตรวจ ปุ่ม "ตรวจแล้ว · บันทึก (อนุมัติ)"', (await text(p, '#dfSubmit')) === 'ตรวจแล้ว · บันทึก (อนุมัติ)' && await p.$eval('#dfForm', (f) => !f.hidden));
+      await p.$$eval('#dfInds .ind-box .i-max', (els) => els.forEach((e) => { e.value = '0.5'; }));
+      await p.$$eval('#dfInds .ind-box .i-min', (els) => els.forEach((e) => { e.value = '0.9'; }));
+      await p.check('#dfActive'); await p.click('#dfSubmit'); await p.waitForTimeout(300);
+      check('ฟอร์มตรวจ: ขนาดสูงสุดน้อยกว่าต่ำสุด → ไม่บันทึก + บอกเหตุผล', (await text(p, '#dfMsg')).includes('ขนาดสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด') && !(await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).some((c) => c.filters?.some((f) => f[1] === id) && c.payload?.ai_draft === false));
+      await p.$$eval('#dfInds .ind-box .i-min', (els) => els.forEach((e) => { e.value = '0.25'; }));
+      await p.click('#dfSubmit'); await p.waitForTimeout(400);
       const up = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload || {};
-      check('ร่างจาก AI: กดตรวจแล้ว · แสดง → แสดงในเครื่องคำนวณ (ai_draft = false)', up.active === true && up.ai_draft === false, JSON.stringify(up)); }
+      check('ร่างจาก AI: ตรวจในฟอร์มแล้วบันทึก → อนุมัติ (ai_draft = false) + แสดงในเครื่องคำนวณ', up.active === true && up.ai_draft === false && Array.isArray(up.indications), JSON.stringify(up).slice(0, 200));
+      { const id2 = await p.evaluate(() => window.__db.dose_drugs.find((x) => x.active && !x.ai_draft)?.id);
+        await p.click(`#dfList [data-edit="${id2}"]`); await p.waitForTimeout(450);
+        check('บันทึกจากฟอร์มที่ขยายใต้รายการแล้ว ฟอร์มยังอยู่ → กดแก้ไขยาอื่นต่อได้ (ฟอร์มไม่หายตอนรายการโหลดใหม่)', await p.$eval('#dfForm', (f) => !f.hidden && f.previousElementSibling?.querySelector('[data-edit]')?.dataset.edit) === String(id2));
+        await p.click(`#dfList [data-edit="${id2}"]`); await p.waitForTimeout(450); }
+      check('ไม่มีคำสั่งอนุมัติแบบไม่ส่งข้อมูลขนาดยา (คลิกเดียวแบบเดิม)', !(await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).some((c) => c.payload?.ai_draft === false && !('indications' in c.payload)));
+      await p.evaluate(async () => { const db = window.__db, adm = db.profiles.find((x) => x.role === 'admin');
+        Object.assign(db.dose_drugs.find((x) => x.id === 1), { approved_by: adm.id, approved_at: '2026-10-19T03:00:00Z' });
+        db.dose_drugs.push({ ...db.dose_drugs.find((x) => x.id === 1), id: 9911, name: 'ยาทดสอบข้อมูลไม่ครบ', approved_by: null, approved_at: null, indications: [{ name: 'x', per: 'day', min: 1, max: 2 }] }); });
+      await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs/dose'); await dbAll(p); await p.waitForTimeout(500);
+      await p.selectOption('#dfFForm', 'all'); await p.fill('#dfQ', ''); await p.waitForTimeout(150);
+      const t = await text(p, '#dfList');
+      check('รายการยา: แสดงผู้ตรวจ/อนุมัติ + วันเวลา', /ตรวจ\/อนุมัติ: .+ · /.test(t), t.slice(0, 300));
+      check('รายการยา: ยาที่แสดงอยู่แต่ข้อมูลขนาดยาไม่ครบ → เตือนพร้อมเหตุผล', t.includes('ข้อมูลขนาดยาไม่ครบ: ข้อบ่งใช้ 1: ขนาดต่อวันต้องระบุจำนวนครั้ง'), t.slice(0, 300));
+      await p.evaluate(() => { const db = window.__db; db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9911); }); }
     // ร่างที่ระบบทำเอง (63_ai_auto.sql) → กล่องที่กรอกไว้แล้วด้านบน · แก้ได้ในกล่อง → "ตรวจแล้ว · ใช้คำนวณ"
     await p.evaluate(() => {
       const db = window.__db.dose_drugs;

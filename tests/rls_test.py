@@ -911,6 +911,26 @@ check("staff cannot insert drafts", "s2", DRAFT, "deny")
 check("admin reviews → shown", "admin", f"update dose_drugs set active=true, ai_draft=false where id={dd} returning active", eq("t"))
 check("anon sees reviewed drug", "anon", f"select count(*) from dose_drugs where id={dd}", eq(1))
 
+print("== step 73: dose approval (audit F-04) ==")
+check("approved draft records approver + time", None, f"select (approved_by = '{U['admin']}' and approved_at is not null)::text from dose_drugs where id={dd}", eq("true"))
+BAD = """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active,ai_draft,ai_source) values ('ร่าง AI ไม่ครบ','x',10,20,'day','[{"name":"x","per":"day","min":20,"max":10}]','[]',false,true,'AI ร่าง') returning id"""
+bd = check("incomplete AI draft can be saved hidden", "admin", BAD, lambda o: o.strip().isdigit()).strip()
+check("draft not approved yet → no approver", None, f"select (approved_by is null and approved_at is null)::text from dose_drugs where id={bd}", eq("true"))
+check("approving incomplete draft (min>max · per day w/o times) rejected", "admin", f"update dose_drugs set active=true, ai_draft=false where id={bd}", "deny")
+check("rejected draft still hidden from public", "anon", f"select count(*) from dose_drugs where id={bd}", eq(0))
+check("per day without times explained in Thai", None, """select public.dose_inds_problem('[{"name":"x","per":"day","min":1,"max":2}]')""", lambda o: 'จำนวนครั้ง' in o)
+check("negative / zero / bad cap explained", None, """select concat_ws('|', public.dose_inds_problem('[{"name":"x","per":"dose","min":-1,"max":2}]'), public.dose_inds_problem('[{"name":"x","per":"dose","min":0,"max":0}]'), public.dose_inds_problem('[{"name":"x","per":"dose","min":1,"max":2,"cap":0}]'), public.dose_inds_problem('[]'))""",
+      lambda o: o.count('|') == 3 and 'ติดลบ' in o and 'มากกว่า 0' in o and 'อย่างน้อย 1 ข้อ' in o)
+check("valid indications pass", None, """select public.dose_inds_problem('[{"name":"x","per":"day","min":1,"max":2,"times":3,"times_alt":[1],"cap":500,"unit":"mcg"}]') is null""", eq("t"))
+check("admin fixes draft then approves → shown + approver recorded", "admin",
+      f"""update dose_drugs set indications='[{{"name":"x","per":"day","min":10,"max":20,"times":2}}]', active=true, ai_draft=false where id={bd} returning (approved_by = '{U['admin']}' and approved_at is not null)::text""", eq("true"))
+check("approver cannot be set by hand", "admin", f"update dose_drugs set approved_by='{U['c1']}', approved_at='2000-01-01' where id={bd} returning (approved_by = '{U['admin']}' and approved_at > '2001-01-01')::text", eq("true"))
+check("new shown drug with incomplete dose rejected", "admin", """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('ยาไม่ครบ','x',1,2,'day','[{"name":"x","per":"day","min":1,"max":2}]','[]',true)""", "deny")
+check("admin adds complete drug → approver = admin", "admin", f"""insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('ยาครบ','x',1,2,'dose','[{{"name":"x","per":"dose","min":1,"max":2}}]','[]',true) returning (approved_by = '{U['admin']}')::text""", eq("true"))
+check("shown drug edited to incomplete → rejected", "admin", f"""update dose_drugs set indications='[{{"name":"x","per":"day","min":1,"max":2}}]' where id={bd}""", "deny")
+check("hiding a drug is never blocked", "admin", f"update dose_drugs set active=false where id={bd} returning active", eq("f"))
+check("staff still cannot approve", "s2", f"update dose_drugs set active=true where id={bd} returning id", rows(0))
+
 print("== step 57: drug monographs (NLEM 2569) ==")
 check("monographs seeded from NLEM + readable by anon", "anon", "select count(*) > 900 from drug_monographs", eq("t"))
 check("monograph has group/forms/sections", "anon", "select group_name||'|'||(forms->0->>'acct')||'|'||(sections->0->>'title') from drug_monographs where name='Domperidone' and sub_code='1.2'", eq("Gastro-intestinal system|b|คำเตือนและข้อควรระวัง"))

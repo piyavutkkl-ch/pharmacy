@@ -16,6 +16,7 @@ let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], ddPairs = [], 
 
 export async function initDrugsAdmin() {
   if (!bound) bind();
+  ['#ldForm', '#dmForm', '#faForm', '#ddForm'].forEach((f) => parkForm($(f)));   // ฟอร์มที่ขยายใต้รายการต้องย้ายออกก่อนล้างรายการ
   $('#ldList').innerHTML = $('#dmList').innerHTML = $('#faList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
   await Promise.all([loadLocals(), loadMonos(), loadFdas(), loadDoses(), loadDdi()]);
   if (!editLocal) resetLocal();
