@@ -225,6 +225,22 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.selectOption('#doseCrUnit', 'umol'); await p.waitForTimeout(150);
         check('Cr 88 µmol/L → แปลงเป็น 1.00 มก./ดล. → CrCl ≈ 67.0 (ชาย 60 ปี 60 กก. · (140−60)×60 ÷ (72×0.995))', (await p.inputValue('#doseCrClOut')).startsWith('67.0') && (await text(p, '#doseResult')).includes('Cr 88 µmol/L = 1.00 มก./ดล.'), await p.inputValue('#doseCrClOut'));
         await p.selectOption('#doseCrUnit', 'mg'); await p.fill('#doseCr', ''); await p.uncheck('#doseRenalAdjust'); await p.fill('#doseAge', ''); await p.selectOption('#doseSex', sex0); await p.fill('#doseHeight', h0); }
+      { // audit F-09: ช่วงอายุของข้อบ่งใช้ + ขนาดสูงสุดต่อวัน + เตือนเมื่อไม่มีขนาดสูงสุด
+        const sex0 = await p.inputValue('#doseSex');
+        const setInd = (i) => p.evaluate(async (i) => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [i];
+          const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }, i);
+        await setInd({ name: 'เด็ก', per: 'day', min: 30, max: 30, times: 3, cap_day: 1500, age_min: 1, age_max: 12 });
+        await p.selectOption('#doseDrug', v); await p.fill('#doseWeight', '60'); await p.fill('#doseAge', '40'); await p.selectOption('#doseAgeUnit', 'y'); await p.waitForTimeout(250);
+        check('ข้อบ่งใช้อายุ 1–12 ปี · ผู้ป่วย 40 ปี → ไม่แสดงขนาดยา + บอกว่าอยู่นอกช่วง', !!(await p.$('#doseResult [data-age-out]')) && !(await p.$('#doseResult .ind-result .fig')));
+        await p.fill('#doseAge', '5'); await p.waitForTimeout(200);
+        const f = await p.$eval('#doseResult .ind-result .fig .n', (e) => e.innerText.trim()).catch(() => '');
+        check('อายุ 5 ปี 60 กก. · 30 มก./กก./วัน = 1800 → จำกัด 1500 มก./วัน ÷ 3 = 500 มก./ครั้ง + บอกว่าถูกจำกัด', f === '500 มก.' && !!(await p.$('#doseResult [data-capped-day]')), f);
+        await p.fill('#doseAge', ''); await p.waitForTimeout(200);
+        check('ข้อบ่งใช้มีช่วงอายุแต่ไม่ได้กรอกอายุ → เตือนให้กรอกอายุ (ยังแสดงขนาดยา)', !!(await p.$('#doseResult [data-age-need]')) && !!(await p.$('#doseResult .ind-result .fig')));
+        await setInd({ name: 'ไม่มีเพดาน', per: 'dose', min: 50, max: 50 });
+        await p.selectOption('#doseDrug', v); await p.waitForTimeout(250);
+        check('ข้อบ่งใช้ไม่มีขนาดสูงสุดเลย → เตือนให้ตรวจขนาดสูงสุดตามเอกสารกำกับยา', !!(await p.$('#doseResult [data-no-max]')));
+        await p.selectOption('#doseSex', sex0); }
       { // audit F-03: ชื่อยาสูตรผสม "400/80 MG" ไม่ใช่ความแรงเดี่ยว → ไม่คิดจำนวนเม็ดจนกว่าจะกรอกสารสำคัญ (ingredients)
         const r = await p.evaluate(async () => { const m = await import('./js/pages/dose.js?v=4.4');
           const f = (name, unit = 'TAB') => JSON.stringify(m.strengthOf({ name, unit }));
@@ -1250,6 +1266,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.click(`#dfList [data-edit="${id2}"]`); await p.waitForTimeout(450);
         check('บันทึกจากฟอร์มที่ขยายใต้รายการแล้ว ฟอร์มยังอยู่ → กดแก้ไขยาอื่นต่อได้ (ฟอร์มไม่หายตอนรายการโหลดใหม่)', await p.$eval('#dfForm', (f) => !f.hidden && f.previousElementSibling?.querySelector('[data-edit]')?.dataset.edit) === String(id2));
         await p.click(`#dfList [data-edit="${id2}"]`); await p.waitForTimeout(450); }
+      { // audit F-09: ฟอร์มข้อบ่งใช้มีช่วงอายุ + ขนาดสูงสุดต่อวัน · ช่วงอายุผิด = ไม่บันทึก
+        const id3 = await p.evaluate(() => window.__db.dose_drugs.find((x) => x.active && !x.ai_draft)?.id);
+        await p.click(`#dfList [data-edit="${id3}"]`); await p.waitForTimeout(450);
+        await p.fill('#dfInds .ind-box .i-agemin', '12'); await p.fill('#dfInds .ind-box .i-agemax', '2'); await p.click('#dfSubmit'); await p.waitForTimeout(250);
+        check('ฟอร์มข้อบ่งใช้: ช่วงอายุ 12–2 ปี → ไม่บันทึก + บอกเหตุผล', (await text(p, '#dfMsg')).includes('อายุสูงสุดต้องมากกว่าอายุต่ำสุด'), await text(p, '#dfMsg'));
+        await p.fill('#dfInds .ind-box .i-agemin', '2'); await p.fill('#dfInds .ind-box .i-agemax', '12'); await p.fill('#dfInds .ind-box .i-capday', '4000'); await p.click('#dfSubmit'); await p.waitForTimeout(400);
+        const up = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload || {};
+        check('ฟอร์มข้อบ่งใช้: บันทึกช่วงอายุ 2–12 ปี + ขนาดสูงสุด 4000/วัน ลงข้อบ่งใช้', up.indications?.[0]?.age_min === 2 && up.indications?.[0]?.age_max === 12 && up.indications?.[0]?.cap_day === 4000, JSON.stringify(up.indications?.[0])); }
       check('ไม่มีคำสั่งอนุมัติแบบไม่ส่งข้อมูลขนาดยา (คลิกเดียวแบบเดิม)', !(await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).some((c) => c.payload?.ai_draft === false && !('indications' in c.payload)));
       await p.evaluate(async () => { const db = window.__db, adm = db.profiles.find((x) => x.role === 'admin');
         Object.assign(db.dose_drugs.find((x) => x.id === 1), { approved_by: adm.id, approved_at: '2026-10-19T03:00:00Z' });

@@ -209,23 +209,38 @@ function render() {
       + (i.ref?.label ? `<p class="small muted">ที่มา: ${/^https:\/\//.test(i.ref.url || '') ? `<a href="${esc(i.ref.url)}" target="_blank" rel="noopener">${esc(i.ref.label)}</a>` : esc(i.ref.label)}${i.quote ? ` · <span lang="en">“${esc(i.quote)}”</span>` : ''}</p>` : '')
       + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '')
       + (renal === 'unknown' ? '<p class="small fx-warn">ขนาดยานี้ยังไม่ได้ปรับตามการทำงานของไต (ยังประเมินไตไม่ได้)</p>' : '');
+    // ช่วงอายุของข้อบ่งใช้ (age_min/age_max ปี · audit F-09): อายุผู้ป่วยนอกช่วง = ไม่แสดงขนาดยา · ไม่ได้กรอกอายุ = เตือนให้กรอก
+    const aMin = i.age_min != null ? +i.age_min : null, aMax = i.age_max != null ? +i.age_max : null;
+    const aTxt = aMin != null && aMax != null ? `อายุ ${num(aMin)}–${num(aMax)} ปี` : aMin != null ? `อายุตั้งแต่ ${num(aMin)} ปี` : aMax != null ? `อายุไม่เกิน ${num(aMax)} ปี` : '';
+    let agePre = '';
+    if (aTxt && age > 0 && ((aMin != null && age < aMin) || (aMax != null && age > aMax))) {
+      return `<div class="alert" data-age-out>${warnIcon}<div><b>ข้อบ่งใช้นี้ใช้กับ${aTxt}</b><div class="small">ผู้ป่วยอายุ ${num(+age.toFixed(2))} ปี อยู่นอกช่วง จึงไม่แสดงขนาดยาของข้อบ่งใช้นี้</div></div></div>` + tail;
+    }
+    if (aTxt && !(age > 0)) agePre = `<p class="small fx-warn" data-age-need>ข้อบ่งใช้นี้ใช้กับ${aTxt} · กรุณากรอกอายุเพื่อตรวจว่าตรงช่วงอายุ</p>`;
+    else if (aTxt) agePre = `<p class="small muted">ใช้กับ${aTxt}</p>`;
     if (i.per === 'day' && !ts.length) {   // ขนาดต่อวันแต่ไม่บอกจำนวนครั้ง → ไม่เดาว่าวันละครั้ง (audit F-07)
       const U = i.unit === 'mcg' ? 'mcg' : 'มก.';
       return `<div class="alert" data-dose-incomplete>${warnIcon}<div><b>ข้อมูลขนาดยาไม่ครบ</b>`
         + `<div class="small">เป็นขนาดต่อวัน แต่ไม่ได้ระบุว่าแบ่งให้วันละกี่ครั้ง จึงยังคำนวณขนาดต่อครั้งและจำนวนเม็ด/มล. ไม่ได้</div>`
         + `<div class="small">ขนาดรวมตามน้ำหนัก ${drng(w * i.min, w * i.max)} ${U}/วัน (ยังไม่ทราบว่าให้ครั้งเดียวหรือแบ่งให้) · แจ้งผู้ดูแลให้เพิ่มจำนวนครั้งในข้อมูลคำนวณขนาดยา</div></div></div>` + tail;
     }
-    if (i.per === 'day' && ts.length > 1) return ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + tail;
-    return doseCore(i) + tail;
+    const noMax = !(+i.cap > 0) && !(+i.cap_day > 0) ? '<p class="small fx-warn" data-no-max>ข้อบ่งใช้นี้ยังไม่มีขนาดสูงสุดในข้อมูล · ตรวจสอบไม่ให้เกินขนาดสูงสุดตามเอกสารกำกับยา (โดยเฉพาะผู้ใหญ่/เด็กโต)</p>' : '';
+    if (i.per === 'day' && ts.length > 1) return agePre + ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + noMax + tail;
+    return agePre + doseCore(i) + noMax + tail;
   };
   const doseCore = (i) => {
     const mcg = i.unit === 'mcg', U = mcg ? 'mcg' : 'มก.', k = mcg ? 1 / 1000 : 1;
-    let lo, hi, label, n = 1;
+    let lo, hi, label, n = 1, dayCapNote = '';
     if (i.per !== 'day') {
       lo = w * i.min; hi = w * i.max;
       label = 'ต่อครั้ง';
+      if (+i.cap_day > 0) dayCapNote = `<p class="small muted">รวมทั้งวันไม่เกิน ${num(+i.cap_day)} ${U}/วัน</p>`;
     } else {
-      const dayMin = w * i.min, dayMax = w * i.max;
+      let dayMin = w * i.min, dayMax = w * i.max;
+      if (+i.cap_day > 0 && dayMax > +i.cap_day) {   // ขนาดสูงสุดต่อวัน (audit F-09)
+        dayCapNote = `<p class="small fx-warn" data-capped-day>จำกัดที่ขนาดสูงสุด ${num(+i.cap_day)} ${U}/วัน · ขนาดตามน้ำหนักคือ ${drng(dayMin, dayMax)} ${U}/วัน</p>`;
+        dayMin = Math.min(dayMin, +i.cap_day); dayMax = +i.cap_day;
+      }
       n = i.times || 1;
       lo = dayMin / n; hi = dayMax / n;
       label = n > 1 ? `ต่อครั้ง (แบ่งจากขนาดรวม ${drng(dayMin, dayMax)} ${U}/วัน)` : 'ต่อวัน (วันละครั้ง)';
@@ -258,7 +273,7 @@ function render() {
     else if (cc?.mgPerMl) { const a = minMg / cc.mgPerMl, b = maxMg / cc.mgPerMl; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`); }
     else if (cc?.mgPerTab) { const a = minMg / cc.mgPerTab, b = maxMg / cc.mgPerTab; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`); }
     if (tiny) vol += '<p class="small fx-warn" data-too-small>ปริมาณน้อยเกินกว่าจะตวง/แบ่งจากความแรงนี้ได้ · ใช้ยาความแรงที่เหมาะกว่า หรือปรึกษาเภสัชกร</p>';
-    return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}`) + capNote + vol + combo;
+    return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}`) + capNote + dayCapNote + vol + combo;
   };
   const inds = indsOf(d);
 
