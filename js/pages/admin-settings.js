@@ -329,6 +329,7 @@ function renderHelp() {
     + `<p class="small"><a href="https://dailymed.nlm.nih.gov/dailymed/search.cfm?labeltype=all&query=${encodeURIComponent(help.query || $('#dfName').value)}" target="_blank" rel="noopener">ค้นฉลากยาเต็มใน DailyMed</a> (ฉลากชุดเดียวกับ openFDA · เปิดอ่านเอง)</p>`
     + `<p class="small">ที่มา: RxNorm (NLM)${lab ? ` · ฉลากยา openFDA${lab.brand ? ' ' + esc(lab.brand) : ''}${lab.effective ? ' ฉบับ ' + esc(lab.effective.replace(/^(\d{4})(\d\d)(\d\d)$/, '$3/$2/$1')) : ''} (สหรัฐฯ)` : ''} · <b>ตัวเลขเป็นร่าง ต้องตรวจกับเอกสารอ้างอิงก่อนบันทึก</b></p>`
     + (r.note ? `<p class="small ai-err">${esc(r.note)}</p>` : '')
+    + (res.label_old ? `<p class="small fx-warn" data-label-old>ฉลากยาที่ใช้ร่างเป็นฉบับ${lab?.effective ? ' ' + esc(lab.effective.replace(/^(\d{4})(\d\d)(\d\d)$/, '$3/$2/$1')) : ''} ซึ่งเก่ากว่า 10 ปี · ตรวจกับฉลากฉบับปัจจุบันก่อนใช้</p>` : '')
     + (concs.length ? `<h3>ความแรงจาก RxNorm</h3><div class="dh-pick" id="dfHelpConcs">${concs.map((x, k) => `<label><input type="checkbox" value="${k}"> <span>${esc(x.c.label)} <span class="small muted">${esc(x.n)}</span></span></label>`).join('')}</div>`
       + '<div><button type="button" class="btn btn-o btn-sm" data-help="conc">ใส่ความแรงที่เลือกลงฟอร์ม</button></div>' : '')
     + (ai.length ? `<h3>ขนาดยาที่ AI ร่างจากฉลาก</h3><div class="dh-pick" id="dfHelpInds">${ai.map((i, k) => `<label><input type="checkbox" value="${k}" checked> <span><b>${esc(i.name)}</b> · ${esc(perText(i))}${i.freq ? ' · ' + esc(i.freq) : ''}${i.renal ? `<span class="small muted"> · โรคไต: ${esc(i.renal)}</span>` : ''}`
@@ -522,6 +523,9 @@ function rvCard(d, open) {
     + `<div class="field full"><span class="label-like">ความแรงของยา</span><div class="med-rows r-concs">${(d.concs || []).map(concRow).join('') || concRow()}</div><div><button type="button" class="btn btn-o btn-sm" data-rv-addconc>+ เพิ่มความแรง</button></div></div>`
     + (d.ai_source ? `<p class="small muted full">${esc(d.ai_source)}</p>` : '')
     + (() => { const why = d.draft_issue || indsProblem(inds); return why ? `<p class="small fx-warn full" data-inds-problem>ต้องแก้ก่อนอนุมัติ: ${esc(why)}</p>` : ''; })()
+    + (() => {   // ฉลากที่ใช้ร่างเก่ากว่า 10 ปี (80_ai_dose_label_age.sql · audit F-17)
+      const m = /ฉบับ (\d{4})(\d{2})(\d{2})/.exec(d.ai_source || '') || /ฉบับ \d{1,2}\/\d{1,2}\/(\d{4})/.exec(d.ai_source || ''), y = m ? +m[1] : null;
+      return y && y < new Date().getFullYear() - 10 ? `<p class="small fx-warn full" data-label-old>ฉลากยาที่ใช้ร่างเป็นฉบับปี ${y} (เก่ากว่า 10 ปี) · ตรวจกับฉลากฉบับปัจจุบันก่อนอนุมัติ</p>` : ''; })()
     + '<div class="full row-btns df-rv-btns"><button class="btn btn-p btn-sm" type="submit">ตรวจแล้ว · ใช้คำนวณ</button><button type="button" class="btn btn-no btn-sm" data-rv-del>ลบร่าง</button><span class="small r-msg" aria-live="polite"></span></div>'
     + '</form></details>';
 }
