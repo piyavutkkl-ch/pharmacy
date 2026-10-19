@@ -12,7 +12,7 @@ import { initReview } from './admin-review.js?v=4.4';
 import { mountVisits, ALL } from './visits.js?v=4.4';
 import { initAdminDocs } from './docs.js?v=4.4';
 import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.4';
-import { initDrugsAdmin } from './admin-drugs.js?v=4.4';
+import { initDrugsAdmin, openDrugSection } from './admin-drugs.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
@@ -51,12 +51,10 @@ export async function showAdmin(tab, sub) {
     if (d) { initDeliveryAdmin(); initDeliveryReportAdmin(); return; }
     return mountRiderEditor($('#adminRiderSlot'));
   }
-  if (tab === 'drugs') {   // ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลแยกแท็บ (บัญชียา รพ.สต. · รายละเอียดยา · ฉลากยา · อันตรกิริยา) · /db เดิม = บัญชียา รพ.สต.
-    const v = sub === 'db' ? 'local' : DB_PARTS.includes(sub) || sub === 'ai' ? sub : 'dose';   // ai = ร่างขนาดยาจาก AI + เพิ่มหลายรายการ
-    subTabs('#adrTabs', v);
-    $$('[data-admin-view="drugs"] [data-admin-sub]').forEach((x) => { x.hidden = x.dataset.adminSub !== (DB_PARTS.includes(v) ? 'db' : v); });
-    $$('[data-db-part]').forEach((x) => { x.hidden = x.dataset.dbPart !== v; });
-    return DB_PARTS.includes(v) ? initDrugsAdmin() : initDoseAdmin();
+  if (tab === 'drugs') {   // ข้อมูลยา: เลือกยาด้านบน + ส่วนต่าง ๆ เรียงแนวตั้ง ย่อ/ขยายได้ (ai · dose · local · nlem · fda · ddi) · /db เดิม = บัญชียา รพ.สต.
+    const v = sub === 'db' ? 'local' : DB_PARTS.includes(sub) || sub === 'ai' ? sub : sub === 'dose' ? 'dose' : null;   // ไม่ระบุ = ไม่เลื่อน
+    openDrugSection(v);
+    return Promise.all([initDrugsAdmin(), initDoseAdmin()]);
   }
   if (tab === 'docs') return initAdminDocs();
   if (!SUBS[sub]) sub = 'contacts';

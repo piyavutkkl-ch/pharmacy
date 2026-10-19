@@ -1,4 +1,5 @@
-// ผู้ดูแล › ตั้งค่า › ฐานข้อมูลยา (#/admin/drugs/db · เมนูข้อมูลยา)
+// ผู้ดูแล › ข้อมูลยา (#/admin/drugs[/ai|dose|local|nlem|fda|ddi]) · ส่วนต่าง ๆ เรียงแนวตั้ง ย่อ/ขยายได้ (<details data-adr-sec>)
+//   เลือกยา รพ.สต. ด้านบน (#adrQ) → ทุกฐานข้อมูลแสดงเฉพาะยานั้น (pick) · ส่วนคำนวณขนาดยา/ร่าง AI (admin-settings.js) รับผ่านเหตุการณ์ 'pcps:drugpick' {doseIds}
 //   รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql): เพิ่ม/แก้/ซ่อน/ลบ + ผูกกับข้อมูลยาในบัญชียาหลัก (mono_refs → drug_monographs.ref)
 //   ฉลากยาสหรัฐฯ openFDA (drug_fda_labels · 59_fda_labels.sql): ดึงจาก api.fda.gov ในเบราว์เซอร์ (ฟรี · ไม่ใช้คีย์) แล้วบันทึก · แก้/ลบ · ผูกกับยา รพ.สต. ด้วย local_drugs.fda_key
 //     ภาษาไทย: AI แปลทีละฉลาก/ทั้งหมด (ai_fda_th_start/poll · 60_drug_calc_th.sql) · ผู้ดูแลแก้ข้อความไทยแล้ว = th_reviewed
@@ -8,10 +9,10 @@
 //   บัญชียาหลักแห่งชาติ (drug_monographs · 57_drug_monographs.sql): ค้นหา เพิ่ม แก้ ลบ · หัวข้อในยาแก้เป็นข้อความ "## หัวข้อ" + บรรทัดเนื้อหา
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
-import { resetDrugInfo, strengthOf } from './dose.js?v=4.4';
+import { resetDrugInfo, strengthOf, keysOf, latinOf, sameDrug } from './dose.js?v=4.4';
 
 let doseOpts = '<option value="">ข้อมูลคำนวณ: อัตโนมัติ (จับคู่ตามชื่อยา)</option>';
-let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30;
+let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30, pick = null;
 
 export async function initDrugsAdmin() {
   if (!bound) bind();
@@ -20,6 +21,42 @@ export async function initDrugsAdmin() {
   if (!editLocal) resetLocal();
   openPending();
 }
+/* ---- เลือกยาด้านบน → ทุกส่วนแสดงเฉพาะยานั้น · ส่วนต่าง ๆ ย่อ/ขยายได้ ---- */
+const secs = () => document.querySelectorAll('[data-admin-view="drugs"] .adr-sec');
+let secTouched = false;
+/** เปิดส่วนตามลิงก์ (#/admin/drugs/<ส่วน>) แล้วเลื่อนไปที่นั่น · ครั้งแรกปิดส่วนอื่นไว้ */
+export function openDrugSection(v) {
+  if (!secTouched) { secTouched = true; secs().forEach((d) => { d.open = d.dataset.adrSec === v; }); }
+  const el = v && document.querySelector(`[data-adr-sec="${v}"]`);
+  if (!el) return;
+  el.open = true;
+  requestAnimationFrame(() => el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
+}
+/** id ข้อมูลคำนวณขนาดยาของยา รพ.สต. (ผูกไว้ หรือจับคู่ตามชื่อเหมือนหน้าคำนวณ) */
+function doseIdsOf(l) {
+  const ids = [l.dose_id, ...(l.ingredients || []).map((x) => x.dose_id)].filter(Boolean);
+  if (ids.length) return [...new Set(ids)];
+  const keys = keysOf(l.name);
+  return doses.filter((d) => keys.some((k) => sameDrug(k, latinOf(d.name)))).map((d) => d.id);
+}
+function setPick(l) {
+  pick = l || null;
+  $('#adrClear').hidden = !pick;
+  $('#adrInfo').textContent = pick ? `แสดงเฉพาะ: ${pick.name} · ทุกส่วนด้านล่าง` : 'ยังไม่ได้เลือกยา · แสดงทุกรายการ';
+  if (!pick) $('#adrQ').value = '';
+  if (pick) secs().forEach((d) => { d.open = true; });
+  dmShown = 30; ddShown = 30;
+  renderLocals(); renderMonos(); renderFdas(); renderDd();
+  window.dispatchEvent(new CustomEvent('pcps:drugpick', { detail: pick ? { name: pick.name, doseIds: doseIdsOf(pick) } : null }));
+}
+function onPickInput() {
+  const v = $('#adrQ').value.trim().toLowerCase();
+  if (!v) { if (pick) setPick(null); return; }
+  const l = locals.find((x) => x.name.toLowerCase() === v) || (() => { const m = locals.filter((x) => x.name.toLowerCase().includes(v)); return m.length === 1 ? m[0] : null; })();
+  if (l && l !== pick) { $('#adrQ').value = l.name; setPick(l); }
+}
+const secN = (k, n) => { const el = document.querySelector(`[data-adr-n="${k}"]`); if (el) el.textContent = pick ? `· ${n ? `พบ ${n} รายการ` : 'ไม่มีข้อมูลของยานี้'}` : ''; };
+
 /** มาจากปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา → เปิดฟอร์มของรายการนั้น */
 function openPending() {
   let key = null;
@@ -42,6 +79,8 @@ async function loadLocals() {
   if (error) { toast(errText(error), 'err'); $('#ldList').innerHTML = '<p class="empty">โหลดรายการยาไม่สำเร็จ</p>'; return; }
   locals = data;
   $('#ldCats').innerHTML = [...new Set(locals.map((l) => l.category))].map((c) => `<option value="${esc(c)}">`).join('');
+  $('#adrNames').innerHTML = locals.map((l) => `<option value="${esc(l.name)}"></option>`).join('');
+  if (pick) pick = locals.find((l) => l.id === pick.id) || null;   // ข้อมูลล่าสุดหลังบันทึก
   renderLocals();
 }
 async function loadMonos() {
@@ -61,6 +100,11 @@ const changed = () => resetDrugInfo();   // หน้าข้อมูลยา
 
 function bind() {
   bound = true;
+  $('#adrQ').addEventListener('input', onPickInput);
+  $('#adrQ').addEventListener('change', onPickInput);
+  $('#adrClear').addEventListener('click', () => { setPick(null); $('#adrQ').focus(); });
+  $('#adrOpenAll').addEventListener('click', () => secs().forEach((d) => { d.open = true; }));
+  $('#adrCloseAll').addEventListener('click', () => secs().forEach((d) => { d.open = false; }));
   $('#ldForm').addEventListener('submit', saveLocal);
   $('#ldCancel').addEventListener('click', resetLocal);
   ['#ldQ', '#ldFilter'].forEach((s) => $(s).addEventListener(s === '#ldQ' ? 'input' : 'change', renderLocals));
@@ -110,9 +154,9 @@ function bind() {
 function linkNames(refs) { return [...new Set((refs || []).map((r) => byRef(r)?.name || r))]; }
 function renderLocals() {
   const q = $('#ldQ').value.trim().toLowerCase(), f = $('#ldFilter').value;
-  const list = locals.filter((l) => (!q || [l.name, l.code, l.category, ...linkNames(l.mono_refs)].join(' ').toLowerCase().includes(q))
+  const list = pick ? locals.filter((l) => l.id === pick.id) : locals.filter((l) => (!q || [l.name, l.code, l.category, ...linkNames(l.mono_refs)].join(' ').toLowerCase().includes(q))
     && (f === 'all' || (f === 'unlinked' ? !(l.mono_refs || []).length : !l.active)));
-  $('#ldCount').textContent = `(${locals.length})`;
+  $('#ldCount').textContent = `(${locals.length})`; secN('local', list.length);
   $('#ldList').innerHTML = !locals.length ? '<p class="empty">ยังไม่มีรายการยา</p>' : !list.length ? '<p class="empty">ไม่พบยาที่ค้นหา</p>'
     : list.map((l) => `<div class="li"><div class="l"><b>${esc(l.name)}</b>`
       + `<span class="small muted">${[l.code && `รหัส ${esc(l.code)}`, esc(l.category), (l.pack_size || l.unit) && `บรรจุ ${esc([l.pack_size, l.unit].filter(Boolean).join(' '))}`].filter(Boolean).join(' · ')}</span>`
@@ -239,9 +283,10 @@ async function onLocalList(e) {
 /* ======================= บัญชียาหลักแห่งชาติ ======================= */
 function renderMonos() {
   const q = $('#dmQ').value.trim().toLowerCase();
-  const list = monos.filter((m) => !q || [m.name, m.group_name, m.sub_name, m.sub_code].join(' ').toLowerCase().includes(q));
+  const list = pick ? monos.filter((m) => (pick.mono_refs || []).includes(m.ref)) : monos.filter((m) => !q || [m.name, m.group_name, m.sub_name, m.sub_code].join(' ').toLowerCase().includes(q));
+  secN('nlem', list.length);
   $('#dmCount').textContent = `(${monos.length})`;
-  $('#dmList').innerHTML = !monos.length ? '<p class="empty">ยังไม่มีข้อมูลยา</p>' : !list.length ? '<p class="empty">ไม่พบข้อมูลยาที่ค้นหา</p>'
+  $('#dmList').innerHTML = !monos.length ? '<p class="empty">ยังไม่มีข้อมูลยา</p>' : !list.length ? `<p class="empty">${pick ? 'ยานี้ยังไม่ผูกกับบัญชียาหลัก · ผูกได้ที่ฟอร์มยา รพ.สต. (ช่อง "ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้")' : 'ไม่พบข้อมูลยาที่ค้นหา'}</p>`
     : list.slice(0, dmShown).map((m) => `<div class="li"><div class="l"><b>${esc(m.name)}</b>`
       + `<span class="small muted">กลุ่มยา ${m.group_no} ${esc(m.group_name)} › ${esc(m.sub_code)} ${esc(m.sub_name)}</span>`
       + `<span class="small muted">${(m.forms || []).map((f) => esc([f.form, f.acct].filter(Boolean).join(' · '))).join(' / ')}${(m.sections || []).length ? ` · ${(m.sections || []).map((x) => esc(x.title)).join(', ')}` : ''}</span></div>`
@@ -428,10 +473,11 @@ async function loadFdas() {
 }
 function renderFdas() {
   const q = $('#faQ').value.trim().toLowerCase();
-  const list = fdas.filter((f) => !q || [f.title, f.generic, f.route].join(' ').toLowerCase().includes(q));
+  const list = pick ? fdas.filter((f) => f.key === pick.fda_key) : fdas.filter((f) => !q || [f.title, f.generic, f.route].join(' ').toLowerCase().includes(q));
+  secN('fda', list.length);
   const used = (k) => locals.filter((l) => l.fda_key === k).length;
   $('#faCount').textContent = `(${fdas.length})`;
-  $('#faList').innerHTML = !fdas.length ? '<p class="empty">ยังไม่มีฉลากยา</p>' : !list.length ? '<p class="empty">ไม่พบฉลากที่ค้นหา</p>'
+  $('#faList').innerHTML = !fdas.length ? '<p class="empty">ยังไม่มีฉลากยา</p>' : !list.length ? `<p class="empty">${pick ? 'ยานี้ยังไม่ผูกฉลาก openFDA · ดึงฉลากด้านบน แล้วผูกที่ฟอร์มยา รพ.สต.' : 'ไม่พบฉลากที่ค้นหา'}</p>`
     : list.map((f) => `<div class="li"><div class="l"><b>${esc(f.title)}</b><span class="small muted">${esc(f.generic)} · ${esc(f.route)}${f.brand ? ` · ${esc(f.brand)}` : ''} · ${(f.sections || []).length} หัวข้อ${f.effective ? ` · ฉลาก ${esc(f.effective)}` : ''}</span>`
       + `<span class="small ${used(f.key) ? 'muted' : ''}">${used(f.key) ? `ผูกกับยา รพ.สต. ${used(f.key)} รายการ` : '<span class="chip c-off">ยังไม่ผูกกับยา รพ.สต.</span>'}</span>`
       + `<div class="meta">${f.sections_th?.length ? `<span class="chip ${f.th_reviewed ? 'c-on' : 'c-role'}">${f.th_reviewed ? 'ภาษาไทย · ตรวจแล้ว' : 'ภาษาไทย (AI แปล)'}</span>` : f.th_status === 'pending' ? '<span class="chip c-off">AI กำลังแปล…</span>' : '<span class="chip c-off">ยังไม่มีภาษาไทย</span>'}${f.th_status === 'error' && f.th_note ? `<span class="small ai-err">${esc(f.th_note)}</span>` : ''}</div></div>`
@@ -523,9 +569,11 @@ async function loadDdi() {
 }
 function renderDd() {
   const q = $('#ddQ').value.trim().toLowerCase(), lv = $('#ddLevel').value;
-  const list = ddPairs.filter((p) => (lv === 'all' || p.level === lv) && (!q || `${ddName(p.a)} ${ddName(p.b)}`.toLowerCase().includes(q)));
+  const ids = pick ? pick.ddi_ids || [] : null;
+  const list = ddPairs.filter((p) => (lv === 'all' || p.level === lv) && (ids ? ids.includes(p.a) || ids.includes(p.b) : !q || `${ddName(p.a)} ${ddName(p.b)}`.toLowerCase().includes(q)));
+  secN('ddi', list.length);
   $('#ddCount').textContent = `(${ddPairs.length} คู่ · แปลไทยแล้ว ${ddPairs.filter((p) => p.description_th).length})`;
-  $('#ddList').innerHTML = !ddPairs.length ? '<p class="empty">ยังไม่มีข้อมูล drug interaction</p>' : !list.length ? '<p class="empty">ไม่พบคู่ยาที่ค้นหา</p>'
+  $('#ddList').innerHTML = !ddPairs.length ? '<p class="empty">ยังไม่มีข้อมูล drug interaction</p>' : !list.length ? `<p class="empty">${pick ? (ids.length ? 'ยานี้ไม่มีคู่ interaction กับยา รพ.สต. อื่น' : 'ยานี้ยังไม่ผูกกับยาใน DDInter · ผูกได้ที่ฟอร์มยา รพ.สต.') : 'ไม่พบคู่ยาที่ค้นหา'}</p>`
     : list.slice(0, ddShown).map((p) => `<div class="li"><div class="l"><b>${esc(ddName(p.a))} × ${esc(ddName(p.b))}</b>`
       + `<span class="small muted">${esc(p.level)} · ${esc((p.mech || []).join(', ') || '-')}</span>`
       + `<div class="meta">${p.description_th ? `<span class="chip ${p.th_reviewed ? 'c-on' : 'c-role'}">${p.th_reviewed ? 'ภาษาไทย · ตรวจแล้ว' : 'ภาษาไทย (AI แปล)'}</span>` : '<span class="chip c-off">ยังไม่มีภาษาไทย</span>'}${p.th_status === 'error' && p.th_note ? `<span class="small ai-err">${esc(p.th_note)}</span>` : ''}</div></div>`

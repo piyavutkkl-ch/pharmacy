@@ -54,7 +54,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     return p;
   }
   // ผู้ดูแล › ข้อมูลยา: ฐานข้อมูลแยกแท็บ — ทดสอบหลายส่วนต่อเนื่องในหน้าเดียวให้เปิดทุกส่วนไว้
-  const dbAll = (p) => p.evaluate(() => document.querySelectorAll('[data-db-part]').forEach((x) => { x.hidden = false; }));
+  const dbAll = (p) => p.evaluate(() => document.querySelectorAll('[data-admin-view="drugs"] .adr-sec').forEach((x) => { x.open = true; }));   // ข้อมูลยา: ขยายทุกส่วน
   const go = async (p, hash) => { await p.evaluate((h) => { location.hash = h; }, hash); await p.waitForTimeout(450); };
   const text = (p, s) => p.$eval(s, (e) => e.innerText).catch(() => '');
   const count = (p, s) => p.$$eval(s, (x) => x.length).catch(() => 0);
@@ -1022,10 +1022,27 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#dfAddInd'); await p.fill('#dfInds .ind-box:last-child .i-name', n); await p.fill('#dfInds .ind-box:last-child .i-min', String(a)); await p.fill('#dfInds .ind-box:last-child .i-max', String(b));
     }
     check('ยา: เพิ่มข้อบ่งใช้ได้ + หัวข้อสรุปขนาดยา (ย่อ/ขยายได้)', await count(p, '#dfInds details.ind-box') === 4 && (await text(p, '#dfInds .ind-box:nth-child(2) .ind-sum')).includes('ปวด'));
+    { const last = '#dfInds .ind-box:last-child', mm = () => p.$eval(last, (b) => [b.querySelector('.i-min').getBoundingClientRect().top, b.querySelector('.i-max').getBoundingClientRect().top]);
+      const [a1, b1] = await mm();
+      await p.selectOption(`${last} .i-per`, 'day'); await p.waitForTimeout(80);
+      const [a2, b2] = await mm();
+      await p.selectOption(`${last} .i-per`, 'dose'); await p.waitForTimeout(80);
+      const [a3, b3] = await mm();
+      check('ข้อบ่งใช้: ขนาดต่ำสุดอยู่คู่ขนาดสูงสุดเสมอ (สลับต่อครั้ง/ต่อวัน ไม่เลื่อนขึ้น)', a1 === b1 && a2 === b2 && a3 === b3, JSON.stringify([a1, b1, a2, b2, a3, b3]));
+      await p.selectOption(`${last} .i-per`, 'day'); await p.fill(`${last} .i-times`, '1, 3'); await p.waitForTimeout(80);
+      check('ข้อบ่งใช้: แบ่งให้ได้หลายแบบ (เช่น วันละ 1 หรือ 3 ครั้ง) · หัวข้อสรุปบอกครบ', (await text(p, `${last} .ind-sum`)).includes('แบ่ง 1 หรือ 3 ครั้ง')); }
     await p.fill('#dfConcs .c-label', 'ยาน้ำ 10 มก./มล.'); await p.fill('#dfConcs .c-mg', '10'); await p.selectOption('#dfConcs .c-type', 'ml');
     await p.click('#dfSubmit'); await p.waitForTimeout(500);
     const dd = await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ'));
     check('ยา: บันทึก 4 ข้อบ่งใช้ + หน่วย มก./มล.', dd?.indications?.length === 4 && dd.concs[0].mgPerMl === 10 && dd.mg_per_kg_min === 10, JSON.stringify(dd));
+    check('ยา: บันทึกการแบ่งให้หลายแบบ (times = แบบที่ 1 · times_alt = แบบอื่น)', dd?.indications?.[3]?.times === 1 && JSON.stringify(dd.indications[3].times_alt) === '[3]' && !('times_alt' in dd.indications[0]), JSON.stringify(dd?.indications?.[3]));
+    { const q = await open(null, '#/');
+      await q.evaluate(() => { const d = window.__db.dose_drugs.find((x) => /Amoxicillin/.test(x.name)); d.indications = [{ name: 'ติดเชื้อ', per: 'day', min: 25, max: 50, times: 1, times_alt: [3] }]; });
+      await q.click('[data-panel-link="dose"]'); await q.waitForTimeout(400);
+      await q.fill('#doseWeight', '20'); await q.selectOption('#doseDrug', { label: 'อะม็อกซีซิลลิน (Amoxicillin)' }); await q.waitForTimeout(200);
+      const r = await text(q, '#doseResult');
+      check('คำนวณ: ยาที่แบ่งให้ได้หลายแบบ แสดงผลแยกทีละแบบ (วันละ 1 ครั้ง = 500–1,000 มก. · วันละ 3 ครั้ง ≈ 167–333 มก./ครั้ง)', r.includes('แบบที่ 1: แบ่งให้วันละ 1 ครั้ง') && r.includes('แบบที่ 2: แบ่งให้วันละ 3 ครั้ง') && /500\s*–\s*1,?000/.test(r) && /16[67]\s*–\s*333/.test(r), r.slice(0, 400));
+      await q.close(); }
     await p.fill('#dfQ', 'ยาทดสอบ'); await p.waitForTimeout(150);
     check('รายการยา: ค้นหาชื่อได้', await count(p, '#dfList .li') === 1);
     await p.fill('#dfQ', ''); await p.selectOption('#dfSortBy', 'desc'); await p.waitForTimeout(150);
@@ -1054,7 +1071,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.setViewportSize({ width: 1280, height: 900 });
     // เพิ่มหลายรายการ: วางรายชื่อยายาว ๆ → คิว → เปิดทีละตัวในฟอร์ม + ช่วยกรอกให้ → บันทึกแล้วไปตัวถัดไป (ไม่บันทึกเอง)
     await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(400);
-    check('ผู้ดูแล › ข้อมูลยา: แท็บ "ร่างขนาดยาจาก AI · เพิ่มหลายรายการ" อยู่หน้าแท็บคำนวณขนาดยา · แท็บคำนวณขนาดยาเพิ่มทีละตัว', (await p.$$eval('#adrTabs [data-sub]', (a) => a.map((x) => x.dataset.sub).join())).startsWith('ai,dose') && await visible(p, '#dfReview') && await visible(p, '#dfBulk') && !(await visible(p, '#dfForm')));
+    check('ผู้ดูแล › ข้อมูลยา: แท็บ "ร่างขนาดยาจาก AI · เพิ่มหลายรายการ" อยู่หน้าแท็บคำนวณขนาดยา · แท็บคำนวณขนาดยาเพิ่มทีละตัว', (await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => x.dataset.adrSec).join())) === 'ai,dose,local,nlem,fda,ddi' && await p.$eval('[data-adr-sec="ai"]', (d) => d.open) && await visible(p, '#dfReview') && await visible(p, '#dfBulk') && await p.$eval('#dfReview', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'ai') && await p.$eval('#dfForm', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'dose'));
     if (!(await p.$eval('#dfBulkFold', (d) => d.open))) await p.click('#dfBulkFold > summary');
     await p.fill('#dfBulk', '1. ไดเฟนไฮดรามีน (Diphenhydramine)\n- ไอบูโพรเฟน (Ibuprofen)\nเซทิริซีน (Cetirizine)\n\nไดเฟนไฮดรามีน (Diphenhydramine)');
     const saves0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length;
@@ -1207,12 +1224,31 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     // Drug interaction (ผู้ดูแล): AI แปลไทย · แก้ไข (= ตรวจแล้ว) · ยา รพ.สต. ผูกยาใน DDInter
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(700);
     await go(p, '#/admin/drugs/local'); await p.waitForTimeout(300);
-    { const tabs = await p.$$eval('#adrTabs [data-sub]', (a) => a.map((x) => x.textContent.trim()));
-      const shown = await p.$$eval('[data-db-part]', (x) => x.filter((e) => !e.hidden).map((e) => e.dataset.dbPart).join());
-      await go(p, '#/admin/drugs/ddi'); await p.waitForTimeout(300);
-      const shown2 = await p.$$eval('[data-db-part]', (x) => x.filter((e) => !e.hidden).map((e) => e.dataset.dbPart).join());
-      check('ผู้ดูแล › ข้อมูลยา: แต่ละแท็บแยก 2 กล่อง (บน = เพิ่ม/แก้ไข · ล่าง = รายการที่บันทึกแล้ว)', await p.$$eval('[data-db-part]', (x) => x.every((e) => e.querySelectorAll(':scope > .panel').length === 2 && /บันทึกแล้ว/.test(e.querySelectorAll(':scope > .panel')[1].querySelector('h2').textContent) && !e.querySelectorAll(':scope > .panel')[0].querySelector('.list:not(#dmdOut)'))));
-      check('ผู้ดูแล › ข้อมูลยา: ฐานข้อมูลแยกแท็บ (บัญชียา รพ.สต. · รายละเอียดยา · ฉลากยา · อันตรกิริยา)', tabs.length === 6 && tabs.includes('ฐานข้อมูลบัญชียา รพ.สต.') && tabs.some((t) => t.startsWith('ฐานข้อมูลอันตรกิริยา')) && shown === 'local' && shown2 === 'ddi', JSON.stringify({ tabs, shown, shown2 })); }
+    { const secs = await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => `${x.dataset.adrSec}:${x.querySelector(':scope > summary').textContent.trim()}`));
+      check('ผู้ดูแล › ข้อมูลยา: ทุกส่วนเรียงแนวตั้ง (ไม่ใช่แท็บ) · ฐานข้อมูลแต่ละส่วนแยก 2 กล่อง (บน = เพิ่ม/แก้ไข · ล่าง = รายการที่บันทึกแล้ว)', await count(p, '#adrTabs') === 0 && secs.length === 6 && secs.some((t) => t.startsWith('local:ฐานข้อมูลบัญชียา รพ.สต.')) && secs.some((t) => t.startsWith('ddi:ฐานข้อมูลอันตรกิริยา'))
+        && await p.$$eval('[data-db-part]', (x) => x.every((e) => e.querySelectorAll(':scope > .panel').length === 2 && /บันทึกแล้ว/.test(e.querySelectorAll(':scope > .panel')[1].querySelector('h2').textContent) && !e.querySelectorAll(':scope > .panel')[0].querySelector('.list:not(#dmdOut)'))), JSON.stringify(secs));
+      const tops = await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => x.getBoundingClientRect().top));
+      check('ผู้ดูแล › ข้อมูลยา: ส่วนต่าง ๆ อยู่ใต้กันลงมา', tops.every((t, i) => !i || t > tops[i - 1])); }
+    await p.waitForTimeout(600);   // รอเลื่อนหน้า (smooth scroll) เสร็จก่อนกด
+    await p.click('[data-adr-sec="local"] > summary'); await p.waitForTimeout(100);
+    check('ผู้ดูแล › ข้อมูลยา: กดหัวข้อเพื่อย่อส่วนนั้นได้', !(await p.$eval('[data-adr-sec="local"]', (d) => d.open)));
+    await p.click('#adrCloseAll'); await p.waitForTimeout(100);
+    check('ผู้ดูแล › ข้อมูลยา: ปุ่มย่อทุกส่วน', await p.$$eval('.adr-sec', (a) => a.every((x) => !x.open)));
+    await p.click('#adrOpenAll'); await p.waitForTimeout(100);
+    check('ผู้ดูแล › ข้อมูลยา: ปุ่มขยายทุกส่วน', await p.$$eval('.adr-sec', (a) => a.every((x) => x.open)));
+    await go(p, '#/admin/drugs/ddi'); await p.waitForTimeout(300);
+    check('ผู้ดูแล › ข้อมูลยา: ลิงก์เดิม #/admin/drugs/ddi เปิดส่วนอันตรกิริยา', await p.$eval('[data-adr-sec="ddi"]', (d) => d.open) && await visible(p, '#ddList'));
+    // เลือกยาด้านบน → ทุกฐานข้อมูลแสดงเฉพาะยานั้น
+    await p.fill('#adrQ', 'AMOXICILLIN 500 MG'); await p.waitForTimeout(300);
+    { const ids = await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'AMOXICILLIN 500 MG').ddi_ids);
+      const pairs = await p.$$eval('#ddList .li b', (b) => b.map((x) => x.textContent));
+      const ddiName = await p.evaluate((id) => window.__db.ddi_drugs.find((x) => x.id === id)?.name, ids[0]);
+      check('เลือกยาด้านบน: บัญชียา รพ.สต. เหลือยาตัวเดียว + ส่วนอื่นเปิดเอง', await count(p, '#ldList .li') === 1 && (await text(p, '#ldList')).includes('AMOXICILLIN 500 MG') && await p.$$eval('.adr-sec', (a) => a.every((x) => x.open)) && (await text(p, '#adrInfo')).includes('AMOXICILLIN'));
+      check('เลือกยาด้านบน: บัญชียาหลัก/ฉลากยา/ข้อมูลคำนวณ เหลือเฉพาะของยานี้ตัวเดียว', await count(p, '#dmList .li') === 1 && (await text(p, '#dmList')).includes('Amoxicillin') && await count(p, '#faList .li') === 1 && (await text(p, '#faList')).toLowerCase().includes('amoxicillin')
+        && await count(p, '#dfList .li') === 1 && (await text(p, '#dfList')).includes('Amoxicillin'), `${await count(p, '#dmList .li')}/${await count(p, '#faList .li')}/${await count(p, '#dfList .li')}`);
+      check('เลือกยาด้านบน: อันตรกิริยาแสดงเฉพาะคู่ที่มียานี้ + หัวข้อบอกจำนวนที่พบ', pairs.length > 0 && pairs.every((t) => t.includes(ddiName)) && (await text(p, '[data-adr-n="local"]')).includes('พบ 1') && (await text(p, '[data-adr-n="dose"]')).includes('พบ 1'), ddiName); }
+    await p.click('#adrClear'); await p.waitForTimeout(200);
+    check('เลือกยาด้านบน: กดล้าง → แสดงทุกรายการเหมือนเดิม', await count(p, '#ldList .li') > 10 && await count(p, '#dfList .li') > 1 && (await p.inputValue('#adrQ')) === '' && (await text(p, '[data-adr-n="local"]')).trim() === '');
     await go(p, '#/admin/drugs/db'); await dbAll(p);
     check('ผู้ดูแล › ฐานข้อมูลยา: บอกว่าระบบแปลไทยให้เองต่อเนื่อง (ฉลาก/คู่ยา)', (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองต่อเนื่องทีละฉลาก') && (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองต่อเนื่องทีละคู่'));
     check('Drug interaction (ผู้ดูแล): รายการคู่ยา เรียงรุนแรงก่อน', await count(p, '#ddList .li') === 30 && (await text(p, '#ddList .li')).includes('Major') && (await text(p, '#ddCount')).includes('คู่'));
@@ -1235,7 +1271,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ยา รพ.สต.: บันทึกสารสำคัญรายตัว + ข้อมูลคำนวณของ Trimethoprim (ทวนสอบแล้ว = ไม่มีป้ายระบบใส่ให้)', up.ingredients?.length === 2 && up.ingredients[1].dose_id === await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id) && !up.ingredients[0].dose_id && !JSON.stringify(up.ingredients).includes('auto') && up.dose_id === null, JSON.stringify(up.ingredients));
       check('ยา รพ.สต.: แก้ยาใน DDInter → บันทึกเป็นรหัส', up.ddi_ids?.length === 1 && /^DDInter\d+$/.test(up.ddi_ids[0]), JSON.stringify(up.ddi_ids)); }
     await go(p, '#/admin/settings/dose'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: เมนูข้อมูลยาแยกจากตั้งค่า (ลิงก์เดิมพาไปเมนูใหม่)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/dose' && await visible(p, '[data-admin-view="drugs"] [data-admin-sub="dose"]') && await count(p, '#asTabs [data-sub="dose"]') === 0 && await count(p, '.sidenav [data-admin-tab="drugs"]') === 1);
+    check('ผู้ดูแล: เมนูข้อมูลยาแยกจากตั้งค่า (ลิงก์เดิมพาไปเมนูใหม่)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/dose' && await p.$eval('[data-adr-sec="dose"]', (d) => d.open) && await visible(p, '#dfForm') && await count(p, '#asTabs [data-sub="dose"]') === 0 && await count(p, '.sidenav [data-admin-tab="drugs"]') === 1);
     await go(p, '#/admin/settings/delivery'); await p.waitForTimeout(400);
     check('ผู้ดูแล: จัดส่งยาถึงบ้านย้ายไปรวมกับ Health Rider', (await p.evaluate(() => location.hash)) === '#/admin/rider/delivery' && await visible(p, '[data-rider-sub="delivery"]') && !(await visible(p, '[data-rider-sub="rider"]')) && await count(p, '#arTabs [data-sub]') === 2);
     // ยา รพ.สต. ที่ยังไม่มีข้อมูลคำนวณ → ให้ AI ร่างขนาดยาจากฉลาก openFDA (ใช้ชื่อสามัญสหรัฐฯ) → ร่างซ่อนจนตรวจ

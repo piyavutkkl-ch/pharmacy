@@ -680,16 +680,60 @@
 
       <!-- ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา (เฉพาะผู้ดูแลแก้ไขได้) -->
       <div data-admin-view="drugs" hidden>
-        <div class="unit-tabs" id="adrTabs" aria-label="เมนูข้อมูลยา">
-          <a class="tab-link" href="#/admin/drugs/ai" data-sub="ai">ร่างขนาดยาจาก AI · เพิ่มหลายรายการ</a>
-          <a class="tab-link" href="#/admin/drugs/dose" data-sub="dose">คำนวณขนาดยา</a>
-          <a class="tab-link" href="#/admin/drugs/local" data-sub="local">ฐานข้อมูลบัญชียา รพ.สต.</a>
-          <a class="tab-link" href="#/admin/drugs/nlem" data-sub="nlem">ฐานข้อมูลรายละเอียดยา (บัญชียาหลักแห่งชาติ)</a>
-          <a class="tab-link" href="#/admin/drugs/fda" data-sub="fda">ฐานข้อมูลฉลากยา (openFDA · DailyMed)</a>
-          <a class="tab-link" href="#/admin/drugs/ddi" data-sub="ddi">ฐานข้อมูลอันตรกิริยา (DDInter)</a>
+        <div class="panel adr-pick">
+          <div class="field"><label for="adrQ">เลือกยา (ทุกฐานข้อมูลด้านล่างจะแสดงเฉพาะยานี้)</label>
+            <div class="adr-bar"><input id="adrQ" class="input" type="search" list="adrNames" maxlength="200" placeholder="พิมพ์หรือเลือกชื่อยา รพ.สต. เช่น PARACETAMOL" autocomplete="off"><datalist id="adrNames"></datalist><button type="button" class="btn btn-o btn-sm" id="adrClear" hidden>ล้าง · แสดงทั้งหมด</button></div></div>
+          <p class="small muted" id="adrInfo" aria-live="polite">ยังไม่ได้เลือกยา · แสดงทุกรายการ</p>
+          <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="adrOpenAll">ขยายทุกส่วน</button><button type="button" class="btn btn-o btn-sm" id="adrCloseAll">ย่อทุกส่วน</button></div>
         </div>
-        <div data-admin-sub="db" hidden>
-          <div class="db-part" data-db-part="local">
+        <details class="adr-sec" data-adr-sec="ai">
+          <summary class="adr-sum"><span class="adr-t">ร่างขนาดยาจาก AI · เพิ่มหลายรายการ</span><span class="small muted adr-n" data-adr-n="ai"></span></summary>
+
+          <div class="panel" id="dfRvPanel">
+            <h2>ร่างขนาดยาจาก AI · รอตรวจ <span class="num muted" id="dfRvCount"></span></h2>
+            <p class="small muted">ระบบดึงข้อมูลให้ยารับประทานของ รพ.สต. ทุกตัวเอง ทีละยา (ฉลากยา openFDA + ความแรงจาก RxNorm → AI ร่างขนาดยา มก./กก.) · ตรวจ/แก้ตัวเลขในกล่องกับเอกสารอ้างอิง แล้วกด <b>"ตรวจแล้ว · ใช้คำนวณ"</b> ยานั้นจึงขึ้นในหน้าคำนวณขนาดยา</p>
+            <div class="small" id="dfRvStatus" aria-live="polite"></div>
+            <div id="dfReview" class="df-rv-list"></div>
+          </div>
+          <div class="panel">
+            <h2>เพิ่มหลายรายการ (วางรายชื่อยา · ให้ AI ร่าง)</h2>
+            <details class="vs-pfold df-bulk" id="dfBulkFold" open><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
+              <p class="small muted">พิมพ์หรือวางรายชื่อยา บรรทัดละ 1 ยา เช่น พาราเซตามอล (Paracetamol) · กด "สร้างรายการ" แล้วระบบเปิดยาทีละตัวในฟอร์มด้านล่าง พร้อมช่วยกรอกจากฐานข้อมูลยาให้ · ตรวจแล้วกด "เพิ่มยา" ระบบไปยาตัวถัดไปเอง (ไม่บันทึกยาที่ยังไม่ได้ตรวจ)</p>
+              <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>
+              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด</button><button type="button" class="btn btn-o btn-sm" id="dfFromRpst">ดึงขนาดยาจาก openFDA ให้ยา รพ.สต. ที่ยังไม่มี</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
+              <p class="small muted">"ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด" = ดึงความแรง (RxNorm) + ขนาดยา มก./กก. ที่ AI ร่างจากฉลากยา openFDA แล้วบันทึกเป็น <b>ร่าง (ซ่อนจากเครื่องคำนวณ)</b> ทุกตัว · ตรวจแล้วกด "ตรวจแล้ว · แสดง" ทีละตัวในรายการยาด้านล่าง</p>
+              <span class="small" id="dfBulkMsg" aria-live="polite"></span>
+              <div class="list" id="dfBulkList"></div>
+            </details>
+          </div>
+        </details>
+        <details class="adr-sec" data-adr-sec="dose">
+          <summary class="adr-sum"><span class="adr-t">คำนวณขนาดยา</span><span class="small muted adr-n" data-adr-n="dose"></span></summary>
+
+          <div class="panel">
+            <h2 id="dfTitle">เพิ่มรายการยา</h2>
+            <p class="small muted">รายการนี้ใช้ในหน้าข้อมูลยา / คำนวณขนาดยาที่หน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
+            <datalist id="dfIngList"><option value="Sulfamethoxazole"></option><option value="Trimethoprim"></option></datalist>
+            <form id="dfForm" class="form-grid" novalidate>
+              <div class="field"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>
+              <div class="field"><label for="dfForm2">รูปแบบยา</label><select id="dfForm2" class="input"><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
+              <div class="field full dh"><div class="row-btns dh-bar"><button type="button" class="btn btn-o btn-sm" id="dfHelpBtn">ช่วยกรอกจากฐานข้อมูลยา</button><span class="small muted">ใช้ชื่อภาษาอังกฤษในวงเล็บของชื่อยา · ความแรงจาก RxNorm + ขนาดยาที่ AI ร่างจากฉลากยา openFDA · ตรวจก่อนบันทึก</span></div><div id="dfHelpOut" aria-live="polite"></div></div>
+              <div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา <span class="req">*</span></span><span class="small muted">แต่ละข้อบ่งใช้ใส่ขนาดยาต่างกันได้ · กดที่หัวข้อเพื่อย่อ/ขยาย</span><div id="dfInds" class="ind-list"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddInd">+ เพิ่มข้อบ่งใช้</button></div></div>
+              <div class="field full"><label>ความแรงของยา</label><div id="dfConcs" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddConc">+ เพิ่มความแรง</button></div></div>
+              <div class="field"><label for="dfSort">ลำดับแสดง</label><input id="dfSort" class="input" type="number" inputmode="numeric" value="0"></div>
+              <label class="small" style="align-self:end"><input type="checkbox" id="dfActive" checked> แสดงในเครื่องคำนวณ</label>
+              <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dfSubmit">เพิ่มยา</button><button class="btn btn-o btn-sm" type="button" id="dfCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="dfMsg" aria-live="polite"></span></div>
+            </form>
+          </div>
+          <div class="panel"><h2>รายการยาในเครื่องคำนวณ <span class="num muted" id="dfCount"></span></h2>
+            <div class="doc-tools"><div class="field doc-q"><label for="dfQ">ค้นหาชื่อยา</label><input id="dfQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อยาหรือข้อบ่งใช้"></div>
+            <div class="field"><label for="dfFForm">รูปแบบยา</label><select id="dfFForm" class="input"><option value="all">ทุกรูปแบบ</option><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
+            <div class="field"><label for="dfSortBy">เรียงตาม</label><select id="dfSortBy" class="input"><option value="order">ลำดับที่ตั้งไว้</option><option value="asc">ชื่อ ก → ฮ / A → Z</option><option value="desc">ชื่อ ฮ → ก / Z → A</option></select></div></div>
+            <div class="list" id="dfList"></div></div>
+        </details>
+        <details class="adr-sec" data-adr-sec="local" data-db-part="local">
+          <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลบัญชียา รพ.สต.</span><span class="small muted adr-n" data-adr-n="local"></span></summary>
+
           <div class="panel">
             <h2 id="ldFormTitle">เพิ่ม / แก้ไข · รายการยา รพ.สต. อ.ควนกาหลง</h2>
             <p class="small muted">แสดงที่หน้าหลัก › ข้อมูลยา / คำนวณขนาดยา › ข้อมูลยา · ผูกยาแต่ละรายการกับข้อมูลยาในบัญชียาหลักแห่งชาติ เพื่อให้ข้อมูลยา (กลุ่มยา เงื่อนไข คำเตือน ฯลฯ) ขึ้นเมื่อเลือกยานั้น</p>
@@ -724,8 +768,37 @@
             </div>
             <div class="list" id="ldList"></div>
           </div>
+        </details>
+        <details class="adr-sec" data-adr-sec="nlem" data-db-part="nlem">
+          <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลรายละเอียดยา (บัญชียาหลักแห่งชาติ)</span><span class="small muted adr-n" data-adr-n="nlem"></span></summary>
+
+          <div class="panel">
+            <h2>เพิ่ม / แก้ไข · บัญชียาหลักแห่งชาติ (ฐานข้อมูลส่วนกลาง)</h2>
+            <p class="small muted">ข้อมูลตั้งต้นจากบัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙ (ราชกิจจานุเบกษา) · แก้ เพิ่ม หรือลบได้ · การแก้ไขมีผลกับยา รพ.สต. ที่ผูกไว้ทันที</p>
+            <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dmNew">+ เพิ่มข้อมูลยาใหม่</button></div>
+            <form id="dmForm" class="form-grid dm-form" novalidate hidden>
+              <h3 class="full" id="dmTitle">เพิ่มข้อมูลยาใหม่</h3>
+              <div class="field full"><label for="dmName">ชื่อยา <span class="req">*</span></label><input id="dmName" class="input" maxlength="300" placeholder="เช่น Paracetamol (Acetaminophen)"></div>
+              <div class="field"><label for="dmGroupNo">กลุ่มยา (เลข)</label><input id="dmGroupNo" class="input" type="number" inputmode="numeric" min="0" max="99"></div>
+              <div class="field"><label for="dmGroup">ชื่อกลุ่มยา</label><input id="dmGroup" class="input" maxlength="200" list="dmGroups"><datalist id="dmGroups"></datalist></div>
+              <div class="field"><label for="dmSubCode">กลุ่มย่อย (เลข)</label><input id="dmSubCode" class="input" maxlength="20" placeholder="เช่น 4.6"></div>
+              <div class="field"><label for="dmSub">ชื่อกลุ่มย่อย</label><input id="dmSub" class="input" maxlength="200"></div>
+              <div class="field full"><label for="dmForms">รูปแบบยา / บัญชี</label><textarea id="dmForms" rows="3" maxlength="3000" placeholder="tab, syr | b&#10;sterile sol | ex"></textarea><span class="small muted">บรรทัดละ 1 แบบ: รูปแบบยา | บัญชี (b, s, ex, R1, R2)</span></div>
+              <div class="field full"><label for="dmFlags">ป้ายกำกับ (ถ้ามี)</label><input id="dmFlags" class="input" maxlength="300" placeholder="เช่น ยากำพร้า, ยาเสพติดให้โทษประเภท 2"><span class="small muted">คั่นด้วยเครื่องหมายจุลภาค</span></div>
+              <div class="field full"><label for="dmSections">เงื่อนไข / คำเตือน / คำแนะนำ / หมายเหตุ</label><textarea id="dmSections" rows="10" maxlength="30000" placeholder="## เงื่อนไข&#10;ใช้สำหรับ ...&#10;## คำเตือนและข้อควรระวัง&#10;1. ...&#10;2. ..."></textarea><span class="small muted">ขึ้นต้นบรรทัดด้วย ## ตามด้วยชื่อหัวข้อ · บรรทัดถัดไปคือเนื้อหา (บรรทัดละ 1 ข้อ)</span></div>
+              <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dmSubmit">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="dmCancel">ยกเลิก</button><span class="small" id="dmMsg" aria-live="polite"></span></div>
+            </form>
           </div>
-          <div class="db-part" data-db-part="fda">
+          <div class="panel">
+            <h2>ข้อมูลยาที่บันทึกแล้ว <span class="num muted" id="dmCount"></span></h2>
+            <div class="field"><label for="dmQ">ค้นหาข้อมูลยา</label><input id="dmQ" class="input" type="search" placeholder="ชื่อยา หรือกลุ่มยา"></div>
+            <div class="list" id="dmList"></div>
+            <button type="button" class="btn btn-o btn-sm di-more" id="dmMore" hidden>แสดงเพิ่ม</button>
+          </div>
+        </details>
+        <details class="adr-sec" data-adr-sec="fda" data-db-part="fda">
+          <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลฉลากยา (openFDA · DailyMed)</span><span class="small muted adr-n" data-adr-n="fda"></span></summary>
+
           <div class="panel">
             <h2>ดึง / แก้ไข · ฉลากยาสหรัฐฯ (openFDA · DailyMed)</h2>
             <p class="small muted">ข้อมูลฉลากยาภาษาอังกฤษจาก openFDA (ฟรี · ข้อมูลสาธารณะ) แสดงในหน้าข้อมูลยาของยา รพ.สต. ที่ผูกไว้ · ดึงใหม่ได้เมื่อฉลากปรับปรุง</p>
@@ -754,8 +827,10 @@
             <div class="field"><label for="faQ">ค้นหาฉลาก</label><input id="faQ" class="input" type="search" placeholder="ชื่อยา"></div>
             <div class="list" id="faList"></div>
           </div>
-          </div>
-          <div class="db-part" data-db-part="ddi">
+        </details>
+        <details class="adr-sec" data-adr-sec="ddi" data-db-part="ddi">
+          <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลอันตรกิริยา (DDInter)</span><span class="small muted adr-n" data-adr-n="ddi"></span></summary>
+
           <div class="panel">
             <h2>แปล / แก้ไข · Drug interaction (DDInter)</h2>
             <p class="small muted">คู่ interaction ระหว่างยา รพ.สต. จาก DDInter (CC BY-NC-SA 4.0) · แสดงที่ ข้อมูลยา › Drug interaction · แปลไทยด้วย AI (Gemini ฟรี) แล้วแก้/ตรวจได้ · <b>ระบบแปลให้เองต่อเนื่องทีละคู่</b> (รุนแรงก่อน · ต่อจากฉลากยา)</p>
@@ -779,74 +854,7 @@
             <div class="list" id="ddList"></div>
             <button type="button" class="btn btn-o btn-sm di-more" id="ddMore" hidden>แสดงเพิ่ม</button>
           </div>
-          </div>
-          <div class="db-part" data-db-part="nlem">
-          <div class="panel">
-            <h2>เพิ่ม / แก้ไข · บัญชียาหลักแห่งชาติ (ฐานข้อมูลส่วนกลาง)</h2>
-            <p class="small muted">ข้อมูลตั้งต้นจากบัญชียาหลักแห่งชาติ พ.ศ. ๒๕๖๙ (ราชกิจจานุเบกษา) · แก้ เพิ่ม หรือลบได้ · การแก้ไขมีผลกับยา รพ.สต. ที่ผูกไว้ทันที</p>
-            <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dmNew">+ เพิ่มข้อมูลยาใหม่</button></div>
-            <form id="dmForm" class="form-grid dm-form" novalidate hidden>
-              <h3 class="full" id="dmTitle">เพิ่มข้อมูลยาใหม่</h3>
-              <div class="field full"><label for="dmName">ชื่อยา <span class="req">*</span></label><input id="dmName" class="input" maxlength="300" placeholder="เช่น Paracetamol (Acetaminophen)"></div>
-              <div class="field"><label for="dmGroupNo">กลุ่มยา (เลข)</label><input id="dmGroupNo" class="input" type="number" inputmode="numeric" min="0" max="99"></div>
-              <div class="field"><label for="dmGroup">ชื่อกลุ่มยา</label><input id="dmGroup" class="input" maxlength="200" list="dmGroups"><datalist id="dmGroups"></datalist></div>
-              <div class="field"><label for="dmSubCode">กลุ่มย่อย (เลข)</label><input id="dmSubCode" class="input" maxlength="20" placeholder="เช่น 4.6"></div>
-              <div class="field"><label for="dmSub">ชื่อกลุ่มย่อย</label><input id="dmSub" class="input" maxlength="200"></div>
-              <div class="field full"><label for="dmForms">รูปแบบยา / บัญชี</label><textarea id="dmForms" rows="3" maxlength="3000" placeholder="tab, syr | b&#10;sterile sol | ex"></textarea><span class="small muted">บรรทัดละ 1 แบบ: รูปแบบยา | บัญชี (b, s, ex, R1, R2)</span></div>
-              <div class="field full"><label for="dmFlags">ป้ายกำกับ (ถ้ามี)</label><input id="dmFlags" class="input" maxlength="300" placeholder="เช่น ยากำพร้า, ยาเสพติดให้โทษประเภท 2"><span class="small muted">คั่นด้วยเครื่องหมายจุลภาค</span></div>
-              <div class="field full"><label for="dmSections">เงื่อนไข / คำเตือน / คำแนะนำ / หมายเหตุ</label><textarea id="dmSections" rows="10" maxlength="30000" placeholder="## เงื่อนไข&#10;ใช้สำหรับ ...&#10;## คำเตือนและข้อควรระวัง&#10;1. ...&#10;2. ..."></textarea><span class="small muted">ขึ้นต้นบรรทัดด้วย ## ตามด้วยชื่อหัวข้อ · บรรทัดถัดไปคือเนื้อหา (บรรทัดละ 1 ข้อ)</span></div>
-              <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dmSubmit">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="dmCancel">ยกเลิก</button><span class="small" id="dmMsg" aria-live="polite"></span></div>
-            </form>
-          </div>
-          <div class="panel">
-            <h2>ข้อมูลยาที่บันทึกแล้ว <span class="num muted" id="dmCount"></span></h2>
-            <div class="field"><label for="dmQ">ค้นหาข้อมูลยา</label><input id="dmQ" class="input" type="search" placeholder="ชื่อยา หรือกลุ่มยา"></div>
-            <div class="list" id="dmList"></div>
-            <button type="button" class="btn btn-o btn-sm di-more" id="dmMore" hidden>แสดงเพิ่ม</button>
-          </div>
-          </div>
-        </div>
-        <div data-admin-sub="ai" hidden>
-          <div class="panel" id="dfRvPanel">
-            <h2>ร่างขนาดยาจาก AI · รอตรวจ <span class="num muted" id="dfRvCount"></span></h2>
-            <p class="small muted">ระบบดึงข้อมูลให้ยารับประทานของ รพ.สต. ทุกตัวเอง ทีละยา (ฉลากยา openFDA + ความแรงจาก RxNorm → AI ร่างขนาดยา มก./กก.) · ตรวจ/แก้ตัวเลขในกล่องกับเอกสารอ้างอิง แล้วกด <b>"ตรวจแล้ว · ใช้คำนวณ"</b> ยานั้นจึงขึ้นในหน้าคำนวณขนาดยา</p>
-            <div class="small" id="dfRvStatus" aria-live="polite"></div>
-            <div id="dfReview" class="df-rv-list"></div>
-          </div>
-          <div class="panel">
-            <h2>เพิ่มหลายรายการ (วางรายชื่อยา · ให้ AI ร่าง)</h2>
-            <details class="vs-pfold df-bulk" id="dfBulkFold" open><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
-              <p class="small muted">พิมพ์หรือวางรายชื่อยา บรรทัดละ 1 ยา เช่น พาราเซตามอล (Paracetamol) · กด "สร้างรายการ" แล้วระบบเปิดยาทีละตัวในฟอร์มด้านล่าง พร้อมช่วยกรอกจากฐานข้อมูลยาให้ · ตรวจแล้วกด "เพิ่มยา" ระบบไปยาตัวถัดไปเอง (ไม่บันทึกยาที่ยังไม่ได้ตรวจ)</p>
-              <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>
-              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด</button><button type="button" class="btn btn-o btn-sm" id="dfFromRpst">ดึงขนาดยาจาก openFDA ให้ยา รพ.สต. ที่ยังไม่มี</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
-              <p class="small muted">"ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด" = ดึงความแรง (RxNorm) + ขนาดยา มก./กก. ที่ AI ร่างจากฉลากยา openFDA แล้วบันทึกเป็น <b>ร่าง (ซ่อนจากเครื่องคำนวณ)</b> ทุกตัว · ตรวจแล้วกด "ตรวจแล้ว · แสดง" ทีละตัวในรายการยาด้านล่าง</p>
-              <span class="small" id="dfBulkMsg" aria-live="polite"></span>
-              <div class="list" id="dfBulkList"></div>
-            </details>
-          </div>
-        </div>
-        <div data-admin-sub="dose" hidden>
-          <div class="panel">
-            <h2 id="dfTitle">เพิ่มรายการยา</h2>
-            <p class="small muted">รายการนี้ใช้ในหน้าข้อมูลยา / คำนวณขนาดยาที่หน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
-            <datalist id="dfIngList"><option value="Sulfamethoxazole"></option><option value="Trimethoprim"></option></datalist>
-            <form id="dfForm" class="form-grid" novalidate>
-              <div class="field"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>
-              <div class="field"><label for="dfForm2">รูปแบบยา</label><select id="dfForm2" class="input"><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
-              <div class="field full dh"><div class="row-btns dh-bar"><button type="button" class="btn btn-o btn-sm" id="dfHelpBtn">ช่วยกรอกจากฐานข้อมูลยา</button><span class="small muted">ใช้ชื่อภาษาอังกฤษในวงเล็บของชื่อยา · ความแรงจาก RxNorm + ขนาดยาที่ AI ร่างจากฉลากยา openFDA · ตรวจก่อนบันทึก</span></div><div id="dfHelpOut" aria-live="polite"></div></div>
-              <div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา <span class="req">*</span></span><span class="small muted">แต่ละข้อบ่งใช้ใส่ขนาดยาต่างกันได้ · กดที่หัวข้อเพื่อย่อ/ขยาย</span><div id="dfInds" class="ind-list"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddInd">+ เพิ่มข้อบ่งใช้</button></div></div>
-              <div class="field full"><label>ความแรงของยา</label><div id="dfConcs" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddConc">+ เพิ่มความแรง</button></div></div>
-              <div class="field"><label for="dfSort">ลำดับแสดง</label><input id="dfSort" class="input" type="number" inputmode="numeric" value="0"></div>
-              <label class="small" style="align-self:end"><input type="checkbox" id="dfActive" checked> แสดงในเครื่องคำนวณ</label>
-              <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dfSubmit">เพิ่มยา</button><button class="btn btn-o btn-sm" type="button" id="dfCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="dfMsg" aria-live="polite"></span></div>
-            </form>
-          </div>
-          <div class="panel"><h2>รายการยาในเครื่องคำนวณ <span class="num muted" id="dfCount"></span></h2>
-            <div class="doc-tools"><div class="field doc-q"><label for="dfQ">ค้นหาชื่อยา</label><input id="dfQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อยาหรือข้อบ่งใช้"></div>
-            <div class="field"><label for="dfFForm">รูปแบบยา</label><select id="dfFForm" class="input"><option value="all">ทุกรูปแบบ</option><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
-            <div class="field"><label for="dfSortBy">เรียงตาม</label><select id="dfSortBy" class="input"><option value="order">ลำดับที่ตั้งไว้</option><option value="asc">ชื่อ ก → ฮ / A → Z</option><option value="desc">ชื่อ ฮ → ก / Z → A</option></select></div></div>
-            <div class="list" id="dfList"></div></div>
-        </div>
+        </details>
       </div>
 
       

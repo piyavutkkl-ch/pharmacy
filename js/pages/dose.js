@@ -81,7 +81,7 @@ function fillDrugs() {
   const waiting = litems.filter((it) => !it.dose.length && /เม็ด|แคปซูล|น้ำรับประทาน|ผง/.test(it.loc.category)).length;
   sel.innerHTML = calcList.length ? calcList.map((k) => `<option value="${k}">${esc(drugs[k].name)}</option>`).join('') : '<option value="">ยังไม่มีรายการยา</option>';
   $('#doseDrugNote').innerHTML = litems.length ? `รายการยาตามยา รพ.สต. ที่มีข้อมูลขนาดยาแล้ว ${calcList.length} รายการ${waiting ? ` · ยารับประทานอีก ${waiting} รายการรอข้อมูลขนาดยา` : ''}`
-    + (waiting && isAdmin() ? ' · <a href="#/admin/drugs/dose">ตรวจร่างขนาดยาจาก AI</a>' : '') : '';
+    + (waiting && isAdmin() ? ' · <a href="#/admin/drugs/ai">ตรวจร่างขนาดยาจาก AI</a>' : '') : '';
 }
 const inCalc = (k) => calcList.includes(+k);
 function drug() { return drugs?.[+$('#doseDrug').value || 0]; }
@@ -178,7 +178,16 @@ function render() {
   const c = conc();
   /** ขนาดยาของข้อบ่งใช้ i สำหรับน้ำหนัก w */
   //   หน่วย mcg (เช่น levothyroxine): คิดเป็น mcg แล้วแปลงเป็น มก. (÷1000) ก่อนเทียบกับความแรงของยา (มก./เม็ด · มก./มล.)
+  //   แบ่งให้ได้หลายแบบ (times + times_alt เช่น วันละ 1 หรือ 3 ครั้ง) → แสดงผลแยกทีละแบบ
   const doseOf = (i) => {
+    const ts = [i.times, ...(i.times_alt || [])].map(Number).filter((n) => n >= 1);
+    const tail = `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
+      + (i.ref?.label ? `<p class="small muted">ที่มา: ${/^https:\/\//.test(i.ref.url || '') ? `<a href="${esc(i.ref.url)}" target="_blank" rel="noopener">${esc(i.ref.label)}</a>` : esc(i.ref.label)}${i.quote ? ` · <span lang="en">“${esc(i.quote)}”</span>` : ''}</p>` : '')
+      + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '');
+    if (i.per === 'day' && ts.length > 1) return ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + tail;
+    return doseCore(i) + tail;
+  };
+  const doseCore = (i) => {
     const mcg = i.unit === 'mcg', U = mcg ? 'mcg' : 'มก.', k = mcg ? 1 / 1000 : 1;
     let lo, hi, label;
     if (i.per !== 'day') {
@@ -209,10 +218,7 @@ function render() {
     if (cc?.mgPer5ml) vol = fig(`${rng(minMg / cc.mgPer5ml * 5, maxMg / cc.mgPer5ml * 5, 1)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`);
     else if (cc?.mgPerMl) vol = fig(`${rng(minMg / cc.mgPerMl, maxMg / cc.mgPerMl, 2)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`);
     else if (cc?.mgPerTab) vol = fig(`${rng(minMg / cc.mgPerTab, maxMg / cc.mgPerTab, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`);
-    return fig(`${rng(lo, hi, hi < 10 ? 1 : 0)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${rng(minMg, maxMg, 3)} มก.)` : ''}`) + vol + combo
-      + `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
-      + (i.ref?.label ? `<p class="small muted">ที่มา: ${/^https:\/\//.test(i.ref.url || '') ? `<a href="${esc(i.ref.url)}" target="_blank" rel="noopener">${esc(i.ref.label)}</a>` : esc(i.ref.label)}${i.quote ? ` · <span lang="en">“${esc(i.quote)}”</span>` : ''}</p>` : '')
-      + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '');
+    return fig(`${rng(lo, hi, hi < 10 ? 1 : 0)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${rng(minMg, maxMg, 3)} มก.)` : ''}`) + vol + combo;
   };
   const inds = indsOf(d);
 
@@ -490,6 +496,6 @@ function doseText(i) {
   if (!(+i.min > 0 || +i.max > 0)) return '-';
   const r = num(i.min) === num(i.max) || !+i.max ? num(i.min || i.max) : `${num(i.min)}–${num(i.max)}`;
   return i.per === 'day'
-    ? `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก./วัน${i.basis ? ` (คิดจาก ${i.basis})` : ''}${i.times ? ` แบ่งให้วันละ ${num(i.times)} ครั้ง` : ''}`
+    ? `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก./วัน${i.basis ? ` (คิดจาก ${i.basis})` : ''}${i.times ? ` แบ่งให้วันละ ${[i.times, ...(i.times_alt || [])].map(num).join(' หรือ ')} ครั้ง` : ''}`
     : `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก./ครั้ง${i.basis ? ` (คิดจาก ${i.basis})` : ''}${i.cap ? ` · สูงสุด ${num(i.cap)} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/ครั้ง` : ''}`;
 }

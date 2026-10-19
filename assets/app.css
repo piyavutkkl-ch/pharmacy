@@ -1102,3 +1102,22 @@ details[open] > summary::before{transform:rotate(90deg)}
 .avatar.pd-av{width:72px;height:72px;font-size:22px}
 .nav .who-chip{text-decoration:none}
 .nav .who-chip .who-av{width:24px;height:24px;border-radius:999px;object-fit:cover;flex-shrink:0}
+/* ผู้ดูแล › ข้อมูลยา: เลือกยาด้านบน + ส่วนต่าง ๆ เรียงแนวตั้ง ย่อ/ขยายได้ (admin-drugs.js) */
+.adr-pick{box-shadow:var(--shadow)}
+.adr-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.adr-bar .input{flex:1 1 260px;min-width:0}
+.adr-pick .row-btns{margin-top:4px}
+.adr-sec{margin-top:16px;border:1px solid var(--line);border-radius:16px;background:var(--surface);overflow:hidden}
+.adr-sec > summary{list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:52px;padding:10px 16px;cursor:pointer;font-weight:700;font-size:16px;background:var(--primary-soft);color:var(--ink)}
+.adr-sec > summary::-webkit-details-marker{display:none}
+.adr-sec > summary::before{content:'▸';display:inline-block;color:var(--primary);transition:transform .15s}
+.adr-sec[open] > summary::before{transform:rotate(90deg)}
+.adr-sec > summary:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.adr-sec > summary .adr-n{font-weight:400}
+.adr-sec > .panel{margin:12px;border-radius:12px}
+.adr-sec[data-db-part]{display:block}
+@media (max-width:600px){.adr-sec > .panel{margin:8px;padding:16px}}
+@media (prefers-reduced-motion:reduce){.adr-sec > summary::before{transition:none}}
+/* ข้อบ่งใช้: ขนาดต่ำสุด/สูงสุด อยู่คู่กันเสมอ (ไม่เลื่อนเมื่อซ่อนช่องแบ่งให้) · ผลคำนวณหลายแบบ */
+.ind-mm{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dose-opt{border-left:3px solid var(--primary-soft);padding-left:10px;margin:6px 0}
