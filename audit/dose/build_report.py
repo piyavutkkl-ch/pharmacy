@@ -89,7 +89,7 @@ F = [
   "AI อาจร่างขนาดยาจากฉลากยาฉีด/ยาทาของสารเดียวกัน", "สูง (อ่านจาก URL คำขอจริงในฐานทดสอบ)",
   "เพิ่ม route:ORAL + ดึงหลายฉลากให้ผู้ดูแลเลือก + แสดงชื่อฉลากที่ใช้ในกล่องตรวจ", "AI-07 PASS"),
  ("F-12", "High", "ไม่มีเพดานความสมเหตุสมผลของตัวเลขขนาดยา (AI และผู้ดูแล)", "supabase/66 ai_dose_step (ตรวจแค่เป็นตัวเลข, max ≥ min) · dose_drugs.indications",
-  ["AI-03", "DB-06"], "AI ตอบ 5000 มก./กก./ครั้ง → รับไว้ · ผู้ดูแลบันทึก min −5 / max 100000 ได้ (ฐานข้อมูลไม่ตรวจ)",
+  ["AI-03", "DB-06a", "DB-06b"], "AI ตอบ 5000 มก./กก./ครั้ง → รับไว้ · ผู้ดูแลบันทึก min −5 / max 100000 ได้ (ฐานข้อมูลไม่ตรวจ)",
   "ตัวเลขผิดหลักหน่วยขึ้นหน้าคำนวณได้", "สูง",
   "check ในฐานข้อมูล (min ≥ 0, max ≤ เพดานต่อหน่วย, times 1–12) + ธงเตือนค่าผิดปกติในกล่องตรวจ", "AI-03, DB-06 PASS"),
  ("F-13", "High", "ไม่มีประวัติการแก้ไข/รุ่นข้อมูลของขนาดยา", "write_audit() ผูกเฉพาะ patients/visits ฯลฯ (ไม่รวม dose_drugs/local_drugs)",
@@ -122,6 +122,18 @@ F = [
   "ผู้ใหญ่ชายสูง 100 ซม. 80 กก. → IBW ≈ 2.6 กก. → ใช้ AdjBW ≈ 33.5 กก. → CrCl 37.3 (ไม่มีคำเตือน)", "สูตรไม่ได้ออกแบบสำหรับส่วนสูง < 152 ซม.", "ปานกลาง (ไม่มีมาตรฐานเดียวที่ยืนยันได้)",
   "เตือนเมื่อส่วนสูง < 152 ซม. หรือใช้น้ำหนักจริงแทน (ให้เภสัชกรเลือก)", "CG-13 ต้องมีแหล่งอ้างอิง"),
 ]
+ST = {  # สถานะหลังแก้ไข (19–20 ต.ค. 2569): (สถานะ, ทำอะไร)
+ "F-01": ("แก้แล้ว · ขึ้นเว็บ", "สถานะไต unknown + เตือนพร้อมเหตุผล"), "F-02": ("แก้แล้ว · ขึ้นเว็บ", "cap ใช้กับต่อวันที่แบ่งให้ + บอกเมื่อถูกจำกัด"),
+ "F-03": ("แก้แล้ว · ขึ้นเว็บ", "ชื่อยาสูตรผสมไม่อ่านความแรง ต้องกรอกสารสำคัญ"), "F-04": ("แก้แล้ว · ขึ้นเว็บ", "อนุมัติผ่านฟอร์มเท่านั้น + ฐานข้อมูลตรวจ + ผู้อนุมัติ (73)"),
+ "F-05": ("แก้แล้ว · ขึ้นเว็บ", "ตรวจ quote/ตัวเลข/หน่วย/cap กับฉลาก (74)"), "F-06": ("แก้แล้ว · ขึ้นเว็บ", "2 หลักนัยสำคัญ + เตือนปริมาณที่แบ่งไม่ได้"),
+ "F-07": ("แก้แล้ว · ขึ้นเว็บ", "ไม่เดาวันละครั้ง + ธงร่าง (75)"), "F-08": ("แก้แล้ว · ขึ้นเว็บ", "ช่วงค่าที่เป็นไปได้ + หน่วย µmol/L"),
+ "F-09": ("แก้แล้ว · ขึ้นเว็บ", "ช่วงอายุ + ขนาดสูงสุดต่อวัน + เตือนไม่มีเพดาน (76) · route ยังไม่มี (ใช้กับยารับประทาน)"), "F-10": ("แก้แล้ว · ขึ้นเว็บ", "ป้าย ขนาดปกติ ยังไม่ปรับตามไต"),
+ "F-11": ("แก้แล้ว · ขึ้นเว็บ", "openFDA route ORAL + ฉบับใหม่สุด (77)"), "F-12": ("แก้แล้ว · ขึ้นเว็บ · รอเภสัชกรยืนยันเพดาน", "เพดานแข็ง 10,000 + ติดธง 500 มก./กก. ปรับได้ (78)"),
+ "F-13": ("แก้แล้ว · ขึ้นเว็บ", "drug_data_history + ปุ่มประวัติ (79)"), "F-14": ("แก้แล้ว", "เด็กไม่ใช้ CG"), "F-15": ("แก้แล้ว", "ทารก < 1 ปีไม่ใช้ Schwartz"),
+ "F-16": ("แก้แล้ว", "ข้อความเป็นกลาง (เกณฑ์ไตรายยายังเป็นข้อความอิสระ)"), "F-17": ("แก้แล้ว · รอเภสัชกรยืนยันจำนวนปี", "ติดธงฉลากเก่ากว่า 10 ปี ปรับได้ (80)"),
+ "F-18": ("แก้แล้ว", "บอก 'จับคู่ตามชื่อ' + เตือน"), "F-19": ("แก้แล้ว (เตือน) · รอนโยบายการปัดเม็ด", "เตือนเม็ดไม่ลงตัว ½/¼"),
+ "F-20": ("แก้แล้ว", "อ่าน X MG/ML"), "F-21": ("แก้แล้ว (เตือน)", "IBW ≤ 0 ใช้น้ำหนักจริง + เตือนส่วนสูง < 152 ซม."),
+}
 SEVORD = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
 
 # ---------- HTML ----------
@@ -148,6 +160,7 @@ header.top{display:grid;gap:10px;border-bottom:2px solid var(--ink);padding-bott
 section{display:grid;gap:12px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
 .verdict{border-left:6px solid var(--crit);background:var(--crit-bg)}
+.verdict.upd{border-left-color:var(--pass);background:var(--pass-bg)}
 .tally{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .tally div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .tally b{display:block;font:600 1.6rem/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
@@ -211,8 +224,9 @@ S.append(f"""<header class="top"><span class="eyebrow">Audit Report · Phase 1 �
 <div class="meta"><span>ตรวจวันที่ 19 ต.ค. 2569</span><span>โค้ดรุ่น <code>{E(commit)}</code> (รุ่นเดียวกับที่ขึ้นเว็บล่าสุด)</span><span>บทบาทผู้ตรวจ: Clinical Pharmacist Informatics · Software Verification · Healthcare Architecture</span><span>ผลทดสอบ {len(cases)} กรณี</span></div></header>""")
 
 S.append(f"""<section id="s1"><h2><span class="no">1</span>Executive Summary</h2>
-<div class="panel verdict"><p><b>ผลรวม: ยังไม่ผ่าน (NOT PASS)</b> — พบข้อบกพร่องระดับ Critical {n_by_sev['Critical']} ข้อ และ High {n_by_sev['High']} ข้อ ที่ทำซ้ำได้ด้วยชุดทดสอบ
-ไม่สามารถสรุปว่าเครื่องคำนวณปลอดภัยสำหรับใช้ทางคลินิกจนกว่าจะแก้ข้อ Critical/High และรันชุดทดสอบซ้ำผ่านตามเกณฑ์หัวข้อ 13</p></div>
+<div class="panel verdict upd"><p><b>อัปเดต 20 ต.ค. 2569: แก้ครบ 21 ข้อในโค้ดแล้ว · ชุดทดสอบ audit ผ่าน {cnt('PASS')}/{len(cases)} (FAIL {cnt('FAIL')} · UNVERIFIED {cnt('UNVERIFIED')})</b></p>
+<p>ยังไม่สรุปว่า PASS ทางคลินิก จนกว่าจะครบเกณฑ์หัวข้อ 13: เภสัชกรยืนยันค่าเพดาน/อายุฉลาก/นโยบายแบ่งเม็ด · ผู้ดูแลตรวจข้อมูลขนาดยาจริงที่ขึ้นเตือน · ตรวจบนเว็บจริงหลังขึ้นเว็บ</p>
+<p class="small muted">ผลตรวจครั้งแรก (19 ต.ค.): 79 กรณี · PASS 42 · FAIL 33 · UNVERIFIED 4 · พบ Critical {n_by_sev['Critical']} · High {n_by_sev['High']} · Medium {n_by_sev['Medium']} · Low {n_by_sev['Low']}</p></div>
 <div class="tally"><div><b>{len(cases)}</b><span>กรณีทดสอบที่รันจริง</span></div><div><b style="color:var(--pass)">{cnt('PASS')}</b><span>PASS</span></div>
 <div><b style="color:var(--fail)">{cnt('FAIL')}</b><span>FAIL</span></div><div><b style="color:var(--unv)">{cnt('UNVERIFIED')}</b><span>UNVERIFIED (ไม่มีแหล่งอ้างอิงยืนยัน)</span></div>
 <div><b>{len(F)}</b><span>ข้อค้นพบ (C {n_by_sev['Critical']} · H {n_by_sev['High']} · M {n_by_sev['Medium']} · L {n_by_sev['Low']})</span></div></div>
@@ -251,8 +265,8 @@ for f in sorted(F, key=lambda x: SEVORD[x[1]]):
 <dl><dt>ไฟล์/บรรทัด</dt><dd><code>{E(loc)}</code></dd><dt>หลักฐาน</dt><dd>{refs(ev) if ev else '<span class="muted">อ่านโค้ด (ยังไม่มีกรณีทดสอบ)</span>'}</dd>
 <dt>วิธีทำซ้ำ</dt><dd>{E(repro)}</dd><dt>ผลกระทบ</dt><dd>{E(impact)}</dd><dt>ความมั่นใจ</dt><dd>{E(conf)}</dd><dt>แนวทางแก้</dt><dd>{E(fix)}</dd><dt>ทดสอบซ้ำ</dt><dd>{E(retest)}</dd></dl></div>""")
 S.append('<section id="s4"><h2><span class="no">4</span>ตารางข้อค้นพบเรียงตามความเสี่ยง</h2>'
-         + table([f'<tr><td class="mono"><a href="#{E(f[0])}">{E(f[0])}</a></td><td>{risk(f[1])}</td><td>{E(f[2])}</td><td class="mono">{E(f[3])}</td><td>{refs(f[4]) if f[4] else "อ่านโค้ด"}</td></tr>' for f in sorted(F, key=lambda x: SEVORD[x[1]])],
-                 ["ID", "ระดับ", "ข้อค้นพบ", "ตำแหน่ง", "หลักฐาน (กรณีทดสอบ)"])
+         + table([f'<tr><td class="mono"><a href="#{E(f[0])}">{E(f[0])}</a></td><td>{risk(f[1])}</td><td>{E(f[2])}</td><td class="mono">{E(f[3])}</td><td>{refs(f[4]) if f[4] else "อ่านโค้ด"}</td><td><b>{E(ST.get(f[0], ("-", ""))[0])}</b><br><span class="small muted">{E(ST.get(f[0], ("", ""))[1])}</span></td></tr>' for f in sorted(F, key=lambda x: SEVORD[x[1]])],
+                 ["ID", "ระดับ", "ข้อค้นพบ", "ตำแหน่ง", "หลักฐาน (กรณีทดสอบ · ผลล่าสุด)", "สถานะ"])
          + '<details class="panel"><summary>รายละเอียดทุกข้อ (ไฟล์/บรรทัด · หลักฐาน · วิธีทำซ้ำ · ผลกระทบ · ความมั่นใจ · แนวทางแก้ · ทดสอบซ้ำ)</summary><div style="display:grid;gap:12px;margin-top:12px">' + "".join(fr) + "</div></details></section>")
 
 renal_ids = [c["id"] for c in cases if c["id"].startswith(("CG-", "EG-"))] + ["UI-08a", "UI-08b", "UI-08c", "UI-09", "UI-10", "UI-11", "UI-12", "UI-13"]
@@ -290,7 +304,7 @@ S.append(f"""<section id="s8"><h2><span class="no">8</span>ผลตรวจข
 <li>ไม่มีช่องทางให้ยา/ช่วงอายุในข้อบ่งใช้ จึงตรวจความขัดแย้ง “ชื่อเดียวกัน ต่างรูปแบบ/ข้อบ่งใช้” ไม่ได้ในระดับข้อมูล (F-09, DB-10)</li>
 <li>สิทธิ์: อ่านได้เฉพาะ active (หรือผู้ดูแล) · เขียนได้เฉพาะผู้ดูแล — PASS (DB-01…04)</li>
 <li>ไม่มีประวัติแก้ไข/ผู้อนุมัติ (F-13)</li></ul></div>
-{short_rows(["UI-19", "UI-20", "UI-22", "DB-01", "DB-02", "DB-03", "DB-04", "DB-05", "DB-06", "DB-07", "DB-08", "DB-09", "DB-10"])}</section>""")
+{short_rows(["UI-19", "UI-20", "UI-22", "DB-01", "DB-02", "DB-03", "DB-04", "DB-05", "DB-06a", "DB-06b", "DB-07", "DB-08", "DB-09", "DB-10"])}</section>""")
 
 stages = [
  ("1 เริ่มงาน", "ai_dose_start (ผู้ดูแล · ชื่ออังกฤษ · 100/วัน) · ai_auto_tick (pg_cron ทีละ 1)", ["DB-11a", "DB-11b"], "PASS"),
