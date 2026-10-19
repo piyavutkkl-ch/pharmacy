@@ -262,6 +262,14 @@ function rpc(name, a = {}) {
       const drps = (list) => list.reduce((s, x) => s + (x.drps?.length || 0), 0);
       return { data: [{ visits: v.length, drps_found: drps(v), drps_resolved: drps(v.filter((x) => x.drp_resolved)), excess_resolved: 0 }], error: null };
     }
+    case 'public_visit_days': {   // 72_visit_days.sql: ตัวเลขรวมรายวัน
+      const m = new Map();
+      for (const v of db.visits.filter((x) => x.visit_date >= a.p_from && x.visit_date <= a.p_to && (a.p_unit == null || x.unit_id === a.p_unit))) {
+        const r = m.get(v.visit_date) || { day: v.visit_date, visits: 0, drps_found: 0, drps_resolved: 0 };
+        r.visits++; r.drps_found += v.drps?.length || 0; if (v.drp_resolved) r.drps_resolved += v.drps?.length || 0; m.set(v.visit_date, r);
+      }
+      return { data: [...m.values()].sort((x, y) => x.day.localeCompare(y.day)), error: null };
+    }
     case 'public_drp_stats': {
       const m = new Map();
       for (const v of db.visits.filter((x) => x.fiscal_year === a.p_year && (a.p_unit == null || x.unit_id === a.p_unit))) for (const d of v.drps || []) { const r = m.get(d) || { drp: d, found: 0, resolved: 0 }; r.found++; if (v.drp_resolved) r.resolved++; m.set(d, r); }

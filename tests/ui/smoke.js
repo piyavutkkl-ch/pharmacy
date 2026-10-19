@@ -1390,6 +1390,36 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.click('#trkVisitsBtn'); await q.waitForTimeout(200);
       check('ผลการดำเนินงาน: กดซ้ำ = ปิดรายละเอียด', !(await q.isVisible('#trkDetail')));
       await q.close(); }
+    // ผลการดำเนินงาน: เลือกเดือน → ปฏิทินผลงานเยี่ยมบ้าน (วงกลม = วันที่มีผลงาน) → กดวัน = รายละเอียดด้านล่าง
+    { const vd = await p.evaluate(() => window.__db.visits.find((v) => (v.drps || []).length)?.visit_date), vm = vd.slice(0, 7);
+      const seedSum = (qq) => qq.evaluate((d) => { const v = window.__db.visits.find((x) => x.visit_date === d); window.__db.visit_summaries.push({ id: 'cal-sum-1', unit_id: v.unit_id, fiscal_year: v.fiscal_year, title: 'สรุปเยี่ยมบ้านวันทดสอบ', image_path: null, gallery: [], summary_date: d, created_at: d + 'T09:00:00Z' }); }, vd);
+      const q = await open(null, '#/'); await seedSum(q); await go(q, '#/tracking'); await q.waitForTimeout(600);
+      await q.click(`#trkYearTabs [data-y="${visitFy}"]`); await q.waitForTimeout(300);
+      check('ปฏิทินผลงาน: มีปุ่มเลือกเดือนครบ 12 เดือนของปีงบ (ต.ค. → ก.ย.) ใต้ปีงบประมาณ', await count(q, '#trkMonthTabs [data-m]') === 12 && (await text(q, '#trkMonthTabs [data-m]')).startsWith('ต.ค.')
+        && await q.evaluate(() => document.getElementById('trkYearTabs').compareDocumentPosition(document.getElementById('trkMonthTabs')) & Node.DOCUMENT_POSITION_FOLLOWING));
+      await q.click(`#trkMonthTabs [data-m="${vm}"]`); await q.waitForTimeout(500);
+      const day = `#trkCal [data-day="${vd}"]`;
+      check('ปฏิทินผลงาน: เลือกเดือน → ปฏิทินเดือนนั้น + วงกลมในวันที่มีการเยี่ยม (ตัวเลข = จำนวน · จุด = มีสรุปผลงาน)', await visible(q, '#trkCalPanel') && await count(q, '#trkCal .tc-d') >= 28
+        && await q.$eval(day, (b) => b.classList.contains('has') && !b.disabled && !!b.querySelector('.tc-c') && !!b.querySelector('.tc-dot')) && await count(q, '#trkCal .tc-d.has') >= 1 && await count(q, '#trkCal .tc-d:disabled') > 20);
+      await q.click(day); await q.waitForTimeout(300);
+      const t = await text(q, '#trkDay');
+      check('ปฏิทินผลงาน: กดวัน → แสดงผลงานเยี่ยมวันนั้นด้านล่าง (ตัวเลข + สรุปผลงาน · ประชาชนไม่เห็นชื่อผู้ป่วย)', t.includes('ผลงานวันที่') && t.includes('จำนวนการออกเยี่ยม') && t.includes('สรุปเยี่ยมบ้านวันทดสอบ') && t.includes('เข้าสู่ระบบ') && await count(q, '#trkDay .trk-visits') === 0
+        && await q.getAttribute('#trkDay a.poster', 'href') === '#/summary/cal-sum-1');
+      await q.setViewportSize({ width: 390, height: 900 }); await q.waitForTimeout(200);
+      await (await q.$('#trkCalPanel')).screenshot({ path: path.join(SHOTS, 'tracking-calendar-390.png') });
+      check('ปฏิทินผลงาน 390px: ไม่ล้นจอ + วันกดได้ ≥ 44px', await overflow(q) <= 0 && await q.$eval(day, (b) => b.getBoundingClientRect().height >= 44));
+      await q.setViewportSize({ width: 1280, height: 900 });
+      await q.click(`#trkMonthTabs [data-m="${vm}"]`); await q.waitForTimeout(200);
+      check('ปฏิทินผลงาน: กดเดือนเดิมซ้ำ = ปิดปฏิทิน', !(await visible(q, '#trkCalPanel')));
+      await q.close();
+      const r = await open('staff', '#/'); await seedSum(r); await go(r, '#/tracking'); await r.waitForTimeout(600);
+      await r.click(`#trkYearTabs [data-y="${visitFy}"]`); await r.waitForTimeout(300);
+      await r.click(`#trkMonthTabs [data-m="${vm}"]`); await r.waitForTimeout(500);
+      const before = (await calls(r, (c) => c.rpc === 'log_patient_access')).length;
+      await r.click(day); await r.waitForTimeout(500);
+      check('ปฏิทินผลงาน: เจ้าหน้าที่กดวัน → เห็นรายชื่อการเยี่ยมวันนั้น + ลิงก์บันทึก + บันทึกการเปิดดู (PDPA)', await count(r, '#trkDay .trk-visits a.li') >= 1 && (await r.getAttribute('#trkDay .trk-visits a.li', 'href')).startsWith('#/staff/visits/')
+        && (await calls(r, (c) => c.rpc === 'log_patient_access')).length > before);
+      await r.close(); }
     { const q = await open('staff', '#/staff/achievements', 390, 844); await q.waitForTimeout(300);
       await (await q.$('#saList')).screenshot({ path: path.join(SHOTS, 'staff-ach-list-390.png') });
       check('ผลงาน 390px: สถานะ AI ไม่ล้นจอ', await overflow(q) <= 0); await q.close(); }

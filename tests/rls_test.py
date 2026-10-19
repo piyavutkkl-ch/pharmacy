@@ -1090,5 +1090,10 @@ check("cannot set another user's avatar", "s1", f"update profiles set avatar_pat
 check("storage: upload avatar to own folder", "c1", f"insert into storage.objects(bucket_id,name) values ('public-images','avatars/{U['c1']}/x.webp') returning name", rows(1))
 check("storage: cannot upload to another user's avatar folder", "c1", f"insert into storage.objects(bucket_id,name) values ('public-images','avatars/{U['s1']}/x.webp')", "deny")
 
+print("== step 72: visit calendar ==")
+check("anon reads visits per day (numbers only)", "anon", "select string_agg(day::text||':'||visits, ',') from public_visit_days('2026-10-01','2026-11-30', null)", lambda o: '2026-10-05:' in o and '2026-11-05:' in o)
+check("visit calendar by unit (other unit = empty)", "anon", "select count(*) from public_visit_days('2026-10-01','2026-11-30', 7::smallint)", eq(0))
+check("visit calendar: range over 62 days rejected", "anon", "select * from public_visit_days('2026-01-01','2026-12-31', null)", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

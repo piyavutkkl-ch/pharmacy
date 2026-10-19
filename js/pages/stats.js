@@ -1,6 +1,6 @@
 // ผลการดำเนินงาน (ตัวเลขสรุป), ผลงาน รพ.สต., อันดับเกณฑ์มาตรฐาน, ช่องทางติดต่อ — ข้อมูลสาธารณะ ไม่มีข้อมูลรายบุคคล
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, esc, art, thaiDate, fiscalYearOf, errText } from '../util.js?v=4.4';
+import { $, esc, art, thaiDate, fiscalYearOf, errText, toast } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { loadSummaryList, renderSummaryPoster } from './summaries.js?v=4.4';
 import { bindPosterNav } from './delivery.js?v=4.4';
@@ -18,9 +18,11 @@ export async function initTracking() {
   const [units, years] = await Promise.all([loadUnits(), loadYears()]);
   if (!trkBound) {
     trkBound = true;
-    $('#trkUnitTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-u]'); if (!b) return; trkUnit = b.dataset.u === 'all' ? 'all' : +b.dataset.u; renderTracking(units, years); });
-    $('#trkYearTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (!b) return; trkYear = +b.dataset.y; renderTracking(units, years); });
+    $('#trkUnitTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-u]'); if (!b) return; trkUnit = b.dataset.u === 'all' ? 'all' : +b.dataset.u; trkDaySel = null; renderTracking(units, years); });
+    $('#trkYearTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (!b) return; trkYear = +b.dataset.y; trkMonth = defaultMonth(); trkDaySel = null; renderTracking(units, years); });
     document.querySelectorAll('[data-trk]').forEach((b) => b.addEventListener('click', () => { trkOpen = trkOpen === b.dataset.trk ? null : b.dataset.trk; renderTrkDetail(); }));
+    $('#trkMonthTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; trkMonth = trkMonth === b.dataset.m ? null : b.dataset.m; trkDaySel = null; renderMonths(); loadCal(); });
+    $('#trkCal').addEventListener('click', (e) => { const b = e.target.closest('[data-day]'); if (!b) return; trkDaySel = trkDaySel === b.dataset.day ? null : b.dataset.day; paintCal(); renderDay(); });
   }
   renderTracking(units, years);
   initLeaderboard(years);   // ใต้ "ผลงานด้านเภสัชกรรมปฐมภูมิ" = อันดับผลการประเมินเกณฑ์มาตรฐาน (เลือกปีงบของตัวเอง)
@@ -33,12 +35,89 @@ async function renderTracking(units, years) {
   ['#trkVisits', '#trkDrps', '#trkMedExcess'].forEach((s) => { $(s).textContent = '…'; });
   loadSummaryList(trkUnit, trkYear).then((list) => { if (list) renderSummaryPoster($('#trackArt'), list, art('visit')); });   // กรอบ 10:7 = ภาพสรุปผลงานเยี่ยมบ้าน
   renderAchRow(trkUnit, trkYear);   // แถวล่าง = ผลงานด้านเภสัชกรรมปฐมภูมิ (เมนูผลงานของเจ้าหน้าที่)
+  renderMonths(); loadCal();        // เลือกเดือน → ปฏิทินผลงานเยี่ยมบ้าน
   const { data, error } = await sb.rpc('public_tracking_stats', { p_year: trkYear, p_unit: trkUnit === 'all' ? null : trkUnit });
   const r = (!error && data && data[0]) || { visits: 0, drps_found: 0, drps_resolved: 0, excess_resolved: 0 };
   $('#trkVisits').textContent = r.visits.toLocaleString('th-TH');
   $('#trkDrps').textContent = `${r.drps_found} / ${r.drps_resolved}`;
   $('#trkMedExcess').textContent = r.excess_resolved.toLocaleString('th-TH');
   renderTrkDetail();
+}
+
+/* ---------- ปฏิทินผลงานเยี่ยมบ้าน: เลือกเดือน (ใต้ปีงบ) → ปฏิทินเดือนนั้น วงกลม = วันที่มีผลงาน → กดวัน = รายละเอียดด้านล่าง ----------
+   ทุกคน: จำนวนการเยี่ยม/DRPs (public_visit_days · 72_visit_days.sql ตัวเลขรวม) + สรุปผลงานเยี่ยมบ้าน (summary_date) + ผลงานที่โพสต์วันนั้น
+   เจ้าหน้าที่/ผู้ดูแล: + รายชื่อการเยี่ยมวันนั้น (RLS ของ visits + log_patient_access) */
+const MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;   // วันที่ตามเวลาเครื่อง (ไทย)
+/** เดือนของปีงบ (พ.ศ.) เรียง ต.ค. → ก.ย. เป็น 'YYYY-MM' (ค.ศ.) */
+const fyMonths = (fy) => Array.from({ length: 12 }, (_, k) => { const y = fy - 543 - 1 + (k >= 3 ? 1 : 0), m = ((k + 9) % 12) + 1; return `${y}-${pad(m)}`; });
+const defaultMonth = () => { const now = new Date(), m = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`; return fyMonths(trkYear).includes(m) ? m : null; };
+let trkMonth = defaultMonth(), trkDaySel = null, calSeq = 0, cal = { days: new Map(), sums: [], achs: [] };
+
+function renderMonths() {
+  $('#trkMonthTabs').innerHTML = '<span class="small muted trk-mlbl">เลือกเดือน:</span>' + fyMonths(trkYear).map((m) => {
+    const [y, mo] = m.split('-').map(Number);
+    return `<button type="button" data-m="${m}" aria-current="${trkMonth === m}">${MONTHS[mo - 1]} ${String(y + 543).slice(2)}</button>`;
+  }).join('');
+}
+async function loadCal() {
+  const panel = $('#trkCalPanel'), seq = ++calSeq;
+  panel.hidden = !trkMonth;
+  if (!trkMonth) return;
+  const [y, m] = trkMonth.split('-').map(Number), last = new Date(y, m, 0).getDate();
+  const from = `${trkMonth}-01`, to = `${trkMonth}-${pad(last)}`, unit = trkUnit === 'all' ? null : trkUnit;
+  $('#trkCalTitle').textContent = `ปฏิทินผลงานเยี่ยมบ้าน · ${MONTHS_FULL[m - 1]} ${y + 543}${unit ? ' · รพ.สต.' + unitName(unit) : ''}`;
+  $('#trkCal').innerHTML = '<div class="skeleton"></div>'; $('#trkDay').innerHTML = '';
+  let sq = sb.from('visit_summaries').select('id,unit_id,title,image_path,summary_date').gte('summary_date', from).lte('summary_date', to);
+  let aq = sb.from('achievements').select('id,unit_id,title,image_path,created_at').eq('hidden', false)
+    .gte('created_at', new Date(y, m - 1, 1).toISOString()).lt('created_at', new Date(y, m, 1).toISOString());
+  if (unit) { sq = sq.eq('unit_id', unit); aq = aq.eq('unit_id', unit); }
+  const [d, su, ac] = await Promise.all([sb.rpc('public_visit_days', { p_from: from, p_to: to, p_unit: unit }), sq, aq]);
+  if (seq !== calSeq) return;
+  cal = { days: new Map((d.data || []).map((r) => [String(r.day).slice(0, 10), r])), sums: su.data || [], achs: (ac.data || []).map((a) => ({ ...a, day: ymd(new Date(a.created_at)) })) };
+  if (d.error) toast(errText(d.error), 'err');
+  paintCal(); renderDay();
+}
+const dayHas = (k) => ({ v: cal.days.get(k)?.visits || 0, s: cal.sums.filter((x) => x.summary_date === k).length, a: cal.achs.filter((x) => x.day === k).length });
+function paintCal() {
+  if (!trkMonth) return;
+  const [y, m] = trkMonth.split('-').map(Number), first = new Date(y, m - 1, 1).getDay(), last = new Date(y, m, 0).getDate(), today = ymd(new Date());
+  const cells = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map((w) => `<span class="tc-h" role="columnheader">${w}</span>`).concat(Array.from({ length: first }, () => '<span class="tc-pad"></span>'));
+  for (let dd = 1; dd <= last; dd++) {
+    const k = `${trkMonth}-${pad(dd)}`, h = dayHas(k), any = h.v || h.s || h.a;
+    const tip = [h.v && `เยี่ยม ${h.v} ครั้ง`, h.s && `สรุปผลงาน ${h.s}`, h.a && `ผลงาน ${h.a}`].filter(Boolean).join(' · ');
+    cells.push(`<button type="button" class="tc-d${any ? ' has' : ''}${k === today ? ' today' : ''}" data-day="${k}" aria-pressed="${trkDaySel === k}" aria-label="${dd} ${MONTHS_FULL[m - 1]}${tip ? ' · ' + tip : ' · ไม่มีผลงาน'}"${any ? '' : ' disabled'}>`
+      + `<span class="tc-n">${dd}</span>${h.v ? `<span class="tc-c num">${h.v}</span>` : ''}${h.s || h.a ? '<i class="tc-dot" aria-hidden="true"></i>' : ''}</button>`);
+  }
+  const n = [...cal.days.values()].reduce((t, r) => t + r.visits, 0);
+  $('#trkCal').innerHTML = cells.join('') + `<p class="small muted tc-sum">เดือนนี้เยี่ยมบ้าน ${n.toLocaleString('th-TH')} ครั้ง · สรุปผลงาน ${cal.sums.length} · ผลงานที่โพสต์ ${cal.achs.length} · ตัวเลขในวงกลม = จำนวนการเยี่ยม · จุด = มีสรุปผลงาน/ผลงาน</p>`;
+}
+let daySeq = 0;
+async function renderDay() {
+  const box = $('#trkDay'), k = trkDaySel, seq = ++daySeq;
+  if (!k) { box.innerHTML = ''; return; }
+  const r = cal.days.get(k), sums = cal.sums.filter((x) => x.summary_date === k), achs = cal.achs.filter((x) => x.day === k);
+  const thumb = (path, label) => (path ? `<img src="${esc(publicImageUrl(path))}" alt="" loading="lazy">` : `<span class="ach-art">${art(label)}</span>`);
+  box.innerHTML = `<h3>ผลงานวันที่ ${esc(thaiDate(k))}</h3>`
+    + (r ? `<div class="track-figs dl-figs"><div class="fig"><div class="n num">${r.visits.toLocaleString('th-TH')}</div><div class="t">จำนวนการออกเยี่ยม</div></div><div class="fig"><div class="n num">${r.drps_found} / ${r.drps_resolved}</div><div class="t">DRPs ที่พบ / แก้ไขสำเร็จ</div></div></div>` : '')
+    + (sums.length || achs.length ? `<div class="poster-row trk-day-row">${sums.map((x) => `<a class="poster ach-poster" href="#/summary/${esc(x.id)}">${thumb(x.image_path, 'visit')}<span>${esc(x.title || 'สรุปผลงานเยี่ยมบ้าน')}<em class="small muted"> สรุปผลงานเยี่ยมบ้าน · รพ.สต.${esc(unitName(x.unit_id))}</em></span></a>`).join('')}`
+      + `${achs.map((a) => `<a class="poster ach-poster" href="#/achievement/${esc(a.id)}">${thumb(a.image_path, 'รายงาน')}<span>${esc(a.title)}<em class="small muted"> ผลงาน · รพ.สต.${esc(unitName(a.unit_id))}</em></span></a>`).join('')}</div>` : '')
+    + '<div class="trk-day-visits"></div>';
+  if (!r) return;
+  const vb = box.querySelector('.trk-day-visits');
+  if (!isStaffish()) { vb.innerHTML = '<p class="small muted">รายชื่อผู้ป่วยที่เยี่ยม ดูได้เฉพาะเจ้าหน้าที่ รพ.สต. และผู้ดูแลระบบ · <a href="#/login">เข้าสู่ระบบ</a></p>'; return; }
+  let q = sb.from('visits').select('id,visit_date,unit_id,patient_id,drps,drp_resolved,patient:patients(first_name,last_name)').eq('visit_date', k);
+  if (trkUnit !== 'all') q = q.eq('unit_id', trkUnit);
+  const { data, error } = await q.limit(200);
+  if (seq !== daySeq) return;
+  if (error) { vb.innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
+  [...new Set((data || []).map((v) => v.unit_id))].forEach((u) => sb.rpc('log_patient_access', { p_unit: u, p_patient: null }).then(() => {}, () => {}));   // PDPA
+  const role = auth.profile.role;
+  vb.innerHTML = (data || []).length ? `<div class="list trk-visits">${data.map((v) => `<a class="li" href="#/${role}/visits/${esc(v.id)}"><div class="l"><b>${esc(v.patient ? `${v.patient.first_name} ${v.patient.last_name}` : 'ผู้ป่วย')}</b>`
+    + `<span class="small muted">รพ.สต.${esc(unitName(v.unit_id))} · ${v.drps?.length ? `DRPs ${v.drps.length} ข้อ${v.drp_resolved ? ' (แก้ไขสำเร็จ)' : ''}` : 'ไม่พบ DRPs'}</span></div></a>`).join('')}</div><p class="small muted">ข้อมูลผู้ป่วย · ใช้เพื่อการดูแลเท่านั้น · การเปิดดูถูกบันทึกตาม PDPA</p>`
+    : `<p class="small muted">${role === 'staff' ? 'ไม่มีการเยี่ยมของ รพ.สต. ตัวเองในวันนี้ (หน่วยอื่นแสดงเฉพาะตัวเลข)' : 'ไม่พบรายการ'}</p>`;
 }
 
 /* กดตัวเลข → รายละเอียดใต้ตัวเลข: DRPs แยกชนิด (ทุกคน · ตัวเลขรวม) · รายการเยี่ยม (เฉพาะเจ้าหน้าที่/ผู้ดูแล · RLS + บันทึกการเปิดดู PDPA) */

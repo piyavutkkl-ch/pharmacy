@@ -1121,3 +1121,20 @@ details[open] > summary::before{transform:rotate(90deg)}
 /* ข้อบ่งใช้: ขนาดต่ำสุด/สูงสุด อยู่คู่กันเสมอ (ไม่เลื่อนเมื่อซ่อนช่องแบ่งให้) · ผลคำนวณหลายแบบ */
 .ind-mm{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .dose-opt{border-left:3px solid var(--primary-soft);padding-left:10px;margin:6px 0}
+/* ผลการดำเนินงาน: เลือกเดือน → ปฏิทินผลงานเยี่ยมบ้าน (stats.js loadCal/paintCal/renderDay) */
+.trk-months{align-items:center}
+.trk-mlbl{margin-right:2px}
+.trk-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;max-width:560px;width:100%;margin:0 auto}
+.trk-cal .tc-h{text-align:center;font-size:12px;font-weight:700;color:var(--muted)}
+.trk-cal .tc-d{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;aspect-ratio:1;min-height:44px;border:0;border-radius:999px;background:transparent;color:var(--faint);font:inherit;font-size:14px;padding:0}
+.trk-cal .tc-d.has{background:var(--primary-soft);color:var(--primary);font-weight:700;cursor:pointer;box-shadow:inset 0 0 0 2px var(--primary)}
+.trk-cal .tc-d.has:hover{background:var(--primary);color:#fff}
+.trk-cal .tc-d[aria-pressed="true"]{background:var(--primary);color:#fff}
+.trk-cal .tc-d.today:not(.has){box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.trk-cal .tc-d:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.trk-cal .tc-c{font-size:10px;line-height:1;opacity:.85}
+.trk-cal .tc-dot{position:absolute;top:4px;right:6px;width:7px;height:7px;border-radius:999px;background:var(--warning)}
+.trk-cal .tc-sum{grid-column:1/-1;margin-top:6px}
+.trk-day:empty{display:none}
+.trk-day{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line);padding-top:14px}
+.trk-day h3{margin:0}
