@@ -114,7 +114,7 @@
    "unit": "-",
    "ref": "ข้อกำหนด AI pipeline ขั้นอนุมัติ",
    "rationale": "มีแค่ updated_at",
-   "actual": "active,ai_draft,ai_source,approved_at,approved_by,concs,dose_freq_per_day,form,freq,id,indication,indications,max_mg_per_dose,mg_per_kg_max,mg_per_kg_min,name,per,renal_note,sort,updated_at",
+   "actual": "active,ai_draft,ai_source,approved_at,approved_by,concs,dose_freq_per_day,draft_issue,form,freq,id,indication,indications,max_mg_per_dose,mg_per_kg_max,mg_per_kg_min,name,per,renal_note,sort,updated_at",
    "result": "PASS"
   },
   {
@@ -270,8 +270,8 @@
    "unit": "-",
    "ref": "ข้อกำหนด 3.4 ความถี่",
    "rationale": "ร่างนี้ + ปุ่มอนุมัติคลิกเดียว = เครื่องคำนวณแสดง 'วันละครั้ง' (UI-04)",
-   "actual": "draft · times:per:ai_draft = null:day:true",
-   "result": "FAIL"
+   "actual": "draft · times:per:ai_draft:ธง = null:day:true:ข้อบ่งใช้ 1: ขนาดต่อวันต้องระบุจำนวนครั้งที่แบ่งให้ (1–12 ครั้ง)",
+   "result": "PASS"
   },
   {
    "id": "AI-09",

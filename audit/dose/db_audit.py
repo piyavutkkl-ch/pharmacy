@@ -134,9 +134,9 @@ ok, o = run("""insert into ai_dose_drafts(query, status, stage, auto_name, resul
  '{"rx":[],"label":{"dosage":"Children: 20 mg/kg/day.","generic":"auditnotimes"},"ai":[{"name":"syn","per":"day","min":20,"max":20,"quote":"20 mg/kg/day"}]}') returning id""")
 cid = o.splitlines()[-1] if ok else ""
 outc = val(f"select ai_dose_convert({cid})") if ok else "ERR insert: " + o
-row = val("select coalesce(indications->0->>'times','null') || ':' || per || ':' || ai_draft from dose_drugs where name='AUDITNOTIMES'")
+row = val("select coalesce(indications->0->>'times','null') || ':' || per || ':' || ai_draft || ':' || coalesce(draft_issue, 'ไม่มีธง') from dose_drugs where name='AUDITNOTIMES'")
 T("AI-08", "ร่างต่อวันที่ไม่มีจำนวนครั้ง (times = null) ผ่านการแปลงเป็นร่าง", "High", "ai_dose_convert (67)", "ai=[{per:day, times ไม่มี}]", "ไม่สร้างร่าง หรือติดธงข้อมูลไม่ครบ",
-  "ข้อกำหนด 3.4 ความถี่", "ร่างนี้ + ปุ่มอนุมัติคลิกเดียว = เครื่องคำนวณแสดง 'วันละครั้ง' (UI-04)", f"{outc} · times:per:ai_draft = {row}", "FAIL" if row.startswith("null:day") else "PASS")
+  "ข้อกำหนด 3.4 ความถี่", "ร่างนี้ + ปุ่มอนุมัติคลิกเดียว = เครื่องคำนวณแสดง 'วันละครั้ง' (UI-04)", f"{outc} · times:per:ai_draft:ธง = {row}", "FAIL" if row.startswith("null:day") and row.endswith("ไม่มีธง") else "PASS")
 body = val(f"select convert_from(body,'utf8') from net.http_request_queue where id=(select request_id from ai_dose_drafts where id={i})")
 T("AI-09", "ข้อมูลที่ส่งให้ Gemini มีเฉพาะชื่อยา+ฉลาก (ไม่มีข้อมูลผู้ป่วย/คีย์)", "High", "ai_dose_step prompt", "body ของคำขอ", "ไม่มีคีย์ ไม่มีข้อมูลผู้ป่วย", "CLAUDE.md (Gemini free tier)", "",
   f"มีคีย์ในเนื้อหา={'audit-dummy-key' in body} · ยาว {len(body)} ตัวอักษร", "PASS" if body and "audit-dummy-key" not in body else "FAIL")
