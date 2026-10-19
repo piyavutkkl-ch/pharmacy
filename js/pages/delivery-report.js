@@ -53,6 +53,35 @@ function tableCols(rows) {
 }
 const tambonOf = (addr) => clean(String(addr || '').match(/ตำบล\s*([^\s]+)/)?.[1]) || 'ไม่ระบุ';
 
+/* ---- ส่งออกเป็น Excel (ผู้ดูแลเลือกหัวข้อ/รายการเอง) · ทำในเครื่องนี้ ไม่อัปโหลด ไม่บันทึกในระบบ (มีข้อมูลส่วนบุคคล) ---- */
+/** หัวข้อทั้งหมดในไฟล์ (แถวหัวตาราง) ตามลำดับในไฟล์ */
+export function exportHeads(rows) {
+  const { hi } = tableCols(rows);
+  return rows[hi].map((c) => String(c).trim()).filter(Boolean);
+}
+/** แถวที่จะส่งออก: [หัวข้อที่เลือก, ...แถวข้อมูล] (หัวข้อเรียงตามที่เลือก · ข้อมูลของแต่ละรายการอยู่แถวเดียวกัน)
+ *  which: all = ทุกรายการ · ok = จัดส่งสำเร็จ · rider = Health Rider ทุกสถานะ · rider_ok = Health Rider ที่สำเร็จ */
+export function exportRows(rows, picked, which = 'ok') {
+  const { hi, col } = tableCols(rows);
+  const head = rows[hi].map((c) => String(c).trim()), idx = picked.map((h) => head.indexOf(h)).filter((i) => i >= 0);
+  const get = (r, k) => (col[k] >= 0 ? String(r[col[k]] ?? '').trim() : '');
+  const out = [idx.map((i) => head[i])];
+  for (const r of rows.slice(hi + 1)) {
+    const st = get(r, 'status'); if (!st) continue;
+    if ((which === 'ok' || which === 'rider_ok') && !/สำเร็จ/.test(st)) continue;
+    if ((which === 'rider' || which === 'rider_ok') && !isRider(get(r, 'service'))) continue;
+    out.push(idx.map((i) => { const v = r[i] ?? ''; return typeof v === 'string' ? v.trim() : v; }));
+  }
+  return out;
+}
+/** บันทึกเป็นไฟล์ .xlsx (SheetJS จาก CDN · ช่องข้อความคงเป็นข้อความ เช่น HN ที่ขึ้นต้นด้วย 0) */
+export async function downloadXlsx(aoa, name) {
+  const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'ข้อมูล');
+  XLSX.writeFile(wb, name);
+}
+
 /** Health Rider (55_rider_tambon.sql): เฉพาะบริการขนส่ง "rider" → ราย ปีงบ (จากวันที่สร้างออเดอร์) × ตำบล · HN ใช้นับคนในเครื่องแล้วทิ้ง
  *  → { [ปีงบ]: [{ tambon, delivered, clients, cancelled, free }] } */
 export function riderByTambon(rows) {

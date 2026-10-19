@@ -1070,6 +1070,24 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.setInputFiles('#hrFile', { name: 'h4.csv', mimeType: 'text/csv', buffer: Buffer.from(csv4) }); await p.waitForTimeout(400);
         check('นำเข้าไฟล์ Health Rider: อ่านวันที่ไม่ได้ → บอกตัวอย่างวันที่ในไฟล์', (await text(p, '#hrImportMsg')).includes('อ่าน "วันเวลาที่สร้างออเดอร์" ไม่ได้'), await text(p, '#hrImportMsg'));
         await p.setInputFiles('#hrFile', { name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('\uFEFF' + csv) }); await p.waitForTimeout(500); }
+      { // ส่งออกข้อมูลจากไฟล์ที่เลือกเป็น Excel (เลือกหัวข้อ/รายการเอง · ทำในเครื่อง ไม่อัปโหลด) — แทน SheetJS ด้วยตัวจำลองที่จำสิ่งที่จะเขียน
+        await p.route('**/npm/xlsx@*/xlsx.mjs', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body:
+          'export const utils = { book_new: () => ({ s: [] }), aoa_to_sheet: (a) => ({ a }), book_append_sheet: (wb, ws, n) => wb.s.push({ n, a: ws.a }) };'
+          + 'export function writeFile(wb, name) { window.__xlsxOut = { name, sheet: wb.s[0].n, aoa: wb.s[0].a }; }' }));
+        const heads = await p.$$eval('#hrExCols input', (x) => x.map((i) => i.value));
+        check('ส่งออก Excel: เลือกไฟล์แล้วมีกล่องส่งออก + หัวข้อตามไฟล์ + คำเตือน PDPA', await visible(p, '#hrExport') && heads.includes('HN') && heads.includes('ชื่อผู้ใช้บริการ') && (await text(p, '#hrExport')).includes('ไม่อัปโหลด'), heads.join(','));
+        const nCalls = await p.evaluate(() => (window.__calls || []).length);
+        await p.click('#hrExBtn'); await p.waitForTimeout(200);
+        check('ส่งออก Excel: ยังไม่เลือกหัวข้อ → บอกให้เลือก', (await text(p, '#hrExMsg')).includes('อย่างน้อย 1 หัวข้อ'));
+        for (const h of ['ชื่อผู้ใช้บริการ', 'HN', 'วันเวลาที่สร้างออเดอร์']) await p.check(`#hrExCols input[value="${h}"]`);
+        await p.click('#hrExBtn'); await p.waitForTimeout(400);
+        const out = await p.evaluate(() => window.__xlsxOut);
+        check('ส่งออก Excel: เฉพาะที่ส่งสำเร็จ · ชื่อ + HN + วันที่ อยู่แถวเดียวกันตามลำดับที่ติ๊ก · HN คง 0 นำหน้า',
+          /\.xlsx$/.test(out?.name || '') && JSON.stringify(out.aoa[0]) === JSON.stringify(['ชื่อผู้ใช้บริการ', 'HN', 'วันเวลาที่สร้างออเดอร์']) && out.aoa.length === 5
+          && JSON.stringify(out.aoa[1]) === JSON.stringify(['ชื่อสมมติ1', '000000001', 'วันที่ 01/09/2569 เวลา 9:00 น.']) && (await text(p, '#hrExMsg')).includes('ส่งออกแล้ว 4 รายการ'), JSON.stringify(out));
+        await p.selectOption('#hrExRows', 'rider_ok'); await p.click('#hrExBtn'); await p.waitForTimeout(300);
+        check('ส่งออก Excel: Health Rider ที่ส่งสำเร็จ = 3 รายการ (ไม่รวมไปรษณีย์/ยกเลิก)', (await p.evaluate(() => window.__xlsxOut.aoa.length)) === 4);
+        check('ส่งออก Excel: ไม่เรียกฐานข้อมูล/ไม่อัปโหลด', (await p.evaluate(() => (window.__calls || []).length)) === nCalls); }
       await p.selectOption('#hrYear', '2569'); await p.waitForTimeout(400);
       check('นำเข้าไฟล์: ปีงบ 2569 ต.ควนกาหลง สำเร็จ 2 ผู้รับบริการ 1 ส่งฟรี 2 · ต.ทุ่งนุ้ย ยกเลิก 1 (ไปรษณีย์ไม่นับ)', (await v('ควนกาหลง', 'delivered')) === '2' && (await v('ควนกาหลง', 'clients')) === '1' && (await v('ควนกาหลง', 'free')) === '2' && (await v('ทุ่งนุ้ย', 'cancelled')) === '1' && (await v('ทุ่งนุ้ย', 'delivered')) === '0'); }
     await p.click('#hrSaveAll'); await p.waitForTimeout(400);
