@@ -1118,6 +1118,12 @@ check("history still there after delete attempt", None, "select count(*) > 0 fro
 check("deleting a drug logged", "admin", "delete from dose_drugs where name='ยาครบ' returning id", rows(1))
 check("delete history keeps old values", None, "select (old_values ? 'indications' and new_values is null)::text from drug_data_history where action='delete' order by id desc limit 1", eq("true"))
 
+print("== step 80: old label flagged (audit F-17) ==")
+check("label older than 10 years flagged + note", None, """insert into ai_dose_drafts(query, status, stage, result) values ('t80old','done','ai','{"rx":[],"label":{"dosage":"Children: 10 mg/kg.","effective":"19990101"}}') returning (result->>'label_old') || '|' || note""", lambda o: o.startswith('true|') and 'เก่ากว่า 10 ปี' in o)
+check("recent label not flagged", None, """insert into ai_dose_drafts(query, status, stage, result) values ('t80new','done','ai','{"rx":[],"label":{"dosage":"Children: 10 mg/kg.","effective":"20250101"}}') returning coalesce(result->>'label_old','no')""", eq("no"))
+check("label age threshold configurable", None, """insert into site_texts(key, body) values ('dose_label_max_age_years','40') on conflict (key) do update set body=excluded.body; insert into ai_dose_drafts(query, status, stage, result) values ('t80cfg','done','ai','{"rx":[],"label":{"effective":"19990101"}}') returning coalesce(result->>'label_old','no'); """, lambda o: o.splitlines()[-1].strip() == 'no')
+run("delete from site_texts where key='dose_label_max_age_years'")
+
 print("== step 66: combination drugs (ingredients + basis) ==")
 check("co-trimoxazole tab/susp have ingredients 400/80 · 200/40 per 5 ml", "anon", "select string_agg(ingredients->1->>'mg' || '/' || (ingredients->1->>'per'), ',' order by code) from local_drugs where code in ('1010280','1010290')", eq("80/tab,40/5ml"))
 check("staff cannot edit ingredients (RLS → 0 rows)", "s2", "update local_drugs set ingredients='[]' where code='1010280' returning id", rows(0))

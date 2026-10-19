@@ -118,6 +118,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     { const co = await p.$$eval('#doseConc option', (o) => o.map((x) => `${x.textContent}${x.disabled ? '[x]' : ''}`));
       check('คำนวณ: ความแรงตามยา รพ.สต. ที่ผูกไว้ (อ่านจากชื่อยา · ยาน้ำที่ไม่มีความแรงบอกให้ระบุ)', co.some((x) => x.includes('PARACETAMOL 325 MG') && x.includes('325 มก./เม็ด')) && co.some((x) => x.includes('500 MG') && x.includes('500 มก./เม็ด')) && co.some((x) => x.includes('SYRUP') && x.includes('ยังไม่ระบุความแรง[x]')), co.join('|')); }
     await p.selectOption('#doseConc', { index: 1 }); await p.waitForTimeout(100);
+    { const auto = await p.evaluate(() => { const o = document.querySelector('#doseConc').selectedOptions[0]; return o?.textContent.includes('จับคู่ตามชื่อ'); });
+      check('คำนวณ: ยา รพ.สต. ที่จับคู่ข้อมูลขนาดยาจากชื่ออัตโนมัติ → บอกในตัวเลือก + เตือนในผล (audit F-18)', auto ? !!(await p.$('#doseResult [data-auto-match]')) : !(await p.$('#doseResult [data-auto-match]'))); }
     check('คำนวณ: คิดเป็นจำนวนเม็ดจากความแรงของยา รพ.สต.', (await text(p, '#doseResult')).includes('เม็ด/แคปซูล') && (await text(p, '#doseResult')).includes('PARACETAMOL'));
     await p.fill('#doseWeight', ''); await p.fill('#doseAge', '12'); await p.selectOption('#doseAgeUnit', 'm'); await p.selectOption('#doseSex', 'm'); await p.waitForTimeout(100);
     check('คำนวณ: ไม่ได้ชั่งน้ำหนัก → ประมาณจากเกณฑ์ WHO (กรมอนามัย) ตามอายุ + บอกให้กรอกน้ำหนัก', (await text(p, '#doseEst')).includes('ช่วงปกติ 7.7–12 กก.') && (await text(p, '#doseResult')).includes('น้ำหนักตัว (จำเป็น)'), await text(p, '#doseEst'));
@@ -249,6 +251,21 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ไตเสื่อมรุนแรง → ตัวเลขระบุ "ขนาดปกติ ยังไม่ปรับตามไต" + ให้ปรับตามคำแนะนำโรคไต', t.includes('ขนาดปกติ ยังไม่ปรับตามไต') && !!(await p.$('#doseResult [data-renal-unadjusted]')) && t.includes('ปรับตาม "ขนาดยาในโรคไต"'), t.slice(0, 300));
         await p.selectOption('#doseRenal', 'normal'); await p.waitForTimeout(200);
         check('ไตปกติ → ไม่มีป้ายยังไม่ปรับตามไต', !(await text(p, '#doseResult')).includes('ยังไม่ปรับตามไต')); }
+      { // audit F-14/15/16/19: เด็กไม่ใช้ Cockcroft-Gault · ทารก < 1 ปีไม่ใช้ Schwartz · ข้อความไตปกติเป็นกลาง · เม็ดที่แบ่งไม่ลงตัว
+        const sex0 = await p.inputValue('#doseSex'), h0 = await p.inputValue('#doseHeight');
+        await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [{ name: 'ทดสอบเศษเม็ด', per: 'dose', min: 0.0033, max: 0.0033, cap: 1 }];
+          const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
+        await p.selectOption('#doseDrug', v); await p.fill('#doseWeight', '10'); await p.fill('#doseAge', ''); await p.uncheck('#doseRenalAdjust'); await p.selectOption('#doseRenal', 'normal'); await p.waitForTimeout(250);
+        check('0.033 มก. จากเม็ด 100 mcg = 0.33 เม็ด → เตือนว่าแบ่งจริงได้ยาก (ไม่ลงตัว ½/¼)', !!(await p.$('#doseResult [data-tab-fraction]')), await text(p, '#doseResult'));
+        await p.fill('#doseWeight', '25'); await p.fill('#doseAge', '8'); await p.selectOption('#doseAgeUnit', 'y'); await p.fill('#doseHeight', '');
+        await p.check('#doseRenalAdjust'); await p.selectOption('#doseRenalMethod', 'crcl'); await p.fill('#doseCr', '0.5'); await p.waitForTimeout(200);
+        check('เด็ก 8 ปีเลือก CrCl (Cockcroft-Gault) → ไม่คำนวณ + แนะนำ eGFR (Schwartz)', (await text(p, '#doseResult')).includes('Cockcroft-Gault ใช้กับผู้ใหญ่') && !(await p.inputValue('#doseCrClOut')));
+        await p.selectOption('#doseRenalMethod', 'egfr'); await p.fill('#doseAge', '3'); await p.selectOption('#doseAgeUnit', 'm'); await p.fill('#doseWeight', '6'); await p.fill('#doseHeight', '60'); await p.waitForTimeout(200);
+        check('ทารก 3 เดือน eGFR → ไม่ใช้ Bedside Schwartz + บอกเหตุผล', (await text(p, '#doseResult')).includes('ทารกอายุต่ำกว่า 1 ปี') && !(await p.inputValue('#doseCrClOut')));
+        await p.fill('#doseAge', '50'); await p.selectOption('#doseAgeUnit', 'y'); await p.fill('#doseWeight', '70'); await p.fill('#doseHeight', ''); await p.selectOption('#doseSex', 'm'); await p.fill('#doseCr', '1'); await p.waitForTimeout(200);
+        const t = await text(p, '#doseResult');
+        check('eGFR ≥ 60 → ข้อความเป็นกลาง (ยาส่วนใหญ่ไม่ต้องปรับ · บางยามีเกณฑ์เอง · eGFR ต่อ 1.73 ตร.ม.) ไม่ฟันธง', !!(await p.$('#doseResult [data-renal-ok]')) && t.includes('บางยามีเกณฑ์ของตัวเอง') && !t.includes('ไม่จำเป็นต้องปรับขนาดยา'), t.slice(0, 300));
+        await p.fill('#doseCr', ''); await p.selectOption('#doseRenalMethod', 'crcl'); await p.uncheck('#doseRenalAdjust'); await p.fill('#doseAge', ''); await p.selectOption('#doseSex', sex0); await p.fill('#doseHeight', h0); }
       { // audit F-03: ชื่อยาสูตรผสม "400/80 MG" ไม่ใช่ความแรงเดี่ยว → ไม่คิดจำนวนเม็ดจนกว่าจะกรอกสารสำคัญ (ingredients)
         const r = await p.evaluate(async () => { const m = await import('./js/pages/dose.js?v=4.4');
           const f = (name, unit = 'TAB') => JSON.stringify(m.strengthOf({ name, unit }));
@@ -1208,6 +1225,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#dfName', 'ยาที่ไม่มี (Notfoundium)'); await p.click('#dfHelpBtn'); await p.waitForTimeout(3500);
     check('ช่วยกรอกยา: ไม่พบในฐานข้อมูล → แจ้งให้ตรวจตัวสะกด', (await text(p, '#dfHelpOut')).includes('ไม่พบยานี้'));
     const savesBefore = (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length;
+    await p.fill('#dfName', 'ยาฉลากเก่า (Oldlabelium)'); await p.click('#dfHelpBtn'); await p.waitForTimeout(3500);
+    check('ช่วยกรอกยา: ฉลากเก่ากว่า 10 ปี → เตือนให้ตรวจกับฉบับปัจจุบัน (audit F-17)', (await text(p, '#dfHelpOut [data-label-old]')).includes('01/01/1999'));
     await p.fill('#dfName', 'พาราเซตามอล (Paracetamol)'); await p.click('#dfHelpBtn'); await p.waitForTimeout(3500);
     check('ช่วยกรอกยา: ชื่อไทย (อังกฤษ) → ค้นด้วยชื่อที่ฐานข้อมูลสหรัฐฯ ใช้ (acetaminophen)', (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args?.p_name === 'acetaminophen');
     check('ช่วยกรอกยา: ความแรงจาก RxNorm (ยาทาไม่เอา) + ขนาดยาที่ AI ร่างพร้อมข้อความอ้างอิงฉลาก + คำเตือนให้ตรวจ', await count(p, '#dfHelpConcs input') === 3 && (await text(p, '#dfHelpConcs')).includes('ยาน้ำ 120 มก./5 มล.') && await count(p, '#dfHelpInds input') === 2 && (await text(p, '#dfHelpInds')).includes('10 to 15 mg/kg') && (await text(p, '#dfHelpOut')).includes('ต้องตรวจ'));
@@ -1317,7 +1336,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     // ร่างที่ระบบทำเอง (63_ai_auto.sql) → กล่องที่กรอกไว้แล้วด้านบน · แก้ได้ในกล่อง → "ตรวจแล้ว · ใช้คำนวณ"
     await p.evaluate(() => {
       const db = window.__db.dose_drugs;
-      db.push({ ...db[0], id: 9901, name: 'Amoxicillin', form: 'ยาน้ำ', active: false, ai_draft: true, ai_source: 'AI ร่างจากฉลากยา openFDA Amoxil · ยังไม่ผ่านการตรวจ',
+      db.push({ ...db[0], id: 9901, name: 'Amoxicillin', form: 'ยาน้ำ', active: false, ai_draft: true, ai_source: 'AI ร่างจากฉลากยา openFDA Amoxil ฉบับ 20050101 · ยังไม่ผ่านการตรวจ',
         indications: [{ name: 'ติดเชื้อหู', per: 'day', min: 25, max: 45, times: 2, quote: '25 mg/kg/day in divided doses', ref: { label: 'ฉลากยาสหรัฐฯ (US FDA) Amoxil ฉบับ 1/1/2025', url: 'https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=abc' } }], concs: [{ label: 'ยาน้ำ 250 มก./5 มล.', mgPer5ml: 250 }] });
       const l = window.__db.local_drugs.find((x) => !x.dose_id && /เม็ด/.test(x.category));
       Object.assign(l, { dose_ai_status: 'none', dose_ai_note: 'ฉลากยาไม่มีขนาดยาแบบ มก./กก.' });
@@ -1326,6 +1345,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     { const card = '#dfReview form[data-rv="9901"]';
       check('ร่างจาก AI: ข้อบ่งใช้ที่ AI กรอกมีข้อความจากฉลาก + อ้างอิงพร้อมลิงก์ (ตัวอักษรเล็ก)', (await text(p, `${card} .ai-src`)).includes('25 mg/kg/day') && (await p.getAttribute(`${card} .ai-src a`, 'href'))?.startsWith('https://dailymed.nlm.nih.gov/') && await p.$eval(`${card} .ai-src p`, (e) => parseFloat(getComputedStyle(e).fontSize) <= 13));
       check('ร่างจาก AI รอตรวจ: แสดงเป็นกล่องที่กรอกไว้แล้ว (ชื่อ/ขนาดยา/ความแรง/ข้อความจากฉลาก)', await visible(p, card) && (await p.inputValue(`${card} .r-name`)) === 'Amoxicillin' && (await p.inputValue(`${card} .i-min`)) === '25' && (await p.inputValue(`${card} .c-label`)) === 'ยาน้ำ 250 มก./5 มล.' && (await text(p, card)).includes('25 mg/kg/day') && (await text(p, '#dfRvCount')).includes('1'), await text(p, '#dfReview'));
+      check('ร่างจาก AI: ฉลากที่ใช้ร่างเก่ากว่า 10 ปี (ฉบับ 2005) → เตือนให้ตรวจกับฉบับปัจจุบัน (audit F-17)', (await text(p, `${card} [data-label-old]`)).includes('2005'));
       check('ร่างจาก AI: บอกความคืบหน้า + ยาที่ฉลากไม่มีขนาดยาตามน้ำหนัก', (await text(p, '#dfRvStatus')).includes('ระบบกำลังร่างให้') && (await text(p, '#dfRvStatus')).includes('ฉลากยาไม่มีขนาดยาตามน้ำหนักตัว 1 ยา'), await text(p, '#dfRvStatus'));
       check('ส่วนที่ย่อ/ขยายได้มีลูกศรสามเหลี่ยม (▸ ย่อ / หมุนเมื่อเปิด)', await p.$eval('.df-rv > summary', (el) => getComputedStyle(el, '::before').content.includes('▸') && getComputedStyle(el, '::before').transform !== 'none'));
       await p.fill(`${card} .i-min`, '30');

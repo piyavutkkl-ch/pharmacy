@@ -68,6 +68,8 @@ export function strengthOf(l) {
   if (comboName(l.name)) return null;   // ไม่เดาว่าเลขไหนเป็นของสารใด
   const name = String(l.name || ''), liquid = /(\d+(?:\.\d+)?)\s*MG\s*\/\s*(\d+(?:\.\d+)?)\s*M/i.exec(name);
   if (liquid) return +liquid[2] === 5 ? { mg: +liquid[1], per: '5ml' } : { mg: +liquid[1] / +liquid[2], per: 'ml' };
+  const perMl = /(\d+(?:\.\d+)?)\s*MG\s*\/\s*ML\b/i.exec(name);   // "100 MG/ML" = 100 มก. ต่อ 1 มล. (audit F-20)
+  if (perMl) return { mg: +perMl[1], per: 'ml' };
   const tab = /(\d+(?:\.\d+)?)\s*(MG|MCG)\b/i.exec(name);
   if (tab && /TAB|CAP/i.test(`${l.unit} ${name}`)) return { mg: tab[2].toUpperCase() === 'MCG' ? +tab[1] / 1000 : +tab[1], per: 'tab' };
   return null;
@@ -94,7 +96,7 @@ function fillConc(pick) {
   const k = +$('#doseDrug').value || 0, d = drug();
   const ls = localsOf(k).map((it) => ({ it, st: strengthOf(it.loc) }));
   const known = ls.filter((x) => x.st);
-  const opts = known.map((x) => `<option value="l:${litems.indexOf(x.it)}">${esc(x.it.loc.name)} · ${esc(mgText(x.st))}</option>`)
+  const opts = known.map((x) => `<option value="l:${litems.indexOf(x.it)}">${esc(x.it.loc.name)} · ${esc(mgText(x.st))}${x.it.auto ? ' · จับคู่ตามชื่อ' : ''}</option>`)
     + ls.filter((x) => !x.st).map((x) => `<option disabled>${esc(x.it.loc.name)} · ${comboName(x.it.loc.name) ? 'ยาสูตรผสม รอผู้ดูแลกรอกสารสำคัญแต่ละตัว' : 'ยังไม่ระบุความแรง'}</option>`).join('');
   const fallback = !known.length ? (d?.concs || []).map((c, i) => `<option value="c:${i}">${esc(c.label)} (ความแรงทั่วไป)</option>`).join('') : '';
   $('#doseConc').innerHTML = (Array.isArray(opts) ? opts.join('') : opts) + fallback;
@@ -107,6 +109,7 @@ function conc() {
     if (!st) return null;
     const c = concOf(st, `${it.loc.name} ${mgText(st)}`), ing = (it.loc.ingredients || []).find((x) => x.dose_id && x.dose_id === d?.id);
     if (ing && c.ings) c.fixed = ing.name;   // ผูกข้อมูลคำนวณไว้กับสารนี้ = คิดจากสารนี้เสมอ
+    c.auto = it.auto;
     return c;
   }
   if (v.startsWith('c:')) return (d?.concs || [])[+v.slice(2)];
@@ -141,6 +144,7 @@ export function kidney({ method, age, w, h, cr, female }) {
   if (age > LIM.ageMax) return { msg: `อายุเกินช่วงที่สูตรใช้ได้ (ไม่เกิน ${LIM.ageMax} ปี) · กรุณาตรวจสอบอายุที่กรอก` };
   if (method === 'egfr') {
     if (age > 0 && age < 18) {
+      if (age < 1) return { msg: 'ทารกอายุต่ำกว่า 1 ปี: สูตร Bedside Schwartz พัฒนาจากเด็กอายุ 1–16 ปี จึงไม่ใช้กับทารก · ประเมินการทำงานของไตโดยแพทย์/เภสัชกร' };   // audit F-15
       if (!(h > 0)) return { msg: 'เด็กอายุต่ำกว่า 18 ปี ใช้สูตร Bedside Schwartz ต้องกรอกส่วนสูง' };
       const v = (0.413 * h) / cr;
       return { v, name: 'eGFR', unit: 'มล./นาที/1.73 ตร.ม.', note: `Bedside Schwartz (เด็ก): 0.413 × ส่วนสูง ${num(h)} ซม. ÷ Cr ${num(cr)}` };
@@ -151,6 +155,7 @@ export function kidney({ method, age, w, h, cr, female }) {
     return { v, name: 'eGFR', unit: 'มล./นาที/1.73 ตร.ม.', note: 'CKD-EPI 2021 (ไม่ใช้ตัวแปรเชื้อชาติ)' };
   }
   if (!(age > 0)) return { msg: 'กรอกอายุเพื่อคำนวณ CrCl' };
+  if (age < 18) return { msg: 'เด็กอายุต่ำกว่า 18 ปี: Cockcroft-Gault ใช้กับผู้ใหญ่ · เลือกวิธีประเมิน eGFR (Bedside Schwartz) และกรอกส่วนสูง' };   // audit F-14
   let wt = w, used = 'น้ำหนักจริง (ไม่ได้กรอกส่วนสูง)', extra = '';
   if (h > 0) {
     const ibw = (female ? 45.5 : 50) + 2.3 * (h / 2.54 - 60), bmi = w / (h / 100) ** 2, adj = ibw + 0.4 * (w - ibw);
@@ -158,10 +163,12 @@ export function kidney({ method, age, w, h, cr, female }) {
     if (bmi < 18.5) used = 'น้ำหนักจริง (BMI < 18.5)';
     else if (bmi < 25) { wt = Math.min(ibw, w); used = ibw <= w ? 'IBW (BMI 18.5–24.9)' : 'น้ำหนักจริง (น้อยกว่า IBW)'; }
     else { wt = adj; used = 'AdjBW (BMI ≥ 25)'; }
+    if (ibw <= 0) { wt = w; used = 'น้ำหนักจริง (คำนวณ IBW จากส่วนสูงนี้ไม่ได้)'; }   // audit F-21
+    if (h < 152.4) extra += ' · ส่วนสูงต่ำกว่า 152 ซม.: สูตร IBW (Devine) อาจไม่แม่น ใช้ดุลยพินิจ';
   }
   const v = ((140 - age) * wt * (female ? 0.85 : 1)) / (72 * cr);
   if (!(v > 0) || !Number.isFinite(v)) return { msg: 'คำนวณ CrCl ไม่ได้จากข้อมูลที่กรอก · กรุณาตรวจสอบอายุ/น้ำหนัก/ส่วนสูง' };
-  return { v, name: 'CrCl', unit: 'มล./นาที', note: `Cockcroft-Gault ใช้${used}${extra}${age < 18 ? ' · สูตรนี้ใช้กับผู้ใหญ่ (≥ 18 ปี) เด็กให้ใช้ eGFR' : ''}` };
+  return { v, name: 'CrCl', unit: 'มล./นาที', note: `Cockcroft-Gault ใช้${used}${extra}` };
 }
 
 /** อายุจากช่องอายุ + หน่วย (ปี/เดือน) → { years, months } หรือ null */
@@ -272,7 +279,11 @@ function render() {
     let vol = '', tiny = false;
     if (cc?.mgPer5ml) { const a = minMg / cc.mgPer5ml * 5, b = maxMg / cc.mgPer5ml * 5; tiny = tooSmall(b, 1); vol = fig(`${rng(a, b, 1)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`); }
     else if (cc?.mgPerMl) { const a = minMg / cc.mgPerMl, b = maxMg / cc.mgPerMl; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`); }
-    else if (cc?.mgPerTab) { const a = minMg / cc.mgPerTab, b = maxMg / cc.mgPerTab; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`); }
+    else if (cc?.mgPerTab) {
+      const a = minMg / cc.mgPerTab, b = maxMg / cc.mgPerTab; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`);
+      const q = Math.round(b * 4) / 4;   // มีจำนวนที่แบ่งได้ (ทีละ ¼ เม็ด) อยู่ในช่วงขนาดยาไหม (audit F-19)
+      if (!tiny && !(q >= a - 1e-9 && q <= b + 1e-9 && q > 0) && !(Math.ceil(a * 4) / 4 <= b + 1e-9)) vol += '<p class="small fx-warn" data-tab-fraction>จำนวนเม็ดนี้แบ่งจริงได้ยาก (ไม่ลงตัว ½ หรือ ¼ เม็ด) · ใช้จำนวนที่แบ่งได้ใกล้เคียงตามดุลยพินิจเภสัชกร หรือใช้ยาน้ำ</p>';
+    }
     if (tiny) vol += '<p class="small fx-warn" data-too-small>ปริมาณน้อยเกินกว่าจะตวง/แบ่งจากความแรงนี้ได้ · ใช้ยาความแรงที่เหมาะกว่า หรือปรึกษาเภสัชกร</p>';
     const unadj = renal !== 'normal' ? ' · ขนาดปกติ ยังไม่ปรับตามไต' : '';   // audit F-10: ไตเสื่อม/ประเมินไม่ได้ → ตัวเลขยังไม่ได้ปรับ
     return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}${unadj}`) + capNote + dayCapNote + vol + combo;
@@ -307,11 +318,12 @@ function render() {
   } else if (renal !== 'normal') {
     alert = `<div class="alert">${warnIcon}`
       + `<div><b>ขนาดยาในโรคไต — ${esc(labels[renal])}</b><div class="small">${inds.some((i) => i.renal) ? 'ดูคำแนะนำ "ขนาดยาในโรคไต" ของแต่ละข้อบ่งใช้ด้านล่าง' : 'ยานี้ยังไม่มีคำแนะนำการปรับขนาดยาในโรคไตในระบบ กรุณาปรึกษาเภสัชกรก่อนใช้'}</div>${crclNote}</div></div>`;
-  } else if (crclNote) alert = /≈/.test(crclNote) ? `<p class="small muted">การทำงานของไตปกติ (≥ 60) — ไม่จำเป็นต้องปรับขนาดยา</p>${crclNote}` : crclNote;
+  } else if (crclNote) alert = /≈/.test(crclNote) ? `<p class="small muted" data-renal-ok>${method === 'egfr' ? 'eGFR' : 'CrCl'} ≥ 60 — ยาส่วนใหญ่ไม่ต้องปรับขนาด แต่บางยามีเกณฑ์ของตัวเอง ตรวจ "ขนาดยาในโรคไต" ของยาที่เลือก${method === 'egfr' ? ' · eGFR เป็นค่าต่อ 1.73 ตร.ม. ฉลากยาส่วนใหญ่อิง CrCl' : ''}</p>${crclNote}` : crclNote;   // audit F-16
 
   const title = (i, k) => `ข้อบ่งใช้${inds.length > 1 ? ' ' + (k + 1) : ''}: ${esc(i.name || '-')}`;
   out.innerHTML = (age > 0 ? `<p class="small muted">ผู้ป่วยอายุ ${$('#doseAgeUnit').value === 'm' ? `${num(ag.months)} เดือน` : `${num(age)} ปี`} · น้ำหนัก ${num(w)} กก.${h > 0 ? ` · ส่วนสูง ${num(h)} ซม.` : ''}</p>` : '') + alert
     + (inds.length > SHOW_OPEN ? `<p class="small muted">ยานี้มี ${inds.length} ข้อบ่งใช้ · แสดง ${SHOW_OPEN} ข้อแรก ที่เหลือกดเพื่อดูขนาดยา</p>` : '')
+    + (c?.auto ? '<p class="small fx-warn" data-auto-match>ยา รพ.สต. ที่เลือกจับคู่กับข้อมูลขนาดยาจากชื่ออัตโนมัติ ผู้ดูแลยังไม่ได้ยืนยันว่าตรงรูปแบบ/ข้อบ่งใช้ · ตรวจก่อนใช้</p>' : '')
     + '<div class="ind-results">' + inds.map((i, k) => (k < SHOW_OPEN
       ? `<section class="ind-result"><h4>${title(i, k)}</h4>${doseOf(i)}</section>`
       : `<details class="ind-result"><summary>${title(i, k)}</summary>${doseOf(i)}</details>`)).join('') + '</div>'
@@ -397,7 +409,7 @@ async function loadInfo() {
     // ยาสูตรผสม: ข้อมูลคำนวณรายสาร (ingredients[].dose_id) → ยานี้ขึ้นในเครื่องคำนวณของสารนั้นด้วย
     const ingDose = (l.ingredients || []).map((x) => (drugs || []).findIndex((d) => d.id === x.dose_id)).filter((k) => k >= 0);
     const dose = own >= 0 || ingDose.length ? [...new Set([...(own >= 0 ? [own] : []), ...ingDose])] : [...new Set(nat.flatMap((it) => it.calc))];
-    return { name: l.name, loc: l, rows, names, calc: dose, dose, q: [l.name, l.code, l.category, ...names, ...nat.map((it) => it.th || '')].join(' ').toLowerCase() };
+    return { name: l.name, loc: l, rows, names, calc: dose, dose, auto: own < 0 && !ingDose.length && dose.length > 0, q: [l.name, l.code, l.category, ...names, ...nat.map((it) => it.th || '')].join(' ').toLowerCase() };
   });
   return true;
 }

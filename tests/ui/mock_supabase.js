@@ -522,6 +522,7 @@ function rpc(name, a = {}) {
             { name: 'ปวดหลังผ่าตัด', per: 'day', min: 40, max: 60, times: 4, freq: 'แบ่งให้วันละ 4 ครั้ง', quote: '40 to 60 mg/kg/day in 4 divided doses' }],
           // 74_ai_dose_verify.sql: ข้อที่ตรวจกับฉลากไม่ผ่าน → ai_rejected + เหตุผล
           ai_rejected: [{ name: 'ข้อที่ AI แต่งขึ้น', per: 'day', min: 90, max: 90, times: 3, quote: '90 mg/kg/day', why: 'ข้อความที่ AI อ้างไม่พบในฉลากยา' }] } };
+      if (q.includes('oldlabel') && row._fake.label) Object.assign(row._fake, { label: { ...row._fake.label, effective: '19990101' }, label_old: true });   // 80_ai_dose_label_age.sql
       (db.ai_dose_drafts ||= []).push(row); return { data: row.id, error: null };
     }
     case 'ai_dose_poll': {
