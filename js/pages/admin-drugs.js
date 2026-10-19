@@ -9,7 +9,7 @@
 //   บัญชียาหลักแห่งชาติ (drug_monographs · 57_drug_monographs.sql): ค้นหา เพิ่ม แก้ ลบ · หัวข้อในยาแก้เป็นข้อความ "## หัวข้อ" + บรรทัดเนื้อหา
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
-import { resetDrugInfo, strengthOf, keysOf, latinOf, sameDrug } from './dose.js?v=4.4';
+import { resetDrugInfo, strengthOf, comboName, keysOf, latinOf, sameDrug } from './dose.js?v=4.4';
 
 let doseOpts = '<option value="">ข้อมูลคำนวณ: อัตโนมัติ (จับคู่ตามชื่อยา)</option>';
 let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30, pick = null;
@@ -190,7 +190,7 @@ function renderLocals() {
     : list.map((l) => `<div class="li"><div class="l"><b>${esc(l.name)}</b>`
       + `<span class="small muted">${[l.code && `รหัส ${esc(l.code)}`, esc(l.category), (l.pack_size || l.unit) && `บรรจุ ${esc([l.pack_size, l.unit].filter(Boolean).join(' '))}`].filter(Boolean).join(' · ')}</span>`
       + `<span class="small">${(l.mono_refs || []).length ? `ข้อมูลยา: ${esc(linkNames(l.mono_refs).join(', '))}` : '<span class="chip c-fix">ยังไม่ผูกข้อมูลยา</span>'}</span>`
-      + (() => { const st = strengthOf(l); return st ? `<span class="small muted">ความแรง ${st.mg} ${{ tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' }[st.per]}${l.strength ? '' : ' (อ่านจากชื่อ)'}</span>` : ''; })()
+      + (() => { const st = strengthOf(l); return st ? `<span class="small muted">ความแรง ${st.mg} ${{ tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' }[st.per]}${l.strength ? '' : ' (อ่านจากชื่อ)'}</span>` : comboName(l.name) ? '<span class="small fx-warn">ยาสูตรผสม · กรอกสารสำคัญแต่ละตัวก่อนใช้คำนวณ</span>' : ''; })()
       + (l.fda_key ? `<span class="small muted">ฉลาก openFDA: ${esc(fdas.find((f) => f.key === l.fda_key)?.title || l.fda_key)}</span>` : '')
       + `${l.active ? '' : '<div class="meta"><span class="chip c-off">ซ่อน</span></div>'}</div>`
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-ld-edit="${l.id}">แก้ไข</button>`
@@ -243,6 +243,7 @@ function strHint() {
   const rows = document.querySelectorAll('#ldIngs .ld-ing-row');
   if (rows.length > 1) { $('#ldStrHint').textContent = 'ยาสูตรผสม: เลือกข้อมูลคำนวณขนาดยาของสารที่ต้องการ · หน้าคำนวณคิดจำนวนเม็ด/มล. จากสารนั้น'; return; }
   if (+rows[0]?.querySelector('.r-mg').value > 0) { $('#ldStrHint').textContent = 'ใช้ความแรงที่กรอก'; return; }
+  if (comboName($('#ldName').value)) { $('#ldStrHint').textContent = 'ชื่อยาเป็นยาสูตรผสม · ระบบไม่อ่านความแรงจากชื่อ กรอกสารสำคัญแถวละสาร (กด "+ เพิ่มสารสำคัญ")'; return; }
   const st = strengthOf({ name: $('#ldName').value, unit: $('#ldUnit').value });
   $('#ldStrHint').textContent = st ? `ว่าง = อ่านจากชื่อยา: ${+st.mg.toFixed(3)} ${{ tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' }[st.per]}` : 'อ่านจากชื่อยาไม่ได้ · กรอกความแรงเพื่อใช้ในเครื่องคำนวณ (เช่น ยาน้ำ 120 มก./5 มล.)';
 }

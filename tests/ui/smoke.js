@@ -195,6 +195,19 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           n.trim() === '300 mcg' && t.includes('จำกัดที่ขนาดสูงสุด 300 mcg/ครั้ง') && t.includes('ขนาดตามน้ำหนักคือ 500 mcg/ครั้ง') && t.includes('รวมได้ไม่เกิน 600 mcg/วัน') && t.includes('3.00 เม็ด'), `${n} | ${t.slice(0, 300)}`);
         await p.fill('#doseWeight', '5'); await p.waitForTimeout(200);
         check('ขนาดต่ำกว่าเพดาน → ไม่ขึ้นข้อความจำกัด (250 mcg)', (await p.$eval('#doseResult .fig .n', (e) => e.innerText)).trim() === '250 mcg' && !(await p.$('#doseResult [data-capped]'))); }
+      { // audit F-03: ชื่อยาสูตรผสม "400/80 MG" ไม่ใช่ความแรงเดี่ยว → ไม่คิดจำนวนเม็ดจนกว่าจะกรอกสารสำคัญ (ingredients)
+        const r = await p.evaluate(async () => { const m = await import('./js/pages/dose.js?v=4.4');
+          const f = (name, unit = 'TAB') => JSON.stringify(m.strengthOf({ name, unit }));
+          return { combo: f('X 400/80 MG'), combo2: f('X 875 MG/125 MG'), comboLiq: f('X 200/40 MG/5 ML', 'BOT'), single: f('PARACETAMOL 500 MG'), liq: f('AMOXICILLIN 250 MG/5 ML', 'BOT'),
+            ings: m.strengthOf({ name: 'X 400/80 MG', unit: 'TAB', ingredients: [{ name: 'A', mg: 400 }, { name: 'B', mg: 80 }] })?.ings?.length }; });
+        check('ความแรงจากชื่อ: ยาสูตรผสม (400/80 · 875/125 · 200/40 ต่อ 5 มล.) = ไม่อ่าน · ยาเดี่ยว/ยาน้ำเดิมยังอ่านได้ · มีสารสำคัญ = ใช้สารสำคัญ',
+          r.combo === 'null' && r.combo2 === 'null' && r.comboLiq === 'null' && r.single === '{"mg":500,"per":"tab"}' && r.liq === '{"mg":250,"per":"5ml"}' && r.ings === 2, JSON.stringify(r));
+        await p.evaluate(async () => { const db = window.__db; db.local_drugs.push({ ...db.local_drugs.find((x) => /THYROXINE/i.test(x.name)), id: 99030, code: 'T-F03', name: 'TEST COMBO 400/80 MG', unit: 'TAB', strength: null, ingredients: null, dose_id: 9902 });
+          const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
+        await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
+        const opts = await p.$$eval('#doseConc option', (o) => o.map((x) => `${x.textContent}${x.disabled ? '[x]' : ''}`));
+        check('คำนวณ: ยาสูตรผสมที่ยังไม่กรอกสารสำคัญ → เลือกไม่ได้ + บอกว่ารอผู้ดูแลกรอกสารสำคัญ', opts.some((x) => x.includes('TEST COMBO') && x.includes('ยาสูตรผสม รอผู้ดูแลกรอกสารสำคัญ') && x.endsWith('[x]')), opts.join(' | '));
+        await p.evaluate(() => { const db = window.__db; db.local_drugs = db.local_drugs.filter((x) => x.id !== 99030); }); }
       await p.evaluate(async () => { const db = window.__db; db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9902); db.local_drugs.find((x) => /THYROXINE/i.test(x.name)).dose_id = null; const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
       await p.fill('#doseAge', saved.age); await p.fill('#doseWeight', saved.w); await p.fill('#doseHeight', saved.h);
       if (saved.ren) { await p.check('#doseRenalAdjust'); await p.fill('#doseCr', saved.cr); }
@@ -1197,6 +1210,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1050060')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
       check('ยา รพ.สต.: ช่องความแรงว่าง → บอกว่าอ่านจากชื่อยาไม่ได้', (await text(p, '#ldStrHint')).includes('อ่านจากชื่อยาไม่ได้'));
+      { const orig = await p.inputValue('#ldName');   // audit F-03: ชื่อยาสูตรผสม → ไม่อ่านความแรงจากชื่อ
+        await p.fill('#ldName', 'TEST COMBO 400/80 MG'); await p.waitForTimeout(100);
+        check('ยา รพ.สต.: ชื่อยาสูตรผสม (400/80 MG) → บอกให้กรอกสารสำคัญแต่ละตัว ไม่อ่านจากชื่อ', (await text(p, '#ldStrHint')).includes('ยาสูตรผสม') && !(await text(p, '#ldStrHint')).includes('อ่านจากชื่อยา:'), await text(p, '#ldStrHint'));
+        await p.fill('#ldName', orig); await p.waitForTimeout(100); }
       await p.fill('#ldIngs .r-mg', '120'); await p.selectOption('#ldIngs .r-u', 'mg|5ml'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
       const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
       check('ยา รพ.สต.: กรอกความแรงยาน้ำ (120 มก./5 มล.)', up.strength?.mg === 120 && up.strength?.per === '5ml', JSON.stringify(up.strength)); }

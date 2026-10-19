@@ -56,12 +56,16 @@ export async function initDose() {
 /* ---------- เครื่องคำนวณ: รายชื่อยา + ความแรง ตามรายการยา รพ.สต. ---------- */
 /** ยา รพ.สต. ที่ใช้ข้อมูลคำนวณ k (ผูกเอง dose_id หรือจับคู่ชื่อยาอัตโนมัติ) */
 const localsOf = (k) => litems.filter((it) => it.dose.includes(k));
-/** ความแรงของยา รพ.สต.: กรอกเองใน ตั้งค่า (strength) หรืออ่านจากชื่อยา เช่น "500 MG" / "400MG/20ML" */
+/** ชื่อยาที่บอกความแรงหลายสาร เช่น "400/80 MG", "875 MG/125 MG", "200/40 MG/5 ML" → อ่านจากชื่อไม่ได้ ต้องกรอกสารสำคัญทีละตัว (audit F-03) */
+const COMBO = /\d(?:\.\d+)?\s*(?:MG|MCG)?\s*[/+]\s*\d+(?:\.\d+)?\s*(?:MG|MCG|G)\b/i;
+export const comboName = (name) => COMBO.test(String(name || ''));
+/** ความแรงของยา รพ.สต.: สารสำคัญ (ingredients) → กรอกเองใน ตั้งค่า (strength) → อ่านจากชื่อยา เช่น "500 MG" / "400MG/20ML" (ยกเว้นชื่อยาสูตรผสม = null) */
 export function strengthOf(l) {
   const ing = (l.ingredients || []).filter((x) => x && +x.mg > 0);   // ยาสูตรผสม (66_combo_drugs.sql): ปริมาณสารสำคัญแต่ละตัวต่อหน่วย
   if (ing.length) return { mg: +ing[0].mg, per: ing[0].per || 'tab', ings: ing.map((x) => ({ name: x.name, mg: +x.mg })) };
   const s = l.strength;
   if (s && +s.mg > 0) return { mg: +s.mg, per: s.per || 'tab' };
+  if (comboName(l.name)) return null;   // ไม่เดาว่าเลขไหนเป็นของสารใด
   const name = String(l.name || ''), liquid = /(\d+(?:\.\d+)?)\s*MG\s*\/\s*(\d+(?:\.\d+)?)\s*M/i.exec(name);
   if (liquid) return +liquid[2] === 5 ? { mg: +liquid[1], per: '5ml' } : { mg: +liquid[1] / +liquid[2], per: 'ml' };
   const tab = /(\d+(?:\.\d+)?)\s*(MG|MCG)\b/i.exec(name);
@@ -91,7 +95,7 @@ function fillConc(pick) {
   const ls = localsOf(k).map((it) => ({ it, st: strengthOf(it.loc) }));
   const known = ls.filter((x) => x.st);
   const opts = known.map((x) => `<option value="l:${litems.indexOf(x.it)}">${esc(x.it.loc.name)} · ${esc(mgText(x.st))}</option>`)
-    + ls.filter((x) => !x.st).map((x) => `<option disabled>${esc(x.it.loc.name)} · ยังไม่ระบุความแรง</option>`).join('');
+    + ls.filter((x) => !x.st).map((x) => `<option disabled>${esc(x.it.loc.name)} · ${comboName(x.it.loc.name) ? 'ยาสูตรผสม รอผู้ดูแลกรอกสารสำคัญแต่ละตัว' : 'ยังไม่ระบุความแรง'}</option>`).join('');
   const fallback = !known.length ? (d?.concs || []).map((c, i) => `<option value="c:${i}">${esc(c.label)} (ความแรงทั่วไป)</option>`).join('') : '';
   $('#doseConc').innerHTML = (Array.isArray(opts) ? opts.join('') : opts) + fallback;
   if (pick != null && [...$('#doseConc').options].some((o) => o.value === `l:${pick}`)) $('#doseConc').value = `l:${pick}`;
