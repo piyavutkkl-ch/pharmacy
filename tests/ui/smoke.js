@@ -213,6 +213,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         const t = await text(p, '#doseResult');
         check('ขนาดต่อวันไม่ระบุจำนวนครั้ง → "ข้อมูลขนาดยาไม่ครบ" + ขนาดรวม 200 มก./วัน · ไม่คิดขนาดต่อครั้ง/เม็ด · ไม่ขึ้น "วันละครั้ง"',
           !!(await p.$('#doseResult [data-dose-incomplete]')) && t.includes('ขนาดรวมตามน้ำหนัก 200 มก./วัน') && !t.includes('วันละครั้ง') && !(await p.$('#doseResult .ind-result .fig')), t.slice(0, 300)); }
+      { // audit F-08: ค่านอกช่วงที่เป็นไปได้ → ไม่คำนวณ + Cr หน่วย µmol/L
+        const sex0 = await p.inputValue('#doseSex'), h0 = await p.inputValue('#doseHeight');
+        await p.fill('#doseWeight', '500'); await p.waitForTimeout(150);
+        check('น้ำหนัก 500 กก. → ไม่คำนวณ + บอกให้ตรวจสอบน้ำหนัก', !!(await p.$('#doseResult [data-input-range]')) && (await text(p, '#doseResult')).includes('ตรวจสอบน้ำหนัก'));
+        await p.fill('#doseWeight', '60'); await p.fill('#doseAge', '150'); await p.selectOption('#doseAgeUnit', 'y'); await p.waitForTimeout(150);
+        check('อายุ 150 ปี → ไม่คำนวณ + บอกให้ตรวจสอบอายุ', (await text(p, '#doseResult')).includes('ตรวจสอบอายุ'));
+        await p.fill('#doseAge', '60'); await p.fill('#doseHeight', ''); await p.selectOption('#doseSex', 'm'); await p.check('#doseRenalAdjust'); await p.selectOption('#doseRenalMethod', 'crcl');
+        await p.fill('#doseCr', '88'); await p.selectOption('#doseCrUnit', 'mg'); await p.waitForTimeout(150);
+        check('Cr 88 ในหน่วย มก./ดล. → ไม่คำนวณ CrCl + แนะนำให้เลือกหน่วย µmol/L', (await text(p, '#doseResult')).includes('เลือกหน่วย µmol/L') && !(await p.inputValue('#doseCrClOut')));
+        await p.selectOption('#doseCrUnit', 'umol'); await p.waitForTimeout(150);
+        check('Cr 88 µmol/L → แปลงเป็น 1.00 มก./ดล. → CrCl ≈ 67.0 (ชาย 60 ปี 60 กก. · (140−60)×60 ÷ (72×0.995))', (await p.inputValue('#doseCrClOut')).startsWith('67.0') && (await text(p, '#doseResult')).includes('Cr 88 µmol/L = 1.00 มก./ดล.'), await p.inputValue('#doseCrClOut'));
+        await p.selectOption('#doseCrUnit', 'mg'); await p.fill('#doseCr', ''); await p.uncheck('#doseRenalAdjust'); await p.fill('#doseAge', ''); await p.selectOption('#doseSex', sex0); await p.fill('#doseHeight', h0); }
       { // audit F-03: ชื่อยาสูตรผสม "400/80 MG" ไม่ใช่ความแรงเดี่ยว → ไม่คิดจำนวนเม็ดจนกว่าจะกรอกสารสำคัญ (ingredients)
         const r = await p.evaluate(async () => { const m = await import('./js/pages/dose.js?v=4.4');
           const f = (name, unit = 'TAB') => JSON.stringify(m.strengthOf({ name, unit }));
