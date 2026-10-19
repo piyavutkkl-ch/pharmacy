@@ -1097,6 +1097,12 @@ print("== step 77: openFDA search oral labels, newest first (audit F-11) ==")
 check("AI dose label search filters oral route + newest first", "admin", "select ai_dose_start('ibuprofen')", lambda o: o.strip().isdigit())
 check("request URL has route ORAL + sort effective_time desc", None, "select (f.url like '%openfda.route:%ORAL%' and f.url like '%sort=effective_time:desc%')::text from ai_dose_drafts d join net.http_request_queue f on f.id=d.fda_req where d.query='ibuprofen' order by d.id desc limit 1", eq("true"))
 
+print("== step 78: plausibility ceilings (audit F-12) ==")
+check("over 10,000 mg/kg impossible → shown drug rejected", "admin", """update dose_drugs set indications='[{"name":"x","per":"dose","min":1,"max":100000}]' where id=1""", "deny")
+check("mcg converted before ceiling (5,000 mcg/kg = 5 mg/kg ok)", None, """select public.dose_inds_problem('[{"name":"x","unit":"mcg","per":"dose","min":5000,"max":5000}]') is null""", eq("t"))
+check("AI answer above review ceiling (default 500 mg/kg) not used", None, """select public.dose_ai_item_problem('{"per":"dose","min":5000,"max":5000,"quote":"5000 mg/kg per dose"}', '{"dosage":"Children: 5000 mg/kg per dose."}')""", lambda o: 'สูงผิดปกติ' in o and '500' in o)
+check("review ceiling configurable by setting", None, """insert into site_texts(key, body) values ('dose_soft_max_mg_per_kg','6000') on conflict (key) do update set body=excluded.body; select coalesce(public.dose_ai_item_problem('{"per":"dose","min":5000,"max":5000,"quote":"5000 mg/kg per dose"}', '{"dosage":"Children: 5000 mg/kg per dose."}'),'ok'); delete from site_texts where key='dose_soft_max_mg_per_kg'""", lambda o: 'ok' in o.splitlines())
+
 print("== step 66: combination drugs (ingredients + basis) ==")
 check("co-trimoxazole tab/susp have ingredients 400/80 · 200/40 per 5 ml", "anon", "select string_agg(ingredients->1->>'mg' || '/' || (ingredients->1->>'per'), ',' order by code) from local_drugs where code in ('1010280','1010290')", eq("80/tab,40/5ml"))
 check("staff cannot edit ingredients (RLS → 0 rows)", "s2", "update local_drugs set ingredients='[]' where code='1010280' returning id", rows(0))

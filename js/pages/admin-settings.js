@@ -9,6 +9,8 @@ import { showForm, closeForm, parkForm, keepForm, isOpenAt } from './admin-drugs
 
 const num = (v) => (v === '' || v == null ? null : Number(v));
 /** ข้อบ่งใช้ใช้คำนวณได้หรือไม่ (กฎเดียวกับ public.dose_inds_problem ใน 73_dose_approval.sql) → null = ใช้ได้ */
+/** เพดานความสมเหตุสมผล (78_dose_plausible.sql): เกิน HARD_MAX = บันทึกไม่ได้ · เกิน SOFT_MAX = ถามยืนยัน (ไม่ใช่เกณฑ์ขนาดยารายตัว) */
+const HARD_MAX = 10000, SOFT_MAX = 500;
 export function indsProblem(inds) {
   if (!Array.isArray(inds) || !inds.length) return 'ต้องมีข้อบ่งใช้อย่างน้อย 1 ข้อ';
   const T = (x) => Number.isInteger(x) && x >= 1 && x <= 12;
@@ -21,6 +23,7 @@ export function indsProblem(inds) {
     if (i.min < 0) return w + 'ขนาดยาต้องไม่ติดลบ';
     if (i.max <= 0) return w + 'ขนาดยาสูงสุดต้องมากกว่า 0';
     if (i.max < i.min) return w + 'ขนาดสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด';
+    if (i.max * (i.unit === 'mcg' ? 0.001 : 1) > HARD_MAX) return w + 'ขนาดยาสูงเกินกว่าจะเป็นไปได้ (เกิน 10,000 มก./กก.) · ตรวจหน่วยและจุดทศนิยม';
     if (i.per === 'day' && !T(i.times)) return w + 'ขนาดต่อวันต้องระบุจำนวนครั้งที่แบ่งให้ (1–12 ครั้ง)';
     if (i.times_alt != null && !(Array.isArray(i.times_alt) && i.times_alt.every(T))) return w + 'จำนวนครั้งแบบอื่นต้องเป็น 1–12';
     if (i.cap != null && !(typeof i.cap === 'number' && i.cap > 0)) return w + 'ขนาดสูงสุดต่อครั้งต้องเป็นตัวเลขมากกว่า 0';
@@ -115,6 +118,8 @@ function readInds(root = $('#dfInds')) {
     out.push(i);
   });
   if (!out.length) throw new Error('ต้องมีข้อบ่งใช้อย่างน้อย 1 ข้อ');
+  const high = out.filter((i) => i.max * (i.unit === 'mcg' ? 0.001 : 1) > SOFT_MAX);
+  if (high.length && !confirm(`ขนาดยาสูงผิดปกติ (เกิน ${SOFT_MAX} มก./กก.): ${high.map((i) => `${i.name} ${i.max} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก.`).join(', ')}\nตรวจหน่วยและจุดทศนิยมแล้วใช่ไหม?`)) throw new Error('ยังไม่บันทึก · ตรวจหน่วยและจุดทศนิยมของขนาดยาที่สูงผิดปกติ');
   return out;
 }
 

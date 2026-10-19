@@ -1282,6 +1282,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.fill('#dfInds .ind-box .i-agemin', '2'); await p.fill('#dfInds .ind-box .i-agemax', '12'); await p.fill('#dfInds .ind-box .i-capday', '4000'); await p.click('#dfSubmit'); await p.waitForTimeout(400);
         const up = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload || {};
         check('ฟอร์มข้อบ่งใช้: บันทึกช่วงอายุ 2–12 ปี + ขนาดสูงสุด 4000/วัน ลงข้อบ่งใช้', up.indications?.[0]?.age_min === 2 && up.indications?.[0]?.age_max === 12 && up.indications?.[0]?.cap_day === 4000, JSON.stringify(up.indications?.[0])); }
+      { // audit F-12: ขนาดยาสูงผิดปกติ (> 500 มก./กก.) → ถามยืนยันก่อนบันทึก · ตอบไม่ = ไม่บันทึก
+        const id4 = await p.evaluate(() => window.__db.dose_drugs.find((x) => x.active && !x.ai_draft)?.id);
+        await p.click(`#dfList [data-edit="${id4}"]`); await p.waitForTimeout(450);
+        await p.evaluate(() => { window.__confirm0 = window.confirm; window.__confirms = []; window.confirm = (m) => { window.__confirms.push(m); return false; }; });
+        const n0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).length;
+        await p.fill('#dfInds .ind-box .i-min', '600'); await p.fill('#dfInds .ind-box .i-max', '600'); await p.click('#dfSubmit'); await p.waitForTimeout(300);
+        const asked = await p.evaluate(() => window.__confirms.join('|'));
+        check('ฟอร์มข้อบ่งใช้: 600 มก./กก. → ถามยืนยันค่าสูงผิดปกติ · ตอบไม่ = ไม่บันทึก', asked.includes('สูงผิดปกติ') && (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).length === n0 && (await text(p, '#dfMsg')).includes('ยังไม่บันทึก'), asked);
+        await p.fill('#dfInds .ind-box .i-min', '20000'); await p.fill('#dfInds .ind-box .i-max', '20000'); await p.click('#dfSubmit'); await p.waitForTimeout(250);
+        check('ฟอร์มข้อบ่งใช้: 20,000 มก./กก. → บันทึกไม่ได้ (เกินเป็นไปได้)', (await text(p, '#dfMsg')).includes('สูงเกินกว่าจะเป็นไปได้'));
+        await p.evaluate(() => { window.confirm = window.__confirm0; });
+        await p.click(`#dfList [data-edit="${id4}"]`); await p.waitForTimeout(450); }
       check('ไม่มีคำสั่งอนุมัติแบบไม่ส่งข้อมูลขนาดยา (คลิกเดียวแบบเดิม)', !(await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).some((c) => c.payload?.ai_draft === false && !('indications' in c.payload)));
       await p.evaluate(async () => { const db = window.__db, adm = db.profiles.find((x) => x.role === 'admin');
         Object.assign(db.dose_drugs.find((x) => x.id === 1), { approved_by: adm.id, approved_at: '2026-10-19T03:00:00Z' });
