@@ -69,7 +69,7 @@ async function loadCal() {
   const [y, m] = trkMonth.split('-').map(Number), last = new Date(y, m, 0).getDate();
   const from = `${trkMonth}-01`, to = `${trkMonth}-${pad(last)}`, unit = trkUnit === 'all' ? null : trkUnit;
   $('#trkCalTitle').textContent = `ปฏิทินผลงานเยี่ยมบ้าน · ${MONTHS_FULL[m - 1]} ${y + 543}${unit ? ' · รพ.สต.' + unitName(unit) : ''}`;
-  $('#trkCal').innerHTML = '<div class="skeleton"></div>'; $('#trkDay').innerHTML = '';
+  $('#trkCal').innerHTML = '<div class="skeleton"></div>';
   let sq = sb.from('visit_summaries').select('id,unit_id,title,image_path,summary_date').gte('summary_date', from).lte('summary_date', to);
   let aq = sb.from('achievements').select('id,unit_id,title,image_path,created_at').eq('hidden', false)
     .gte('created_at', new Date(y, m - 1, 1).toISOString()).lt('created_at', new Date(y, m, 1).toISOString());
@@ -97,7 +97,7 @@ function paintCal() {
 let daySeq = 0;
 async function renderDay() {
   const box = $('#trkDay'), k = trkDaySel, seq = ++daySeq;
-  if (!k) { box.innerHTML = ''; return; }
+  if (!k) { box.innerHTML = '<p class="small muted">กดวันที่มีวงกลมเพื่อดูผลงานของวันนั้น</p>'; return; }
   const r = cal.days.get(k), sums = cal.sums.filter((x) => x.summary_date === k), achs = cal.achs.filter((x) => x.day === k);
   const thumb = (path, label) => (path ? `<img src="${esc(publicImageUrl(path))}" alt="" loading="lazy">` : `<span class="ach-art">${art(label)}</span>`);
   box.innerHTML = `<h3>ผลงานวันที่ ${esc(thaiDate(k))}</h3>`
