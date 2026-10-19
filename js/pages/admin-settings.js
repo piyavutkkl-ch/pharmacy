@@ -392,7 +392,7 @@ function renderDrugs() {
     + `<span class="small muted">${indsOf(d).length} ข้อบ่งใช้ · ${(d.concs || []).length} ความแรง · ลำดับ ${d.sort}</span>`
     + (d.ai_draft && d.ai_source ? `<span class="small muted">${esc(d.ai_source)}</span>` : '')
     + (d.approved_at ? `<span class="small muted" data-approved>ตรวจ/อนุมัติ: ${esc(d.approver?.full_name || 'ผู้ดูแล')} · ${esc(thaiDateTime(d.approved_at))}</span>` : '')
-    + (() => { const why = !d.ai_draft && indsProblem(indsOf(d)); return why ? `<span class="small fx-warn" data-inds-problem>ข้อมูลขนาดยาไม่ครบ: ${esc(why)} · กดแก้ไขเพื่อแก้</span>` : ''; })()
+    + (() => { const why = d.ai_draft ? (d.draft_issue || indsProblem(indsOf(d))) : indsProblem(indsOf(d)); return why ? `<span class="small fx-warn" data-inds-problem>${d.ai_draft ? 'ต้องแก้ก่อนอนุมัติ' : 'ข้อมูลขนาดยาไม่ครบ'}: ${esc(why)} · กด${d.ai_draft ? '"ตรวจ/แก้ไข"' : 'แก้ไข'}เพื่อแก้</span>` : ''; })()
     + (d.ai_draft ? '<span class="small muted">ร่างจาก AI: กด "ตรวจ/แก้ไข" ตรวจตัวเลขกับเอกสารอ้างอิง แล้วกดบันทึก = อนุมัติ</span>' : '')
     + `<div class="meta"><span class="chip ${d.active ? 'c-on' : 'c-off'}">${d.active ? 'แสดงอยู่' : 'ซ่อน'}</span>${d.ai_draft ? '<span class="chip c-fix">AI ร่าง · รอตรวจ</span>' : ''}</div></div>`
     + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">${d.ai_draft ? 'ตรวจ/แก้ไข' : 'แก้ไข'}</button>`
@@ -485,6 +485,7 @@ function rvCard(d, open) {
     + `<div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา</span><div class="ind-list r-inds">${inds.map((i) => indBox(i, true)).join('')}</div><div><button type="button" class="btn btn-o btn-sm" data-rv-addind>+ เพิ่มข้อบ่งใช้</button></div></div>`
     + `<div class="field full"><span class="label-like">ความแรงของยา</span><div class="med-rows r-concs">${(d.concs || []).map(concRow).join('') || concRow()}</div><div><button type="button" class="btn btn-o btn-sm" data-rv-addconc>+ เพิ่มความแรง</button></div></div>`
     + (d.ai_source ? `<p class="small muted full">${esc(d.ai_source)}</p>` : '')
+    + (() => { const why = d.draft_issue || indsProblem(inds); return why ? `<p class="small fx-warn full" data-inds-problem>ต้องแก้ก่อนอนุมัติ: ${esc(why)}</p>` : ''; })()
     + '<div class="full row-btns df-rv-btns"><button class="btn btn-p btn-sm" type="submit">ตรวจแล้ว · ใช้คำนวณ</button><button type="button" class="btn btn-no btn-sm" data-rv-del>ลบร่าง</button><span class="small r-msg" aria-live="polite"></span></div>'
     + '</form></details>';
 }

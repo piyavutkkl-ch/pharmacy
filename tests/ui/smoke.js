@@ -206,6 +206,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
         figs = await p.$$eval('#doseResult .fig .n', (e) => e.map((x) => x.innerText.trim()));
         check('ปริมาณน้อยเกินกว่าจะแบ่งจากความแรงนี้ (0.003 เม็ด) → แสดงค่าจริง ไม่ใช่ 0.00 + เตือน', figs[0] === '0.00030 มก.' && figs[1] === '0.003 เม็ด/แคปซูล' && !!(await p.$('#doseResult [data-too-small]')), figs.join(' | ')); }
+      { // audit F-07: ขนาดต่อวันแต่ไม่ระบุจำนวนครั้ง → ไม่เดาว่าวันละครั้ง · บอกว่าข้อมูลไม่ครบ + ขนาดรวมต่อวัน
+        await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [{ name: 'ไม่บอกจำนวนครั้ง', per: 'day', min: 20, max: 20 }];
+          const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
+        await p.fill('#doseWeight', '10'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
+        const t = await text(p, '#doseResult');
+        check('ขนาดต่อวันไม่ระบุจำนวนครั้ง → "ข้อมูลขนาดยาไม่ครบ" + ขนาดรวม 200 มก./วัน · ไม่คิดขนาดต่อครั้ง/เม็ด · ไม่ขึ้น "วันละครั้ง"',
+          !!(await p.$('#doseResult [data-dose-incomplete]')) && t.includes('ขนาดรวมตามน้ำหนัก 200 มก./วัน') && !t.includes('วันละครั้ง') && !(await p.$('#doseResult .ind-result .fig')), t.slice(0, 300)); }
       { // audit F-03: ชื่อยาสูตรผสม "400/80 MG" ไม่ใช่ความแรงเดี่ยว → ไม่คิดจำนวนเม็ดจนกว่าจะกรอกสารสำคัญ (ingredients)
         const r = await p.evaluate(async () => { const m = await import('./js/pages/dose.js?v=4.4');
           const f = (name, unit = 'TAB') => JSON.stringify(m.strengthOf({ name, unit }));
@@ -1193,6 +1200,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.selectOption('#dfFForm', 'all'); await p.fill('#dfQ', ''); await p.waitForTimeout(150);
     { // audit F-04: ร่าง AI ไม่มีปุ่มอนุมัติคลิกเดียว → อนุมัติได้เฉพาะผ่านฟอร์มตรวจ (readInds) + บันทึกผู้อนุมัติ
       const id = await p.evaluate(() => window.__db.dose_drugs.find((x) => x.ai_draft)?.id);
+      check('รายการยา: ร่าง AI ที่ข้อมูลไม่ครบ (draft_issue) → บอก "ต้องแก้ก่อนอนุมัติ" พร้อมเหตุผล', await p.evaluate(async (id) => {
+          const d = window.__db.dose_drugs.find((x) => x.id === id); d.draft_issue = 'ข้อบ่งใช้ 1: ทดสอบธงร่าง'; return true; }, id)
+        && await (async () => { await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs/dose'); await dbAll(p); await p.waitForTimeout(400); await p.selectOption('#dfFForm', 'all'); await p.fill('#dfQ', ''); await p.waitForTimeout(150);
+          const t = await text(p, '#dfList'); await p.evaluate((id) => { delete window.__db.dose_drugs.find((x) => x.id === id).draft_issue; }, id); return t.includes('ต้องแก้ก่อนอนุมัติ: ข้อบ่งใช้ 1: ทดสอบธงร่าง'); })());
       check('รายการยา: ร่างจาก AI มีป้าย "AI ร่าง · รอตรวจ" + บอกวิธีอนุมัติ + ไม่มีปุ่มอนุมัติคลิกเดียว',
         (await text(p, '#dfList')).includes('AI ร่าง · รอตรวจ') && (await text(p, '#dfList')).includes('กดบันทึก = อนุมัติ') && !(await p.$(`#dfList [data-toggle="${id}"]`)) && !(await text(p, '#dfList')).includes('ตรวจแล้ว · แสดง'));
       await p.click(`#dfList [data-edit="${id}"]`); await p.waitForTimeout(450);
