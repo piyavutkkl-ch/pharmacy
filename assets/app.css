@@ -1167,3 +1167,9 @@ details[open] > summary::before{transform:rotate(90deg)}
 .trk-day .poster-row{gap:10px}
 .trk-day .poster{flex:0 0 150px;width:150px}
 .trk-day .poster img,.trk-day .poster .ach-art{aspect-ratio:4/3;height:auto}
+.inline-edit{overflow:hidden;transform-origin:top}
+.inline-edit.opening{animation:ieOpen .26s ease-out}
+.inline-edit.closing{animation:ieClose .22s ease-in forwards;pointer-events:none}
+@keyframes ieOpen{from{opacity:0;max-height:0;transform:translateY(-10px)}to{opacity:1;max-height:3000px;transform:none}}
+@keyframes ieClose{from{opacity:1;max-height:1500px}to{opacity:0;max-height:0;transform:translateY(-10px);padding-top:0;padding-bottom:0;margin:0}}
+@media (prefers-reduced-motion:reduce){.inline-edit.opening,.inline-edit.closing{animation:none}}

@@ -5,6 +5,7 @@ import { $, esc, toast, errText, busy } from '../util.js?v=4.4';
 import { loadUnits } from '../data.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { resetDose, latinOf, keysOf, sameDrug } from './dose.js?v=4.4';
+import { showForm, closeForm, parkForm, keepForm, isOpenAt } from './admin-drugs.js?v=4.4';
 
 const num = (v) => (v === '' || v == null ? null : Number(v));
 function say(el, text, ok) { el.style.color = ok ? 'var(--success)' : 'var(--error)'; el.textContent = text; }
@@ -363,6 +364,7 @@ function renderDrugs() {
   pickN('dose', list.length);
   if (sort !== 'order') list.sort((a, b) => a.name.localeCompare(b.name, 'th') * (sort === 'asc' ? 1 : -1));
   $('#dfCount').textContent = list.length === drugs.length ? `(${drugs.length})` : `(${list.length} จาก ${drugs.length})`;
+  parkForm($('#dfForm'));
   $('#dfList').innerHTML = !drugs.length ? '<p class="empty">ยังไม่มีรายการยา</p>' : !list.length ? `<p class="empty">${pickDose ? 'ยานี้ยังไม่มีข้อมูลคำนวณขนาดยา · เพิ่มได้จากฟอร์มด้านบน' : 'ไม่พบยาที่ค้นหา'}</p>` : list.map((d) => `<div class="li"><div class="l"><b>${esc(d.name)} <span class="chip c-off">${esc(d.form || 'อื่น ๆ')}</span></b>`
     + indsOf(d).map((i) => `<span class="small muted">${esc(i.name || 'ข้อบ่งใช้')}: ${esc(perText(i))}</span>`).join('')
     + `<span class="small muted">${indsOf(d).length} ข้อบ่งใช้ · ${(d.concs || []).length} ความแรง · ลำดับ ${d.sort}</span>`
@@ -371,11 +373,12 @@ function renderDrugs() {
     + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">${d.ai_draft ? 'ตรวจ/แก้ไข' : 'แก้ไข'}</button>`
     + `<button type="button" class="btn btn-o btn-sm" data-toggle="${d.id}">${d.ai_draft ? 'ตรวจแล้ว · แสดง' : d.active ? 'ซ่อน' : 'แสดง'}</button>`
     + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button></div></div>`).join('');
+  keepForm($('#dfForm'), $('#dfList'), editDrug && `[data-edit="${editDrug.id}"]`);
 }
 const nextSort = () => (drugs.length ? Math.max(...drugs.map((d) => d.sort)) + 1 : 0);
 
 function resetDrugForm() {
-  editDrug = null;
+  editDrug = null; parkForm($('#dfForm'));
   $('#dfForm').reset();
   $('#dfConcs').innerHTML = concRow();
   $('#dfInds').innerHTML = indBox(); syncIndBoxes();
@@ -388,6 +391,7 @@ function resetDrugForm() {
 }
 
 function startEditDrug(d) {
+  if (isOpenAt($('#dfForm'), $('#dfList'), `[data-edit="${d.id}"]`)) { closeForm($('#dfForm'), true, resetDrugForm); return; }   // กดแก้ไขซ้ำ = ย่อ
   editDrug = d;
   $('#dfName').value = d.name; $('#dfForm2').value = d.form || 'อื่น ๆ';
   const inds = indsOf(d);
@@ -398,7 +402,7 @@ function startEditDrug(d) {
   $('#dfSubmit').textContent = 'บันทึกการแก้ไข';
   $('#dfCancel').hidden = false;
   say($('#dfMsg'), '');
-  $('#dfForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  showForm($('#dfForm'), $('#dfList'), `[data-edit="${d.id}"]`, $('#dfName'));   // ขยายใต้ยาที่กด
 }
 
 async function saveDrug(e) {

@@ -1069,6 +1069,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.close(); }
     await p.fill('#dfQ', 'ยาทดสอบ'); await p.waitForTimeout(150);
     check('รายการยา: ค้นหาชื่อได้', await count(p, '#dfList .li') === 1);
+    await p.click('#dfList [data-edit]'); await p.waitForTimeout(400);
+    check('รายการยาคำนวณขนาดยา: กดแก้ไข → ฟอร์มขยายใต้ยานั้น', await p.$eval('#dfForm', (f) => f.parentElement.id === 'dfList' && !!f.previousElementSibling?.querySelector('[data-edit]')) && (await p.inputValue('#dfName')) === 'ยาทดสอบ');
+    await p.click('#dfList [data-edit]'); await p.waitForTimeout(450);
+    check('รายการยาคำนวณขนาดยา: กดแก้ไขซ้ำ = ย่อ (ฟอร์มกลับเป็นเพิ่มยาด้านบน)', await p.$eval('#dfForm', (f) => f.parentElement.id !== 'dfList') && (await p.inputValue('#dfName')) === '' && (await text(p, '#dfSubmit')).includes('เพิ่มยา'));
     await p.fill('#dfQ', ''); await p.selectOption('#dfSortBy', 'desc'); await p.waitForTimeout(150);
     const dn = await p.$$eval('#dfList .li b', (b) => b.map((x) => x.childNodes[0].textContent.trim()));
     check('รายการยา: เรียงตามตัวอักษรย้อนกลับได้', dn.join('|') === [...dn].sort((a, b) => b.localeCompare(a, 'th')).join('|') && dn.length > 1);
@@ -1286,8 +1290,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#ddList .li:nth-child(3) [data-dd-edit]'); await p.waitForTimeout(400);
       const top = await p.$eval('#ddForm', (f) => f.getBoundingClientRect().top);
       check('Drug interaction: กดแก้ไข → กล่องแก้ไขขยายใต้คู่นั้น ไม่เด้งขึ้นด้านบน', await p.$eval('#ddForm', (f) => f.parentElement.id === 'ddList' && f.previousElementSibling === document.querySelectorAll('#ddList > .li')[2]) && top > 0 && top < 900, JSON.stringify({ y0, y: await p.evaluate(() => scrollY), top }));
-      await p.click('#ddCancel'); await p.waitForTimeout(100);
-      check('Drug interaction: ยกเลิก → กล่องแก้ไขกลับที่เดิม (ซ่อน)', await p.$eval('#ddForm', (f) => f.hidden && f.parentElement.id !== 'ddList')); }
+      await p.click('#ddCancel'); await p.waitForTimeout(400);
+      check('Drug interaction: ยกเลิก → กล่องแก้ไขกลับที่เดิม (ซ่อน)', await p.$eval('#ddForm', (f) => f.hidden && f.parentElement.id !== 'ddList'));
+      await p.click('#ddList .li:nth-child(3) [data-dd-edit]'); await p.waitForTimeout(400);
+      const anim = await p.$eval('#ddForm', (f) => f.classList.contains('opening') || getComputedStyle(f).animationName);
+      await p.click('#ddList > .li:nth-of-type(3) [data-dd-edit]'); await p.waitForTimeout(450);
+      check('Drug interaction: กดแก้ไขซ้ำ = ย่อกล่อง (มีเอฟเฟคเลื่อน)', !!anim && await p.$eval('#ddForm', (f) => f.hidden && f.parentElement.id !== 'ddList')); }
     await p.click('#ddList [data-dd-edit]'); await p.waitForTimeout(100);
     check('Drug interaction: แก้ไขเปิดข้อความไทย/อังกฤษ', await visible(p, '#ddForm') && (await p.inputValue('#ddDescTh')).includes('(ภาษาไทย)') && (await p.inputValue('#ddDesc')).length > 10);
     await p.fill('#ddDescTh', 'ยาสองตัวนี้ทำให้ระดับยาในเลือดสูงขึ้น'); await p.click('#ddSave'); await p.waitForTimeout(300);

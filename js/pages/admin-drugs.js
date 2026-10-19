@@ -58,22 +58,32 @@ function onPickInput() {
 const secN = (k, n) => { const el = document.querySelector(`[data-adr-n="${k}"]`); if (el) el.textContent = pick ? `· ${n ? `พบ ${n} รายการ` : 'ไม่มีข้อมูลของยานี้'}` : ''; };
 
 /* ---- กล่องแก้ไขขยายใต้รายการที่กด (ไม่เด้งขึ้นไปด้านบน) · วาดรายการใหม่ = เก็บกล่องกลับที่เดิมก่อน แล้ววางใต้รายการเดิมอีกครั้ง ---- */
+//   กดแก้ไขแถวเดิมซ้ำ = ย่อกล่อง (isOpenAt) · เปิด/ย่อมีเอฟเฟคเลื่อน (CSS .inline-edit / .closing) · ใช้ใน admin-settings.js (รายการยาคำนวณขนาดยา) ด้วย
 const homes = new Map();
+const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 function placeForm(form, row) {
   if (!homes.has(form)) { const ph = document.createComment('ที่เดิมของฟอร์ม'); form.before(ph); homes.set(form, ph); }
-  row.after(form); form.classList.add('inline-edit');
+  const moved = form.previousElementSibling !== row;
+  row.after(form); form.classList.add('inline-edit'); form.classList.remove('closing');
+  if (moved && !calm()) { form.classList.remove('opening'); void form.offsetWidth; form.classList.add('opening'); }
 }
-function parkForm(form) { const ph = homes.get(form); if (ph && form.previousSibling !== ph) ph.after(form); form.classList.remove('inline-edit'); }
+export function parkForm(form) { const ph = homes.get(form); if (ph && form.previousSibling !== ph) ph.after(form); form.classList.remove('inline-edit', 'opening', 'closing'); }
+/** กล่องแก้ไขเปิดอยู่ใต้แถวนี้แล้วหรือยัง (กดซ้ำ = ย่อ) */
+export function isOpenAt(form, list, sel) { const row = list.querySelector(sel)?.closest('.li'); return !!row && !form.hidden && form.classList.contains('inline-edit') && form.previousElementSibling === row; }
 /** เปิดฟอร์มใต้แถวของรายการ (มีแถวในหน้า) หรือที่เดิมด้านบน + เลื่อนไป (ไม่มีแถว เช่น มาจากหน้าข้อมูลยา) */
-function showForm(form, list, sel, focus) {
+export function showForm(form, list, sel, focus) {
   form.hidden = false;
   const row = list.querySelector(sel)?.closest('.li');
   if (row) placeForm(form, row); else { parkForm(form); form.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
   focus?.focus({ preventScroll: !!row });
 }
-function closeForm(form) { form.hidden = true; parkForm(form); }
+/** ย่อกล่อง (เลื่อนขึ้นแล้วซ่อน) · keep = ฟอร์มหลักที่ไม่ซ่อน (เพิ่ม/แก้ไข) → กลับไปที่เดิมด้านบน */
+export function closeForm(form, keep = false, after = null) {
+  const done = () => { if (!keep) form.hidden = true; parkForm(form); after?.(); };
+  if (form.classList.contains('inline-edit') && !calm()) { form.classList.remove('opening'); form.classList.add('closing'); setTimeout(done, 220); } else done();
+}
 /** หลังวาดรายการใหม่: กล่องที่เปิดอยู่กลับไปอยู่ใต้แถวเดิม */
-function keepForm(form, list, sel) { if (form.hidden || !sel) return; const row = list.querySelector(sel)?.closest('.li'); if (row) placeForm(form, row); }
+export function keepForm(form, list, sel) { if (form.hidden || !sel) return; const row = list.querySelector(sel)?.closest('.li'); if (row) placeForm(form, row); }
 
 /** มาจากปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา → เปิดฟอร์มของรายการนั้น */
 function openPending() {
@@ -258,6 +268,7 @@ function resetLocal() {
   parkForm($('#ldForm'));
 }
 function editLocalForm(l) {
+  if (isOpenAt($('#ldForm'), $('#ldList'), `[data-ld-edit="${l.id}"]`)) { closeForm($('#ldForm'), true, resetLocal); return; }   // กดแก้ไขซ้ำ = ย่อ
   editLocal = l; links = [...(l.mono_refs || [])];
   $('#ldName').value = l.name; $('#ldCode').value = l.code || ''; $('#ldCat').value = l.category; $('#ldPack').value = l.pack_size || '';
   $('#ldUnit').value = l.unit || ''; $('#ldNote').value = l.note || ''; $('#ldFda').value = l.fda_key || '';
@@ -336,6 +347,7 @@ const parseForms = (txt) => String(txt).split('\n').map((l) => l.trim()).filter(
   return { form, acct };
 });
 function openMonoForm(m) {
+  if (m && isOpenAt($('#dmForm'), $('#dmList'), `[data-dm-edit="${m.id}"]`)) { closeForm($('#dmForm')); editMono = null; return; }
   editMono = m;
   $('#dmTitle').textContent = m ? `แก้ไข: ${m.name}` : 'เพิ่มข้อมูลยาใหม่';
   $('#dmName').value = m?.name || ''; $('#dmGroupNo').value = m?.group_no ?? ''; $('#dmGroup').value = m?.group_name || '';
@@ -531,6 +543,7 @@ async function onFdaList(e) {
   toast('ลบฉลากแล้ว'); changed(); loadFdas();
 }
 function openFdaForm(f) {
+  if (isOpenAt($('#faForm'), $('#faList'), `[data-fa-edit="${f.id}"]`)) { closeForm($('#faForm')); editFda = null; return; }
   editFda = f; $('#faTitle').textContent = `แก้ไขฉลาก: ${f.title}`; $('#faName').value = f.title;
   $('#faSections').value = sectionsText((f.sections || []).map((x) => ({ title: x.title, body: [x.body] })));
   $('#faSectionsTh').value = sectionsText(f.sections_th || []);
@@ -643,6 +656,7 @@ async function ddThAll() {
   }
 }
 function openDdForm(p) {
+  if (isOpenAt($('#ddForm'), $('#ddList'), `[data-dd-edit="${p.id}"]`)) { closeForm($('#ddForm')); editDd = null; return; }
   editDd = p; $('#ddTitle').textContent = `แก้ไข: ${ddName(p.a)} × ${ddName(p.b)}`; $('#ddLv').value = p.level;
   $('#ddDescTh').value = p.description_th || ''; $('#ddMgmtTh').value = p.management_th || ''; $('#ddDesc').value = p.description || ''; $('#ddMgmt').value = p.management || '';
   showForm($('#ddForm'), $('#ddList'), `[data-dd-edit="${p.id}"]`, $('#ddDescTh'));
