@@ -14,6 +14,13 @@ node "$root/tools/ai_news/run.mjs" --offline "$fx2" "$out/issues" >/dev/null
 # รอบที่ 3: เปิดเผยแพร่อัตโนมัติ + ตรวจทานผ่าน → เผยแพร่ได้
 fx3="$out/fx-auto"; mkdir -p "$fx3" "$out/auto"; cp "$root/tests/ai_news/fixtures/"* "$fx3/"; echo '{"auto":"on"}' > "$fx3/settings.json"
 node "$root/tools/ai_news/run.mjs" --offline "$fx3" "$out/auto" >/dev/null
+# รอบที่ 4: บทความ 1876 ไม่สำเร็จมาแล้ว 2 ครั้ง (เช่น CCPE ส่ง PDF ว่าง) → ไม่วนทำซ้ำ เลือกบทความใหม่ (1875)
+fx4="$out/fx-fail"; mkdir -p "$fx4" "$out/fail"; cp "$root/tests/ai_news/fixtures/"* "$fx4/"
+python3 -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d+= [{'article_id':1876,'status':'error','created_at':'2026-09-02T00:00:00+00:00'},{'article_id':1876,'status':'error','created_at':'2026-09-03T00:00:00+00:00'}]; json.dump(d,open(p,'w'))" "$fx4/log.json"
+node "$root/tools/ai_news/run.mjs" --offline "$fx4" "$out/fail" >/dev/null
+# รอบที่ 5: ไฟล์ PDF ว่าง (0 ไบต์) → ไม่ส่งให้ Gemini (เคยได้ HTTP 400 invalid argument) · แจ้งว่าไฟล์ว่าง/เสีย
+fx5="$out/fx-empty"; mkdir -p "$fx5" "$out/empty"; cp "$root/tests/ai_news/fixtures/"* "$fx5/"; : > "$fx5/article.pdf"
+if node "$root/tools/ai_news/run.mjs" --offline "$fx5" "$out/empty" > "$out/empty.log" 2>&1; then echo "empty-ok" > "$out/empty.status"; else echo "empty-fail" > "$out/empty.status"; fi
 ROOT_DIR="$root" python3 - "$out" <<'PY'
 import json, os, struct, sys
 out = sys.argv[1]; ok = True; n = [0, 0]
@@ -68,6 +75,10 @@ try: r2 = _j.loads(o2.stdout.strip().splitlines()[-1])
 except Exception: r2 = {'err': o2.stderr[-300:]}
 check('ai-news: AI ตอบ JSON ไม่สมบูรณ์ → ถามใหม่ (ไม่ล้มทั้งรอบ) · ผิดครบทุกครั้ง → แจ้งเหตุผลภาษาไทย', r2.get('r1') == {'a': 1} and r2.get('n') == 2 and 'JSON ไม่สมบูรณ์ 2 ครั้ง' in r2.get('err', ''), r2)
 check('ai-news: pdftotext ภาษาไทยดี → ใช้ได้ (แบ่งหน้า) · สระ/วรรณยุกต์ลอย (ฟอนต์ถอดไม่ได้) → ส่งให้ AI ถอดแทน', r.get('ok') is True and r.get('pages') == 2 and r.get('head') == '[หน้า 1]' and r.get('bad') is False, r)
+d4 = json.load(open(os.path.join(sys.argv[1], 'fail', 'news.json')))
+check('ai-news: บทความที่ไม่สำเร็จมาแล้ว 2 ครั้ง → ไม่ดึงซ้ำ เลือกบทความใหม่', d4['article']['id'] == 1875, d4['article']['id'])
+es = open(os.path.join(sys.argv[1], 'empty.status')).read().strip(); el = open(os.path.join(sys.argv[1], 'empty.log')).read()
+check('ai-news: PDF ว่าง → ไม่ส่งให้ AI + แจ้งว่าไฟล์ว่าง/เสีย + ข้ามไปบทความอื่น', es == 'empty-fail' and 'ว่างหรือเสีย' in el and not os.path.exists(os.path.join(sys.argv[1], 'empty', 'news.json')), el[-300:])
 print(f'ai-news: {n[0]} passed, {n[1]} failed')
 sys.exit(0 if ok else 1)
 PY

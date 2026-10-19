@@ -232,12 +232,16 @@ async function pdfText(pdf, pdfPart, models) {
   if (body.length < 200) throw new Error('ถอดข้อความจาก PDF ไม่ได้');
   return { body: body.slice(0, MAX_SRC), pages: (body.match(/^\[หน้า \d+\]/gm) || []).length || null, method: 'gemini' };
 }
+/** ไฟล์ต้องเป็น PDF จริง (CCPE บางบทความส่งไฟล์ว่าง 0 ไบต์ → Gemini ตอบ HTTP 400 invalid argument ซ้ำทุกรอบ) */
+export function checkPdf(pdf) {
+  if (!pdf || pdf.length < 8 || pdf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new Error(`ไฟล์ PDF ของบทความนี้ว่างหรือเสีย (${pdf?.length || 0} ไบต์) · ข้ามไปบทความอื่น`);
+  if (pdf.length > MAX_PDF) throw new Error(`PDF ใหญ่เกิน ${MAX_PDF / 1048576} MB · ข้ามไปบทความอื่น`);
+  return pdf;
+}
 async function downloadPdf(url) {
   const r = await fetch(url);
-  if (!r.ok || !/pdf/i.test(r.headers.get('content-type') || '')) throw new Error(`ดาวน์โหลด PDF ไม่ได้ (HTTP ${r.status})`);
-  const pdf = Buffer.from(await r.arrayBuffer());
-  if (pdf.length > MAX_PDF) throw new Error(`PDF ใหญ่เกิน ${MAX_PDF / 1048576} MB`);
-  return pdf;
+  if (!r.ok || !/pdf/i.test(r.headers.get('content-type') || '')) throw new Error(`ดาวน์โหลด PDF ไม่ได้ (HTTP ${r.status}) · ข้ามไปบทความอื่น`);
+  return checkPdf(Buffer.from(await r.arrayBuffer()));
 }
 /** ข่าว AI เดิมที่ยังไม่มีข้อความ PDF ในระบบ → ถอดเติมให้ (รอบละไม่เกิน n ข่าว · ไม่สำเร็จก็ไม่เป็นไร) */
 async function backfillSources(db, models, n = 2) {
@@ -312,7 +316,7 @@ async function main() {
   const requested = !!settings.request && !isNaN(Date.parse(settings.request)) && (!last || Date.parse(settings.request) > Date.parse(last));
   // วันละ 1 ข่าว: ทำแล้ว/ไม่มีบทความใหม่ = พอสำหรับวันนี้ · ไม่สำเร็จ (เช่น AI ไม่ว่าง) = ลองใหม่รอบชั่วโมงถัดไป ไม่เกินวันละ 3 ครั้ง
   const today = logs.filter((l) => thaiDay(new Date(new Date(l.created_at).getTime() + 7 * 3600_000)) === thaiDay());
-  const finishedToday = today.some((l) => l.status !== 'error'), errorsToday = today.filter((l) => l.status === 'error').length;
+  const finishedToday = today.some((l) => l.status === 'done' || (l.status === 'skipped' && !l.article_id)), errorsToday = today.filter((l) => l.status === 'error').length;
   const due = requested || (!finishedToday && errorsToday < 3 && thaiNow().getUTCHours() >= START_HOUR);
 
   if (args[0] === '--check') {
@@ -326,7 +330,10 @@ async function main() {
     console.log('::warning::ยังไม่ได้ตั้ง GEMINI_API_KEY — ข้ามรอบนี้'); return;
   }
 
-  const done = new Set(logs.filter((l) => l.status !== 'error').map((l) => l.article_id));
+  // บทความที่ทำแล้ว/ข้ามแล้ว + บทความที่ไม่สำเร็จมาแล้ว 2 ครั้ง (ไม่วนทำบทความเดิมที่เสีย → เลือกบทความใหม่)
+  const fails = new Map();
+  logs.filter((l) => l.status === 'error' && l.article_id).forEach((l) => fails.set(l.article_id, (fails.get(l.article_id) || 0) + 1));
+  const done = new Set([...logs.filter((l) => l.status !== 'error').map((l) => l.article_id), ...[...fails].filter(([, n]) => n >= 2).map(([id]) => id)]);
   const ids = parseListing(await fetchText(LIST_URL)).filter((id) => !done.has(id)).slice(0, CANDIDATES);
   if (!ids.length) {
     await status(db, { status: 'skipped', note: 'ยังไม่มีบทความใหม่ใน CCPE' }); log('ไม่มีบทความใหม่');
@@ -357,12 +364,15 @@ async function main() {
       log('เลือกบทความ', art.id, '-', clip(pick.reason, 120));
     } catch (e) { log('เลือกบทความไม่ได้ ใช้บทความล่าสุด:', e.message.slice(0, 120)); }
   }
+  // ดาวน์โหลด PDF: บทความที่เลือกก่อน → ไฟล์ว่าง/เสีย = บันทึก "ข้าม" แล้วลองบทความถัดไปในรอบเดียวกัน
+  let pdf = null;
+  for (const a of [art, ...arts.filter((x) => x !== art)]) {
+    try { pdf = checkPdf(OFFLINE ? fs.readFileSync(path.join(OFFLINE.dir, 'article.pdf')) : await downloadPdf(a.pdf)); art = a; break; }
+    catch (e) { log('ข้ามบทความ', a.id, e.message); await status(db, { article_id: a.id, title: clip(a.title, 300), status: 'skipped', note: clip(e.message, 900) }); }
+  }
+  if (!pdf) throw new Error('บทความใหม่ทุกเรื่องที่ตรวจ ไฟล์ PDF ว่างหรือดาวน์โหลดไม่ได้ · จะลองใหม่รอบถัดไป');
   let row = null;
   try {
-    let pdf;
-    if (OFFLINE) pdf = fs.readFileSync(path.join(OFFLINE.dir, 'article.pdf'));
-    else pdf = await downloadPdf(art.pdf);
-    if (pdf.length > MAX_PDF) throw new Error(`PDF ใหญ่เกิน ${MAX_PDF / 1048576} MB`);
     const pdfPart = { inlineData: { mimeType: 'application/pdf', data: pdf.toString('base64') } };
     const ask = (text, step, temperature) => askJson((i) => gemini(models.text, { contents: [{ parts: [pdfPart, { text }] }], generationConfig: { responseMimeType: 'application/json', temperature: temperature + i * 0.1 } }, { step }));
     // ① วิเคราะห์ PDF → ข้อเท็จจริงพร้อมข้อความอ้างอิง/หน้า
