@@ -101,8 +101,8 @@
    "unit": "-",
    "ref": "ข้อกำหนด AI pipeline: เปลี่ยนหลังอนุมัติต้องตรวจสอบย้อนหลังได้",
    "rationale": "ไม่มีหลักฐานว่าใครเปลี่ยนตัวเลข",
-   "actual": "audit_log ก่อน 2 หลัง 2",
-   "result": "FAIL"
+   "actual": "audit_log/drug_data_history ก่อน 2/2 หลัง 2/3",
+   "result": "PASS"
   },
   {
    "id": "DB-08",
@@ -127,8 +127,8 @@
    "unit": "-",
    "ref": "ข้อกำหนด AI pipeline",
    "rationale": "",
-   "actual": "พบ 0 ตาราง",
-   "result": "FAIL"
+   "actual": "พบ 1 ตาราง",
+   "result": "PASS"
   },
   {
    "id": "DB-10",

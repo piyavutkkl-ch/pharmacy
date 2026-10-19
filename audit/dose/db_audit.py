@@ -62,16 +62,16 @@ r = val("""update dose_drugs set indications='[{"name":"syn","per":"dose","min":
 T("DB-06b", "บันทึกขนาดยาสูงผิดปกติ (100000 มก./กก.) ในยาที่แสดงอยู่", "High", "ไม่มีเพดานความสมเหตุสมผล (F-12)", "admin update", "ปฏิเสธ/ติดธงค่าเกินช่วง",
   "ข้อกำหนด 3.4 ค่านอกช่วง", "ต้องมีเพดานตามนโยบายเภสัชกร", f"บันทึกได้ id={r}" if r == "1" else r[:120], "FAIL" if r == "1" else "PASS")
 run("""update dose_drugs set indications='[{"name":"syn","per":"dose","min":10,"max":15,"cap":1000}]' where id=1""", "admin")
-n0 = val("select count(*) from audit_log")
-run("""update dose_drugs set indications='[{"name":"syn","per":"dose","min":10,"max":15,"cap":1000}]' where id=1""", "admin")
-n1 = val("select count(*) from audit_log")
+n0 = val("select count(*) from audit_log") + "/" + val("select count(*) from drug_data_history where table_name='dose_drugs'")
+run("""update dose_drugs set indications='[{"name":"syn","per":"dose","min":10,"max":20,"cap":1000}]' where id=1""", "admin")
+n1 = val("select count(*) from audit_log") + "/" + val("select count(*) from drug_data_history where table_name='dose_drugs'")
 T("DB-07", "แก้ขนาดยาหลังอนุมัติ → มีบันทึกการแก้ไข", "High", "write_audit() ไม่ได้ผูกกับ dose_drugs", "admin แก้ indications ของยาที่แสดงอยู่", "audit_log +1 (ใคร/เมื่อไร/ช่องใด)",
-  "ข้อกำหนด AI pipeline: เปลี่ยนหลังอนุมัติต้องตรวจสอบย้อนหลังได้", "ไม่มีหลักฐานว่าใครเปลี่ยนตัวเลข", f"audit_log ก่อน {n0} หลัง {n1}", "FAIL" if n0 == n1 else "PASS")
+  "ข้อกำหนด AI pipeline: เปลี่ยนหลังอนุมัติต้องตรวจสอบย้อนหลังได้", "ไม่มีหลักฐานว่าใครเปลี่ยนตัวเลข", f"audit_log/drug_data_history ก่อน {n0} หลัง {n1}", "FAIL" if n0 == n1 else "PASS")
 cols = val("select string_agg(column_name, ',' order by column_name) from information_schema.columns where table_schema='public' and table_name='dose_drugs'")
 has = any(c in cols.split(",") for c in ("reviewed_by", "approved_by", "reviewed_at", "approved_at", "version"))
 T("DB-08", "บันทึกผู้อนุมัติ/เวลาอนุมัติ/รุ่นข้อมูล", "High", "โครงสร้าง dose_drugs", "information_schema", "มีช่อง reviewed_by/approved_at/version", "ข้อกำหนด AI pipeline ขั้นอนุมัติ",
   "มีแค่ updated_at", cols, "PASS" if has else "FAIL")
-hist = val("select count(*) from information_schema.tables where table_schema='public' and table_name ~ '^dose_drugs?_(history|versions?|audit)$'")
+hist = val("select count(*) from information_schema.tables where table_schema='public' and table_name ~ '^(dose_drugs?|drug_data)_(history|versions?|audit)$'")
 T("DB-09", "ประวัติรุ่นข้อมูลขนาดยา (ย้อนดูค่าก่อนแก้)", "Medium", "schema", "หาตาราง dose_drugs_history/versions", "มี", "ข้อกำหนด AI pipeline", "", f"พบ {hist} ตาราง", "PASS" if hist != "0" else "FAIL")
 ok_age = val("""select (public.dose_inds_problem('[{"name":"x","per":"dose","min":1,"max":2,"age_min":12,"age_max":2}]') is not null and public.dose_inds_problem('[{"name":"x","per":"dose","min":1,"max":2,"cap_day":0}]') is not null and public.dose_inds_problem('[{"name":"x","per":"day","min":1,"max":2,"times":2,"age_min":1,"age_max":12,"cap_day":100}]') is null)::text""")
 T("DB-10", "ข้อบ่งใช้รองรับช่วงอายุ/ขนาดสูงสุดต่อวัน (ระบบตรวจค่า)", "High", "indications jsonb + dose_inds_problem (76)", "ช่วงอายุ 12–2 · cap_day 0 · ค่าถูก",
