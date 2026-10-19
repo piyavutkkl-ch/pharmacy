@@ -257,8 +257,8 @@
    "unit": "-",
    "ref": "50_ai_dose.sql",
    "rationale": "limit=1 ไม่กรอง route → อาจได้ฉลากยาฉีด/ยาภายนอก",
-   "actual": "https://api.fda.gov/drug/label.json?limit=1&search=openfda.generic_name.exact:\"AUDITCILLIN\"",
-   "result": "FAIL"
+   "actual": "https://api.fda.gov/drug/label.json?sort=effective_time:desc&limit=1&search=openfda.generic_name.exact:\"AUDITCILLIN\" AND openfda.route:\"ORAL\"",
+   "result": "PASS"
   },
   {
    "id": "AI-08",
