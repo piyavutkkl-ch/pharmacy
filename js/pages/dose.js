@@ -196,6 +196,12 @@ function render() {
       + (i.ref?.label ? `<p class="small muted">ที่มา: ${/^https:\/\//.test(i.ref.url || '') ? `<a href="${esc(i.ref.url)}" target="_blank" rel="noopener">${esc(i.ref.label)}</a>` : esc(i.ref.label)}${i.quote ? ` · <span lang="en">“${esc(i.quote)}”</span>` : ''}</p>` : '')
       + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '')
       + (renal === 'unknown' ? '<p class="small fx-warn">ขนาดยานี้ยังไม่ได้ปรับตามการทำงานของไต (ยังประเมินไตไม่ได้)</p>' : '');
+    if (i.per === 'day' && !ts.length) {   // ขนาดต่อวันแต่ไม่บอกจำนวนครั้ง → ไม่เดาว่าวันละครั้ง (audit F-07)
+      const U = i.unit === 'mcg' ? 'mcg' : 'มก.';
+      return `<div class="alert" data-dose-incomplete>${warnIcon}<div><b>ข้อมูลขนาดยาไม่ครบ</b>`
+        + `<div class="small">เป็นขนาดต่อวัน แต่ไม่ได้ระบุว่าแบ่งให้วันละกี่ครั้ง จึงยังคำนวณขนาดต่อครั้งและจำนวนเม็ด/มล. ไม่ได้</div>`
+        + `<div class="small">ขนาดรวมตามน้ำหนัก ${drng(w * i.min, w * i.max)} ${U}/วัน (ยังไม่ทราบว่าให้ครั้งเดียวหรือแบ่งให้) · แจ้งผู้ดูแลให้เพิ่มจำนวนครั้งในข้อมูลคำนวณขนาดยา</div></div></div>` + tail;
+    }
     if (i.per === 'day' && ts.length > 1) return ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + tail;
     return doseCore(i) + tail;
   };

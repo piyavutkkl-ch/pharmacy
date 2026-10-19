@@ -1079,6 +1079,13 @@ run("""insert into ai_dose_drafts(query, status, stage, auto_name, result) value
 check("all items rejected → no draft created", None, "select ai_dose_convert(id) from ai_dose_drafts where auto_name='TESTNONE74'; select count(*) from dose_drugs where name='TESTNONE74'", lambda o: o.splitlines()[-1].strip() == '0')
 check("web cannot write AI results directly", "admin", "update ai_dose_drafts set result='{}' where auto_name='TESTNONE74' returning id", "deny")
 
+print("== step 75: AI drafts flagged when incomplete (audit F-07) ==")
+check("draft per day without times flagged", None, """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active,ai_draft) values ('ธงร่าง75','x',20,20,'day','[{"name":"x","per":"day","min":20,"max":20}]','[]',false,true) returning draft_issue""", lambda o: 'จำนวนครั้ง' in o)
+check("admin fills times → flag cleared (still a draft)", "admin", """update dose_drugs set indications='[{"name":"x","per":"day","min":20,"max":20,"times":2}]' where name='ธงร่าง75' returning coalesce(draft_issue,'none')""", eq("none"))
+check("flag cannot be forged by hand", "admin", "update dose_drugs set draft_issue='x' where name='ธงร่าง75' returning coalesce(draft_issue,'none')", eq("none"))
+check("approved drug has no draft flag", "admin", "update dose_drugs set active=true, ai_draft=false where name='ธงร่าง75' returning coalesce(draft_issue,'none')", eq("none"))
+check("system-made draft (AI convert) with missing times is flagged", None, """insert into ai_dose_drafts(query, status, stage, auto_name, result) values ('t75','done','ai','TESTFLAG75','{"rx":[],"label":{"dosage":"Children: 20 mg/kg/day.","generic":"t75"},"ai":[{"name":"x","per":"day","min":20,"max":20,"quote":"20 mg/kg/day"}]}'); select ai_dose_convert(id) from ai_dose_drafts where auto_name='TESTFLAG75'; select draft_issue from dose_drugs where name='TESTFLAG75'""", lambda o: 'จำนวนครั้ง' in o)
+
 print("== step 66: combination drugs (ingredients + basis) ==")
 check("co-trimoxazole tab/susp have ingredients 400/80 · 200/40 per 5 ml", "anon", "select string_agg(ingredients->1->>'mg' || '/' || (ingredients->1->>'per'), ',' order by code) from local_drugs where code in ('1010280','1010290')", eq("80/tab,40/5ml"))
 check("staff cannot edit ingredients (RLS → 0 rows)", "s2", "update local_drugs set ingredients='[]' where code='1010280' returning id", rows(0))
