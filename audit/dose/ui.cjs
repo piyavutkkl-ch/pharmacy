@@ -123,7 +123,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
   { const r = await run({ inds: RI, inp: { w: 70, age: 50, renalAuto: true, method: 'egfr', cr: 1 } });
     T('UI-11', 'eGFR ≥ 60 กับยาที่มีคำแนะนำโรคไตเฉพาะยา', { fn: 'render: ข้อความไตปกติ', input: 'ชาย 50 ปี Cr 1.0 (eGFR ≈ 91.7)', expected: 'ข้อความไม่ฟันธงว่า "ไม่จำเป็นต้องปรับขนาดยา" โดยไม่อิงเกณฑ์ของยา', unit: '-',
       ref: 'ไม่มีแหล่งอ้างอิงเกณฑ์รายยาในระบบให้เทียบ', rationale: 'ข้อความเดียวกันทุกยา · ใช้เกณฑ์ eGFR (ต่อ 1.73 ตร.ม.) เท่ากับ CrCl', actual: L(r.txt).slice(0, 2).join(' | '),
-      result: 'UNVERIFIED', risk: 'Medium' }); }
+      result: !/ไม่จำเป็นต้องปรับขนาดยา/.test(r.txt) && /บางยามีเกณฑ์ของตัวเอง/.test(r.txt) ? 'PASS' : 'FAIL', risk: 'Medium' }); }
   { const r = await run({ inds: RI, inp: { w: 60, renal: 'severe' } });
     T('UI-12', 'เลือกระดับไตเอง = รุนแรง', { fn: 'render (manual renal)', input: 'renal=severe', expected: 'แสดง alert + ข้อความโรคไตของข้อบ่งใช้', unit: '-', ref: 'พฤติกรรมที่ออกแบบไว้',
       rationale: 'ตรวจว่าเส้นทางปกติทำงาน', actual: `alert=${r.alert}`, result: r.alert && r.txt.includes('AUDIT: ข้อความโรคไต') ? 'PASS' : 'FAIL', risk: 'Medium' }); }
@@ -152,7 +152,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       rationale: 'ตรวจเส้นทางปลอดภัย', actual: `${r.conc.replace(/\n/g, ' / ')} | ${L(r.txt).slice(0, 2).join(' | ')}`, result: !/มล\.|เม็ด\/แคปซูล/.test(r.txt.split('ความถี่')[0]) && /ยังไม่ระบุความแรง/.test(r.conc) ? 'PASS' : 'FAIL', risk: 'High' }); }
   { const r = await run({ inds: [{ name: 'syn', per: 'dose', min: 5, max: 5 }], local: { name: 'AUDITSYN 150 MG', unit: 'TAB' }, inp: { w: 10 } });
     T('UI-18', 'จำนวนเม็ดที่แบ่งจริงไม่ได้ (0.33 เม็ด)', { fn: 'doseCore vol (2 ตำแหน่ง)', input: 'w=10, 5 มก./กก., เม็ด 150', expected: 'ปัดเป็นสัดส่วนที่แบ่งได้ (½/¼) หรือเตือน', unit: 'เม็ด', ref: '50/150 = 0.333',
-      rationale: 'ไม่มีนโยบายการปัดเม็ดในระบบให้เทียบ — ต้องให้เภสัชกรกำหนด', actual: L(r.txt).slice(0, 4).join(' | '), result: 'UNVERIFIED', risk: 'Medium' }); }
+      rationale: 'ไม่มีนโยบายการปัดเม็ดในระบบให้เทียบ — ต้องให้เภสัชกรกำหนด', actual: L(r.txt).slice(0, 4).join(' | '), result: /แบ่งจริงได้ยาก/.test(r.txt) ? 'PASS' : 'FAIL', risk: 'Medium' }); }
   { const r = await run({ inds: [{ name: 'syn', per: 'day', min: 30, max: 30, times: 1, times_alt: [3] }], inp: { w: 10 } });
     T('UI-19', 'แบ่งให้ได้หลายแบบ (1 หรือ 3 ครั้ง/วัน)', { fn: 'doseOf times_alt', input: 'w=10, 30 มก./กก./วัน, times 1 | 3', expected: 'แบบที่ 1: 300 มก. · แบบที่ 2: 100 มก./ครั้ง', unit: 'มก.', ref: '300/1, 300/3',
       rationale: 'ฟีเจอร์ใหม่', actual: L(r.txt).filter((x) => /แบบที่|มก\./.test(x)).slice(0, 4).join(' | '), result: r.txt.includes('แบบที่ 2') && /\b300 มก\./.test(r.txt) && /\b100 มก\./.test(r.txt) ? 'PASS' : 'FAIL', risk: 'Medium' }); }

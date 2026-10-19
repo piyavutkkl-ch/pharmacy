@@ -126,7 +126,7 @@ i, res, note, st = pipeline(L1, None, fda_status=500, rx_status=500)
 T("AI-05", "openFDA/RxNorm ล่ม (500)", "Medium", "ai_dose_step", "rx=500 fda=500", "status=error + ข้อความ", "", "", f"{st} · {note[:60]}", "PASS" if st == "error" else "FAIL")
 i, res, note, st = pipeline(L1, {"indications": [{"name": "ติดเชื้อ", "per": "day", "min": 25, "max": 25, "times": 2, "quote": "25 mg/kg/day in divided doses every 12 hours"}]}, eff="19990101")
 T("AI-06", "แหล่งข้อมูลเก่า (ฉลากฉบับ 1999)", "Medium", "ai_dose_step/dose_ref", "effective_time=19990101", "ติดธง/เตือนว่าฉลากเก่า", "ข้อกำหนด AI pipeline: outdated source",
-  "เก็บวันที่ไว้ในที่มา แต่ไม่ตรวจ/ไม่เตือน", f"label.effective={res.get('label', {}).get('effective')} · ai {len(res.get('ai') or [])} ข้อ · ไม่มีธงเตือน", "FAIL" if res.get("ai") else "PASS")
+  "เก็บวันที่ไว้ในที่มา แต่ไม่ตรวจ/ไม่เตือน", f"label.effective={res.get('label', {}).get('effective')} · label_old={res.get('label_old')} · note={note[:60]}", "PASS" if res.get("label_old") else "FAIL")
 fq = val(f"select url from net.http_request_queue where id=(select fda_req from ai_dose_drafts where id={i})")
 T("AI-07", "ค้นฉลาก openFDA กรองช่องทางให้ยา/รูปแบบ", "High", "ai_dose_fda (50) limit 1", "URL คำขอ", "กรอง route=ORAL หรือเลือกจากหลายฉลาก", "50_ai_dose.sql",
   "limit=1 ไม่กรอง route → อาจได้ฉลากยาฉีด/ยาภายนอก", fq[:150], "FAIL" if "route" not in fq.lower() else "PASS")

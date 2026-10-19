@@ -62,7 +62,7 @@ const K = (o) => mod.kidney(o);
 { const r = K({ method: 'crcl', age: 10, w: 30, h: 135, cr: 0.5, female: false });
   t('CG-12', 'kidney(crcl)', 'เด็ก 10 ปี (CrCl Cockcroft-Gault)', 'ไม่ให้ผล CrCl เชิงตัวเลขในเด็ก (หรือบังคับใช้สูตรเด็ก)', '-', 'Cockcroft-Gault พัฒนาจากผู้ใหญ่', 'สูตรผู้ใหญ่ไม่ควรใช้จัดกลุ่มการทำงานของไตในเด็ก', r.v ?? r.msg, r.v == null, 'Medium', 'ระบบคำนวณและนำไปจัดกลุ่มไต พร้อมหมายเหตุเท่านั้น'); }
 { const r = K({ method: 'crcl', age: 60, w: 80, h: 100, cr: 1, female: false }), ibw = refIBW(100, false);
-  t('CG-13', 'kidney(crcl)', 'ผู้ใหญ่สูง 100 ซม. 80 กก. (IBW Devine ติดลบ/ต่ำผิดปกติ)', 'ไม่ใช้ IBW ที่ ≤ 0 หรือเตือนว่า IBW ใช้ไม่ได้กับคนสูง < 152 ซม.', '-', 'Devine IBW ไม่ได้ออกแบบสำหรับความสูง < 5 ฟุต', `IBW = ${ibw.toFixed(1)} กก.`, r.v, null, 'Medium', 'ต้องให้เภสัชกรกำหนดเกณฑ์ (ไม่มีแหล่งอ้างอิงเดียวที่ยืนยันได้)'); }
+  t('CG-13', 'kidney(crcl)', 'ผู้ใหญ่สูง 100 ซม. 80 กก. (IBW Devine ติดลบ/ต่ำผิดปกติ)', 'ไม่ใช้ IBW ที่ ≤ 0 หรือเตือนว่า IBW ใช้ไม่ได้กับคนสูง < 152 ซม.', '-', 'Devine IBW ไม่ได้ออกแบบสำหรับความสูง < 5 ฟุต', `IBW = ${ibw.toFixed(1)} กก.`, `${r.v?.toFixed(2)} · ${r.note}`, /ส่วนสูงต่ำกว่า 152/.test(r.note || '') ? true : null, 'Medium', 'ต้องให้เภสัชกรกำหนดเกณฑ์ (ไม่มีแหล่งอ้างอิงเดียวที่ยืนยันได้)'); }
 
 /* ===== 3.2 eGFR ===== */
 { const r = K({ method: 'egfr', age: 50, w: 70, h: 0, cr: 1.0, female: false }), exp = refCKD(50, 1.0, false);

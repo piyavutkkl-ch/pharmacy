@@ -244,8 +244,8 @@
    "unit": "-",
    "ref": "ข้อกำหนด AI pipeline: outdated source",
    "rationale": "เก็บวันที่ไว้ในที่มา แต่ไม่ตรวจ/ไม่เตือน",
-   "actual": "label.effective=19990101 · ai 1 ข้อ · ไม่มีธงเตือน",
-   "result": "FAIL"
+   "actual": "label.effective=19990101 · label_old=True · note=",
+   "result": "PASS"
   },
   {
    "id": "AI-07",
