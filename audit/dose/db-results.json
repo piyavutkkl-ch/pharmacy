@@ -132,16 +132,16 @@
   },
   {
    "id": "DB-10",
-   "title": "โครงสร้างรองรับช่วงอายุ/ช่องทางให้ยา/ขนาดสูงสุดต่อวัน",
+   "title": "ข้อบ่งใช้รองรับช่วงอายุ/ขนาดสูงสุดต่อวัน (ระบบตรวจค่า)",
    "risk": "High",
-   "fn": "dose_drugs schema (01 L668) + indications jsonb",
-   "input": "information_schema",
-   "expected": "มีช่อง age_min/age_max, route, max_mg_per_day (หรือใน indications ที่ระบบตรวจ)",
+   "fn": "indications jsonb + dose_inds_problem (76)",
+   "input": "ช่วงอายุ 12–2 · cap_day 0 · ค่าถูก",
+   "expected": "ปฏิเสธช่วงอายุผิด/เพดานต่อวัน ≤ 0 · รับค่าถูก (ช่องทางให้ยา route ยังไม่มี — เครื่องคำนวณใช้กับยารับประทาน)",
    "unit": "-",
    "ref": "ข้อกำหนด 3.4",
-   "rationale": "indications มีแค่ cap ต่อครั้ง",
-   "actual": "(ไม่มี)",
-   "result": "FAIL"
+   "rationale": "age_min/age_max/cap_day อยู่ใน indications",
+   "actual": "ตรวจถูกต้อง=true",
+   "result": "PASS"
   },
   {
    "id": "DB-11a",

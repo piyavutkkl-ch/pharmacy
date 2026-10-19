@@ -73,9 +73,10 @@ T("DB-08", "บันทึกผู้อนุมัติ/เวลาอน�
   "มีแค่ updated_at", cols, "PASS" if has else "FAIL")
 hist = val("select count(*) from information_schema.tables where table_schema='public' and table_name ~ '^dose_drugs?_(history|versions?|audit)$'")
 T("DB-09", "ประวัติรุ่นข้อมูลขนาดยา (ย้อนดูค่าก่อนแก้)", "Medium", "schema", "หาตาราง dose_drugs_history/versions", "มี", "ข้อกำหนด AI pipeline", "", f"พบ {hist} ตาราง", "PASS" if hist != "0" else "FAIL")
-cols_ind = val("select string_agg(column_name, ',') from information_schema.columns where table_schema='public' and table_name='dose_drugs' and column_name ~ '(age|route|max_mg_per_day|weight)'")
-T("DB-10", "โครงสร้างรองรับช่วงอายุ/ช่องทางให้ยา/ขนาดสูงสุดต่อวัน", "High", "dose_drugs schema (01 L668) + indications jsonb", "information_schema",
-  "มีช่อง age_min/age_max, route, max_mg_per_day (หรือใน indications ที่ระบบตรวจ)", "ข้อกำหนด 3.4", "indications มีแค่ cap ต่อครั้ง", cols_ind or "(ไม่มี)", "PASS" if cols_ind else "FAIL")
+ok_age = val("""select (public.dose_inds_problem('[{"name":"x","per":"dose","min":1,"max":2,"age_min":12,"age_max":2}]') is not null and public.dose_inds_problem('[{"name":"x","per":"dose","min":1,"max":2,"cap_day":0}]') is not null and public.dose_inds_problem('[{"name":"x","per":"day","min":1,"max":2,"times":2,"age_min":1,"age_max":12,"cap_day":100}]') is null)::text""")
+T("DB-10", "ข้อบ่งใช้รองรับช่วงอายุ/ขนาดสูงสุดต่อวัน (ระบบตรวจค่า)", "High", "indications jsonb + dose_inds_problem (76)", "ช่วงอายุ 12–2 · cap_day 0 · ค่าถูก",
+  "ปฏิเสธช่วงอายุผิด/เพดานต่อวัน ≤ 0 · รับค่าถูก (ช่องทางให้ยา route ยังไม่มี — เครื่องคำนวณใช้กับยารับประทาน)", "ข้อกำหนด 3.4", "age_min/age_max/cap_day อยู่ใน indications",
+  f"ตรวจถูกต้อง={ok_age}", "PASS" if ok_age == "true" else "FAIL")
 for who in ("s2", "anon"):
     r = val("select ai_dose_start('amoxicillin')", who)
     T(f"DB-11{'a' if who == 's2' else 'b'}", f"{who} เรียก AI ร่างขนาดยาไม่ได้", "High", "ai_dose_start is_admin()", who, "ปฏิเสธ", "56_dose_ai_drafts.sql", "", r[:80], "PASS" if r.startswith("ERR") else "FAIL")
