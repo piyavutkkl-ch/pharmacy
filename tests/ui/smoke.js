@@ -83,6 +83,28 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     }
     check('ท้ายเว็บ: ดาวน์โหลดเอกสาร/ช่องทางติดต่อ เป็นกล่องมีไอคอน (หน้าหลัก)', await count(p, '.footer-card .fc-ic svg') === 2 && await visible(p, '.footer-cards')
       && (await text(p, '[data-fc="docs"]')).trim() === 'ดาวน์โหลดเอกสาร' && (await p.getAttribute('[data-fc="docs"]', 'href')) === '#/documents' && await visible(p, '[data-fc="contact"]'));
+    // กดปุ่มหัวข้อเดิมซ้ำ = ย่อปิด (เมนูไอคอน + ปุ่มท้ายเว็บ)
+    await p.click('[data-panel-link="news"]'); await p.waitForTimeout(300);
+    const newsOpen = await visible(p, '[data-panel="news"]');
+    await p.click('.menu-icons [data-panel-link="news"]'); await p.waitForTimeout(300);
+    check('หน้าแรก: กดหัวข้อเดิมซ้ำ = ย่อปิด', newsOpen && !(await visible(p, '[data-panel="news"]')) && (await p.getAttribute('.menu-icons [data-panel-link="news"]', 'aria-expanded')) === 'false');
+    await p.click('[data-fc="contact"]'); await p.waitForTimeout(300);
+    const ctOpen = await visible(p, '[data-panel="contact"]');
+    await p.click('[data-fc="contact"]'); await p.waitForTimeout(300);
+    check('ท้ายเว็บ: กดปุ่มเดิมซ้ำ = ย่อปิด', ctOpen && !(await visible(p, '[data-panel="contact"]')));
+    // สไลด์ข่าวเด่น: แนวนอน = พอดีกรอบ + พื้นหลังเบลอ · แนวตั้ง = เต็มกรอบเลื่อนบน↔ล่าง (ข่าวแรก = รูปแนวนอน · ผลงาน = รูปแนวตั้ง)
+    { const q = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      q.on('pageerror', (e) => errors.push(`[slides] ${e.message}`));
+      const patch = ";(() => { const n = window.__db.news.filter((x) => x.status === 'published'); n.forEach((x, k) => { x.image_path = k ? null : 'news/t/a4l.webp'; }); window.__db.achievements.forEach((a) => { a.image_path = 'achievements/2/tall.webp'; }); })();";
+      await q.route('https://cdn.jsdelivr.net/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: MOCK + patch }));
+      await q.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+      await q.route(/img\.test\/.*(a4l|tall)/, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: SIZED[r.request().url().match(/(a4l|tall)/)[1]] }));
+      await q.goto(BASE); await q.waitForTimeout(1500);
+      const cls = await q.$$eval('#slides .sl-img', (b) => b.map((x) => x.className));
+      check('สไลด์: รูปแนวนอน = พอดีกรอบ + พื้นหลังเบลอ · แนวตั้ง = เต็มกรอบ เลื่อนบน→ล่าง/ล่าง→บน (สุ่ม)', cls.some((c) => c.includes('wide')) && cls.some((c) => c.includes('tall') && /pan-(down|up)/.test(c))
+        && await q.$eval('#slides .sl-img.wide .sl-fg', (im) => getComputedStyle(im).objectFit === 'contain') && await q.$eval('#slides .sl-img.wide .sl-bg', (im) => getComputedStyle(im).filter.includes('blur'))
+        && await q.$eval('#slides .sl-img.tall .sl-fg', (im) => getComputedStyle(im).objectFit === 'cover' && getComputedStyle(im).animationName.startsWith('slPan')), JSON.stringify(cls));
+      await q.close(); }
     check('ท้ายเว็บ: นโยบาย/ข้อตกลง อยู่ใต้ช่องส่งความคิดเห็น', await p.$eval('.footer-legal', (e) => !!e.closest('.footer-col')?.querySelector('#fbForm') && e.querySelectorAll('a[href="privacy.html"],a[href="terms.html"]').length === 2));
     await p.click('[data-panel-link="news"]'); await p.waitForTimeout(300);
     check('ข่าว: การ์ดข่าวแสดง (เฉพาะที่เผยแพร่)', await count(p, '#newsGrid .news-card') === 3, String(await count(p, '#newsGrid .news-card')));
@@ -1126,7 +1148,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     // ยาที่เพิ่มเองต้องผูกกับยา รพ.สต. ก่อนจึงขึ้นในเครื่องคำนวณ (เลือก "ข้อมูลคำนวณขนาดยา" ในฟอร์มยา รพ.สต.)
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(600);
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1200110')?.id);
-      await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100); await p.selectOption('#ldIngs .r-dose', { label: 'ยาทดสอบ' }); await p.click('#ldSubmit'); await p.waitForTimeout(300);
+      await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
+      check('ยา รพ.สต.: กดแก้ไข → ฟอร์มแก้ไขขยายใต้ยานั้น', await p.$eval('#ldForm', (f, i) => f.parentElement.id === 'ldList' && !!f.previousElementSibling?.querySelector(`[data-ld-edit="${i}"]`), id)); await p.selectOption('#ldIngs .r-dose', { label: 'ยาทดสอบ' }); await p.click('#ldSubmit'); await p.waitForTimeout(300);
       check('ยา รพ.สต.: ผูกกับข้อมูลคำนวณขนาดยาเอง (dose_id)', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.dose_id === await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id)); }
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1050060')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
@@ -1168,6 +1191,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#dmQ', 'domperidone'); await p.waitForTimeout(100);
     { const id = await p.$eval('#dmList [data-dm-edit]', (b) => b.dataset.dmEdit);
       await p.click(`[data-dm-edit="${id}"]`); await p.waitForTimeout(100);
+      check('บัญชียาหลัก: กดแก้ไข → กล่องแก้ไขขยายใต้ยานั้น', await p.$eval('#dmForm', (f, i) => f.parentElement.id === 'dmList' && !!f.previousElementSibling?.querySelector(`[data-dm-edit="${i}"]`), id));
       check('บัญชียาหลัก: แก้ไขเปิดฟอร์ม (รูปแบบยา | บัญชี · หัวข้อ ##)', await visible(p, '#dmForm') && (await p.inputValue('#dmForms')).includes('| b') && (await p.inputValue('#dmSections')).includes('## คำเตือนและข้อควรระวัง'));
       await p.fill('#dmSections', (await p.inputValue('#dmSections')) + '\n## หมายเหตุ รพ.\nทดสอบแก้ไข'); await p.click('#dmSubmit'); await p.waitForTimeout(400);
       const up = (await calls(p, (c) => c.table === 'drug_monographs' && c.op === 'update')).pop()?.payload || {};
@@ -1191,6 +1215,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('openFDA: ฉลากใหม่อยู่ในรายการ + ตัวเลือกผูกในฟอร์มยา รพ.สต.', await count(p, '#faList .li') === 1 && await p.$eval('#ldFda', (s) => [...s.options].some((o) => o.value === 'loratadine|ORAL')));
     await p.click('#faList [data-fa-edit]'); await p.waitForTimeout(100);
     check('openFDA: แก้ไขเปิดหัวข้อเป็น ## ข้อความ', await visible(p, '#faForm') && (await p.inputValue('#faSections')).includes('## ข้อบ่งใช้'));
+    check('openFDA: กดแก้ไข → กล่องแก้ไขขยายใต้ฉลากนั้น (ไม่เด้งขึ้นด้านบน)', await p.$eval('#faForm', (f) => f.previousElementSibling?.classList.contains('li') && f.parentElement.id === 'faList' && !!f.previousElementSibling.querySelector('[data-fa-edit]')));
     await p.fill('#faName', 'Claritin (ทดสอบแก้)'); await p.click('#faSave'); await p.waitForTimeout(300);
     check('openFDA: บันทึกการแก้ไขฉลาก', (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'update')).pop()?.payload?.title === 'Claritin (ทดสอบแก้)');
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1700170')?.id);
@@ -1257,6 +1282,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.selectOption('#ddLevel', 'Major'); await p.waitForTimeout(100);
     await p.click('#ddList [data-dd-th]'); await p.waitForTimeout(6500);
     check('Drug interaction: ให้ AI แปลไทยทีละคู่', (await calls(p, (c) => c.rpc === 'ai_ddi_th_start')).length === 1 && (await text(p, '#ddList')).includes('ภาษาไทย (AI แปล)'));
+    { const y0 = await p.evaluate(() => scrollY);
+      await p.click('#ddList .li:nth-child(3) [data-dd-edit]'); await p.waitForTimeout(400);
+      const top = await p.$eval('#ddForm', (f) => f.getBoundingClientRect().top);
+      check('Drug interaction: กดแก้ไข → กล่องแก้ไขขยายใต้คู่นั้น ไม่เด้งขึ้นด้านบน', await p.$eval('#ddForm', (f) => f.parentElement.id === 'ddList' && f.previousElementSibling === document.querySelectorAll('#ddList > .li')[2]) && top > 0 && top < 900, JSON.stringify({ y0, y: await p.evaluate(() => scrollY), top }));
+      await p.click('#ddCancel'); await p.waitForTimeout(100);
+      check('Drug interaction: ยกเลิก → กล่องแก้ไขกลับที่เดิม (ซ่อน)', await p.$eval('#ddForm', (f) => f.hidden && f.parentElement.id !== 'ddList')); }
     await p.click('#ddList [data-dd-edit]'); await p.waitForTimeout(100);
     check('Drug interaction: แก้ไขเปิดข้อความไทย/อังกฤษ', await visible(p, '#ddForm') && (await p.inputValue('#ddDescTh')).includes('(ภาษาไทย)') && (await p.inputValue('#ddDesc')).length > 10);
     await p.fill('#ddDescTh', 'ยาสองตัวนี้ทำให้ระดับยาในเลือดสูงขึ้น'); await p.click('#ddSave'); await p.waitForTimeout(300);
@@ -1277,12 +1308,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/settings/delivery'); await p.waitForTimeout(400);
     check('ผู้ดูแล: จัดส่งยาถึงบ้านย้ายไปรวมกับ Health Rider', (await p.evaluate(() => location.hash)) === '#/admin/rider/delivery' && await visible(p, '[data-rider-sub="delivery"]') && !(await visible(p, '[data-rider-sub="rider"]')) && await count(p, '#arTabs [data-sub]') === 2);
     // ยา รพ.สต. ที่ยังไม่มีข้อมูลคำนวณ → ให้ AI ร่างขนาดยาจากฉลาก openFDA (ใช้ชื่อสามัญสหรัฐฯ) → ร่างซ่อนจนตรวจ
-    await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(400);
-    await p.click('#dfFromRpst'); await p.waitForTimeout(700); await p.click('#dfBulkStop'); await p.waitForTimeout(6000);
-    { const q = await p.evaluate(() => JSON.parse(localStorage.getItem('pcps_dose_queue') || '[]'));
-      const first = (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args?.p_name;
-      check('ขนาดยาจาก openFDA: ยารับประทาน รพ.สต. ที่ยังไม่มีข้อมูล เข้าคิว + ค้นด้วยชื่อสหรัฐฯ (เช่น albuterol)', q.length >= 20 && q.some((x) => x.name === 'Salbutamol sulfate' && x.q === 'albuterol sulfate') && !q.some((x) => /Paracetamol/.test(x.name)) && first === 'albendazole', JSON.stringify({ n: q.length, first })); }
-    await p.evaluate(() => localStorage.removeItem('pcps_dose_queue'));
+    check('ร่างจาก AI: ไม่มีปุ่ม "ดึงขนาดยาจาก openFDA ให้ยา รพ.สต. ที่ยังไม่มี" แล้ว (ระบบร่างให้เองอัตโนมัติ)', await count(p, '#dfFromRpst') === 0);
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(500);
     await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(150);
     check('ฐานข้อมูลยา (390px): ไม่มี scroll แนวนอน', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));

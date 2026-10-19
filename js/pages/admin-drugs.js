@@ -57,6 +57,24 @@ function onPickInput() {
 }
 const secN = (k, n) => { const el = document.querySelector(`[data-adr-n="${k}"]`); if (el) el.textContent = pick ? `· ${n ? `พบ ${n} รายการ` : 'ไม่มีข้อมูลของยานี้'}` : ''; };
 
+/* ---- กล่องแก้ไขขยายใต้รายการที่กด (ไม่เด้งขึ้นไปด้านบน) · วาดรายการใหม่ = เก็บกล่องกลับที่เดิมก่อน แล้ววางใต้รายการเดิมอีกครั้ง ---- */
+const homes = new Map();
+function placeForm(form, row) {
+  if (!homes.has(form)) { const ph = document.createComment('ที่เดิมของฟอร์ม'); form.before(ph); homes.set(form, ph); }
+  row.after(form); form.classList.add('inline-edit');
+}
+function parkForm(form) { const ph = homes.get(form); if (ph && form.previousSibling !== ph) ph.after(form); form.classList.remove('inline-edit'); }
+/** เปิดฟอร์มใต้แถวของรายการ (มีแถวในหน้า) หรือที่เดิมด้านบน + เลื่อนไป (ไม่มีแถว เช่น มาจากหน้าข้อมูลยา) */
+function showForm(form, list, sel, focus) {
+  form.hidden = false;
+  const row = list.querySelector(sel)?.closest('.li');
+  if (row) placeForm(form, row); else { parkForm(form); form.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  focus?.focus({ preventScroll: !!row });
+}
+function closeForm(form) { form.hidden = true; parkForm(form); }
+/** หลังวาดรายการใหม่: กล่องที่เปิดอยู่กลับไปอยู่ใต้แถวเดิม */
+function keepForm(form, list, sel) { if (form.hidden || !sel) return; const row = list.querySelector(sel)?.closest('.li'); if (row) placeForm(form, row); }
+
 /** มาจากปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา → เปิดฟอร์มของรายการนั้น */
 function openPending() {
   let key = null;
@@ -135,15 +153,15 @@ function bind() {
   $('#ddMore').addEventListener('click', () => { ddShown += 50; renderDd(); });
   $('#ddList').addEventListener('click', onDdList);
   $('#ddForm').addEventListener('submit', saveDd);
-  $('#ddCancel').addEventListener('click', () => { $('#ddForm').hidden = true; editDd = null; });
+  $('#ddCancel').addEventListener('click', () => { closeForm($('#ddForm')); editDd = null; });
   $('#faThStop').addEventListener('click', () => { thStop = true; });
   ['#ldName', '#ldUnit'].forEach((x) => $(x).addEventListener('input', strHint));
   $('#ldIngs').addEventListener('input', strHint);
   $('#ldIngAdd').addEventListener('click', () => { $('#ldIngs').insertAdjacentHTML('beforeend', ingRow()); ingRows(); $('#ldIngs').lastElementChild.querySelector('.r-n').focus(); });
   $('#ldIngs').addEventListener('click', (e) => { const b = e.target.closest('[data-ing-rm]'); if (!b) return; b.closest('.ld-ing-row').remove(); if (!$('#ldIngs').children.length) $('#ldIngs').innerHTML = ingRow(); ingRows(); });
-  $('#faCancel').addEventListener('click', () => { $('#faForm').hidden = true; editFda = null; });
+  $('#faCancel').addEventListener('click', () => { closeForm($('#faForm')); editFda = null; });
   $('#dmNew').addEventListener('click', () => openMonoForm(null));
-  $('#dmCancel').addEventListener('click', () => { $('#dmForm').hidden = true; editMono = null; });
+  $('#dmCancel').addEventListener('click', () => { closeForm($('#dmForm')); editMono = null; });
   $('#dmForm').addEventListener('submit', saveMono);
   $('#dmQ').addEventListener('input', () => { dmShown = 30; renderMonos(); });
   $('#dmMore').addEventListener('click', () => { dmShown += 50; renderMonos(); });
@@ -154,6 +172,7 @@ function bind() {
 function linkNames(refs) { return [...new Set((refs || []).map((r) => byRef(r)?.name || r))]; }
 function renderLocals() {
   const q = $('#ldQ').value.trim().toLowerCase(), f = $('#ldFilter').value;
+  parkForm($('#ldForm'));
   const list = pick ? locals.filter((l) => l.id === pick.id) : locals.filter((l) => (!q || [l.name, l.code, l.category, ...linkNames(l.mono_refs)].join(' ').toLowerCase().includes(q))
     && (f === 'all' || (f === 'unlinked' ? !(l.mono_refs || []).length : !l.active)));
   $('#ldCount').textContent = `(${locals.length})`; secN('local', list.length);
@@ -166,6 +185,7 @@ function renderLocals() {
       + `${l.active ? '' : '<div class="meta"><span class="chip c-off">ซ่อน</span></div>'}</div>`
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-ld-edit="${l.id}">แก้ไข</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-ld-del="${l.id}">ลบ</button></div></div>`).join('');
+  keepForm($('#ldForm'), $('#ldList'), editLocal && `[data-ld-edit="${editLocal.id}"]`);
 }
 /* ---- สารสำคัญ · ความแรง · ข้อมูลคำนวณขนาดยา: แถวละ 1 สาร (ยาเดี่ยว 1 แถว → strength + dose_id · ยาสูตรผสม ≥ 2 แถว → ingredients[] พร้อม dose_id รายสาร) ---- */
 const UNITS = [['mg|tab', 'มก./เม็ด'], ['mg|5ml', 'มก./5 มล.'], ['mg|ml', 'มก./มล.'], ['mcg|tab', 'mcg/เม็ด'], ['mcg|ml', 'mcg/มล.']];
@@ -235,6 +255,7 @@ function resetLocal() {
   $('#ldDdi').value = ''; fillIngs(null);
   $('#ldSubmit').textContent = 'เพิ่มยา'; $('#ldCancel').hidden = true; $('#ldMsg').textContent = '';
   renderLinks(); renderPick();
+  parkForm($('#ldForm'));
 }
 function editLocalForm(l) {
   editLocal = l; links = [...(l.mono_refs || [])];
@@ -244,7 +265,7 @@ function editLocalForm(l) {
   $('#ldDdi').value = (l.ddi_ids || []).map((i) => ddDrugs.find((d) => d.id === i)?.name || i).join(', '); $('#ldSort').value = l.sort; $('#ldActive').checked = l.active;
   $('#ldSubmit').textContent = 'บันทึกการแก้ไข'; $('#ldCancel').hidden = false; $('#ldMsg').textContent = '';
   renderLinks();
-  $('#ldForm').scrollIntoView({ block: 'start', behavior: 'smooth' }); $('#ldName').focus();
+  showForm($('#ldForm'), $('#ldList'), `[data-ld-edit="${l.id}"]`, $('#ldName'));   // ขยายใต้ยาที่กด
 }
 async function saveLocal(e) {
   e.preventDefault();
@@ -286,12 +307,14 @@ function renderMonos() {
   const list = pick ? monos.filter((m) => (pick.mono_refs || []).includes(m.ref)) : monos.filter((m) => !q || [m.name, m.group_name, m.sub_name, m.sub_code].join(' ').toLowerCase().includes(q));
   secN('nlem', list.length);
   $('#dmCount').textContent = `(${monos.length})`;
+  parkForm($('#dmForm'));
   $('#dmList').innerHTML = !monos.length ? '<p class="empty">ยังไม่มีข้อมูลยา</p>' : !list.length ? `<p class="empty">${pick ? 'ยานี้ยังไม่ผูกกับบัญชียาหลัก · ผูกได้ที่ฟอร์มยา รพ.สต. (ช่อง "ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้")' : 'ไม่พบข้อมูลยาที่ค้นหา'}</p>`
     : list.slice(0, dmShown).map((m) => `<div class="li"><div class="l"><b>${esc(m.name)}</b>`
       + `<span class="small muted">กลุ่มยา ${m.group_no} ${esc(m.group_name)} › ${esc(m.sub_code)} ${esc(m.sub_name)}</span>`
       + `<span class="small muted">${(m.forms || []).map((f) => esc([f.form, f.acct].filter(Boolean).join(' · '))).join(' / ')}${(m.sections || []).length ? ` · ${(m.sections || []).map((x) => esc(x.title)).join(', ')}` : ''}</span></div>`
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-dm-edit="${m.id}">แก้ไข</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-dm-del="${m.id}">ลบ</button></div></div>`).join('');
+  keepForm($('#dmForm'), $('#dmList'), editMono && `[data-dm-edit="${editMono.id}"]`);
   $('#dmMore').hidden = list.length <= dmShown;
   if (list.length > dmShown) $('#dmMore').textContent = `แสดงเพิ่ม (เหลืออีก ${list.length - dmShown} รายการ)`;
 }
@@ -318,8 +341,9 @@ function openMonoForm(m) {
   $('#dmName').value = m?.name || ''; $('#dmGroupNo').value = m?.group_no ?? ''; $('#dmGroup').value = m?.group_name || '';
   $('#dmSubCode').value = m?.sub_code || ''; $('#dmSub').value = m?.sub_name || '';
   $('#dmForms').value = formsText(m?.forms); $('#dmFlags').value = (m?.flags || []).join(', '); $('#dmSections').value = sectionsText(m?.sections);
-  $('#dmMsg').textContent = ''; $('#dmForm').hidden = false;
-  $('#dmForm').scrollIntoView({ block: 'start', behavior: 'smooth' }); $('#dmName').focus();
+  $('#dmMsg').textContent = '';
+  if (m) showForm($('#dmForm'), $('#dmList'), `[data-dm-edit="${m.id}"]`, $('#dmName'));
+  else { parkForm($('#dmForm')); $('#dmForm').hidden = false; $('#dmForm').scrollIntoView({ block: 'start', behavior: 'smooth' }); $('#dmName').focus(); }
 }
 async function saveMono(e) {
   e.preventDefault();
@@ -337,7 +361,7 @@ async function saveMono(e) {
   busy(btn, false);
   if (error) { toast(errText(error), 'err'); return; }
   toast(editMono ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มข้อมูลยาแล้ว'); changed();
-  $('#dmForm').hidden = true; editMono = null;
+  closeForm($('#dmForm')); editMono = null;
   loadMonos();
 }
 async function onMonoList(e) {
@@ -477,12 +501,14 @@ function renderFdas() {
   secN('fda', list.length);
   const used = (k) => locals.filter((l) => l.fda_key === k).length;
   $('#faCount').textContent = `(${fdas.length})`;
+  parkForm($('#faForm'));
   $('#faList').innerHTML = !fdas.length ? '<p class="empty">ยังไม่มีฉลากยา</p>' : !list.length ? `<p class="empty">${pick ? 'ยานี้ยังไม่ผูกฉลาก openFDA · ดึงฉลากด้านบน แล้วผูกที่ฟอร์มยา รพ.สต.' : 'ไม่พบฉลากที่ค้นหา'}</p>`
     : list.map((f) => `<div class="li"><div class="l"><b>${esc(f.title)}</b><span class="small muted">${esc(f.generic)} · ${esc(f.route)}${f.brand ? ` · ${esc(f.brand)}` : ''} · ${(f.sections || []).length} หัวข้อ${f.effective ? ` · ฉลาก ${esc(f.effective)}` : ''}</span>`
       + `<span class="small ${used(f.key) ? 'muted' : ''}">${used(f.key) ? `ผูกกับยา รพ.สต. ${used(f.key)} รายการ` : '<span class="chip c-off">ยังไม่ผูกกับยา รพ.สต.</span>'}</span>`
       + `<div class="meta">${f.sections_th?.length ? `<span class="chip ${f.th_reviewed ? 'c-on' : 'c-role'}">${f.th_reviewed ? 'ภาษาไทย · ตรวจแล้ว' : 'ภาษาไทย (AI แปล)'}</span>` : f.th_status === 'pending' ? '<span class="chip c-off">AI กำลังแปล…</span>' : '<span class="chip c-off">ยังไม่มีภาษาไทย</span>'}${f.th_status === 'error' && f.th_note ? `<span class="small ai-err">${esc(f.th_note)}</span>` : ''}</div></div>`
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-fa-th="${f.id}">${f.sections_th?.length ? 'AI แปลใหม่' : 'ให้ AI แปลไทย'}</button><button type="button" class="btn btn-o btn-sm" data-fa-refresh="${f.id}">ดึงใหม่</button><button type="button" class="btn btn-o btn-sm" data-fa-edit="${f.id}">แก้ไข</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-fa-del="${f.id}">ลบ</button></div></div>`).join('');
+  keepForm($('#faForm'), $('#faList'), editFda && `[data-fa-edit="${editFda.id}"]`);
 }
 async function onFdaList(e) {
   const b = e.target.closest('[data-fa-refresh],[data-fa-edit],[data-fa-del],[data-fa-th]'); if (!b) return;
@@ -508,7 +534,7 @@ function openFdaForm(f) {
   editFda = f; $('#faTitle').textContent = `แก้ไขฉลาก: ${f.title}`; $('#faName').value = f.title;
   $('#faSections').value = sectionsText((f.sections || []).map((x) => ({ title: x.title, body: [x.body] })));
   $('#faSectionsTh').value = sectionsText(f.sections_th || []);
-  $('#faForm').hidden = false; $('#faForm').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  showForm($('#faForm'), $('#faList'), `[data-fa-edit="${f.id}"]`, $('#faSectionsTh'));
 }
 /** ให้ AI แปล/เรียบเรียงฉลาก 1 ฉลากเป็นภาษาไทย (60_drug_calc_th.sql · ai_fda_th_start/poll) */
 async function translate(f) {
@@ -553,7 +579,7 @@ async function saveFda(e) {
   const { error } = await sb.from('drug_fda_labels').update({ title: $('#faName').value.trim() || editFda.title, sections, sections_th: th.length ? th : null, th_reviewed: th.length > 0, updated_at: new Date().toISOString() }).eq('id', editFda.id);
   busy(btn, false);
   if (error) { toast(errText(error), 'err'); return; }
-  toast('บันทึกฉลากแล้ว'); changed(); $('#faForm').hidden = true; editFda = null; loadFdas();
+  toast('บันทึกฉลากแล้ว'); changed(); closeForm($('#faForm')); editFda = null; loadFdas();
 }
 
 /* ======================= Drug interaction (DDInter) ======================= */
@@ -573,12 +599,14 @@ function renderDd() {
   const list = ddPairs.filter((p) => (lv === 'all' || p.level === lv) && (ids ? ids.includes(p.a) || ids.includes(p.b) : !q || `${ddName(p.a)} ${ddName(p.b)}`.toLowerCase().includes(q)));
   secN('ddi', list.length);
   $('#ddCount').textContent = `(${ddPairs.length} คู่ · แปลไทยแล้ว ${ddPairs.filter((p) => p.description_th).length})`;
+  parkForm($('#ddForm'));
   $('#ddList').innerHTML = !ddPairs.length ? '<p class="empty">ยังไม่มีข้อมูล drug interaction</p>' : !list.length ? `<p class="empty">${pick ? (ids.length ? 'ยานี้ไม่มีคู่ interaction กับยา รพ.สต. อื่น' : 'ยานี้ยังไม่ผูกกับยาใน DDInter · ผูกได้ที่ฟอร์มยา รพ.สต.') : 'ไม่พบคู่ยาที่ค้นหา'}</p>`
     : list.slice(0, ddShown).map((p) => `<div class="li"><div class="l"><b>${esc(ddName(p.a))} × ${esc(ddName(p.b))}</b>`
       + `<span class="small muted">${esc(p.level)} · ${esc((p.mech || []).join(', ') || '-')}</span>`
       + `<div class="meta">${p.description_th ? `<span class="chip ${p.th_reviewed ? 'c-on' : 'c-role'}">${p.th_reviewed ? 'ภาษาไทย · ตรวจแล้ว' : 'ภาษาไทย (AI แปล)'}</span>` : '<span class="chip c-off">ยังไม่มีภาษาไทย</span>'}${p.th_status === 'error' && p.th_note ? `<span class="small ai-err">${esc(p.th_note)}</span>` : ''}</div></div>`
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-dd-th="${p.id}">${p.description_th ? 'AI แปลใหม่' : 'ให้ AI แปลไทย'}</button><button type="button" class="btn btn-o btn-sm" data-dd-edit="${p.id}">แก้ไข</button>`
       + `<button type="button" class="btn btn-no btn-sm" data-dd-del="${p.id}">ลบ</button></div></div>`).join('');
+  keepForm($('#ddForm'), $('#ddList'), editDd && `[data-dd-edit="${editDd.id}"]`);
   $('#ddMore').hidden = list.length <= ddShown;
   if (list.length > ddShown) $('#ddMore').textContent = `แสดงเพิ่ม (เหลืออีก ${list.length - ddShown} คู่)`;
 }
@@ -617,7 +645,7 @@ async function ddThAll() {
 function openDdForm(p) {
   editDd = p; $('#ddTitle').textContent = `แก้ไข: ${ddName(p.a)} × ${ddName(p.b)}`; $('#ddLv').value = p.level;
   $('#ddDescTh').value = p.description_th || ''; $('#ddMgmtTh').value = p.management_th || ''; $('#ddDesc').value = p.description || ''; $('#ddMgmt').value = p.management || '';
-  $('#ddForm').hidden = false; $('#ddForm').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  showForm($('#ddForm'), $('#ddList'), `[data-dd-edit="${p.id}"]`, $('#ddDescTh'));
 }
 async function onDdList(e) {
   const b = e.target.closest('[data-dd-th],[data-dd-edit],[data-dd-del]'); if (!b) return;
@@ -644,5 +672,5 @@ async function saveDd(e) {
   const { error } = await sb.from('ddi_pairs').update(row).eq('id', editDd.id);
   busy(btn, false);
   if (error) { toast(errText(error), 'err'); return; }
-  toast('บันทึกแล้ว'); changed(); $('#ddForm').hidden = true; editDd = null; loadDdi();
+  toast('บันทึกแล้ว'); changed(); closeForm($('#ddForm')); editDd = null; loadDdi();
 }

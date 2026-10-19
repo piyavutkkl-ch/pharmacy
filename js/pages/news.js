@@ -34,6 +34,19 @@ function cover(n) {
     : art(n.tag);
 }
 
+/** รูปในสไลด์: แนวนอน = พอดีกรอบ (contain) + พื้นหลังเป็นรูปเดียวกันแบบเบลอ · แนวตั้ง = เต็มกรอบ (cover) เลื่อนช้า ๆ บน→ล่าง หรือ ล่าง→บน (สุ่ม) */
+function slideCover(path) {
+  const src = esc(publicImageUrl(path));
+  return `<div class="sl-img"><img class="sl-bg" src="${src}" alt="" aria-hidden="true" loading="lazy"><img class="sl-fg" src="${src}" alt="" loading="lazy"></div>`;
+}
+function fitSlideImg(img) {
+  const box = img.closest('.sl-img'); if (!box || !img.naturalWidth) return;
+  const tall = img.naturalHeight > img.naturalWidth;
+  box.classList.remove('pan-down', 'pan-up');
+  box.classList.toggle('tall', tall); box.classList.toggle('wide', !tall);
+  if (tall) box.classList.add(Math.random() < 0.5 ? 'pan-down' : 'pan-up');
+}
+
 /* ---------- สไลด์ข่าวเด่น ---------- */
 let cur = 0, timer = null, paused = false;
 const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -64,12 +77,14 @@ export function renderSlides(list, achs = []) {
   slides.innerHTML = all.map((x, i) => {
     const aria = `aria-roledescription="slide" aria-label="${i + 1} จาก ${all.length}: ${esc(label(x))}"`;
     if (x.empty) return `<div class="slide" ${aria}><div class="art">${art('')}</div><div class="cap"><span class="tag">ข่าว</span><b>ยังไม่มีข่าวประชาสัมพันธ์</b><span class="d">ข่าวที่ผู้ดูแลเผยแพร่จะแสดงที่นี่</span></div></div>`;
-    if (x.ach) { const a = x.ach; return `<a class="slide slide-ach" href="#/achievement/${esc(a.id)}" ${aria}><div class="art">${a.image_path ? cover({ image_path: a.image_path }) : art('รายงาน')}</div><div class="cap"><span class="tag">ผลงาน รพ.สต.</span><b>${esc(a.title)}</b><span class="d num">${esc(thaiDate(a.created_at))}</span></div></a>`; }
+    if (x.ach) { const a = x.ach; return `<a class="slide slide-ach" href="#/achievement/${esc(a.id)}" ${aria}><div class="art">${a.image_path ? slideCover(a.image_path) : art('รายงาน')}</div><div class="cap"><span class="tag">ผลงาน รพ.สต.</span><b>${esc(a.title)}</b><span class="d num">${esc(thaiDate(a.created_at))}</span></div></a>`; }
     const n = x.news;
-    return `<a class="slide" href="#/news/${n.id}" ${aria}><div class="art">${cover(n)}</div><div class="cap"><span class="tag">${esc(n.tag)}</span><b>${esc(n.title)}</b><span class="d num">${esc(thaiDate(n.published_at))}</span></div></a>`;
+    return `<a class="slide" href="#/news/${n.id}" ${aria}><div class="art">${n.image_path ? slideCover(n.image_path) : art(n.tag)}</div><div class="cap"><span class="tag">${esc(n.tag)}</span><b>${esc(n.title)}</b><span class="d num">${esc(thaiDate(n.published_at))}</span></div></a>`;
   }).join('');
   dots.innerHTML = all.map((_, i) => `<button type="button" data-dot="${i}" aria-label="สไลด์ที่ ${i + 1}"></button>`).join('');
   if (cur >= all.length) cur = 0;
+  if (!slides.dataset.fit) { slides.dataset.fit = '1'; slides.addEventListener('load', (e) => { if (e.target.classList?.contains('sl-fg')) fitSlideImg(e.target); }, true); }   // รูปโหลดเสร็จ → แนวนอน/แนวตั้ง
+  slides.querySelectorAll('.sl-fg').forEach((img) => { if (img.complete) fitSlideImg(img); });
   mark();
 }
 function count() { return $('#slides').querySelectorAll('.slide').length; }

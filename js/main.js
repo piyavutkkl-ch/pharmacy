@@ -45,6 +45,16 @@ function message(title, body) {
   showView('message');
 }
 
+// กดปุ่มหัวข้อเดิมซ้ำ (เมนูไอคอนหน้าแรก / ปุ่มท้ายเว็บ) = ย่อปิดหัวข้อนั้น
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-panel-link]'); if (!a || $('[data-view="home"]').hidden) return;
+  const el = document.querySelector(`[data-panel="${a.dataset.panelLink}"]`);
+  if (!el || el.hidden) return;
+  e.preventDefault();
+  openPanel(null);
+  history.replaceState(null, '', '#/');
+});
+
 function openPanel(id, scrollTo = null) {
   HOME_PANELS.forEach((p) => {
     const el = document.querySelector(`[data-panel="${p}"]`);

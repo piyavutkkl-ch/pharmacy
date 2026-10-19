@@ -1142,3 +1142,18 @@ details[open] > summary::before{transform:rotate(90deg)}
 .trk-day h3{margin:0}
 /* ผลงาน (เจ้าหน้าที่/ผู้ดูแล): เว้นระยะระหว่างกล่องเพิ่มผลงาน กับ รายการผลงาน */
 #achWs{display:flex;flex-direction:column;gap:16px}
+/* สไลด์ข่าวเด่น: แนวนอน = พอดีกรอบ + พื้นหลังเบลอ · แนวตั้ง = เต็มกรอบ เลื่อนบน↔ล่าง (news.js slideCover/fitSlideImg) */
+.sl-img{position:relative;width:100%;height:100%;overflow:hidden;background:var(--primary-soft)}
+.sl-img img{position:absolute;inset:0;width:100%;height:100%;display:block}
+.sl-img .sl-bg{object-fit:cover;filter:blur(18px) saturate(1.1);transform:scale(1.15);opacity:0}
+.sl-img .sl-fg{object-fit:cover}
+.sl-img.wide .sl-bg{opacity:.85}
+.sl-img.wide .sl-fg{object-fit:contain}
+.sl-img.tall .sl-fg{object-fit:cover;object-position:50% 0}
+.sl-img.tall.pan-down .sl-fg{animation:slPanDown 14s ease-in-out infinite alternate}
+.sl-img.tall.pan-up .sl-fg{animation:slPanUp 14s ease-in-out infinite alternate}
+@keyframes slPanDown{from{object-position:50% 0}to{object-position:50% 100%}}
+@keyframes slPanUp{from{object-position:50% 100%}to{object-position:50% 0}}
+@media (prefers-reduced-motion:reduce){.sl-img.tall .sl-fg{animation:none!important;object-position:50% 30%}}
+/* กล่องแก้ไขที่ขยายใต้รายการที่กด (admin-drugs.js placeForm) */
+.inline-edit{margin:4px 0 12px;padding:16px;border:2px solid var(--primary);border-radius:14px;background:var(--surface)}

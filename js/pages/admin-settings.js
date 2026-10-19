@@ -107,7 +107,6 @@ export async function initDoseAdmin() {
     $('#dfHelpBtn').addEventListener('click', runDoseHelp);
     $('#dfBulkMake').addEventListener('click', makeBulk);
     $('#dfBulkAi').addEventListener('click', bulkAi);
-    $('#dfFromRpst').addEventListener('click', queueFromRpst);
     $('#dfBulkStop').addEventListener('click', () => { bulkStop = true; });
     $('#dfBulkClear').addEventListener('click', () => { if (confirm('ล้างรายการยาที่รอเพิ่มทั้งหมด?')) { bulk = []; bulkCur = -1; saveBulk(); renderBulk(); } });
     $('#dfBulkList').addEventListener('click', onBulk);
@@ -230,35 +229,6 @@ async function bulkAi() {
     msg.textContent = `เก็บเป็นร่างแล้ว ${saved} ยา${miss ? ` · ทำไม่ได้ ${miss} ยา (กด "เปิดในฟอร์ม" เพื่อกรอกเอง)` : ''}${bulkStop ? ' · หยุดแล้ว' : ''} · ร่างยังไม่แสดงในเครื่องคำนวณ ตรวจแล้วกด "ตรวจแล้ว · แสดง" ในรายการยา`;
     resetDose(); await reloadDrugs();
   }
-}
-
-/** ยารับประทานของ รพ.สต. (local_drugs) ที่ยังไม่มีข้อมูลคำนวณ → เข้าคิว แล้วให้ AI ร่างขนาดยาจากฉลาก openFDA (ชื่อสามัญสหรัฐฯ จากฉลากที่ผูกไว้) · ร่างซ่อนจนผู้ดูแลตรวจ */
-async function queueFromRpst() {
-  const btn = $('#dfFromRpst'); busy(btn, true, 'กำลังหายา…');
-  try {
-    const { data: ls, error } = await sb.from('local_drugs').select('name,category,mono_refs,fda_key,dose_id').eq('active', true).order('sort');
-    if (error) throw error;
-    const oral = ls.filter((l) => !l.dose_id && (l.mono_refs || []).length && /เม็ด|แคปซูล|น้ำรับประทาน|ผง|NCD|เรื้อรัง/.test(l.category));
-    const refs = [...new Set(oral.flatMap((l) => l.mono_refs))];
-    const { data: ms, error: e2 } = refs.length ? await sb.from('drug_monographs').select('ref,name').in('ref', refs) : { data: [] };
-    if (e2) throw e2;
-    const nameOf = new Map(ms.map((m) => [m.ref, m.name]));
-    const has = (name) => drugs.some((d) => keysOf(name).some((k) => sameDrug(k, latinOf(d.name))));
-    const want = new Map();
-    for (const l of oral) {
-      const name = nameOf.get(l.mono_refs[0]);
-      if (!name || has(name) || want.has(name)) continue;
-      want.set(name, l.fda_key ? l.fda_key.split('|')[0] : doseQuery(name));
-    }
-    const have = new Set(bulk.map((x) => keyOf(x.name)));
-    const add = [...want].filter(([n]) => !have.has(keyOf(n)));
-    add.forEach(([name, q]) => bulk.push({ name, q, st: 'wait' }));
-    saveBulk(); renderBulk(); $('#dfBulkFold').open = true;
-    if (!add.length) { say($('#dfBulkMsg'), 'ยารับประทานของ รพ.สต. ทุกตัวมีข้อมูลคำนวณแล้ว (หรืออยู่ในคิวแล้ว)', true); return; }
-    say($('#dfBulkMsg'), `เพิ่มยา รพ.สต. ${add.length} ตัวเข้าคิวแล้ว · AI กำลังร่างขนาดยาจากฉลาก openFDA…`, true);
-  } catch (err) { toast(errText(err), 'err'); return; }
-  finally { busy(btn, false); }
-  await bulkAi();
 }
 
 /** บันทึกยาสำเร็จ → ยาตัวในคิวที่เปิดอยู่ = เพิ่มแล้ว → เปิดตัวถัดไป */
