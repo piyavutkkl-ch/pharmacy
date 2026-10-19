@@ -170,7 +170,7 @@
       </div>
       <div class="form-grid three" id="doseRenalCalcWrap" hidden>
         <div class="field"><label for="doseRenalMethod">วิธีประเมิน</label><select id="doseRenalMethod" class="input"><option value="crcl">CrCl (Cockcroft-Gault)</option><option value="egfr">eGFR (CKD-EPI 2021 · เด็ก Schwartz)</option></select></div>
-        <div class="field"><label for="doseCr">Serum creatinine (มก./ดล.)</label><input id="doseCr" class="input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="เช่น 1.0"></div>
+        <div class="field"><label for="doseCr">Serum creatinine</label><div class="dose-age"><input id="doseCr" class="input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="เช่น 1.0"><select id="doseCrUnit" class="input" aria-label="หน่วย Serum creatinine"><option value="mg">มก./ดล.</option><option value="umol">µmol/L</option></select></div></div>
         <div class="field"><label for="doseCrClOut" id="doseCrClLbl">CrCl (Cockcroft-Gault)</label><input id="doseCrClOut" class="input" type="text" readonly tabindex="-1"></div>
       </div>
       <div id="doseResult" class="panel result-panel" aria-live="polite"></div>

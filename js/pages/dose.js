@@ -33,7 +33,7 @@ export async function initDose() {
   if (bound) return;
   bound = true;
   ['doseWeight', 'doseHeight', 'doseAge', 'doseCr'].forEach((id) => $('#' + id).addEventListener('input', render));
-  ['doseConc', 'doseRenal', 'doseSex', 'doseRenalMethod', 'doseAgeUnit'].forEach((id) => $('#' + id).addEventListener('change', render));
+  ['doseConc', 'doseRenal', 'doseSex', 'doseRenalMethod', 'doseAgeUnit', 'doseCrUnit'].forEach((id) => $('#' + id).addEventListener('change', render));
   $('#doseEst').addEventListener('click', (e) => { const b = e.target.closest('[data-use-weight]'); if (b) { $('#doseWeight').value = b.dataset.useWeight; render(); } });
   sel.addEventListener('change', () => { fillConc(); render(); });
   $('#doseRenalAdjust').addEventListener('change', () => { toggleRenal(); render(); });
@@ -131,9 +131,14 @@ const drng = (a, b) => rng(a, b, dpOf(b));
 const tooSmall = (hi, dp) => hi > 0 && +hi.toFixed(dp) === 0;
 const fig = (n, t) => `<div class="fig"><div class="n num">${n}</div><div class="t">${t}</div></div>`;
 
+/** ช่วงค่าที่เป็นไปได้ของข้อมูลผู้ป่วย (กันพิมพ์ผิด/ผิดหน่วย · ไม่ใช่เกณฑ์ขนาดยา · audit F-08) · Cr หน่วย มก./ดล. (µmol/L ÷ 88.4) */
+export const LIM = { wMin: 0.3, wMax: 300, ageMax: 120, hMin: 20, hMax: 250, crMin: 0.1, crMax: 20 };
+export const CR_UMOL = 88.4;
 /** การทำงานของไต: CrCl (Cockcroft-Gault ตาม MDCalc · ใส่ส่วนสูง = เลือกน้ำหนัก IBW/AdjBW ตาม BMI) หรือ eGFR (CKD-EPI 2021 · อายุ < 18 ปี = Bedside Schwartz) */
 export function kidney({ method, age, w, h, cr, female }) {
   if (!(cr > 0)) return { msg: 'กรอกค่า Serum creatinine' };
+  if (cr < LIM.crMin || cr > LIM.crMax) return { msg: `ค่า Serum creatinine นอกช่วงที่เป็นไปได้ (${LIM.crMin}–${LIM.crMax} มก./ดล. หรือ 9–1,768 µmol/L) · ถ้ากรอกเป็น µmol/L ให้เลือกหน่วย µmol/L` };
+  if (age > LIM.ageMax) return { msg: `อายุเกินช่วงที่สูตรใช้ได้ (ไม่เกิน ${LIM.ageMax} ปี) · กรุณาตรวจสอบอายุที่กรอก` };
   if (method === 'egfr') {
     if (age > 0 && age < 18) {
       if (!(h > 0)) return { msg: 'เด็กอายุต่ำกว่า 18 ปี ใช้สูตร Bedside Schwartz ต้องกรอกส่วนสูง' };
@@ -155,6 +160,7 @@ export function kidney({ method, age, w, h, cr, female }) {
     else { wt = adj; used = 'AdjBW (BMI ≥ 25)'; }
   }
   const v = ((140 - age) * wt * (female ? 0.85 : 1)) / (72 * cr);
+  if (!(v > 0) || !Number.isFinite(v)) return { msg: 'คำนวณ CrCl ไม่ได้จากข้อมูลที่กรอก · กรุณาตรวจสอบอายุ/น้ำหนัก/ส่วนสูง' };
   return { v, name: 'CrCl', unit: 'มล./นาที', note: `Cockcroft-Gault ใช้${used}${extra}${age < 18 ? ' · สูตรนี้ใช้กับผู้ใหญ่ (≥ 18 ปี) เด็กให้ใช้ eGFR' : ''}` };
 }
 
@@ -186,6 +192,13 @@ function render() {
   labelDose();
   if (!d) { out.innerHTML = '<p class="small muted">ยังไม่มีรายการยาที่มีข้อมูลขนาดยา</p>'; return; }
   if (!(w > 0)) { out.innerHTML = '<p class="small muted">กรอกน้ำหนักตัว (จำเป็น) และเลือกรายการยาเพื่อคำนวณ · อายุและส่วนสูงไม่บังคับ</p>'; return; }
+  {   // ค่านอกช่วงที่เป็นไปได้ → ไม่คำนวณ ให้ตรวจการกรอกก่อน (audit F-08)
+    const hh = +$('#doseHeight').value, ga0 = ageOf();
+    const bad = w < LIM.wMin || w > LIM.wMax ? `น้ำหนัก ${num(w)} กก. อยู่นอกช่วงที่เป็นไปได้ (${LIM.wMin}–${LIM.wMax} กก.) · กรุณาตรวจสอบน้ำหนักที่กรอก`
+      : ga0 && ga0.years > LIM.ageMax ? `อายุอยู่นอกช่วงที่เป็นไปได้ (0–${LIM.ageMax} ปี) · กรุณาตรวจสอบอายุและหน่วย (ปี/เดือน)`
+      : hh > 0 && (hh < LIM.hMin || hh > LIM.hMax) ? `ส่วนสูง ${num(hh)} ซม. อยู่นอกช่วงที่เป็นไปได้ (${LIM.hMin}–${LIM.hMax} ซม.) · กรุณาตรวจสอบส่วนสูงที่กรอก` : '';
+    if (bad) { out.innerHTML = `<p class="small fx-warn" data-input-range>${esc(bad)}</p>`; return; }
+  }
   const c = conc();
   /** ขนาดยาของข้อบ่งใช้ i สำหรับน้ำหนัก w */
   //   หน่วย mcg (เช่น levothyroxine): คิดเป็น mcg แล้วแปลงเป็น มก. (÷1000) ก่อนเทียบกับความแรงของยา (มก./เม็ด · มก./มล.)
@@ -257,7 +270,9 @@ function render() {
   const method = $('#doseRenalMethod').value;
   $('#doseCrClLbl').textContent = method === 'egfr' ? 'eGFR' : 'CrCl (Cockcroft-Gault)';
   if ($('#doseRenalAdjust').checked) {
-    const k = kidney({ method, age, w, h, cr: +$('#doseCr').value, female: $('#doseSex').value === 'f' });
+    const crIn = +$('#doseCr').value, umol = $('#doseCrUnit').value === 'umol', cr = umol ? crIn / CR_UMOL : crIn;
+    const k = kidney({ method, age, w, h, cr, female: $('#doseSex').value === 'f' });
+    if (umol && k.note) k.note = `Cr ${num(crIn)} µmol/L = ${cr.toFixed(2)} มก./ดล. · ${k.note}`;
     if (k.v != null && Number.isFinite(k.v)) {
       $('#doseCrClOut').value = `${k.v.toFixed(1)} ${k.unit}`;
       renal = k.v >= 60 ? 'normal' : k.v >= 30 ? 'mild' : k.v >= 10 ? 'moderate' : 'severe';
