@@ -190,15 +190,23 @@ function render() {
   };
   const doseCore = (i) => {
     const mcg = i.unit === 'mcg', U = mcg ? 'mcg' : 'มก.', k = mcg ? 1 / 1000 : 1;
-    let lo, hi, label;
+    let lo, hi, label, n = 1;
     if (i.per !== 'day') {
       lo = w * i.min; hi = w * i.max;
-      if (i.cap) { lo = Math.min(lo, i.cap); hi = Math.min(hi, i.cap); }
       label = 'ต่อครั้ง';
     } else {
-      const dayMin = w * i.min, dayMax = w * i.max, n = i.times || 1;
+      const dayMin = w * i.min, dayMax = w * i.max;
+      n = i.times || 1;
       lo = dayMin / n; hi = dayMax / n;
       label = n > 1 ? `ต่อครั้ง (แบ่งจากขนาดรวม ${rng(dayMin, dayMax, dayMax < 10 ? 1 : 0)} ${U}/วัน)` : 'ต่อวัน (วันละครั้ง)';
+    }
+    // ขนาดสูงสุดต่อครั้ง (cap · หน่วยเดียวกับขนาดยา) ใช้ทั้งแบบต่อครั้งและแบบต่อวันที่แบ่งให้ · ถูกจำกัด = บอกขนาดตามน้ำหนักเดิม (audit F-02)
+    let capNote = '';
+    if (+i.cap > 0 && hi > +i.cap) {
+      const cap = +i.cap, rawLo = lo, rawHi = hi;
+      lo = Math.min(lo, cap); hi = cap;
+      capNote = `<p class="small fx-warn" data-capped>จำกัดที่ขนาดสูงสุด ${num(cap)} ${U}/ครั้ง · ขนาดตามน้ำหนักคือ ${rng(rawLo, rawHi, rawHi < 10 ? 1 : 0)} ${U}/ครั้ง`
+        + `${i.per === 'day' && n > 1 ? ` · รวมได้ไม่เกิน ${num(+(cap * n).toFixed(3))} ${U}/วัน` : ''}</p>`;
     }
     const minMg = lo * k, maxMg = hi * k;
     // ยาสูตรผสม: คิดจำนวนเม็ด/มล. จากปริมาณของสารสำคัญที่ใช้คิดขนาดยา (basis) + บอกปริมาณสารสำคัญทุกตัวที่ได้รับ
@@ -219,7 +227,7 @@ function render() {
     if (cc?.mgPer5ml) vol = fig(`${rng(minMg / cc.mgPer5ml * 5, maxMg / cc.mgPer5ml * 5, 1)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`);
     else if (cc?.mgPerMl) vol = fig(`${rng(minMg / cc.mgPerMl, maxMg / cc.mgPerMl, 2)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`);
     else if (cc?.mgPerTab) vol = fig(`${rng(minMg / cc.mgPerTab, maxMg / cc.mgPerTab, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`);
-    return fig(`${rng(lo, hi, hi < 10 ? 1 : 0)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${rng(minMg, maxMg, 3)} มก.)` : ''}`) + vol + combo;
+    return fig(`${rng(lo, hi, hi < 10 ? 1 : 0)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${rng(minMg, maxMg, 3)} มก.)` : ''}`) + capNote + vol + combo;
   };
   const inds = indsOf(d);
 

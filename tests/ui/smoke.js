@@ -186,6 +186,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.evaluate(async () => { const db = window.__db; db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9903); db.local_drugs.find((x) => x.code === '1010280').dose_id = null; });
       await p.fill('#doseWeight', '10'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
       check('ใต้ผลคำนวณ: ขนาดยาและวิธีใช้จากฉลากยา (openFDA) ของยาที่เลือก', (await text(p, '#doseLabel')).includes('ขนาดยาและวิธีใช้') && (await text(p, '#doseLabel')).includes('openFDA'), await text(p, '#doseLabel'));
+      { // audit F-02: ขนาดต่อวันที่แบ่งให้ต้องไม่เกินขนาดสูงสุดต่อครั้ง (cap) · 100 mcg/กก./วัน ÷ 2 × 10 กก. = 500 mcg/ครั้ง > cap 300
+        await p.evaluate(async () => { const d = window.__db.dose_drugs.find((x) => x.id === 9902); d.indications = [{ name: 'ทดสอบเพดาน', unit: 'mcg', per: 'day', min: 100, max: 100, times: 2, cap: 300 }];
+          const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
+        await p.fill('#doseWeight', '10'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
+        const t = await text(p, '#doseResult'), n = await p.$eval('#doseResult .fig .n', (e) => e.innerText).catch(() => '');
+        check('ขนาดต่อวันแบ่ง 2 ครั้ง ถูกจำกัดที่ขนาดสูงสุดต่อครั้ง 300 mcg (ตามน้ำหนัก 500) + บอกว่าถูกจำกัด + คิดเม็ดจาก 300 (3.00 เม็ด)',
+          n.trim() === '300 mcg' && t.includes('จำกัดที่ขนาดสูงสุด 300 mcg/ครั้ง') && t.includes('ขนาดตามน้ำหนักคือ 500 mcg/ครั้ง') && t.includes('รวมได้ไม่เกิน 600 mcg/วัน') && t.includes('3.00 เม็ด'), `${n} | ${t.slice(0, 300)}`);
+        await p.fill('#doseWeight', '5'); await p.waitForTimeout(200);
+        check('ขนาดต่ำกว่าเพดาน → ไม่ขึ้นข้อความจำกัด (250 mcg)', (await p.$eval('#doseResult .fig .n', (e) => e.innerText)).trim() === '250 mcg' && !(await p.$('#doseResult [data-capped]'))); }
       await p.evaluate(async () => { const db = window.__db; db.dose_drugs = db.dose_drugs.filter((x) => x.id !== 9902); db.local_drugs.find((x) => /THYROXINE/i.test(x.name)).dose_id = null; const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
       await p.fill('#doseAge', saved.age); await p.fill('#doseWeight', saved.w); await p.fill('#doseHeight', saved.h);
       if (saved.ren) { await p.check('#doseRenalAdjust'); await p.fill('#doseCr', saved.cr); }
