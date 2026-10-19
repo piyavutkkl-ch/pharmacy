@@ -25,6 +25,9 @@ export function indsProblem(inds) {
     if (i.times_alt != null && !(Array.isArray(i.times_alt) && i.times_alt.every(T))) return w + 'จำนวนครั้งแบบอื่นต้องเป็น 1–12';
     if (i.cap != null && !(typeof i.cap === 'number' && i.cap > 0)) return w + 'ขนาดสูงสุดต่อครั้งต้องเป็นตัวเลขมากกว่า 0';
     if (i.unit != null && !['mg', 'mcg'].includes(i.unit)) return w + 'หน่วยขนาดยาต้องเป็น มก. หรือ mcg';
+    if (i.cap_day != null && !(typeof i.cap_day === 'number' && i.cap_day > 0)) return w + 'ขนาดสูงสุดต่อวันต้องเป็นตัวเลขมากกว่า 0';
+    for (const k of ['age_min', 'age_max']) if (i[k] != null && !(typeof i[k] === 'number' && i[k] >= 0 && i[k] <= 120)) return w + 'ช่วงอายุต้องเป็นตัวเลข 0–120 ปี';
+    if (i.age_min != null && i.age_max != null && i.age_max <= i.age_min) return w + 'อายุสูงสุดต้องมากกว่าอายุต่ำสุด';
   }
   return null;
 }
@@ -45,8 +48,10 @@ export const asMg = (i, v) => (v == null ? null : i?.unit === 'mcg' ? +(v / 1000
 /** จำนวนครั้งที่แบ่งให้ต่อวัน — เลือกได้หลายแบบ (times = แบบที่ 1 · times_alt = แบบอื่น เช่น วันละ 1 หรือ 3 ครั้ง) */
 export const timesOf = (i) => [i.times, ...(i.times_alt || [])].map(Number).filter((n) => n >= 1);
 const parseTimes = (t) => [...new Set(String(t).split(/[,\s/หรือ]+/).map((x) => +x).filter((n) => Number.isInteger(n) && n >= 1 && n <= 12))].slice(0, 4);
-const perText = (i) => `${i.basis ? `[${i.basis}] ` : ''}${i.min ?? '?'}–${i.max ?? '?'} ${unitTh(i)}/กก./${i.per === 'day' ? 'วัน' + (timesOf(i).length ? ' แบ่ง ' + timesOf(i).join(' หรือ ') + ' ครั้ง' : '') : 'ครั้ง'}${i.cap ? ' · สูงสุด ' + i.cap + ` ${unitTh(i)}/ครั้ง` : ''}`;
+const perText = (i) => `${i.basis ? `[${i.basis}] ` : ''}${i.min ?? '?'}–${i.max ?? '?'} ${unitTh(i)}/กก./${i.per === 'day' ? 'วัน' + (timesOf(i).length ? ' แบ่ง ' + timesOf(i).join(' หรือ ') + ' ครั้ง' : '') : 'ครั้ง'}${i.cap_day ? ' · ไม่เกิน ' + i.cap_day + ` ${unitTh(i)}/วัน` : ''}${ageText(i) ? ' · ' + ageText(i) : ''}${i.cap ? ' · สูงสุด ' + i.cap + ` ${unitTh(i)}/ครั้ง` : ''}`;
 
+/** ช่วงอายุของข้อบ่งใช้ (ปี) เป็นข้อความ เช่น "อายุ 2–12 ปี" · ไม่ระบุ = '' */
+export const ageText = (i) => (i?.age_min != null && i?.age_max != null ? `อายุ ${i.age_min}–${i.age_max} ปี` : i?.age_min != null ? `อายุตั้งแต่ ${i.age_min} ปี` : i?.age_max != null ? `อายุไม่เกิน ${i.age_max} ปี` : '');
 function indBox(i = { per: 'dose' }, open = true) {
   const v = (k) => esc(i[k] ?? '');
   return `<details class="ind-box"${open ? ' open' : ''}><summary><span class="ind-sum"></span><button type="button" class="btn btn-no btn-sm" data-rmind>ลบ</button></summary><div class="form-grid">`
@@ -58,6 +63,9 @@ function indBox(i = { per: 'dose' }, open = true) {
     + `<div class="field full ind-mm"><div class="field"><label>ขนาดต่ำสุด (ต่อ กก.) <span class="req">*</span><input class="input i-min" type="number" inputmode="decimal" min="0" step="0.01" value="${v('min')}"></label></div>`
     + `<div class="field"><label>ขนาดสูงสุด (ต่อ กก.) <span class="req">*</span><input class="input i-max" type="number" inputmode="decimal" min="0" step="0.01" value="${v('max')}"></label></div></div>`
     + `<div class="field"><label>เพดานต่อครั้ง (หน่วยเดียวกัน)<input class="input i-cap" type="number" inputmode="decimal" min="0" step="0.1" value="${v('cap')}"></label></div>`
+    + `<div class="field"><label>ขนาดสูงสุดต่อวัน (หน่วยเดียวกัน)<input class="input i-capday" type="number" inputmode="decimal" min="0" step="0.1" value="${v('cap_day')}"></label></div>`
+    + `<div class="field full ind-mm"><div class="field"><label>ใช้กับอายุตั้งแต่ (ปี)<input class="input i-agemin" type="number" inputmode="decimal" min="0" max="120" step="0.1" placeholder="ไม่จำกัด" value="${v('age_min')}"></label></div>`
+    + `<div class="field"><label>ถึงอายุ (ปี)<input class="input i-agemax" type="number" inputmode="decimal" min="0" max="120" step="0.1" placeholder="ไม่จำกัด" value="${v('age_max')}"></label></div></div>`
     + `<div class="field"><label>ความถี่ (ข้อความ)<input class="input i-freq" maxlength="120" placeholder="เช่น ทุก 4–6 ชั่วโมง" value="${v('freq')}"></label></div>`
     + `<div class="field full"><label>ขนาดยาในโรคไต<textarea class="i-renal" rows="2" maxlength="1000">${v('renal')}</textarea></label></div>`
     + srcBlock(i) + '</div></details>';
@@ -90,12 +98,14 @@ function readInds(root = $('#dfInds')) {
   const out = [];
   root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value.trim(), n = `ข้อบ่งใช้ ${k + 1}`;
-    const i = { name: g('.i-name'), basis: g('.i-basis') || null, unit: g('.i-unit') === 'mcg' ? 'mcg' : null, per: g('.i-per'), min: num(g('.i-min')), max: num(g('.i-max')), times: parseTimes(g('.i-times'))[0] ?? null, times_alt: parseTimes(g('.i-times')).slice(1), cap: num(g('.i-cap')), freq: g('.i-freq') || null, renal: g('.i-renal') || null };
+    const i = { name: g('.i-name'), basis: g('.i-basis') || null, unit: g('.i-unit') === 'mcg' ? 'mcg' : null, per: g('.i-per'), min: num(g('.i-min')), max: num(g('.i-max')), times: parseTimes(g('.i-times'))[0] ?? null, times_alt: parseTimes(g('.i-times')).slice(1), cap: num(g('.i-cap')), freq: g('.i-freq') || null, renal: g('.i-renal') || null,
+      cap_day: num(b.querySelector('.i-capday')?.value.trim() ?? ''), age_min: num(b.querySelector('.i-agemin')?.value.trim() ?? ''), age_max: num(b.querySelector('.i-agemax')?.value.trim() ?? '') };
     const bad = (t) => { b.open = true; throw new Error(`${n}: ${t}`); };
     if (!i.name) bad('กรุณาใส่ชื่อข้อบ่งใช้');
     if (i.min == null || i.max == null || i.min < 0) bad('กรุณาใส่ขนาดยาต่ำสุดและสูงสุด (ต่อ กก.)');
     if (i.max < i.min) bad('ขนาดสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด');
     if (i.per === 'day' && !(i.times >= 1)) bad('ยาแบบ "ต่อวัน" ต้องระบุจำนวนครั้งที่แบ่งให้ต่อวัน');
+    { const why = indsProblem([Object.fromEntries(Object.entries(i).filter(([, x]) => x != null))]); if (why) bad(why.replace(/^ข้อบ่งใช้ 1: /, '')); }
     if (i.per !== 'day' || !i.times_alt.length) i.times_alt = null;
     if (i.per !== 'day') i.times = null;
     const q = b.querySelector('.i-quote')?.value.trim(), r = b.querySelector('.i-ref')?.value;   // ที่มาจาก AI (เก็บไว้ให้ตรวจย้อนหลัง)
