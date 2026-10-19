@@ -936,6 +936,7 @@ span.aq-ok{color:var(--success)}span.aq-bad{color:var(--error)}span.aq-warn{colo
 .ok-text{color:var(--success)}
 .dh-box{margin-top:8px;padding:12px;border:1px dashed var(--primary);border-radius:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .dh-box h3{margin:4px 0 0;font-size:15px}
+.dh-rej ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px;overflow-wrap:anywhere}
 .dh-pick{display:flex;flex-direction:column;gap:6px}
 .dh-pick label{display:flex;gap:8px;align-items:flex-start;min-height:32px;overflow-wrap:anywhere;font-weight:400}
 .dh-pick input{margin-top:3px;flex:none}

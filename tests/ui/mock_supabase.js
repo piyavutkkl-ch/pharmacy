@@ -517,9 +517,11 @@ function rpc(name, a = {}) {
       const row = { id: newId('ai_dose_drafts'), query: q, status: 'pending', polls: 0, note: nf ? 'ไม่พบยานี้ในฐานข้อมูล กรุณาตรวจตัวสะกดชื่อสามัญภาษาอังกฤษ' : null,
         _fake: nf ? { rx: [], label: null } : {
           rx: [`${q} 120 MG/5ML Oral Suspension`, `${q} 100 MG/ML Oral Solution`, `${q} 500 MG Oral Tablet`, `${q} 10 MG/ML Topical Cream`],
-          label: { brand: 'ตัวอย่าง', generic: q.toUpperCase(), effective: '20250101', dosage: 'Pediatric patients: 10 to 15 mg/kg every 4 to 6 hours as needed. Do not exceed 5 doses in 24 hours.' },
+          label: { brand: 'ตัวอย่าง', generic: q.toUpperCase(), effective: '20250101', dosage: 'Pediatric patients: 10 to 15 mg/kg every 4 to 6 hours as needed. Do not exceed 1000 mg per dose or 5 doses in 24 hours. Post-operative pain: 40 to 60 mg/kg/day in 4 divided doses.' },
           ai: [{ name: 'ลดไข้ แก้ปวด', per: 'dose', min: 10, max: 15, cap: 1000, freq: 'ทุก 4–6 ชั่วโมง เมื่อมีอาการ', quote: '10 to 15 mg/kg every 4 to 6 hours as needed' },
-            { name: 'ปวดหลังผ่าตัด', per: 'day', min: 40, max: 60, times: 4, freq: 'แบ่งให้วันละ 4 ครั้ง', quote: '40 to 60 mg/kg/day in 4 divided doses' }] } };
+            { name: 'ปวดหลังผ่าตัด', per: 'day', min: 40, max: 60, times: 4, freq: 'แบ่งให้วันละ 4 ครั้ง', quote: '40 to 60 mg/kg/day in 4 divided doses' }],
+          // 74_ai_dose_verify.sql: ข้อที่ตรวจกับฉลากไม่ผ่าน → ai_rejected + เหตุผล
+          ai_rejected: [{ name: 'ข้อที่ AI แต่งขึ้น', per: 'day', min: 90, max: 90, times: 3, quote: '90 mg/kg/day', why: 'ข้อความที่ AI อ้างไม่พบในฉลากยา' }] } };
       (db.ai_dose_drafts ||= []).push(row); return { data: row.id, error: null };
     }
     case 'ai_dose_poll': {

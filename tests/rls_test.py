@@ -1040,7 +1040,7 @@ check("other unit staff cannot change age (RLS → 0 rows)", "s1", "update patie
 print("== step 65: mcg/kg doses + drug search name ==")
 check("dose_query uses English name outside brackets", None, "select dose_query('Levothyroxine sodium (L-thyroxine sodium)') || '|' || dose_query('พาราเซตามอล (Paracetamol)')", eq("levothyroxine sodium|acetaminophen"))
 d3 = check("admin starts dose helper (levothyroxine)", "admin", "select ai_dose_start('levothyroxine sodium')", lambda o: o.strip().isdigit()).strip()
-LT = '{"results":[{"openfda":{"brand_name":["Synthroid"],"generic_name":["LEVOTHYROXINE SODIUM"]},"effective_time":"20250101","dosage_and_administration":["Pediatric: 10-15 mcg/kg/day once daily."]}]}'
+LT = '{"results":[{"openfda":{"brand_name":["Synthroid"],"generic_name":["LEVOTHYROXINE SODIUM"]},"effective_time":"20250101","dosage_and_administration":["Pediatric: 10-15 mcg/kg/day once daily. Adults: 2-3 mcg/kg/day."]}]}'
 run(f"insert into net._http_response(id,status_code,content) select rx_req, 200, '{{\"drugGroup\":{{}}}}' from ai_dose_drafts where id={d3}")
 run(f"insert into net._http_response(id,status_code,content) select fda_req, 200, $q${LT}$q$ from ai_dose_drafts where id={d3}")
 run(f"select ai_dose_poll({d3})", "admin")
@@ -1050,6 +1050,34 @@ run(f"""insert into net._http_response(id,status_code,content) select request_id
 check("AI result keeps unit mcg (also from quote when AI forgets)", "admin", f"select ai_dose_poll({d3})->'result'->'ai'", lambda o: o.count('"unit": "mcg"') == 2)
 run(f"update ai_dose_drafts set auto_name='Levothyroxine sodium (L-thyroxine sodium)', converted=false where id={d3}")
 check("auto draft: mcg kept in indications + old columns stored in mg", None, f"select ai_dose_convert({d3}); select (indications->0->>'unit') || ':' || mg_per_kg_min::text from dose_drugs where id=(select max(id) from dose_drugs)", lambda o: o.split()[-1] in ('mcg:0.010', 'mcg:0.0100', 'mcg:0.01', 'mcg:0.01000'))
+
+print("== step 74: AI dose answers verified against label (audit F-05) ==")
+VL = '{"results":[{"openfda":{"brand_name":["Testbrand"],"generic_name":["TESTCILLIN"]},"effective_time":"20250101","set_id":"t74","dosage_and_administration":["Pediatric patients: 25 mg/kg/day in divided doses every 12 hours. Do not exceed 500 mg per dose. Infants: 10 µg/kg once daily. Adults: 250 mg every 8 hours."]}]}'
+VAI = '{"indications":[' + ','.join([
+  '{"name":"ถูกต้อง","per":"day","min":25,"max":25,"times":2,"cap":500,"quote":"25 MG/KG/DAY in divided doses"}',
+  '{"name":"ไมโครกรัมถูก","unit":"mcg","per":"dose","min":10,"max":10,"quote":"10 µg/kg once daily"}',
+  '{"name":"แต่งข้อความ","per":"day","min":50,"max":50,"times":2,"quote":"50 mg/kg/day in divided doses"}',
+  '{"name":"หน่วยผิด","unit":"mg","per":"dose","min":10,"max":10,"quote":"10 µg/kg once daily"}',
+  '{"name":"เลขไม่ตรง","per":"day","min":20,"max":25,"times":2,"quote":"25 mg/kg/day in divided doses"}',
+  '{"name":"ไม่ใช่ต่อกก","per":"dose","min":250,"max":250,"quote":"Adults: 250 mg every 8 hours"}']) + ']}'
+v1 = check("admin starts dose helper (verify)", "admin", "select ai_dose_start('testcillin')", lambda o: o.strip().isdigit()).strip()
+run(f"insert into net._http_response(id,status_code,content) select rx_req, 200, '{{\"drugGroup\":{{}}}}' from ai_dose_drafts where id={v1}")
+run(f"insert into net._http_response(id,status_code,content) select fda_req, 200, $q${VL}$q$ from ai_dose_drafts where id={v1}")
+run(f"select ai_dose_poll({v1})", "admin")
+run(f"""insert into net._http_response(id,status_code,content) select request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${VAI}$q$))))))::text from ai_dose_drafts where id={v1}""")
+run(f"select ai_dose_poll({v1})", "admin")
+check("only items matching the label are kept (case/punctuation/µg tolerated)", None, f"select string_agg(e->>'name', ',' order by n) from ai_dose_drafts d, jsonb_array_elements(d.result->'ai') with ordinality t(e, n) where d.id={v1}", eq("ถูกต้อง,ไมโครกรัมถูก"))
+check("rejected items kept aside with Thai reasons", None, f"select string_agg((e->>'name') || '=' || (e->>'why'), ' | ' order by n) from ai_dose_drafts d, jsonb_array_elements(d.result->'ai_rejected') with ordinality t(e, n) where d.id={v1}",
+      lambda o: all(x in o for x in ['แต่งข้อความ=ข้อความที่ AI อ้างไม่พบในฉลากยา', 'หน่วยผิด=ฉลากเป็น mcg/กก. แต่ AI ระบุเป็น มก./กก.', 'เลขไม่ตรง=ตัวเลขขนาดยาไม่ตรงกับข้อความในฉลาก', 'ไม่ใช่ต่อกก=ข้อความที่อ้างไม่ใช่ขนาดยาต่อน้ำหนักตัว']))
+check("admin told how many were not used", "admin", f"select ai_dose_poll({v1})->>'note'", lambda o: 'ตรวจกับฉลากไม่ผ่าน 4 ข้อ' in o)
+check("max per dose not found in label → rejected · found → kept", None, """select concat_ws('|', public.dose_ai_item_problem('{"per":"day","min":25,"max":25,"times":2,"cap":900,"quote":"25 mg/kg/day"}', '{"dosage":"25 mg/kg/day. Do not exceed 500 mg per dose."}'), coalesce(public.dose_ai_item_problem('{"per":"day","min":25,"max":25,"times":2,"cap":500,"quote":"25 mg/kg/day"}', '{"dosage":"25 mg/kg/day. Do not exceed 500 mg per dose."}'), 'ok'))""", eq("ขนาดสูงสุดต่อครั้งที่ AI ระบุไม่พบในฉลาก|ok"))
+run("""insert into ai_dose_drafts(query, status, stage, auto_name, result) values ('t74auto','done','ai','TESTAUTO74',
+ '{"rx":[],"label":{"dosage":"Children: 30 mg/kg/day divided every 8 hours.","generic":"t74"},"ai":[{"name":"ok","per":"day","min":30,"max":30,"times":3,"quote":"30 mg/kg/day divided every 8 hours"},{"name":"bad","per":"day","min":60,"max":60,"times":3,"quote":"60 mg/kg/day"}]}')""")
+check("automatic drafts use only verified items", None, "select ai_dose_convert(id) from ai_dose_drafts where auto_name='TESTAUTO74'; select string_agg(e->>'name', ',') from dose_drugs d, jsonb_array_elements(d.indications) e where d.name='TESTAUTO74'", lambda o: o.splitlines()[-1].strip() == 'ok')
+run("""insert into ai_dose_drafts(query, status, stage, auto_name, result) values ('t74none','done','ai','TESTNONE74',
+ '{"rx":[],"label":{"dosage":"Children: 30 mg/kg/day.","generic":"t74"},"ai":[{"name":"bad","per":"day","min":60,"max":60,"times":3,"quote":"60 mg/kg/day"}]}')""")
+check("all items rejected → no draft created", None, "select ai_dose_convert(id) from ai_dose_drafts where auto_name='TESTNONE74'; select count(*) from dose_drugs where name='TESTNONE74'", lambda o: o.splitlines()[-1].strip() == '0')
+check("web cannot write AI results directly", "admin", "update ai_dose_drafts set result='{}' where auto_name='TESTNONE74' returning id", "deny")
 
 print("== step 66: combination drugs (ingredients + basis) ==")
 check("co-trimoxazole tab/susp have ingredients 400/80 · 200/40 per 5 ml", "anon", "select string_agg(ingredients->1->>'mg' || '/' || (ingredients->1->>'per'), ',' order by code) from local_drugs where code in ('1010280','1010290')", eq("80/tab,40/5ml"))

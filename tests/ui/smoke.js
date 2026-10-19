@@ -1139,6 +1139,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#dfName', 'พาราเซตามอล (Paracetamol)'); await p.click('#dfHelpBtn'); await p.waitForTimeout(3500);
     check('ช่วยกรอกยา: ชื่อไทย (อังกฤษ) → ค้นด้วยชื่อที่ฐานข้อมูลสหรัฐฯ ใช้ (acetaminophen)', (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args?.p_name === 'acetaminophen');
     check('ช่วยกรอกยา: ความแรงจาก RxNorm (ยาทาไม่เอา) + ขนาดยาที่ AI ร่างพร้อมข้อความอ้างอิงฉลาก + คำเตือนให้ตรวจ', await count(p, '#dfHelpConcs input') === 3 && (await text(p, '#dfHelpConcs')).includes('ยาน้ำ 120 มก./5 มล.') && await count(p, '#dfHelpInds input') === 2 && (await text(p, '#dfHelpInds')).includes('10 to 15 mg/kg') && (await text(p, '#dfHelpOut')).includes('ต้องตรวจ'));
+    check('ช่วยกรอกยา: ข้อที่ AI ตอบแต่ตรวจกับฉลากไม่ผ่าน → แสดงแยก + เหตุผล + เลือกใส่ฟอร์มไม่ได้ (audit F-05)',
+      (await text(p, '#dfHelpOut [data-ai-rejected] summary')).includes('ตรวจกับฉลากไม่ผ่าน 1 ข้อ') && (await p.$eval('#dfHelpOut [data-ai-rejected]', (d) => d.textContent)).includes('ข้อความที่ AI อ้างไม่พบในฉลากยา')
+      && !(await p.$('#dfHelpOut [data-ai-rejected] input')) && (await count(p, '#dfHelpInds input')) === 2);
     await p.check('#dfHelpConcs input[value="0"]'); await p.check('#dfHelpConcs input[value="1"]'); await p.click('[data-help="conc"]'); await p.waitForTimeout(150);
     { const rows = await p.$$eval('#dfConcs .med-row', (rs) => rs.map((r) => [r.querySelector('.c-label').value, r.querySelector('.c-mg').value, r.querySelector('.c-type').value].join('|')));
       check('ช่วยกรอกยา: ใส่ความแรงที่เลือกลงฟอร์ม (แทนแถวว่าง · หน่วยถูกต้อง) + รูปแบบยาน้ำ', rows.join(',') === 'ยาน้ำ 120 มก./5 มล.|120|liquid,ยาน้ำ 100 มก./มล.|100|ml' && (await p.inputValue('#dfForm2')) === 'ยาน้ำ', rows.join(',')); }

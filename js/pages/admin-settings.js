@@ -319,6 +319,7 @@ function renderHelp() {
     + (ai.length ? `<h3>ขนาดยาที่ AI ร่างจากฉลาก</h3><div class="dh-pick" id="dfHelpInds">${ai.map((i, k) => `<label><input type="checkbox" value="${k}" checked> <span><b>${esc(i.name)}</b> · ${esc(perText(i))}${i.freq ? ' · ' + esc(i.freq) : ''}${i.renal ? `<span class="small muted"> · โรคไต: ${esc(i.renal)}</span>` : ''}`
       + `${i.quote ? `<span class="small muted dh-quote">“${esc(i.quote)}”</span>` : ''}</span></label>`).join('')}</div>`
       + '<div><button type="button" class="btn btn-o btn-sm" data-help="ind">ใส่ข้อบ่งใช้ที่เลือกลงฟอร์ม</button></div>' : '')
+    + ((res.ai_rejected || []).length ? `<details class="dh-rej" data-ai-rejected><summary class="small">AI ตอบแต่ตรวจกับฉลากไม่ผ่าน ${res.ai_rejected.length} ข้อ · ไม่ใช้</summary><ul class="small">${res.ai_rejected.map((i) => `<li><b>${esc(i.name || '-')}</b> · ${esc(perText(i))} — <span class="ai-err">${esc(i.why || '')}</span>${i.quote ? ` <span class="muted">“${esc(i.quote)}”</span>` : ''}</li>`).join('')}</ul></details>` : '')
     + (lab?.dosage ? `<details><summary class="small">ข้อความขนาดยาจากฉลากต้นฉบับ (ภาษาอังกฤษ)</summary><p class="dh-label">${esc(lab.dosage)}</p></details>` : '')
     + '</div>';
   help.concs = concs;
