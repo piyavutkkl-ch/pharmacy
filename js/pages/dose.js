@@ -1,7 +1,7 @@
 // ข้อมูลยา / คำนวณขนาดยา — 4 ส่วน (#doseTabs): คำนวณขนาดยา · ข้อมูลยา · คำนวณสารน้ำ (fluid.js) · Drug interaction (ddi.js)
 //   คำนวณขนาดยา: อายุ/น้ำหนัก (บังคับ)/ส่วนสูง · รายชื่อยา = ยา รพ.สต. ที่มีข้อมูลคำนวณ (dose_drugs ผูกเอง local_drugs.dose_id หรือจับคู่ชื่อ) · ความแรง = ยา รพ.สต. (local_drugs.strength หรืออ่านจากชื่อ)
 //               ไต: CrCl Cockcroft-Gault (MDCalc · ส่วนสูง → IBW/AdjBW) หรือ eGFR CKD-EPI 2021 (เด็ก = Bedside Schwartz) · 60_drug_calc_th.sql
-//   ข้อมูลยา: ตัวกรองแหล่งข้อมูล #doseScope (ทั้งหมด / ยา รพ.สต. [ค่าเริ่ม] / บัญชียาหลัก) — รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql) · บัญชียาหลักแห่งชาติ 2569 (drug_monographs · 57)
+//   ข้อมูลยา: ตัวกรองแหล่งข้อมูล #doseScope (ทั้งหมด / ยา รพ.สต. [ค่าเริ่ม] / ยานอก รพ.สต. (local_drugs.outside · 81) / บัญชียาหลัก) — รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql) · บัญชียาหลักแห่งชาติ 2569 (drug_monographs · 57)
 //            ยา รพ.สต. ผูกกับ monograph ผ่าน local_drugs.mono_refs → drug_monographs.ref · ผู้ดูแลแก้ทั้งสองฐานใน ตั้งค่า › ฐานข้อมูลยา (admin-drugs.js)
 //            ฉลากยาสหรัฐฯ openFDA (drug_fda_labels · 59_fda_labels.sql) ผ่าน local_drugs.fda_key · ภาษาอังกฤษ
 //            ค้นหา/กรองหมวด → เลือกยา → กลุ่มยา รูปแบบยา บัญชี เงื่อนไข คำเตือน คำแนะนำ หมายเหตุ + ขนาดยาจากเครื่องคำนวณ (จับคู่ชื่ออังกฤษ)
@@ -84,7 +84,7 @@ function fillDrugs() {
   const sel = $('#doseDrug');
   calcList = drugs.map((d, k) => k).filter((k) => localsOf(k).length);
   if (!calcList.length && !litems.length) calcList = drugs.map((d, k) => k);   // ยังไม่มีรายการยา รพ.สต. = ใช้ทุกตัว
-  const waiting = litems.filter((it) => !it.dose.length && /เม็ด|แคปซูล|น้ำรับประทาน|ผง/.test(it.loc.category)).length;
+  const waiting = litems.filter((it) => !it.loc.outside && !it.dose.length && /เม็ด|แคปซูล|น้ำรับประทาน|ผง/.test(it.loc.category)).length;
   sel.innerHTML = calcList.length ? calcList.map((k) => `<option value="${k}">${esc(drugs[k].name)}</option>`).join('') : '<option value="">ยังไม่มีรายการยา</option>';
   $('#doseDrugNote').innerHTML = litems.length ? `รายการยาตามยา รพ.สต. ที่มีข้อมูลขนาดยาแล้ว ${calcList.length} รายการ${waiting ? ` · ยารับประทานอีก ${waiting} รายการรอข้อมูลขนาดยา` : ''}`
     + (waiting && isAdmin() ? ' · <a href="#/admin/drugs/ai">ตรวจร่างขนาดยาจาก AI</a>' : '') : '';
@@ -96,7 +96,7 @@ function fillConc(pick) {
   const k = +$('#doseDrug').value || 0, d = drug();
   const ls = localsOf(k).map((it) => ({ it, st: strengthOf(it.loc) }));
   const known = ls.filter((x) => x.st);
-  const opts = known.map((x) => `<option value="l:${litems.indexOf(x.it)}">${esc(x.it.loc.name)} · ${esc(mgText(x.st))}${x.it.auto ? ' · จับคู่ตามชื่อ' : ''}</option>`)
+  const opts = known.map((x) => `<option value="l:${litems.indexOf(x.it)}">${esc(x.it.loc.name)} · ${esc(mgText(x.st))}${x.it.loc.outside ? ' · ยานอก รพ.สต.' : ''}${x.it.auto ? ' · จับคู่ตามชื่อ' : ''}</option>`)
     + ls.filter((x) => !x.st).map((x) => `<option disabled>${esc(x.it.loc.name)} · ${comboName(x.it.loc.name) ? 'ยาสูตรผสม รอผู้ดูแลกรอกสารสำคัญแต่ละตัว' : 'ยังไม่ระบุความแรง'}</option>`).join('');
   const fallback = !known.length ? (d?.concs || []).map((c, i) => `<option value="c:${i}">${esc(c.label)} (ความแรงทั่วไป)</option>`).join('') : '';
   $('#doseConc').innerHTML = (Array.isArray(opts) ? opts.join('') : opts) + fallback;
@@ -415,30 +415,33 @@ async function loadInfo() {
 }
 /** ตัวกรองหมวด: l:<หมวดยา รพ.สต.> · n:<เลขกลุ่มยาในบัญชียาหลัก> — ตามแหล่งข้อมูลที่เลือก */
 function fillGroups() {
-  const lc = [...new Set(litems.map((it) => it.loc.category))].map((c) => [`l:${c}`, c]);
+  const lc = [...new Set(litems.filter(inScope).map((it) => it.loc.category))].map((c) => [`l:${c}`, c]);
   const ng = [...new Map(monos.map((m) => [m.group_no, m.group_name]))].sort((a, b) => a[0] - b[0]).map(([n, g]) => [`n:${n}`, `กลุ่มยา ${n} ${g}`]);
   const opt = (o) => o.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('');
-  $('#doseInfoGroupLbl').textContent = { local: 'หมวดยา', nlem: 'กลุ่มยา' }[scope] || 'หมวด / กลุ่มยา';
-  $('#doseInfoGroup').innerHTML = '<option value="all">ทั้งหมด</option>' + (scope === 'local' ? opt(lc) : scope === 'nlem' ? opt(ng)
+  $('#doseInfoGroupLbl').textContent = { local: 'หมวดยา', outside: 'หมวดยา', nlem: 'กลุ่มยา' }[scope] || 'หมวด / กลุ่มยา';
+  $('#doseInfoGroup').innerHTML = '<option value="all">ทั้งหมด</option>' + (scope === 'local' || scope === 'outside' ? opt(lc) : scope === 'nlem' ? opt(ng)
     : `<optgroup label="ยา รพ.สต.">${opt(lc)}</optgroup><optgroup label="บัญชียาหลักแห่งชาติ">${opt(ng)}</optgroup>`);
 }
 const acctChips = (forms) => [...new Set((forms || []).map((f) => f.acct).filter(Boolean))]
   .map((a) => `<span class="chip c-role" title="${esc(ACCT[a] || a)}">${esc(a)}</span>`).join('');
 
+/** ยา รพ.สต. / ยานอก รพ.สต. ตามแหล่งข้อมูลที่เลือก (ทั้งหมด = ทั้งสอง) */
+const inScope = (it) => (scope === 'outside' ? !!it.loc.outside : scope === 'local' ? !it.loc.outside : true);
 function renderList() {
   const box = $('#doseInfoList');
   if (!items) return;
   const q = $('#doseInfoQ').value.trim().toLowerCase(), g = $('#doseInfoGroup').value;
   const hit = (it) => !q || it.q.includes(q);
-  const lList = scope === 'nlem' || g.startsWith('n:') ? [] : litems.filter((it) => hit(it) && (g === 'all' || it.loc.category === g.slice(2)));
-  const nList = scope === 'local' || g.startsWith('l:') ? [] : items.filter((it) => hit(it) && (g === 'all' || it.rows.some((r) => `n:${r.group_no}` === g)));
+  const lList = scope === 'nlem' || g.startsWith('n:') ? [] : litems.filter((it) => inScope(it) && hit(it) && (g === 'all' || it.loc.category === g.slice(2)))
+    .sort((a, b) => !!a.loc.outside - !!b.loc.outside);   // ทั้งหมด: ยา รพ.สต. ก่อน แล้วยานอก รพ.สต.
+  const nList = scope === 'local' || scope === 'outside' || g.startsWith('l:') ? [] : items.filter((it) => hit(it) && (g === 'all' || it.rows.some((r) => `n:${r.group_no}` === g)));
   const total = lList.length + nList.length;   // ยา รพ.สต. แสดงครบ · บัญชียาหลักทีละ 40
   $('#doseInfoN').textContent = total ? `พบ ${total} รายการ · กดชื่อยาเพื่อดูข้อมูล` : '';
   const chipsOf = (it) => (it.rows.length ? acctChips(it.rows.flatMap((x) => x.forms)) : '') + (it.calc.some(inCalc) ? '<span class="chip c-on">คำนวณขนาดยาได้</span>' : '');
   let cat = null;
   const lHtml = lList.map((it) => {
-    const l = it.loc, head = l.category !== cat ? `<h3 class="di-cat">${scope === 'all' ? 'ยา รพ.สต. · ' : ''}${esc(l.category)}</h3>` : '';
-    cat = l.category;
+    const l = it.loc, c = `${l.outside ? 'ยานอก รพ.สต. · ' : scope === 'all' ? 'ยา รพ.สต. · ' : ''}${l.category}`, head = c !== cat ? `<h3 class="di-cat">${esc(c)}</h3>` : '';
+    cat = c;
     const pack = [l.code && `รหัส ${l.code}`, (l.pack_size || l.unit) && `บรรจุ ${[l.pack_size, l.unit].filter(Boolean).join(' ')}`].filter(Boolean).join(' · ');
     return head + `<button type="button" class="di-item" data-scope="local" data-mono="${litems.indexOf(it)}"><span class="di-nm">${esc(l.name)}</span>`
       + `<span class="di-sub small muted">${esc(pack)}${it.names.length ? ` · ${esc(it.names.join(', '))}` : ''}</span>`
@@ -450,7 +453,7 @@ function renderList() {
     return `<button type="button" class="di-item" data-scope="nlem" data-mono="${items.indexOf(it)}"><span class="di-nm">${esc(it.name)}</span>`
       + `<span class="di-sub small muted">${where}</span><span class="di-chips">${chipsOf(it)}</span></button>`;
   }).join('');
-  const none = scope === 'local' ? !litems.length : scope === 'nlem' ? !items.length : !litems.length && !items.length;
+  const none = scope === 'local' || scope === 'outside' ? !litems.some(inScope) : scope === 'nlem' ? !items.length : !litems.length && !items.length;
   box.innerHTML = none ? '<p class="empty">ยังไม่มีข้อมูลยา</p>' : !total ? '<p class="empty">ไม่พบยาที่ค้นหา</p>'
     : lHtml + (scope === 'all' && nList.length ? '<h3 class="di-cat">บัญชียาหลักแห่งชาติ</h3>' : '') + nHtml;
   $('#doseInfoMore').hidden = nList.length <= shown;
