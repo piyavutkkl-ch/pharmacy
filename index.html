@@ -711,19 +711,21 @@
           <div class="panel"><h2>วิธีใช้ศูนย์ข้อมูลยา</h2>
             <p class="muted">หน้าเดียวตอบ 3 คำถาม: มียาอะไรบ้าง → ยาตัวไหนมีปัญหา → ต้องกดตรงไหนเพื่อแก้ ไม่ต้องไล่เปิดฐานข้อมูลทีละส่วน</p>
             <div class="dc-help-grid">
-              <div><b>1. มียาอะไรบ้าง</b><p class="small">การ์ดบนสุดบอกจำนวนยาทั้งหมดและแต่ละสถานะ วงกลม 7 วงบอกว่าแต่ละส่วนครบกี่ตัวจากที่ต้องมี (รวม "ทดสอบสูตร" และ "MIMS" ที่ไม่บังคับ) ตารางมียาละ 1 แถวพร้อมรหัส SHPS (ยา รพ.สต.) / OUT (ยานอก รพ.สต.)</p></div>
+              <div><b>1. มียาอะไรบ้าง</b><p class="small">การ์ดบนสุดบอกจำนวนยาทั้งหมดและแต่ละสถานะ วงกลม 7 วงบอกว่าแต่ละส่วนครบกี่ตัวจากที่ต้องมี (ข้อมูลยา · บัญชี รพ.สต. · MIMS ที่ไม่บังคับ · ฉลาก · บัญชียาหลัก · DDInter · ขนาดยา) ตารางมียาละ 1 แถวพร้อมรหัส SHPS (ยา รพ.สต.) / OUT (ยานอก รพ.สต.)</p></div>
               <div><b>2. ยาตัวไหนมีปัญหา</b><p class="small">กดการ์ด (เช่น "ผิดพลาด") หรือกดวงกลม (เช่น "ฉลาก") ตารางจะเหลือเฉพาะยาที่ต้องแก้ ยาที่มีปัญหาหนักอยู่บนสุด กดซ้ำเพื่อดูทั้งหมด</p></div>
               <div><b>3. ต้องกดตรงไหน</b><p class="small">กดช่องสถานะในแถว แผงรายละเอียดจะเปิดที่ส่วนนั้น ถ้าระบบหาคู่ให้ได้ กด "✓ ใช้คู่นี้" ถ้าไม่ใช่ กด "✗ ไม่ใช่" ส่วนอื่นกดปุ่มดินสอเพื่อแก้เฉพาะส่วนนั้นในแผง</p></div>
             </div>
           </div>
-          <div class="panel"><h2>ลำดับงานที่แนะนำ</h2>
+          <div class="panel"><h2>แผงยา 3 ขั้น (ทำจากบนลงล่าง)</h2>
             <ol class="dc-steps-help">
-              <li><b>เพิ่มยา</b> กด "+ เพิ่มยา" → พิมพ์ชื่อ (บรรทัดละ 1 ยา) → "ให้ AI ดึงข้อมูลและผูกทุกฐานข้อมูล" → กด "เปิดยานี้ในศูนย์ข้อมูลยา" ที่รายการ</li>
-              <li><b>ตรวจ</b> ในแผงยา: ช่อง ✗ กด ✓ ยืนยันคู่ที่ระบบเสนอ · ขนาดยาที่เป็นร่าง AI กด "ตรวจร่าง AI และอนุมัติ" → ฟอร์มเปิดในแผงด้านขวา บันทึกแล้วแผงปิดเอง กลับมาที่ยาเดิม</li>
-              <li><b>อนุมัติ</b> เมื่อข้อมูลครบและตรวจแล้ว กด "อนุมัติใช้คำนวณ" ครั้งเดียว = ยาแสดงที่หน้าหลัก + ใช้ในเครื่องคำนวณ</li>
-              <li><b>ทำตัวถัดไป</b> กดการ์ด (เช่น "รอเภสัชกรตรวจ") ให้ตารางเหลือเฉพาะยาที่ต้องทำ แล้วกด "ถัดไป ›" ในแผงยา ไม่ต้องกลับไปหาในตาราง</li>
+              <li><b>ยาในเว็บแอพ</b> ชื่อยา · รูปแบบยา · ความแรง · ถ้าขนาดยาคิดจากสารเฉพาะ (เช่น ธาตุเหล็ก) กรอกช่อง "คิดเป็น" เช่น 200 มก. คิดเป็นธาตุเหล็ก 66 มก.</li>
+              <li><b>แหล่งข้อมูล</b> ผูกทีละแหล่ง: บัญชียา รพ.สต. · MIMS (ไม่บังคับ) · ฉลากยาสหรัฐฯ (DailyMed / openFDA ฉบับเดียวกัน) · บัญชียาหลักแห่งชาติ · DDInter · ระบบเสนอคู่ให้กด ✓ ใช้ / ✗ ไม่ใช่</li>
+              <li><b>ขนาดยา</b> ตารางรวมข้อบ่งใช้จากทุกแหล่ง (MIMS · ฉลาก · ที่กรอกเอง) ติ๊กข้อที่จะใช้ แก้ตัวเลขด้วยปุ่ม ✎ → ระบบตรวจซ้ำด้วยทดสอบสูตร → กด "อนุมัติใช้คำนวณ" · ยาเม็ด/ยาน้ำตัวเดียวกันใช้ข้อมูลร่วมกันให้เอง</li>
             </ol>
-            <p class="small muted">แต่ละเรื่องแก้ได้ที่เดียว: ข้อมูลของยาแต่ละตัว (ความแรง · บัญชียาหลัก · ฉลาก · DDInter) แก้ที่แผงยา · ขนาดยาแบบละเอียดและฐานข้อมูลกลาง (บัญชียาหลักทั้งบัญชี · ฉลากทั้งหมด · คู่ DDI ทั้งหมด) อยู่ใน "⋯ เครื่องมือฐานข้อมูล"</p>
+            <p class="small muted">ขั้นที่เสร็จแล้วย่อเหลือบรรทัดเดียว (กดเพื่อเปิดดู) · กด "ถัดไป ›" ไปยาตัวต่อไปในรายการที่กรองอยู่ · ฟอร์มละเอียดและฐานข้อมูลทั้งชุดอยู่ใน "⋯ เครื่องมือฐานข้อมูล"</p>
+          </div>
+          <div class="panel"><h2>เพิ่มยาจากบัญชียา รพ.สต.</h2>
+            <p class="small muted">⋯ เครื่องมือฐานข้อมูล › ฐานข้อมูลบัญชียา รพ.สต. → ปุ่ม "เพิ่มยาในบัญชีที่ยังไม่มีในเว็บแอพ" ดึงทุกรายการที่ยังไม่มีมาครั้งเดียว · หรือนำเข้าไฟล์บัญชี (Excel/CSV จากระบบโรงพยาบาล) แล้วติ๊ก "เพิ่มยาใหม่เป็นยาในเว็บแอพด้วย" ทำในขั้นตอนเดียว · ยานอก รพ.สต. เพิ่มด้วยปุ่ม "+ เพิ่มยา"</p>
           </div>
           <div class="panel"><h2>สัญลักษณ์ในช่องสถานะ</h2>
             <ul class="dc-legend-list">
@@ -735,11 +737,7 @@
               <li><span class="dc-cell s-opt">○</span> ยังไม่ผูก แต่ไม่บังคับ · ใช้กับช่อง MIMS (แหล่งอ้างอิงเสริม)</li>
             </ul>
           </div>
-          <div class="panel"><h2>"ข้อมูลครบ" กับ "พร้อมใช้คำนวณ" แยกกัน</h2>
-            <p class="small muted">ยาที่ผูกครบทุกฐานยังไม่ได้แปลว่าตัวเลขขนาดยาถูกต้อง แผงรายละเอียดจึงแสดงขั้นความพร้อม 4 ขั้น และสถานะในตารางคือขั้นที่ยังติดอยู่</p>
-            <ol class="dc-steps-help"><li><b>ข้อมูลยา</b> ชื่อ ความแรง สารสำคัญ (ยาสูตรผสม)</li><li><b>ผูกฐานข้อมูล</b> บัญชียาหลัก · ฉลาก · DDInter · ขนาดยา</li><li><b>เภสัชกรตรวจ</b> ร่าง AI ตรวจแล้ว ไม่มีข้อมูลขัดกัน</li><li><b>อนุมัติใช้คำนวณ</b> มีชื่อผู้อนุมัติ + แสดงในเครื่องคำนวณ</li></ol>
-          </div>
-          <div class="panel"><h2>ทดสอบสูตร (ก่อนเปิดใช้คำนวณ)</h2>
+          <div class="panel"><h2>ตรวจซ้ำด้วยทดสอบสูตร (ก่อนอนุมัติ)</h2>
             <p class="small muted">ระบบลองคำนวณขนาดยาด้วยสูตรเดียวกับหน้าคำนวณ ที่น้ำหนักตัวอย่างตามช่วงอายุของข้อบ่งใช้ (เด็ก 5 · 10 · 20 · 40 กก. · ผู้ใหญ่ 40 · 60 · 80 กก.) กับความแรงของยา รพ.สต. ที่ใช้ข้อมูลนี้ แล้วแสดงเป็นตาราง</p>
             <ul class="small dc-rules">
               <li><b>ไม่ผ่าน (!)</b> คำนวณไม่ได้ · ขนาดต่ำสุด/สูงสุดผิด · ขนาดต่อวันไม่บอกจำนวนครั้ง · ยาสูตรผสมไม่บอกสารที่ใช้คิด · หรือได้เกิน 20 เม็ด / 100 มล. ต่อครั้งตั้งแต่น้ำหนักน้อยสุด (มักกรอกหน่วยหรือจุดทศนิยมผิด) → อนุมัติใช้คำนวณไม่ได้จนกว่าจะแก้</li>
@@ -752,7 +750,7 @@
             <ol class="dc-steps-help">
               <li><b>ค้นใน MIMS</b> ใช้ Claude in Chrome ในคอมพิวเตอร์ที่ login MIMS ไว้ ค้นยาที่ยังขาดข้อมูล → ได้ไฟล์ mims_doses.json (ตัวเลขขนาดยา + ลิงก์หน้า MIMS)</li>
               <li><b>นำเข้า</b> ⋯ เครื่องมือฐานข้อมูล › ฐานข้อมูล MIMS → เลือกไฟล์ → ดูสรุป → กด "นำเข้า" · นำเข้าไฟล์ใหม่ซ้ำได้ (อัปเดตของเดิม ไม่สร้างซ้ำ)</li>
-              <li><b>ตรวจและอนุมัติ</b> ยาที่ยังไม่มีข้อมูลคำนวณได้ "ร่างจาก MIMS" (ซ่อน) · เปิดหน้า MIMS จากลิงก์ในแผงยา ตรวจตัวเลข แล้วกด "ตรวจร่างจาก MIMS และอนุมัติ"</li>
+              <li><b>ตรวจและอนุมัติ</b> ข้อบ่งใช้จาก MIMS ขึ้นในขั้นที่ 3 "ขนาดยา" ของแผงยา · เปิดหน้า MIMS จากลิงก์ ตรวจตัวเลข ติ๊กข้อที่ใช้ แล้วกด "อนุมัติใช้คำนวณ"</li>
             </ol>
             <ul class="small dc-rules">
               <li>ข้อมูล MIMS เป็นข้อมูลสมาชิก เห็นได้เฉพาะผู้ดูแล · หน้าคำนวณแสดงเฉพาะตัวเลขที่อนุมัติแล้ว + ลิงก์ที่มา</li>
@@ -837,8 +835,37 @@
             <div class="field"><label for="dfSortBy">เรียงตาม</label><select id="dfSortBy" class="input"><option value="order">ลำดับที่ตั้งไว้</option><option value="asc">ชื่อ ก → ฮ / A → Z</option><option value="desc">ชื่อ ฮ → ก / Z → A</option></select></div></div>
             <div class="list" id="dfList"></div></div>
         </details>
+        <details class="adr-sec" data-adr-sec="rpst" data-db-part="rpst">
+          <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลบัญชียา รพ.สต.</span><span class="small muted adr-n" data-adr-n="rpst"></span></summary>
+          <div class="panel">
+            <h2>บัญชียา รพ.สต. (รหัสยาโรงพยาบาล)</h2>
+            <p class="small muted">แหล่งข้อมูลขั้นที่ 2 ของยาในเว็บแอพ · ยาในเว็บแอพผูกกับรายการในบัญชีด้วยรหัสยาเดียวกัน · ยาที่ไม่อยู่ในบัญชี = ยานอก รพ.สต.</p>
+            <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="rlPull" hidden>เพิ่มยาในบัญชีที่ยังไม่มีในเว็บแอพ</button><span class="small muted" id="rlPullNote"></span></div>
+            <details class="vs-pfold" id="rlImportFold"><summary><span class="lbl-t">นำเข้าบัญชีจากไฟล์ (Excel / CSV)</span></summary>
+              <p class="small muted">ไฟล์ต้องมีคอลัมน์รหัสยาและชื่อยา (มีหน่วย / หมวด / ขนาดบรรจุก็ได้) · อ่านในเครื่อง · รายการที่ไม่อยู่ในไฟล์ถูกทำเครื่องหมาย ไม่ลบ</p>
+              <div class="field"><label for="rlFile">ไฟล์บัญชียา</label><input id="rlFile" class="input" type="file" accept=".xlsx,.xls,.csv"></div>
+              <label class="small"><input type="checkbox" id="rlAlsoApp" checked> เพิ่มยาใหม่เป็นยาในเว็บแอพด้วย</label>
+              <div id="rlPreview" aria-live="polite"></div>
+              <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="rlImport" disabled>นำเข้า</button></div>
+            </details>
+            <form id="rlForm" class="form-grid" novalidate>
+              <h3 class="full" id="rlFormTitle">เพิ่มรายการในบัญชี</h3>
+              <div class="field"><label for="rlCode">รหัสยา <span class="req">*</span></label><input id="rlCode" class="input" maxlength="30" placeholder="เช่น 1010042"></div>
+              <div class="field"><label for="rlName">ชื่อยา <span class="req">*</span></label><input id="rlName" class="input" maxlength="200" placeholder="เช่น ALBENDAZOLE 200 MG TAB"></div>
+              <div class="field"><label for="rlCat">หมวด</label><input id="rlCat" class="input" maxlength="100" list="ldCats" placeholder="เช่น ยาเม็ด/แคปซูล"></div>
+              <div class="field"><label for="rlPack">ขนาดบรรจุ</label><input id="rlPack" class="input" maxlength="40"></div>
+              <div class="field"><label for="rlUnit">หน่วย</label><input id="rlUnit" class="input" maxlength="40" placeholder="เช่น TAB"></div>
+              <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="rlSave">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="rlCancel" hidden>ยกเลิก</button></div>
+            </form>
+          </div>
+          <div class="panel">
+            <h2>รายการในบัญชีที่บันทึกแล้ว <span class="num muted" id="rlCount"></span></h2>
+            <div class="field"><label for="rlQ">ค้นหา</label><input id="rlQ" class="input" type="search" placeholder="รหัสหรือชื่อยา"></div>
+            <div id="rlList"></div>
+          </div>
+        </details>
         <details class="adr-sec" data-adr-sec="local" data-db-part="local">
-          <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลบัญชียา รพ.สต.</span><span class="small muted adr-n" data-adr-n="local"></span></summary>
+          <summary class="adr-sum"><span class="adr-t">ยาในเว็บแอพ · ยา รพ.สต.</span><span class="small muted adr-n" data-adr-n="local"></span></summary>
 
           <details class="panel vs-pfold ld-newfold" id="ldNewFold">
             <summary><h2 id="ldFormTitle">+ เพิ่มยา รพ.สต. ใหม่ · อ.ควนกาหลง</h2></summary>
@@ -881,7 +908,7 @@
           </div>
         </details>
         <details class="adr-sec" data-adr-sec="outside" data-db-part="outside">
-          <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลบัญชียานอก รพ.สต.</span><span class="small muted adr-n" data-adr-n="outside"></span></summary>
+          <summary class="adr-sum"><span class="adr-t">ยาในเว็บแอพ · ยานอก รพ.สต.</span><span class="small muted adr-n" data-adr-n="outside"></span></summary>
 
           <div class="panel">
             <h2>เพิ่ม / แก้ไข · ยานอก รพ.สต.</h2>

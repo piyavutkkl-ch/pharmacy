@@ -15,13 +15,13 @@ import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { resetDrugInfo, strengthOf, comboName, keysOf, latinOf, sameDrug } from './dose.js?v=4.4';
 
 let doseOpts = '<option value="">ข้อมูลคำนวณ: อัตโนมัติ (จับคู่ตามชื่อยา)</option>';
-let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], mims = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30, pick = null, ready = null, newOutside = false;
+let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], mims = [], rpst = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30, pick = null, ready = null, newOutside = false;
 
 export async function initDrugsAdmin() {
   if (!bound) bind();
   ['#ldForm', '#dmForm', '#faForm', '#ddForm'].forEach((f) => parkForm($(f)));   // ฟอร์มที่ขยายใต้รายการต้องย้ายออกก่อนล้างรายการ
   $('#ldList').innerHTML = $('#dmList').innerHTML = $('#faList').innerHTML = '<div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div>';
-  ready = Promise.all([loadLocals(), loadMonos(), loadFdas(), loadDoses(), loadDdi(), loadMims()]);
+  ready = Promise.all([loadLocals(), loadMonos(), loadFdas(), loadDoses(), loadDdi(), loadMims(), loadRpst()]);
   await ready;
   if (!editLocal) resetLocal();
   openPending();
@@ -40,10 +40,10 @@ export function openDrugSection(v) {
 /** ข้อมูลยาทุกฐาน (ศูนย์ข้อมูลยา · drug-center.js) · รอโหลดเสร็จก่อน */
 export async function drugData() {
   if (!ready) await initDrugsAdmin(); else await ready;
-  return { locals, monos, fdas, doses, ddDrugs, mims };
+  return { locals, monos, fdas, doses, ddDrugs, mims, rpst };
 }
 /** โหลดยา รพ.สต. ใหม่หลังศูนย์ข้อมูลยาบันทึก (รายการในส่วนฐานข้อมูลอัปเดตตาม) */
-export async function reloadDrugData(fda = false) { changed(); await Promise.all([loadDoses(), loadMims(), fda ? loadFdas() : null]); await loadLocals(); }
+export async function reloadDrugData(fda = false) { changed(); await Promise.all([loadDoses(), loadMims(), loadRpst(), fda ? loadFdas() : null]); await loadLocals(); }
 /** id ข้อมูลคำนวณขนาดยาของยา รพ.สต. (ผูกไว้ หรือจับคู่ตามชื่อเหมือนหน้าคำนวณ) */
 export function doseIdsOf(l) {
   const ids = [l.dose_id, ...(l.ingredients || []).map((x) => x.dose_id)].filter(Boolean);
@@ -117,6 +117,12 @@ async function loadDoses() {
   document.querySelectorAll('#ldIngs .r-dose').forEach((x) => { const v = x.value; x.innerHTML = doseOpts; x.value = v; });
 }
 
+/** ฐานข้อมูลบัญชียา รพ.สต. (86_rpst_list.sql · ผู้ดูแลเท่านั้น) · ยาในเว็บแอพผูกด้วยรหัส local_drugs.code = rpst_list.code · ส่วนแสดงผล/นำเข้าอยู่ใน admin-rpst.js */
+async function loadRpst() {
+  const { data, error } = await sb.from('rpst_list').select('*').order('sort').order('code');
+  rpst = error ? [] : data || [];
+  window.dispatchEvent(new CustomEvent('pcps:rpstdata'));
+}
 /** ฐานข้อมูล MIMS (85_mims.sql · ผู้ดูแลเท่านั้น) · ส่วนแสดงผล/นำเข้าอยู่ใน admin-mims.js */
 async function loadMims() {
   const { data, error } = await sb.from('drug_mims').select('*').order('name');

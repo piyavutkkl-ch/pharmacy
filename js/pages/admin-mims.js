@@ -219,7 +219,7 @@ async function onList(e) {
   const D = await drugData();
   if (b.dataset.mimsMore != null) { shown += 30; renderList(); return; }
   if (b.dataset.mimsDel) {
-    const m = D.mims.find((x) => x.id === +b.dataset.mimsDel);
+    const m = D.mims.find((x) => String(x.id) === b.dataset.mimsDel);
     if (!m || !confirm(`ลบข้อมูล MIMS "${m.name}"?\nยาที่ผูกไว้จะเลิกผูก · ร่างขนาดยาที่สร้างไปแล้วยังอยู่`)) return;
     busy(b, true, 'กำลังลบ…');
     const { error } = await sb.from('drug_mims').delete().eq('id', m.id);
@@ -228,7 +228,7 @@ async function onList(e) {
     toast('ลบแล้ว'); await reloadDrugData(); return;
   }
   if (b.dataset.mimsDraft) {
-    const m = D.mims.find((x) => x.id === +b.dataset.mimsDraft); if (!m) return;
+    const m = D.mims.find((x) => String(x.id) === b.dataset.mimsDraft); if (!m) return;
     busy(b, true, 'กำลังสร้าง…');
     try {
       const r = await draftFromMims(m, D.locals.filter((l) => l.mims_id === m.id), D);

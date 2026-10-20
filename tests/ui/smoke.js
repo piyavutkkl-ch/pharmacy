@@ -1246,7 +1246,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.setViewportSize({ width: 1280, height: 900 });
     // เพิ่มหลายรายการ: วางรายชื่อยายาว ๆ → คิว → เปิดทีละตัวในฟอร์ม + ช่วยกรอกให้ → บันทึกแล้วไปตัวถัดไป (ไม่บันทึกเอง)
     await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(400);
-    check('ผู้ดูแล › ข้อมูลยา: แท็บ "ร่างขนาดยาจาก AI · เพิ่มหลายรายการ" อยู่หน้าแท็บคำนวณขนาดยา · แท็บคำนวณขนาดยาเพิ่มทีละตัว', (await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => x.dataset.adrSec).join())) === 'ai,dose,local,outside,nlem,fda,ddi,mims' && await p.$eval('[data-adr-sec="ai"]', (d) => d.open) && await visible(p, '#dfReview') && await visible(p, '#dfBulk') && await p.$eval('#dfReview', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'ai') && await p.$eval('#dfForm', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'dose'));
+    check('ผู้ดูแล › ข้อมูลยา: แท็บ "ร่างขนาดยาจาก AI · เพิ่มหลายรายการ" อยู่หน้าแท็บคำนวณขนาดยา · แท็บคำนวณขนาดยาเพิ่มทีละตัว', (await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => x.dataset.adrSec).join())) === 'ai,dose,rpst,local,outside,nlem,fda,ddi,mims' && await p.$eval('[data-adr-sec="ai"]', (d) => d.open) && await visible(p, '#dfReview') && await visible(p, '#dfBulk') && await p.$eval('#dfReview', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'ai') && await p.$eval('#dfForm', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'dose'));
     if (!(await p.$eval('#dfBulkFold', (d) => d.open))) await p.click('#dfBulkFold > summary');
     await p.fill('#dfBulk', '1. ไดเฟนไฮดรามีน (Diphenhydramine)\n- ไอบูโพรเฟน (Ibuprofen)\nเซทิริซีน (Cetirizine)\n\nไดเฟนไฮดรามีน (Diphenhydramine)');
     const saves0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length;
@@ -1325,7 +1325,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ศูนย์ข้อมูลยา: เรียงปัญหาหนักก่อน (ผิดพลาด → ยังไม่ครบ → รอตรวจ → พร้อมใช้)', ranks.every((r, i) => !i || r >= ranks[i - 1]));
       await p.fill('#dcQ', 'AMOXICILLIN 500'); await p.waitForTimeout(150);
       await p.click(`#dcTable [data-dc-row="${amx}"][data-dc-k="ddi"]`); await p.waitForTimeout(400);
-      check('แผงรายละเอียด: กดช่อง DDInter → แผงยานั้น + ขั้นความพร้อม 4 ขั้น + แผนผัง + ส่วน DDInter เด่นขึ้น', (await text(p, '#dcPanel h3')) === 'AMOXICILLIN 500 MG' && await count(p, '#dcPanel .dc-steps li') === 4 && await count(p, '#dcPanel .dc-map .dc-node') === 7 && await p.$eval('#dcSec-ddi', (e) => e.classList.contains('flash')));
+      check('แผงรายละเอียด: กดช่อง DDInter → แผงยานั้น 3 ขั้น (ยาในเว็บแอพ · แหล่งข้อมูล · ขนาดยา) · ขั้นแหล่งข้อมูลเปิด + DDInter เด่นขึ้น', (await text(p, '#dcPanel h3')) === 'AMOXICILLIN 500 MG' && await count(p, '#dcPanel .dc-step') === 3
+        && await p.$eval('[data-dc-step="2"]', (d) => d.open) && await count(p, '[data-dc-step="2"] .dc-sec') === 5 && /ฉลากยาสหรัฐฯ \(DailyMed \/ openFDA\)/.test(await text(p, '[data-dc-step="2"]')) && await p.$eval('#dcSec-ddi', (e) => e.classList.contains('flash')), await text(p, '#dcPanel'));
+      check('แหล่งข้อมูล: บัญชียา รพ.สต. ผูกด้วยรหัสยาเดียวกัน (✓ ครบ · บอกรหัส)', /รหัส 1010110/.test(await text(p, '#dcSec-rpst')) && await p.$eval(`#dcTable [data-dc-row="${amx}"][data-dc-k="rpst"]`, (b) => b.classList.contains('s-ok')), await text(p, '#dcSec-rpst'));
       check('คู่ที่ระบบเสนอ: DDInter "Amoxicillin" + หลักฐาน + ความมั่นใจ · กด ✓ ได้', (await text(p, '#dcSec-ddi .dc-sug')).includes('Amoxicillin') && (await text(p, '#dcSec-ddi .dc-conf')).includes('%') && await p.$eval('#dcSec-ddi [data-dc-ok]', (b) => !b.disabled), await text(p, '#dcSec-ddi'));
       await p.click('#dcSec-ddi [data-dc-ok]'); await p.waitForTimeout(500);
       { const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
@@ -1337,10 +1339,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('แก้ทีละส่วน: กดปุ่มดินสอ → ตัวแก้ของส่วนนั้นในแผง (ส่วนเดียว)', await count(p, '#dcPanel .dc-sec.is-open') === 1 && await visible(p, '#dcFda') && await visible(p, '#dcSec-fda [data-dc-save]'));
       await p.selectOption('#dcFda', 'amoxicillin|ORAL'); await p.click('#dcSec-fda [data-dc-save]'); await p.waitForTimeout(500);
       check('แก้ทีละส่วน: บันทึกฉลาก → ผูก fda_key + ปิดตัวแก้', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.fda_key === 'amoxicillin|ORAL' && !(await count(p, '#dcPanel .dc-sec.is-open')));
-      await p.click('#dcSec-str [data-dc-edit]'); await p.waitForTimeout(200);
+      if (!(await p.$eval('[data-dc-step="1"]', (d) => d.open))) await p.click('[data-dc-step="1"] > summary');
+      check('ขั้นที่ 1 ยาในเว็บแอพ: ชื่อยา · รูปแบบยา · ความแรง', /ชื่อยา[\s\S]*AMOXICILLIN 500 MG[\s\S]*รูปแบบยา[\s\S]*ความแรง[\s\S]*500/.test(await text(p, '#dcSec-str')), await text(p, '#dcSec-str'));
+      await p.click('#dcSec-str [data-dc-edit="str"]'); await p.waitForTimeout(200);
+      check('ขั้นที่ 1 แก้: ชื่อยา + รูปแบบยา (หมวด) + ความแรง ในที่เดียว', await visible(p, '#dcName') && await visible(p, '#dcCat') && await visible(p, '#dcStrAmt'));
       await p.fill('#dcStrAmt', '250'); await p.selectOption('#dcStrUnit', 'mg|5ml'); await p.click('#dcSec-str [data-dc-save]'); await p.waitForTimeout(500);
-      check('แก้ทีละส่วน: ความแรง 250 มก./5 มล.', JSON.stringify((await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.strength) === '{"mg":250,"per":"5ml"}');
-      await p.click('#dcSec-dose [data-dc-edit]'); await p.waitForTimeout(200); await p.click('#dcSec-dose [data-dc-na]'); await p.waitForTimeout(500);
+      { const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
+        check('แก้ทีละส่วน: ความแรง 250 มก./5 มล. (+ ชื่อ/รูปแบบเดิม)', JSON.stringify(up.strength) === '{"mg":250,"per":"5ml"}' && up.name === 'AMOXICILLIN 500 MG' && !!up.category, JSON.stringify(up)); }
+      if (!(await p.$eval('[data-dc-step="3"]', (d) => d.open))) await p.click('[data-dc-step="3"] > summary');
+      await p.click('[data-dc-step="3"] [data-dc-na="dose"]'); await p.waitForTimeout(500);
       check('แก้ทีละส่วน: "ไม่ใช้กับยานี้" → link_na + ช่องเป็น – ไม่นับเป็นปัญหา', ((await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.link_na || []).includes('dose') && await p.$eval(`#dcTable [data-dc-row="${amx}"][data-dc-k="dose"]`, (b) => b.classList.contains('s-na')));
       await p.fill('#dcQ', ''); await p.waitForTimeout(150);
       if (await visible(p, '#dcBulk')) {
@@ -1349,7 +1356,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ยืนยันคู่ที่มั่นใจสูงทั้งหมด: ผูกหลายยาในครั้งเดียว', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).length > u0);
       }
       await go(p, '#/admin/drugs/help'); await p.waitForTimeout(300);
-      check('วิธีใช้: หน้าแยกจากศูนย์ข้อมูลยา (คำอธิบาย 3 คำถาม · สัญลักษณ์ · ข้อมูลครบ ≠ พร้อมใช้)', await visible(p, '#dcHelp') && !(await visible(p, '#dcCenter')) && !(await visible(p, '.adr-pick')) && (await text(p, '#dcHelp')).includes('ต้องกดตรงไหน') && (await text(p, '#dcHelp')).includes('พร้อมใช้คำนวณ') && (await p.getAttribute('#dcTabs [data-sub="help"]', 'aria-current')) === 'page');
+      check('วิธีใช้: หน้าแยกจากศูนย์ข้อมูลยา (คำอธิบาย 3 คำถาม · แผงยา 3 ขั้น · สัญลักษณ์)', await visible(p, '#dcHelp') && !(await visible(p, '#dcCenter')) && !(await visible(p, '.adr-pick')) && (await text(p, '#dcHelp')).includes('ต้องกดตรงไหน') && (await text(p, '#dcHelp')).includes('แผงยา 3 ขั้น') && (await p.getAttribute('#dcTabs [data-sub="help"]', 'aria-current')) === 'page');
       await go(p, '#/admin/drugs'); await p.waitForTimeout(500);
       check('วิธีใช้ → กลับศูนย์ข้อมูลยา', await visible(p, '#dcCenter') && !(await visible(p, '#dcHelp')));
       // flow ใหม่: หน้าเดียว · ฐานข้อมูล 7 ส่วนอยู่ในแผง "เครื่องมือฐานข้อมูล" · แก้จากแผงยา → บันทึกแล้วกลับมาที่ยาเดิมเอง
@@ -1359,14 +1366,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#dcDrClose'); await p.waitForTimeout(500);
       check('ปิดแผง (×) → กลับศูนย์ข้อมูลยา', !(await p.isVisible('#dcDrawer')) && (await p.evaluate(() => location.hash)) === '#/admin/drugs');
       await p.click('#dcToolsBtn'); await p.waitForTimeout(600);
-      check('⋯ เครื่องมือฐานข้อมูล → ฐานข้อมูลทุกส่วนครบในแผง', await p.isVisible('#dcDrawer') && await count(p, '#dcDrawer .adr-sec') === 8);
+      check('⋯ เครื่องมือฐานข้อมูล → ฐานข้อมูลทุกส่วนครบในแผง', await p.isVisible('#dcDrawer') && await count(p, '#dcDrawer .adr-sec') === 9);
       await p.keyboard.press('Escape'); await p.waitForTimeout(500);
       check('กด Esc ปิดแผงได้', !(await p.isVisible('#dcDrawer')));
       { // ร่าง AI → "ตรวจร่าง AI และอนุมัติ" เปิดฟอร์มตรวจในแผง → บันทึก → แผงปิดเอง กลับมาที่ยาเดิม
         const lid = await p.evaluate(() => window.__db.local_drugs.find((x) => /Loratadine/.test(x.name))?.id);
         await p.fill('#dcQ', 'Loratadine'); await p.waitForTimeout(150);
         await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="dose"]`); await p.waitForTimeout(300);
-        await p.click('#dcSec-dose [data-dc-full="dose"]'); await p.waitForTimeout(700);
+        await p.click('[data-dc-step="3"] [data-dc-full="dose"]'); await p.waitForTimeout(700);
         check('ตรวจร่าง AI จากแผงยา: ฟอร์มตรวจเปิดในแผงด้านขวา (ไม่เลื่อนหน้าไปที่อื่น)', await p.isVisible('#dcDrawer') && await visible(p, '#dfForm') && (await text(p, '#dfSubmit')) === 'ตรวจแล้ว · บันทึก (อนุมัติ)');
         await p.click('#dfSubmit'); await p.waitForTimeout(900);
         check('บันทึกในแผง → แผงปิดเอง + แผงยาเดิมยังเปิด (ไม่ต้องกลับไปหา)', !(await p.isVisible('#dcDrawer')) && /Loratadine/.test(await text(p, '#dcPanel h3')) && (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload?.ai_draft === false); }
@@ -1376,9 +1383,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(700);
         await p.fill('#dcQ', 'PARACETAMOL 500'); await p.waitForTimeout(150);
         await p.click(`#dcTable [data-dc-row="${lid}"].dc-nm`); await p.waitForTimeout(300);
-        check('อนุมัติใช้คำนวณ: ยาครบแล้วแต่ซ่อน → มีปุ่ม "อนุมัติใช้คำนวณ"', await visible(p, '#dcPanel [data-dc-approve]'), await text(p, '#dcPanel'));
-        await p.click('#dcPanel [data-dc-approve]'); await p.waitForTimeout(600);
-        check('อนุมัติใช้คำนวณ: คลิกเดียว → ยาแสดง (active) + ปุ่มหายไป', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.active === true && !(await p.$('#dcPanel [data-dc-approve]'))); }
+        if (!(await p.$eval('[data-dc-step="3"]', (d) => d.open))) await p.click('[data-dc-step="3"] > summary');
+        check('อนุมัติใช้คำนวณ: ยาครบแล้วแต่ซ่อน → ขั้นขนาดยามีปุ่ม "อนุมัติใช้คำนวณ"', (await text(p, '[data-dc-step="3"] [data-dt-save]')) === 'อนุมัติใช้คำนวณ', await text(p, '#dcPanel'));
+        await p.click('[data-dc-step="3"] [data-dt-save]'); await p.waitForTimeout(700);
+        check('อนุมัติใช้คำนวณ: คลิกเดียว → ยาแสดง (active) + ปุ่มเป็น "บันทึกการแก้ไข"', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).some((c) => c.payload?.active === true) && (await text(p, '[data-dc-step="3"] [data-dt-save]')) === 'บันทึกการแก้ไข'); }
       await p.fill('#dcQ', ''); await p.click('#dcCards [data-dc-f="miss"]'); await p.waitForTimeout(200);
       { const first = await p.$eval('#dcTable .dc-nm', (b) => b.dataset.dcRow); await p.click('#dcTable .dc-nm'); await p.waitForTimeout(300);
         const nextId = await p.$eval('#dcPanel [data-dc-next]', (b) => b.dataset.dcNext).catch(() => null);
@@ -1386,19 +1394,19 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('"ถัดไป ›" → ยาตัวต่อไปในรายการที่กรองอยู่ (ไม่ต้องกลับไปหาในตาราง)', !!nextId && nextId !== first && await p.$eval(`#dcTable [data-dc-row="${nextId}"].dc-nm`, (b) => b.closest('.dc-tr').classList.contains('is-sel'))); }
       await p.click('#dcCards [data-dc-f="miss"]'); await p.waitForTimeout(150);
       { // ระยะ 3: ทดสอบสูตรก่อนใช้ (dose-test.js · สูตรเดียวกับหน้าคำนวณ) · ไม่ผ่าน = ผิดพลาด + อนุมัติ/เปิดใช้ไม่ได้
-        check('ทดสอบสูตร: มีวงกลม/ช่อง "ทดสอบสูตร" ในศูนย์ข้อมูลยา', await count(p, '#dcRings .dc-ring') === 7 && await count(p, '#dcTable [data-dc-k="test"]') > 10);
+        check('ทดสอบสูตร: เป็นการตรวจซ้ำในช่อง "ขนาดยา" (ไม่ใช่ช่องแยก)', await count(p, '#dcRings .dc-ring') === 7 && await count(p, '#dcTable [data-dc-k="test"]') === 0 && await count(p, '#dcTable [data-dc-k="dose"]') > 10);
         const lid = await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)').id);
         await p.fill('#dcQ', 'PARACETAMOL 500'); await p.waitForTimeout(150);
-        await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="test"]`); await p.waitForTimeout(300);
-        check('ทดสอบสูตร: แผงยาแสดงผลทดสอบ + ตารางน้ำหนักตัวอย่าง × จำนวนเม็ด (สูตรเดียวกับหน้าคำนวณ)', /ผ่าน/.test(await text(p, '#dcSec-test')) && await p.$eval('#dcSec-test [data-dose-test]', (e) => !!e.querySelector('table') && /กก\./.test(e.textContent) && /เม็ด/.test(e.textContent)), await text(p, '#dcSec-test'));
+        await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="dose"]`); await p.waitForTimeout(300);
+        check('ทดสอบสูตร: ขั้นขนาดยาตรวจซ้ำ + ตารางน้ำหนักตัวอย่าง × จำนวนเม็ด (สูตรเดียวกับหน้าคำนวณ)', /ตรวจซ้ำ \(ทดสอบสูตร\): (✓ )?ผ่าน/.test(await text(p, '[data-dc-step="3"] .dt-check summary')) && await p.$eval('[data-dc-step="3"] [data-dose-test]', (e) => !!e.querySelector('table') && /กก\./.test(e.textContent) && /เม็ด/.test(e.textContent)), await text(p, '[data-dc-step="3"]'));
         // ข้อมูลผิดหน่วย (ขนาดยาสูงผิดปกติ) → ผลทดสอบไม่ผ่าน → ผิดพลาด + ไม่มีปุ่มอนุมัติ
         const did = await p.evaluate(() => { const L = window.__db.local_drugs.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)'), d = window.__db.dose_drugs.find((x) => x.id === L.dose_id);
           d._bak = JSON.stringify(d.indications); d.indications = [{ name: 'ทดสอบหน่วยผิด', per: 'dose', min: 3000, max: 4000, cap: 100000, freq: 'ทุก 6 ชม.' }]; L.active = false; return d.id; });
         await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(700);
         await p.fill('#dcQ', 'PARACETAMOL 500'); await p.waitForTimeout(150);
-        await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="test"]`); await p.waitForTimeout(300);
-        check('ทดสอบสูตร: จำนวนเม็ดมากผิดปกติ (หน่วย/จุดทศนิยมผิด) → ไม่ผ่าน · แถวเป็นผิดพลาด · ไม่มีปุ่มอนุมัติ', await p.$eval(`#dcTable [data-dc-row="${lid}"][data-dc-k="test"]`, (b) => b.classList.contains('s-err')) && /ไม่ผ่าน/.test(await text(p, '#dcSec-test')) && /มากผิดปกติ/.test(await text(p, '#dcSec-test')) && !(await p.$('#dcPanel [data-dc-approve]')), await text(p, '#dcSec-test'));
-        await p.click('#dcSec-test [data-dc-edit]'); await p.waitForTimeout(700);
+        await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="dose"]`); await p.waitForTimeout(300);
+        check('ทดสอบสูตร: จำนวนเม็ดมากผิดปกติ (หน่วย/จุดทศนิยมผิด) → ไม่ผ่าน · ช่องขนาดยาผิดพลาด · ปุ่มอนุมัติกดไม่ได้', await p.$eval(`#dcTable [data-dc-row="${lid}"][data-dc-k="dose"]`, (b) => b.classList.contains('s-err')) && /ไม่ผ่าน/.test(await text(p, '[data-dc-step="3"] .dt-check')) && /มากผิดปกติ/.test(await text(p, '[data-dc-step="3"] .dt-check')) && await p.$eval('[data-dc-step="3"] [data-dt-save]', (b) => b.disabled), await text(p, '[data-dc-step="3"]'));
+        await p.click('[data-dc-step="3"] [data-dc-full="dose"]'); await p.waitForTimeout(700);
         await p.click('#dfTestBtn'); await p.waitForTimeout(200);
         check('ฟอร์มขนาดยา: ปุ่ม "ทดสอบสูตรก่อนบันทึก" แสดงผลจากค่าในฟอร์ม', await p.isVisible('#dcDrawer') && (await p.getAttribute('#dfTestOut [data-dose-test]', 'data-dose-test')) === 'fail');
         const u0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).length;
@@ -1455,8 +1463,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         const lid = await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'CPM 4 MG').id);
         await p.fill('#dcQ', 'CPM 4'); await p.waitForTimeout(150);
         await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="mims"]`); await p.waitForTimeout(300);
-        check('ศูนย์ข้อมูลยา: ช่อง MIMS ครบ + แผงมีลิงก์หน้า MIMS และข้อบ่งใช้ · ขนาดยาเป็น "ร่างจาก MIMS รอเภสัชกรตรวจ"', await p.$eval(`#dcTable [data-dc-row="${lid}"][data-dc-k="mims"]`, (b) => b.classList.contains('s-ok'))
-          && await p.$eval('#dcSec-mims a', (a) => a.href.includes('mims.com') && a.target === '_blank') && /ร่างจาก MIMS รอเภสัชกรตรวจ/.test(await text(p, '#dcSec-dose')) && /ตรวจร่างจาก MIMSและอนุมัติ|ตรวจร่างจาก MIMS/.test(await text(p, '#dcSec-dose')), await text(p, '#dcSec-dose'));
+        if (!(await p.$eval('[data-dc-step="3"]', (d) => d.open))) await p.click('[data-dc-step="3"] > summary');
+        check('ศูนย์ข้อมูลยา: ช่อง MIMS ครบ + ลิงก์หน้า MIMS · ขั้นขนาดยา "ร่างจาก MIMS รอเภสัชกรตรวจ" + ข้อบ่งใช้จาก MIMS ในตาราง (ที่มา MIMS)', await p.$eval(`#dcTable [data-dc-row="${lid}"][data-dc-k="mims"]`, (b) => b.classList.contains('s-ok'))
+          && await p.$eval('#dcSec-mims a', (a) => a.href.includes('mims.com') && a.target === '_blank') && /ร่างจาก MIMS รอเภสัชกรตรวจ/.test(await text(p, '[data-dc-step="3"]')) && /ทดสอบ ผู้ใหญ่[\s\S]*MIMS/.test(await text(p, '[data-dc-step="3"] .dt-rows')), await text(p, '[data-dc-step="3"]'));
         check('ศูนย์ข้อมูลยา: MIMS ไม่บังคับ → ยาที่ยังไม่ผูกแสดง ○ (ไม่นับเป็นข้อมูลไม่ครบ)', await p.evaluate(() => document.querySelectorAll('#dcTable [data-dc-k="mims"].s-opt').length > 0 || document.querySelectorAll('#dcTable [data-dc-k="mims"]').length === 1)
           && await p.evaluate(() => [...document.querySelectorAll('#dcTable [data-dc-k="mims"].s-miss')].length === 0));
         // เภสัชกรอนุมัติแล้ว → หน้าคำนวณ: ขนาดคงที่ + จำนวนเม็ด + ที่มา MIMS + หมายเหตุ
@@ -1472,11 +1481,60 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(600);
         await p.fill('#dcQ', 'AMITYIPTYLINE'); await p.waitForTimeout(150);
         await p.click(`#dcTable [data-dc-row="${aid}"][data-dc-k="dose"]`); await p.waitForTimeout(250);
-        await p.click('#dcSec-dose [data-dc-edit]'); await p.waitForTimeout(200);
-        await p.click('#dcSec-dose [data-dc-full="dose"]'); await p.waitForTimeout(600);
+        await p.click('[data-dc-step="3"] [data-dc-full="dose"]'); await p.waitForTimeout(600);
         check('แก้ขนาดยา (ฟอร์มเต็ม) ของยาที่ยังไม่มีข้อมูลคำนวณ → ฟอร์มคำนวณขนาดยา (ชื่อยานี้) ไม่ใช่ฟอร์มยา รพ.สต.', await p.isVisible('#dcDrawer') && await p.$eval('[data-adr-sec="dose"]', (d) => d.open) && await p.isVisible('#dfForm')
           && (await p.inputValue('#dfName')) === 'AMITYIPTYLINE 10 MG' && !(await p.$eval('#ldForm', (f) => !f.hidden && !!f.closest('.li, [data-ld-id]'))), await p.inputValue('#dfName'));
         await p.keyboard.press('Escape'); await p.fill('#dcQ', ''); await p.waitForTimeout(150); }
+      { // แผงยา 3 ขั้น: ขนาดยาคิดจากธาตุเหล็ก → ขั้นที่ 1 บอกให้กรอก "คิดเป็น" → ตารางข้อบ่งใช้จาก MIMS ติ๊ก/แก้ → ตรวจซ้ำ → อนุมัติ (ข้อมูลสมมติ ไม่ใช่ขนาดยาจริง)
+        const fid = await p.evaluate(() => { const L = window.__db.local_drugs.find((x) => x.name === 'FERROUS FUMARATE 200 MG'); Object.assign(L, { dose_id: null, mims_id: null, link_na: [], strength: null }); return L.id; });
+        const sample = [{ drug: 'FERROUS FUMARATE 200 MG', indications: [{ name: 'ทดสอบ เหล็ก เด็ก', per: 'day', times: '2-3', min: 3, max: 6, cap_day: 200, note: 'elemental Fe' }, { name: 'ทดสอบ ป้องกัน', per: 'day', times: 'ไม่พบ', fixed_mg: { min: 30, max: 30 }, note: 'elemental Fe' }], ref: { label: 'MIMS Thailand', url: 'https://www.mims.com/thailand/drug/info/ferrous-fumarate' } }];
+        await go(p, '#/admin/drugs/mims'); await p.waitForTimeout(500);
+        await p.setInputFiles('#mmFile', { name: 'mims_doses.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(sample)) }); await p.waitForTimeout(300);
+        await p.click('#mmImport'); await p.waitForTimeout(1200);
+        await p.keyboard.press('Escape'); await go(p, '#/admin/drugs'); await p.waitForTimeout(600);
+        await p.fill('#dcQ', 'FERROUS FUM'); await p.waitForTimeout(150);
+        await p.click(`#dcTable [data-dc-row="${fid}"][data-dc-k="str"]`); await p.waitForTimeout(300);
+        check('ขั้นที่ 1: ขนาดยาคิดจาก Elemental iron แต่ยังไม่กรอก "คิดเป็น" → เตือนในข้อมูลยา (รอตรวจ)', /คิดเป็น/.test(await text(p, '#dcSec-str')) && await p.$eval(`#dcTable [data-dc-row="${fid}"][data-dc-k="str"]`, (b) => b.classList.contains('s-wait')), await text(p, '#dcSec-str'));
+        await p.click('#dcSec-str [data-dc-edit="str"]'); await p.waitForTimeout(200);
+        check('ขั้นที่ 1 แก้: ช่อง "คิดเป็น" มีตัวเลือก Elemental iron (จากข้อบ่งใช้)', (await p.$$eval('#dcAsName option', (o) => o.map((x) => x.textContent))).includes('Elemental iron'));
+        await p.fill('#dcStrAmt', '200'); await p.selectOption('#dcAsName', 'Elemental iron'); await p.fill('#dcAsMg', '66'); await p.click('#dcSec-str [data-dc-save]'); await p.waitForTimeout(600);
+        check('ขั้นที่ 1: บันทึกความแรง 200 มก./เม็ด คิดเป็นธาตุเหล็ก 66 มก.', JSON.stringify(await p.evaluate((id) => window.__db.local_drugs.find((x) => x.id === id).strength, fid)) === '{"mg":200,"per":"tab","as":{"name":"Elemental iron","mg":66}}');
+        if (!(await p.$eval('[data-dc-step="3"]', (d) => d.open))) await p.click('[data-dc-step="3"] > summary');
+        const rowsTxt = await text(p, '[data-dc-step="3"] .dt-rows');
+        check('ขั้นที่ 3: ตารางข้อบ่งใช้จาก MIMS (ที่มา MIMS) · ข้อที่ข้อมูลไม่ครบติ๊กไม่ได้จนแก้', /ทดสอบ เหล็ก เด็ก/.test(rowsTxt) && /MIMS/.test(rowsTxt) && await p.$eval('[data-dc-step="3"] .dt-row.skip input', (c) => c.disabled), rowsTxt);
+        await p.click('[data-dc-step="3"] .dt-row.skip [data-dt-edit]'); await p.waitForTimeout(250);
+        await p.fill('#dtEd .i-times', '1'); await p.click('#dtEd [data-dt-apply]'); await p.waitForTimeout(250);
+        check('ขั้นที่ 3: ✎ แก้ข้อที่ไม่ครบ (เติมวันละ 1 ครั้ง) → ใช้ได้ + ติ๊กให้', await count(p, '[data-dc-step="3"] .dt-row.on') === 2 && !(await p.$('[data-dc-step="3"] .dt-row.skip')));
+        check('ขั้นที่ 3: ตรวจซ้ำด้วยทดสอบสูตร (คิดจากธาตุเหล็ก 66 มก.) ผ่าน → อนุมัติได้', !/ไม่ผ่าน/.test(await text(p, '[data-dc-step="3"] .dt-check summary')) && await p.$eval('[data-dc-step="3"] [data-dt-save="approve"]', (b) => !b.disabled), await text(p, '[data-dc-step="3"] .dt-check'));
+        await p.click('[data-dc-step="3"] [data-dt-save="approve"]'); await p.waitForTimeout(900);
+        const st = await p.evaluate((id) => { const L = window.__db.local_drugs.find((x) => x.id === id), d = window.__db.dose_drugs.find((x) => x.id === L.dose_id); return d && { active: d.active, ai: d.ai_draft, n: d.indications.length, ref: d.indications[0].ref?.url, name: d.name }; }, fid);
+        check('อนุมัติ: สร้างข้อมูลคำนวณให้เอง (ไม่ต้องเลือก DOSE-xx) · ใช้คำนวณ · ข้อบ่งใช้ 2 ข้อ + ลิงก์ MIMS', st?.active === true && st.ai === false && st.n === 2 && /mims\.com/.test(st.ref || '') && st.name === 'Ferrous fumarate', JSON.stringify(st));
+        check('อนุมัติ: ช่องขนาดยาเป็น ✓ ครบ', await p.$eval(`#dcTable [data-dc-row="${fid}"][data-dc-k="dose"]`, (b) => b.classList.contains('s-ok')));
+        await p.fill('#dcQ', ''); await p.waitForTimeout(150); }
+      { // บัญชียา รพ.สต. เป็นฐานข้อมูล: เพิ่มรายการ → ปุ่มดึงยาที่ยังไม่มีในเว็บแอพ · นำเข้าไฟล์บัญชี (CSV) + เพิ่มเป็นยาในเว็บแอพในขั้นตอนเดียว
+        await go(p, '#/admin/drugs/rpst'); await p.waitForTimeout(600);
+        check('บัญชียา รพ.สต.: อยู่ในเครื่องมือฐานข้อมูล · รายการเดิมครบ (รหัสเดียวกับยาในเว็บแอพ)', await p.isVisible('#dcDrawer') && await p.$eval('[data-adr-sec="rpst"]', (d) => d.open) && await count(p, '#rlList [data-rl-row]') > 10 && /ยาในเว็บแอพ/.test(await text(p, '#rlList')));
+        await p.fill('#rlCode', 'T-001'); await p.fill('#rlName', 'TESTDRUG A 10 MG'); await p.fill('#rlUnit', 'TAB'); await p.click('#rlSave'); await p.waitForTimeout(500);
+        await p.fill('#rlQ', 'T-001'); await p.waitForTimeout(150);
+        check('บัญชียา รพ.สต.: เพิ่มรายการ → ขึ้น "ยังไม่มีในเว็บแอพ" + ปุ่มดึง (1)', /ยังไม่มีในเว็บแอพ/.test(await text(p, '#rlList')) && (await text(p, '#rlPull')).includes('(1)'), await text(p, '#rlPull'));
+        const n0 = await p.evaluate(() => window.__db.local_drugs.length);
+        await p.click('#rlPull'); await p.waitForTimeout(700);
+        check('ปุ่มดึง: เพิ่มยาในบัญชีที่ยังไม่มีเป็นยาในเว็บแอพครั้งเดียว (รหัสเดียวกัน · ยา รพ.สต.)', await p.evaluate((n) => window.__db.local_drugs.length === n + 1 && window.__db.local_drugs.some((l) => l.code === 'T-001' && l.name === 'TESTDRUG A 10 MG' && !l.outside), n0) && await p.isHidden('#rlPull'));
+        const csv = 'รหัสยา,ชื่อยา,หน่วย\nT-001,TESTDRUG A 10 MG,TAB\nT-002,TESTDRUG B 5 MG,TAB\n';
+        await p.fill('#rlQ', ''); if (!(await p.$eval('#rlImportFold', (d) => d.open))) await p.click('#rlImportFold > summary');
+        await p.setInputFiles('#rlFile', { name: 'rpst.csv', mimeType: 'text/csv', buffer: Buffer.from('﻿' + csv) }); await p.waitForTimeout(400);
+        check('นำเข้าไฟล์บัญชี: สรุปก่อนนำเข้า (ใหม่ · ไม่อยู่ในไฟล์)', /ใหม่ 1/.test(await text(p, '#rlPreview')) && /ไม่อยู่ในไฟล์ \d+/.test(await text(p, '#rlPreview')), await text(p, '#rlPreview'));
+        await p.click('#rlImport'); await p.waitForTimeout(900);
+        check('นำเข้าไฟล์บัญชี: เพิ่ม T-002 + เป็นยาในเว็บแอพด้วย · รายการที่ไม่อยู่ในไฟล์ทำเครื่องหมาย ไม่ลบ', await p.evaluate(() => window.__db.rpst_list.some((x) => x.code === 'T-002') && window.__db.local_drugs.some((l) => l.code === 'T-002') && window.__db.rpst_list.filter((x) => x.in_list === false).length > 10 && window.__db.rpst_list.length > 100));
+        await p.keyboard.press('Escape'); await go(p, '#/admin/drugs'); await p.waitForTimeout(600);
+        const did = await p.evaluate(() => window.__db.local_drugs.find((l) => l.code === 'T-002').id);
+        await p.fill('#dcQ', 'TESTDRUG B'); await p.waitForTimeout(150);
+        await p.click(`#dcTable [data-dc-row="${did}"][data-dc-k="rpst"]`); await p.waitForTimeout(250);
+        check('แหล่งข้อมูล › บัญชียา รพ.สต.: ยาที่ดึงมาผูกกับรหัสในบัญชีแล้ว', /รหัส T-002/.test(await text(p, '#dcSec-rpst')));
+        await p.click('#dcSec-rpst [data-dc-edit]'); await p.waitForTimeout(200); await p.selectOption('#dcRpst', ''); await p.click('#dcSec-rpst [data-dc-save]'); await p.waitForTimeout(500);
+        check('แหล่งข้อมูล › บัญชียา รพ.สต.: เลือก "ไม่อยู่ในบัญชี" → เป็นยานอก รพ.สต. (ช่องเป็น – ไม่นับเป็นปัญหา)', await p.evaluate((id) => { const l = window.__db.local_drugs.find((x) => x.id === id); return l.code === null && l.outside === true; }, did) && await p.$eval(`#dcTable [data-dc-row="${did}"][data-dc-k="rpst"]`, (b) => b.classList.contains('s-na')));
+        await p.evaluate(() => { window.__db.rpst_list.forEach((x) => { x.in_list = true; }); });
+        await p.fill('#dcQ', ''); await p.waitForTimeout(150); }
       await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(300);
       await p.click('#dcTable .dc-nm'); await p.waitForTimeout(400);
       check('ศูนย์ข้อมูลยา: มือถือ 390px ไม่มี scroll แนวนอน · ตารางเลื่อนในกรอบ · แผงอยู่ใต้ตาราง', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1) && await p.$eval('#dcPanel', (e) => e.getBoundingClientRect().top > document.querySelector('#dcTable').getBoundingClientRect().top));
@@ -1615,7 +1673,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(600);
     check('ฐานข้อมูลยา: รายการยา รพ.สต. ครบ + บัญชียาหลัก (ทีละ 30)', await count(p, '#ldList .li') === await p.evaluate(() => window.__db.local_drugs.filter((x) => !x.outside).length) && await count(p, '#dmList .li') === 30 && await visible(p, '#dmMore'));
     await p.selectOption('#ldFilter', 'unlinked'); await p.waitForTimeout(100);
-    check('ฐานข้อมูลยา: กรองยาที่ยังไม่ผูกข้อมูลยา', await count(p, '#ldList .li') === 12 && (await text(p, '#ldList')).includes('ยังไม่ผูกข้อมูลยา'));
+    check('ฐานข้อมูลยา: กรองยาที่ยังไม่ผูกข้อมูลยา', await count(p, '#ldList .li') === await p.evaluate(() => window.__db.local_drugs.filter((x) => !x.outside && !(x.mono_refs || []).length).length) && await count(p, '#ldList .li') >= 12 && (await text(p, '#ldList')).includes('ยังไม่ผูกข้อมูลยา'));
     await p.selectOption('#ldFilter', 'all');
     check('ฐานข้อมูลยา: ฟอร์มเพิ่มยาใหม่ด้านบนย่อไว้ตอนเปิดหน้า (thread 3cb39a9f)', await p.evaluate(() => fetch('index.html').then((r) => r.text()).then((t) => { const d = new DOMParser().parseFromString(t, 'text/html').querySelector('#ldNewFold'); return !!d && !d.open; })));
     if (!(await p.$eval('#ldNewFold', (d) => d.open))) await p.click('#ldNewFold > summary'); await p.waitForTimeout(100);
@@ -1735,7 +1793,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(700);
     await go(p, '#/admin/drugs/local'); await p.waitForTimeout(300);
     { const secs = await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => `${x.dataset.adrSec}:${x.querySelector(':scope > summary').textContent.trim()}`));
-      check('ผู้ดูแล › ข้อมูลยา: ทุกส่วนเรียงแนวตั้ง (ไม่ใช่แท็บ) · ฐานข้อมูลแต่ละส่วนแยก 2 กล่อง (บน = เพิ่ม/แก้ไข · ล่าง = รายการที่บันทึกแล้ว)', await count(p, '#adrTabs') === 0 && secs.length === 8 && secs.some((t) => t.startsWith('outside:ฐานข้อมูลบัญชียานอก รพ.สต.')) && secs.some((t) => t.startsWith('local:ฐานข้อมูลบัญชียา รพ.สต.')) && secs.some((t) => t.startsWith('ddi:ฐานข้อมูลอันตรกิริยา'))
+      check('ผู้ดูแล › ข้อมูลยา: ทุกส่วนเรียงแนวตั้ง (ไม่ใช่แท็บ) · ฐานข้อมูลแต่ละส่วนแยก 2 กล่อง (บน = เพิ่ม/แก้ไข · ล่าง = รายการที่บันทึกแล้ว)', await count(p, '#adrTabs') === 0 && secs.length === 9 && secs.some((t) => t.startsWith('outside:ยาในเว็บแอพ · ยานอก รพ.สต.')) && secs.some((t) => t.startsWith('local:ยาในเว็บแอพ · ยา รพ.สต.')) && secs.some((t) => t.startsWith('rpst:ฐานข้อมูลบัญชียา รพ.สต.')) && secs.some((t) => t.startsWith('ddi:ฐานข้อมูลอันตรกิริยา'))
         && await p.$$eval('[data-db-part]', (x) => x.every((e) => e.querySelectorAll(':scope > .panel').length === 2 && /บันทึกแล้ว/.test(e.querySelectorAll(':scope > .panel')[1].querySelector('h2').textContent) && !e.querySelectorAll(':scope > .panel')[0].querySelector('.list:not(#dmdOut)'))), JSON.stringify(secs));
       const tops = await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => x.getBoundingClientRect().top));
       check('ผู้ดูแล › ข้อมูลยา: ส่วนต่าง ๆ อยู่ใต้กันลงมา', tops.every((t, i) => !i || t > tops[i - 1])); }

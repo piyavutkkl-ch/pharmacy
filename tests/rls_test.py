@@ -1239,5 +1239,17 @@ check("local drug mims_id cleared", None, "select count(*) from local_drugs wher
 check("cleanup mims link_na", "admin", "update local_drugs set link_na='{}' where code='1010042' returning id", rows(1))
 check("cleanup mims rejection", "admin", "delete from drug_link_rejects where kind='mims' returning id", rows(1))
 
+# ---- 86 ฐานข้อมูลบัญชียา รพ.สต. (ผู้ดูแลเท่านั้น) ----
+check("rpst_list seeded from รพ.สต. drugs (same codes)", None, "select count(*) = (select count(*) from local_drugs where code is not null and not outside) from rpst_list", eq("t"))
+check("admin adds list item", "admin", "insert into rpst_list(code,name,unit) values ('T-999','TEST DRUG 1 MG','TAB') returning code", eq("T-999"))
+check("duplicate list code refused", "admin", "insert into rpst_list(code,name) values ('T-999','x')", "deny")
+check("staff cannot read list", "s2", "select count(*) from rpst_list", eq(0))
+check("anon cannot read list", "anon", "select count(*) from rpst_list", "deny")
+check("staff cannot add list item", "s2", "insert into rpst_list(code,name) values ('T-998','x')", "deny")
+check("admin pulls list item into web-app drugs", "admin", "insert into local_drugs(code,name,category,unit) select code,name,category,unit from rpst_list where code='T-999' returning web_code ~ '^SHPS-T-[0-9]{2}$'", eq("t"))
+check("cleanup pulled drug", "admin", "delete from local_drugs where code='T-999' returning id", rows(1))
+check("cleanup list item", "admin", "delete from rpst_list where code='T-999' returning id", rows(1))
+check("dose spare_inds default empty array", None, "select count(*) from dose_drugs where spare_inds <> '[]'::jsonb", eq(0))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

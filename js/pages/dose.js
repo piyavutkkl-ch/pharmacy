@@ -64,7 +64,7 @@ export function strengthOf(l) {
   const ing = (l.ingredients || []).filter((x) => x && +x.mg > 0);   // ยาสูตรผสม (66_combo_drugs.sql): ปริมาณสารสำคัญแต่ละตัวต่อหน่วย
   if (ing.length) return { mg: +ing[0].mg, per: ing[0].per || 'tab', ings: ing.map((x) => ({ name: x.name, mg: +x.mg })) };
   const s = l.strength;
-  if (s && +s.mg > 0) return { mg: +s.mg, per: s.per || 'tab' };
+  if (s && +s.mg > 0) return { mg: +s.mg, per: s.per || 'tab', ...(s.as?.name && +s.as.mg > 0 ? { as: { name: String(s.as.name), mg: +s.as.mg } } : {}) };   // as = คิดเป็นสารนี้ (เช่น ธาตุเหล็ก 66 มก./เม็ด)
   if (comboName(l.name)) return null;   // ไม่เดาว่าเลขไหนเป็นของสารใด
   const name = String(l.name || ''), liquid = /(\d+(?:\.\d+)?)\s*MG\s*\/\s*(\d+(?:\.\d+)?)\s*M/i.exec(name);
   if (liquid) return +liquid[2] === 5 ? { mg: +liquid[1], per: '5ml' } : { mg: +liquid[1] / +liquid[2], per: 'ml' };
@@ -75,10 +75,13 @@ export function strengthOf(l) {
   return null;
 }
 const PER = { tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' };
-export const concOf = (st, label) => ({ label, ...(st.per === '5ml' ? { mgPer5ml: st.mg } : st.per === 'ml' ? { mgPerMl: st.mg } : { mgPerTab: st.mg }), ...(st.ings?.length > 1 ? { ings: st.ings, per: st.per } : st.ings?.length === 1 ? { ing1: st.ings[0].name } : {}) });
+export const concOf = (st, label) => ({ label, ...(st.per === '5ml' ? { mgPer5ml: st.mg } : st.per === 'ml' ? { mgPerMl: st.mg } : { mgPerTab: st.mg }), ...(st.ings?.length > 1 ? { ings: st.ings, per: st.per } : st.ings?.length === 1 ? { ing1: st.ings[0].name } : {}), ...(st.as ? { alt: st.as } : {}) });
+/** สารที่ใช้คิดขนาดยาตรงกันไหม (ไม่สนตัวพิมพ์ · คำแรกตรงกันก็ได้ เช่น "Elemental iron" = "elemental iron (ธาตุเหล็ก)") */
+export const sameBasis = (a, b) => { a = String(a || '').trim().toLowerCase(); b = String(b || '').trim().toLowerCase(); return !!a && !!b && (a === b || a.includes(b) || b.includes(a) || a.split(/\s+/)[0] === b.split(/\s+/)[0]); };
+const perOfC = (c) => (c.mgPer5ml ? '5ml' : c.mgPerMl ? 'ml' : 'tab');
 /** ข้อบ่งใช้ที่คิดจากสารที่ระบุ (basis เช่น Elemental iron) แต่ยา รพ.สต. ตัวนี้ไม่ได้บอกปริมาณสารนั้น → ไม่คิดจำนวนเม็ด/มล. (ความแรงตามชื่อยาอาจเป็นน้ำหนักเกลือ) */
 const basisAbsent = (c, basis) => { const b = String(basis || '').trim().toLowerCase(); if (!b || !c?.lname || c.ings) return false; const hay = `${c.lname} ${c.ing1 || ''}`.toLowerCase(); return !hay.includes(b) && !hay.includes(b.split(/\s+/)[0]); };
-const mgText = (st) => (st.ings?.length > 1 ? `${st.ings.map((x) => num(x.mg)).join('/')} ${PER[st.per]} (${st.ings.map((x) => x.name).join(' + ')})` : `${num(st.mg)} ${PER[st.per]}`);
+const mgText = (st) => (st.ings?.length > 1 ? `${st.ings.map((x) => num(x.mg)).join('/')} ${PER[st.per]} (${st.ings.map((x) => x.name).join(' + ')})` : `${num(st.mg)} ${PER[st.per]}${st.as ? ` (คิดเป็น ${st.as.name} ${num(st.as.mg)})` : ''}`);
 /** สารสำคัญที่ข้อบ่งใช้นี้ใช้คิดขนาดยา (basis) ในยาสูตรผสม */
 const basisOf = (ings, basis) => { const b = String(basis || '').trim().toLowerCase(); return b ? ings.find((x) => { const n = x.name.toLowerCase(); return n === b || n.startsWith(b) || b.startsWith(n); }) : null; };
 let calcList = [];   // ดัชนียาใน drugs ที่แสดงในเครื่องคำนวณ
@@ -216,6 +219,9 @@ export function doseNumbers(i, w, c) {
     ing = c.fixed ? c.ings.find((x) => x.name === c.fixed) : basisOf(c.ings, i.basis);
     if (ing) cc = concOf({ mg: ing.mg, per: c.per }, `${c.label} · คิดจาก ${ing.name} ${num(ing.mg)} ${PER[c.per]}`);
     else { cc = null; comboMissing = true; }
+  } else if (i.basis && c?.alt && sameBasis(c.alt.name, i.basis)) {   // ความแรงที่คิดเป็นสารนี้ (เช่น ธาตุเหล็ก) · ช่อง "คิดเป็น" ในข้อมูลยา
+    const pr = perOfC(c);
+    cc = { ...concOf({ mg: +c.alt.mg, per: pr }, `${c.label} · คิดเป็น ${c.alt.name} ${num(c.alt.mg)} ${PER[pr]}`), lname: c.lname };
   } else if (basisAbsent(c, i.basis)) { cc = null; basisMissing = true; }
   let vol = null;
   if (cc?.mgPer5ml) { const a = minMg / cc.mgPer5ml * 5, b = maxMg / cc.mgPer5ml * 5; vol = { a, b, u: 'ml', dp: 1, tiny: tooSmall(b, 1) }; }
@@ -291,7 +297,7 @@ function render() {
       if (r.ing) { const uLo = minMg / r.ing.mg, uHi = maxMg / r.ing.mg; combo = `<p class="small">ได้รับสารสำคัญ: ${c.ings.map((x) => `${esc(x.name)} ${drng(uLo * x.mg, uHi * x.mg)} มก.`).join(' · ')}</p>`; }
       else combo = `<p class="small fx-warn">ยาสูตรผสม (${esc(c.ings.map((x) => x.name).join(' + '))}): ข้อบ่งใช้นี้ยังไม่ได้ระบุว่าคิดขนาดยาจากสารสำคัญตัวใด จึงยังไม่คิดจำนวนเม็ด/มล. · ผู้ดูแลระบุได้ในข้อมูลคำนวณขนาดยา (ช่อง "คิดจากสารสำคัญ")</p>`;
     }
-    if (r.basisMissing) combo = `<p class="small fx-warn" data-basis-missing>ข้อบ่งใช้นี้คิดขนาดจาก ${esc(i.basis)} แต่ยา ${esc(c.lname)} ยังไม่ได้ระบุปริมาณ ${esc(i.basis)} ต่อเม็ด/มล. (ความแรงตามชื่อยาอาจเป็นน้ำหนักเกลือ) จึงยังไม่คิดจำนวนเม็ด/มล. · ผู้ดูแลกรอกสารสำคัญในฟอร์มยา</p>`;
+    if (r.basisMissing) combo = `<p class="small fx-warn" data-basis-missing>ข้อบ่งใช้นี้คิดขนาดจาก ${esc(i.basis)} แต่ยา ${esc(c.lname)} ยังไม่ได้ระบุปริมาณ ${esc(i.basis)} ต่อเม็ด/มล. (ความแรงตามชื่อยาอาจเป็นน้ำหนักเกลือ) จึงยังไม่คิดจำนวนเม็ด/มล. · ผู้ดูแลกรอกช่อง "คิดเป็น" ในข้อมูลยา (ศูนย์ข้อมูลยา ขั้นที่ 1)</p>`;
     let vol = '';
     const v = r.vol;
     if (v) {

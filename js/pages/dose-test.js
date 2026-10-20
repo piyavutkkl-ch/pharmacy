@@ -57,7 +57,7 @@ export function testDose(d, locals = []) {
           if (!c) return { label, text: why || 'ไม่มีความแรง', sev: 'warn' };
           const r = doseNumbers(ii, w, c);
           if (r.comboMissing) return { label, text: 'ยาสูตรผสม: ไม่ระบุว่าคิดจากสารใด', sev: 'fail' };
-          if (r.basisMissing) { add('fail', `${name}: คิดจาก ${i.basis} แต่ ${label} ยังไม่ได้ระบุปริมาณ ${i.basis} (กรอกสารสำคัญในฟอร์มยา)`); return { label, text: `ไม่มีปริมาณ ${i.basis}`, sev: 'fail' }; }
+          if (r.basisMissing) { add('fail', `${name}: คิดจาก ${i.basis} แต่ ${label} ยังไม่ได้ระบุว่าคิดเป็น ${i.basis} กี่ มก. (กรอกช่อง "คิดเป็น" ในขั้นที่ 1 ข้อมูลยา)`); return { label, text: `ไม่มีปริมาณ ${i.basis}`, sev: 'fail' }; }
           const v = r.vol; if (!v) return { label, text: '–', sev: 'warn' };
           const u = v.u === 'tab' ? 'เม็ด' : 'มล.';
           let sev = 'ok';

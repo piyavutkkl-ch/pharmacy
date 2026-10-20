@@ -65,7 +65,7 @@ export const ageText = (i) => (i?.age_min != null && i?.age_max != null ? `อ�
 /** แบบการคิดขนาดยา: ต่อ กก. (คูณน้ำหนัก) หรือขนาดคงที่ (fixed · ไม่คิดตามน้ำหนัก เช่น ผู้ใหญ่ 1–2 เม็ด) */
 const PER_OPTS = [['dose', 'ต่อ กก. ต่อครั้ง'], ['day', 'ต่อ กก. ต่อวัน (แบ่งให้)'], ['fdose', 'ขนาดคงที่ต่อครั้ง (ไม่คิดตามน้ำหนัก)'], ['fday', 'ขนาดคงที่ต่อวัน (แบ่งให้)']];
 const perVal = (i) => `${i.fixed ? 'f' : ''}${i.per === 'day' ? 'day' : 'dose'}`;
-function indBox(i = { per: 'dose' }, open = true) {
+export function indBox(i = { per: 'dose' }, open = true) {
   const v = (k) => esc(i[k] ?? '');
   return `<details class="ind-box"${open ? ' open' : ''}><summary><span class="ind-sum"></span><button type="button" class="btn btn-no btn-sm" data-rmind>ลบ</button></summary><div class="form-grid">`
     + `<div class="field full"><label>ข้อบ่งใช้ <span class="req">*</span><input class="input i-name" maxlength="200" placeholder="เช่น ลดไข้" value="${v('name')}"></label></div>`
@@ -101,7 +101,7 @@ function srcBlock(i) {
     + (ref.label ? `<p class="small">อ้างอิง: ${safeUrl(ref.url) ? `<a href="${esc(safeUrl(ref.url))}" target="_blank" rel="noopener">${esc(ref.label)}</a>` : esc(ref.label)}</p>` : '')
     + `<input type="hidden" class="i-quote" value="${esc(i.quote || '')}"><input type="hidden" class="i-ref" value="${esc(i.ref ? JSON.stringify(i.ref) : '')}"></div>`;
 }
-function syncIndBoxes(root = $('#dfInds')) {
+export function syncIndBoxes(root = $('#dfInds')) {
   root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value;
     const pv = g('.i-per'), fixed = pv.startsWith('f');
@@ -110,7 +110,7 @@ function syncIndBoxes(root = $('#dfInds')) {
     b.querySelector('.ind-sum').textContent = `ข้อบ่งใช้ ${k + 1}: ${g('.i-name').trim() || '(ยังไม่ระบุ)'} · ${perText({ basis: g('.i-basis').trim(), unit: g('.i-unit'), per: pv.replace(/^f/, ''), fixed, min: g('.i-min') || null, max: g('.i-max') || null, times: parseTimes(g('.i-times'))[0] || null, times_alt: parseTimes(g('.i-times')).slice(1), cap: g('.i-cap') || null })}`;
   });
 }
-function readInds(root = $('#dfInds')) {
+export function readInds(root = $('#dfInds')) {
   const out = [];
   root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value.trim(), n = `ข้อบ่งใช้ ${k + 1}`;
