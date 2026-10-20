@@ -1246,7 +1246,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.setViewportSize({ width: 1280, height: 900 });
     // เพิ่มหลายรายการ: วางรายชื่อยายาว ๆ → คิว → เปิดทีละตัวในฟอร์ม + ช่วยกรอกให้ → บันทึกแล้วไปตัวถัดไป (ไม่บันทึกเอง)
     await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(400);
-    check('ผู้ดูแล › ข้อมูลยา: แท็บ "ร่างขนาดยาจาก AI · เพิ่มหลายรายการ" อยู่หน้าแท็บคำนวณขนาดยา · แท็บคำนวณขนาดยาเพิ่มทีละตัว', (await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => x.dataset.adrSec).join())) === 'ai,dose,local,outside,nlem,fda,ddi' && await p.$eval('[data-adr-sec="ai"]', (d) => d.open) && await visible(p, '#dfReview') && await visible(p, '#dfBulk') && await p.$eval('#dfReview', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'ai') && await p.$eval('#dfForm', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'dose'));
+    check('ผู้ดูแล › ข้อมูลยา: แท็บ "ร่างขนาดยาจาก AI · เพิ่มหลายรายการ" อยู่หน้าแท็บคำนวณขนาดยา · แท็บคำนวณขนาดยาเพิ่มทีละตัว', (await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => x.dataset.adrSec).join())) === 'ai,dose,local,outside,nlem,fda,ddi,mims' && await p.$eval('[data-adr-sec="ai"]', (d) => d.open) && await visible(p, '#dfReview') && await visible(p, '#dfBulk') && await p.$eval('#dfReview', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'ai') && await p.$eval('#dfForm', (r) => r.closest('[data-adr-sec]').dataset.adrSec === 'dose'));
     if (!(await p.$eval('#dfBulkFold', (d) => d.open))) await p.click('#dfBulkFold > summary');
     await p.fill('#dfBulk', '1. ไดเฟนไฮดรามีน (Diphenhydramine)\n- ไอบูโพรเฟน (Ibuprofen)\nเซทิริซีน (Cetirizine)\n\nไดเฟนไฮดรามีน (Diphenhydramine)');
     const saves0 = (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length;
@@ -1310,7 +1310,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(900);
       const nAll = await p.evaluate(() => window.__db.local_drugs.length);
       check('ศูนย์ข้อมูลยา: อยู่บนสุดของข้อมูลยา · การ์ดสรุป 5 ใบ + วงกลม 5 ส่วน (กดได้) + ตารางยาทุกตัว',
-        await visible(p, '#dcCenter') && await count(p, '#dcCards .dc-card') === 5 && await count(p, '#dcRings .dc-ring') === 6 && await count(p, '#dcTable .dc-nm') === nAll
+        await visible(p, '#dcCenter') && await count(p, '#dcCards .dc-card') === 5 && await count(p, '#dcRings .dc-ring') === 7 && await count(p, '#dcTable .dc-nm') === nAll
         && (await text(p, '#dcCards [data-dc-f="all"] .dc-num')) === String(nAll) && await p.$eval('#dcCenter', (c) => c.compareDocumentPosition(document.querySelector('.adr-pick')) & Node.DOCUMENT_POSITION_FOLLOWING), String(nAll));
       { const n = +(await text(p, '#dcCards [data-dc-f="err"] .dc-num'));
         await p.click('#dcCards [data-dc-f="err"]'); await p.waitForTimeout(150);
@@ -1325,7 +1325,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ศูนย์ข้อมูลยา: เรียงปัญหาหนักก่อน (ผิดพลาด → ยังไม่ครบ → รอตรวจ → พร้อมใช้)', ranks.every((r, i) => !i || r >= ranks[i - 1]));
       await p.fill('#dcQ', 'AMOXICILLIN 500'); await p.waitForTimeout(150);
       await p.click(`#dcTable [data-dc-row="${amx}"][data-dc-k="ddi"]`); await p.waitForTimeout(400);
-      check('แผงรายละเอียด: กดช่อง DDInter → แผงยานั้น + ขั้นความพร้อม 4 ขั้น + แผนผัง + ส่วน DDInter เด่นขึ้น', (await text(p, '#dcPanel h3')) === 'AMOXICILLIN 500 MG' && await count(p, '#dcPanel .dc-steps li') === 4 && await count(p, '#dcPanel .dc-map .dc-node') === 6 && await p.$eval('#dcSec-ddi', (e) => e.classList.contains('flash')));
+      check('แผงรายละเอียด: กดช่อง DDInter → แผงยานั้น + ขั้นความพร้อม 4 ขั้น + แผนผัง + ส่วน DDInter เด่นขึ้น', (await text(p, '#dcPanel h3')) === 'AMOXICILLIN 500 MG' && await count(p, '#dcPanel .dc-steps li') === 4 && await count(p, '#dcPanel .dc-map .dc-node') === 7 && await p.$eval('#dcSec-ddi', (e) => e.classList.contains('flash')));
       check('คู่ที่ระบบเสนอ: DDInter "Amoxicillin" + หลักฐาน + ความมั่นใจ · กด ✓ ได้', (await text(p, '#dcSec-ddi .dc-sug')).includes('Amoxicillin') && (await text(p, '#dcSec-ddi .dc-conf')).includes('%') && await p.$eval('#dcSec-ddi [data-dc-ok]', (b) => !b.disabled), await text(p, '#dcSec-ddi'));
       await p.click('#dcSec-ddi [data-dc-ok]'); await p.waitForTimeout(500);
       { const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
@@ -1359,7 +1359,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#dcDrClose'); await p.waitForTimeout(500);
       check('ปิดแผง (×) → กลับศูนย์ข้อมูลยา', !(await p.isVisible('#dcDrawer')) && (await p.evaluate(() => location.hash)) === '#/admin/drugs');
       await p.click('#dcToolsBtn'); await p.waitForTimeout(600);
-      check('⋯ เครื่องมือฐานข้อมูล → ฐานข้อมูลทุกส่วนครบในแผง', await p.isVisible('#dcDrawer') && await count(p, '#dcDrawer .adr-sec') === 7);
+      check('⋯ เครื่องมือฐานข้อมูล → ฐานข้อมูลทุกส่วนครบในแผง', await p.isVisible('#dcDrawer') && await count(p, '#dcDrawer .adr-sec') === 8);
       await p.keyboard.press('Escape'); await p.waitForTimeout(500);
       check('กด Esc ปิดแผงได้', !(await p.isVisible('#dcDrawer')));
       { // ร่าง AI → "ตรวจร่าง AI และอนุมัติ" เปิดฟอร์มตรวจในแผง → บันทึก → แผงปิดเอง กลับมาที่ยาเดิม
@@ -1386,7 +1386,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('"ถัดไป ›" → ยาตัวต่อไปในรายการที่กรองอยู่ (ไม่ต้องกลับไปหาในตาราง)', !!nextId && nextId !== first && await p.$eval(`#dcTable [data-dc-row="${nextId}"].dc-nm`, (b) => b.closest('.dc-tr').classList.contains('is-sel'))); }
       await p.click('#dcCards [data-dc-f="miss"]'); await p.waitForTimeout(150);
       { // ระยะ 3: ทดสอบสูตรก่อนใช้ (dose-test.js · สูตรเดียวกับหน้าคำนวณ) · ไม่ผ่าน = ผิดพลาด + อนุมัติ/เปิดใช้ไม่ได้
-        check('ทดสอบสูตร: มีวงกลม/ช่อง "ทดสอบสูตร" ในศูนย์ข้อมูลยา', await count(p, '#dcRings .dc-ring') === 6 && await count(p, '#dcTable [data-dc-k="test"]') > 10);
+        check('ทดสอบสูตร: มีวงกลม/ช่อง "ทดสอบสูตร" ในศูนย์ข้อมูลยา', await count(p, '#dcRings .dc-ring') === 7 && await count(p, '#dcTable [data-dc-k="test"]') > 10);
         const lid = await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)').id);
         await p.fill('#dcQ', 'PARACETAMOL 500'); await p.waitForTimeout(150);
         await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="test"]`); await p.waitForTimeout(300);
@@ -1413,6 +1413,70 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.evaluate((id) => sessionStorage.setItem('pcps_drug_edit', 'local:' + id), lid);
         await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(700);
         check('"แก้ไขข้อมูลนี้" (ยา รพ.สต.) → แผงยานั้นในศูนย์ข้อมูลยา', (await text(p, '#dcPanel h3')) === 'SIMVASTATIN 20 MG' && !(await p.isVisible('#dcDrawer'))); }
+      { // ฐานข้อมูล MIMS (85_mims.sql · admin-mims.js): นำเข้าไฟล์ mims_doses.json → ข้อมูล MIMS + ผูกยา + ร่างขนาดยา (ตัวเลขในไฟล์ทดสอบเป็นข้อมูลสมมติ ไม่ใช่ขนาดยาจริง)
+        const U = (x) => `https://www.mims.com/thailand/drug/info/${x}`;
+        const cpm = { name: 'ทดสอบ ผู้ใหญ่', min: 'ไม่พบ', max: 'ไม่พบ', per: 'dose', times: '3-4', cap: 'ไม่พบ', cap_day: 16, age_min: 12, age_max: 'ไม่พบ', renal: 'ไม่พบ', fixed_mg: { min: 4, max: 8 }, note: 'ข้อมูลทดสอบ' };
+        const sample = [
+          { drug: 'CPM 4 MG', indications: [cpm, { name: 'ทดสอบ ต่อวันไม่บอกจำนวนครั้ง', min: 'ไม่พบ', max: 'ไม่พบ', per: 'day', times: 'ไม่พบ', cap: 'ไม่พบ', cap_day: 'ไม่พบ', age_min: 'ไม่พบ', age_max: 'ไม่พบ', renal: 'ไม่พบ', fixed_mg: { min: 4, max: 12 } }], ref: { label: 'MIMS Thailand', url: U('chlorphenamine') } },
+          { drug: 'CPM SYRUP (60ML)', indications: [cpm], ref: { label: 'MIMS Thailand', url: U('chlorphenamine') } },
+          { drug: 'COTRIMOXAZOLE TAB', indications: [{ name: 'ทดสอบ SMX+TMP', min: 'ไม่พบ', max: 'ไม่พบ', per: 'dose', times: 2, cap: 'ไม่พบ', cap_day: 'ไม่พบ', age_min: 'ไม่พบ', age_max: 'ไม่พบ', renal: 'ไม่พบ', fixed_mg: { min: 960, max: 960 }, note: 'มก. = SMX+TMP รวม' }], ref: { label: 'MIMS Thailand', url: U('sulfamethoxazole-plus-trimethoprim') } },
+          { drug: 'ยาทดสอบที่ไม่มีในระบบ 1 MG', indications: [{ name: 'ทดสอบ', per: 'dose', fixed_mg: { min: 1, max: 2 } }], ref: { label: 'MIMS Thailand', url: U('unknown-test-drug') } },
+          { drug: 'MTV TAB', indications: [{ name: 'ไม่พบ', per: 'ไม่พบ', note: 'ยังไม่ได้ค้น' }], ref: { label: 'MIMS Thailand', url: 'ไม่พบ' } },
+        ];
+        await p.evaluate(() => window.__db.local_drugs.filter((l) => /^(CPM 4 MG|CPM SYRUP|COTRIMOXAZOLE TAB)/.test(l.name)).forEach((l) => { l.dose_id = null; l.mims_id = null; l.link_na = []; }));
+        await go(p, '#/admin/drugs/mims'); await p.waitForTimeout(700);
+        check('ฐานข้อมูล MIMS: อยู่ในแผงเครื่องมือฐานข้อมูล (ลิงก์ #/admin/drugs/mims เปิดส่วนนั้น)', await p.isVisible('#dcDrawer') && await p.$eval('[data-adr-sec="mims"]', (d) => d.open) && await p.isVisible('#mmFile'));
+        const file = { name: 'mims_doses.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(sample)) };
+        await p.setInputFiles('#mmFile', file); await p.waitForTimeout(400);
+        const pre = await text(p, '#mmPreview');
+        check('MIMS: เลือกไฟล์ → สรุปก่อนนำเข้า (หน้า MIMS · ข้อบ่งใช้ใช้คำนวณได้/เก็บอ้างอิง · ชื่อที่ไม่ตรง · ไม่มีข้อมูล)', /พบ 3 หน้า MIMS/.test(pre) && /ยาทดสอบที่ไม่มีในระบบ/.test(pre) && /MTV TAB/.test(pre) && !(await p.$eval('#mmImport', (b) => b.disabled)), pre);
+        const m0 = await p.evaluate(() => window.__db.drug_mims.length), d0 = await p.evaluate(() => window.__db.dose_drugs.length);
+        await p.click('#mmImport'); await p.waitForTimeout(1500);
+        const st = await p.evaluate((u) => { const db = window.__db, L = (n) => db.local_drugs.find((x) => x.name === n), m = db.drug_mims.find((x) => x.url === u);
+          const d = db.dose_drugs.find((x) => x.id === L('CPM 4 MG').dose_id), co = db.dose_drugs.find((x) => x.id === L('COTRIMOXAZOLE TAB').dose_id);
+          return { mims: db.drug_mims.length, doses: db.dose_drugs.length, same: L('CPM 4 MG').mims_id === m?.id && L('CPM SYRUP (60ML)').mims_id === m?.id, mInds: m?.indications.length, skip: m?.indications[1]?.skip || '',
+            draft: d && { ai: d.ai_draft, active: d.active, src: d.ai_source, n: d.indications.length, i: d.indications[0] }, syr: L('CPM SYRUP (60ML)').dose_id === d?.id, co: co?.indications[0] }; }, 'https://www.mims.com/thailand/drug/info/chlorphenamine');
+        check('MIMS: นำเข้า → ข้อมูล MIMS 1 แถวต่อหน้า (ยาเม็ด/ยาน้ำหน้าเดียวกันใช้แถวเดียว) + ผูกยาที่ชื่อตรงกัน', st.mims === m0 + 3 && st.same && st.mInds === 2 && /จำนวนครั้ง/.test(st.skip), JSON.stringify(st));
+        check('MIMS: ร่างขนาดยา (ซ่อน · ร่างจาก MIMS) เฉพาะข้อบ่งใช้ที่คำนวณได้ · ขนาดคงที่ + ลิงก์อ้างอิง MIMS + หมายเหตุ', st.doses === d0 + 2 && st.draft?.ai && !st.draft.active && /^MIMS/.test(st.draft.src) && st.draft.n === 1 && st.draft.i.fixed === true && st.draft.i.min === 4 && st.draft.i.max === 8
+          && st.draft.i.ref?.url?.endsWith('/chlorphenamine') && st.draft.i.ref.label === 'MIMS Thailand' && st.draft.i.cap_day === 16 && st.draft.i.age_min === 12 && st.draft.i.freq === 'วันละ 3–4 ครั้ง' && st.draft.i.note === 'ข้อมูลทดสอบ' && st.syr, JSON.stringify(st.draft));
+        check('MIMS: ขนาด SMX+TMP รวม → แปลงเป็น trimethoprim (÷6) + คิดจาก Trimethoprim + บอกในหมายเหตุ', st.co?.min === 160 && st.co?.max === 160 && st.co?.basis === 'Trimethoprim' && /÷ 6/.test(st.co?.note || ''), JSON.stringify(st.co));
+        check('MIMS: ผลนำเข้าบอกจำนวน + ชื่อที่ไม่ตรง', /นำเข้าแล้ว/.test(await text(p, '#mmResult')) && /ยาทดสอบที่ไม่มีในระบบ/.test(await text(p, '#mmResult')));
+        await p.setInputFiles('#mmFile', file); await p.waitForTimeout(300); await p.click('#mmImport'); await p.waitForTimeout(1200);
+        check('MIMS: นำเข้าไฟล์เดิมซ้ำ → อัปเดตแถวเดิม ไม่สร้างข้อมูล/ร่างซ้ำ', await p.evaluate(() => window.__db.drug_mims.length) === st.mims && await p.evaluate(() => window.__db.dose_drugs.length) === st.doses);
+        check('MIMS: รายการที่บันทึกแล้ว แสดงรหัส MIMS + ข้อบ่งใช้ + ยาที่ผูก', /Chlorphenamine/.test(await text(p, '#mmList')) && /ผูกกับ CPM 4 MG/.test(await text(p, '#mmList')) && await count(p, '#mmList [data-mims-row]') >= 3);
+        const nums = await p.evaluate(async () => { const { doseNumbers } = await import('./js/pages/dose.js?v=4.4');
+          const a = doseNumbers({ per: 'dose', fixed: true, min: 4, max: 8 }, 70, { mgPerTab: 4, label: 'x' }), b = doseNumbers({ per: 'dose', fixed: true, min: 4, max: 8 }, 10, { mgPerTab: 4, label: 'x' });
+          const c = doseNumbers({ per: 'day', times: 3, min: 3, max: 6, basis: 'Elemental iron' }, 10, { mgPerTab: 200, label: 'FERROUS FUMARATE 200 MG', lname: 'FERROUS FUMARATE 200 MG' });
+          const e = doseNumbers({ per: 'day', times: 3, min: 3, max: 6, basis: 'Elemental iron' }, 10, { mgPerTab: 65, label: 'x', lname: 'FERROUS FUMARATE 200 MG', ing1: 'Elemental iron' });
+          return { a: [a.vol.a, a.vol.b], same: a.lo === b.lo && a.hi === b.hi, c: c.basisMissing && !c.vol, e: !e.basisMissing && !!e.vol }; });
+        check('ขนาดคงที่: ไม่คูณน้ำหนัก (70 กก. = 10 กก.) · 4–8 มก. จากเม็ด 4 มก. = 1–2 เม็ด', nums.a[0] === 1 && nums.a[1] === 2 && nums.same, JSON.stringify(nums));
+        check('คิดจาก Elemental iron แต่ยาไม่ได้กรอกปริมาณธาตุเหล็ก → ไม่คิดจำนวนเม็ด (กันใช้น้ำหนักเกลือ) · กรอกแล้วคิดได้', nums.c && nums.e, JSON.stringify(nums));
+        await p.keyboard.press('Escape'); await go(p, '#/admin/drugs'); await p.waitForTimeout(600);
+        const lid = await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'CPM 4 MG').id);
+        await p.fill('#dcQ', 'CPM 4'); await p.waitForTimeout(150);
+        await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="mims"]`); await p.waitForTimeout(300);
+        check('ศูนย์ข้อมูลยา: ช่อง MIMS ครบ + แผงมีลิงก์หน้า MIMS และข้อบ่งใช้ · ขนาดยาเป็น "ร่างจาก MIMS รอเภสัชกรตรวจ"', await p.$eval(`#dcTable [data-dc-row="${lid}"][data-dc-k="mims"]`, (b) => b.classList.contains('s-ok'))
+          && await p.$eval('#dcSec-mims a', (a) => a.href.includes('mims.com') && a.target === '_blank') && /ร่างจาก MIMS รอเภสัชกรตรวจ/.test(await text(p, '#dcSec-dose')) && /ตรวจร่างจาก MIMSและอนุมัติ|ตรวจร่างจาก MIMS/.test(await text(p, '#dcSec-dose')), await text(p, '#dcSec-dose'));
+        check('ศูนย์ข้อมูลยา: MIMS ไม่บังคับ → ยาที่ยังไม่ผูกแสดง ○ (ไม่นับเป็นข้อมูลไม่ครบ)', await p.evaluate(() => document.querySelectorAll('#dcTable [data-dc-k="mims"].s-opt').length > 0 || document.querySelectorAll('#dcTable [data-dc-k="mims"]').length === 1)
+          && await p.evaluate(() => [...document.querySelectorAll('#dcTable [data-dc-k="mims"].s-miss')].length === 0));
+        // เภสัชกรอนุมัติแล้ว → หน้าคำนวณ: ขนาดคงที่ + จำนวนเม็ด + ที่มา MIMS + หมายเหตุ
+        await p.evaluate(() => { const L = window.__db.local_drugs.find((x) => x.name === 'CPM 4 MG'), d = window.__db.dose_drugs.find((x) => x.id === L.dose_id); d.ai_draft = false; d.active = true; L.active = true; });
+        await p.evaluate(async () => { (await import('./js/pages/dose.js?v=4.4')).resetDrugInfo(); });
+        await go(p, '#/'); await p.click('[data-panel-link="dose"]'); await p.waitForTimeout(600);
+        await p.selectOption('#doseDrug', { label: 'Chlorphenamine' }); await p.fill('#doseAge', '30'); await p.fill('#doseWeight', '60'); await p.waitForTimeout(300);
+        const res = await text(p, '#doseResult');
+        check('หน้าคำนวณ: ขนาดคงที่ (ไม่คิดตามน้ำหนัก) 4–8 มก. = 1–2 เม็ด + ที่มา MIMS Thailand + หมายเหตุ', /ขนาดยาคงที่ \(ไม่คิดตามน้ำหนัก\)/.test(res) && /4(\.0)?–8(\.0)? มก\./.test(res) && /1\.00–2\.00|1–2/.test(res) && /ที่มา: MIMS Thailand/.test(res) && /หมายเหตุ: ข้อมูลทดสอบ/.test(res) && !(await p.$('#doseResult [data-no-max]')), res);
+        await go(p, '#/admin/drugs'); await p.waitForTimeout(700); await p.fill('#dcQ', ''); await p.waitForTimeout(150); }
+      { // ขนาดยา › "แก้ขนาดยา (ฟอร์มเต็ม)" ของยาที่ยังไม่มีข้อมูลคำนวณ → ฟอร์มคำนวณขนาดยา (สร้างใหม่ ชื่อยานี้) ไม่ใช่ฟอร์มยา รพ.สต. (comment 68724907)
+        const aid = await p.evaluate(() => { const L = window.__db.local_drugs.find((x) => x.name === 'AMITYIPTYLINE 10 MG'); L.dose_id = null; L.link_na = []; return L.id; });
+        await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(600);
+        await p.fill('#dcQ', 'AMITYIPTYLINE'); await p.waitForTimeout(150);
+        await p.click(`#dcTable [data-dc-row="${aid}"][data-dc-k="dose"]`); await p.waitForTimeout(250);
+        await p.click('#dcSec-dose [data-dc-edit]'); await p.waitForTimeout(200);
+        await p.click('#dcSec-dose [data-dc-full="dose"]'); await p.waitForTimeout(600);
+        check('แก้ขนาดยา (ฟอร์มเต็ม) ของยาที่ยังไม่มีข้อมูลคำนวณ → ฟอร์มคำนวณขนาดยา (ชื่อยานี้) ไม่ใช่ฟอร์มยา รพ.สต.', await p.isVisible('#dcDrawer') && await p.$eval('[data-adr-sec="dose"]', (d) => d.open) && await p.isVisible('#dfForm')
+          && (await p.inputValue('#dfName')) === 'AMITYIPTYLINE 10 MG' && !(await p.$eval('#ldForm', (f) => !f.hidden && !!f.closest('.li, [data-ld-id]'))), await p.inputValue('#dfName'));
+        await p.keyboard.press('Escape'); await p.fill('#dcQ', ''); await p.waitForTimeout(150); }
       await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(300);
       await p.click('#dcTable .dc-nm'); await p.waitForTimeout(400);
       check('ศูนย์ข้อมูลยา: มือถือ 390px ไม่มี scroll แนวนอน · ตารางเลื่อนในกรอบ · แผงอยู่ใต้ตาราง', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1) && await p.$eval('#dcPanel', (e) => e.getBoundingClientRect().top > document.querySelector('#dcTable').getBoundingClientRect().top));
@@ -1671,7 +1735,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(700);
     await go(p, '#/admin/drugs/local'); await p.waitForTimeout(300);
     { const secs = await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => `${x.dataset.adrSec}:${x.querySelector(':scope > summary').textContent.trim()}`));
-      check('ผู้ดูแล › ข้อมูลยา: ทุกส่วนเรียงแนวตั้ง (ไม่ใช่แท็บ) · ฐานข้อมูลแต่ละส่วนแยก 2 กล่อง (บน = เพิ่ม/แก้ไข · ล่าง = รายการที่บันทึกแล้ว)', await count(p, '#adrTabs') === 0 && secs.length === 7 && secs.some((t) => t.startsWith('outside:ฐานข้อมูลบัญชียานอก รพ.สต.')) && secs.some((t) => t.startsWith('local:ฐานข้อมูลบัญชียา รพ.สต.')) && secs.some((t) => t.startsWith('ddi:ฐานข้อมูลอันตรกิริยา'))
+      check('ผู้ดูแล › ข้อมูลยา: ทุกส่วนเรียงแนวตั้ง (ไม่ใช่แท็บ) · ฐานข้อมูลแต่ละส่วนแยก 2 กล่อง (บน = เพิ่ม/แก้ไข · ล่าง = รายการที่บันทึกแล้ว)', await count(p, '#adrTabs') === 0 && secs.length === 8 && secs.some((t) => t.startsWith('outside:ฐานข้อมูลบัญชียานอก รพ.สต.')) && secs.some((t) => t.startsWith('local:ฐานข้อมูลบัญชียา รพ.สต.')) && secs.some((t) => t.startsWith('ddi:ฐานข้อมูลอันตรกิริยา'))
         && await p.$$eval('[data-db-part]', (x) => x.every((e) => e.querySelectorAll(':scope > .panel').length === 2 && /บันทึกแล้ว/.test(e.querySelectorAll(':scope > .panel')[1].querySelector('h2').textContent) && !e.querySelectorAll(':scope > .panel')[0].querySelector('.list:not(#dmdOut)'))), JSON.stringify(secs));
       const tops = await p.$$eval('[data-admin-view="drugs"] .adr-sec', (a) => a.map((x) => x.getBoundingClientRect().top));
       check('ผู้ดูแล › ข้อมูลยา: ส่วนต่าง ๆ อยู่ใต้กันลงมา', tops.every((t, i) => !i || t > tops[i - 1])); }

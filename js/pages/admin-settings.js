@@ -24,7 +24,7 @@ export function indsProblem(inds) {
     if (i.min < 0) return w + 'ขนาดยาต้องไม่ติดลบ';
     if (i.max <= 0) return w + 'ขนาดยาสูงสุดต้องมากกว่า 0';
     if (i.max < i.min) return w + 'ขนาดสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด';
-    if (i.max * (i.unit === 'mcg' ? 0.001 : 1) > HARD_MAX) return w + 'ขนาดยาสูงเกินกว่าจะเป็นไปได้ (เกิน 10,000 มก./กก.) · ตรวจหน่วยและจุดทศนิยม';
+    if (i.max * (i.unit === 'mcg' ? 0.001 : 1) > HARD_MAX) return w + `ขนาดยาสูงเกินกว่าจะเป็นไปได้ (เกิน 10,000 มก.${i.fixed ? '' : '/กก.'}) · ตรวจหน่วยและจุดทศนิยม`;
     if (i.per === 'day' && !T(i.times)) return w + 'ขนาดต่อวันต้องระบุจำนวนครั้งที่แบ่งให้ (1–12 ครั้ง)';
     if (i.times_alt != null && !(Array.isArray(i.times_alt) && i.times_alt.every(T))) return w + 'จำนวนครั้งแบบอื่นต้องเป็น 1–12';
     if (i.cap != null && !(typeof i.cap === 'number' && i.cap > 0)) return w + 'ขนาดสูงสุดต่อครั้งต้องเป็นตัวเลขมากกว่า 0';
@@ -32,6 +32,8 @@ export function indsProblem(inds) {
     if (i.cap_day != null && !(typeof i.cap_day === 'number' && i.cap_day > 0)) return w + 'ขนาดสูงสุดต่อวันต้องเป็นตัวเลขมากกว่า 0';
     for (const k of ['age_min', 'age_max']) if (i[k] != null && !(typeof i[k] === 'number' && i[k] >= 0 && i[k] <= 120)) return w + 'ช่วงอายุต้องเป็นตัวเลข 0–120 ปี';
     if (i.age_min != null && i.age_max != null && i.age_max <= i.age_min) return w + 'อายุสูงสุดต้องมากกว่าอายุต่ำสุด';
+    if (i.fixed != null && typeof i.fixed !== 'boolean') return w + 'ชนิดขนาดยา (คงที่/ตามน้ำหนัก) ไม่ถูกต้อง';
+    if (i.note != null && !(typeof i.note === 'string' && i.note.length <= 500)) return w + 'หมายเหตุต้องเป็นข้อความไม่เกิน 500 ตัวอักษร';
   }
   return null;
 }
@@ -50,28 +52,36 @@ export const unitTh = (i) => (i?.unit === 'mcg' ? 'mcg' : 'มก.');
 /** ค่าต่อ กก. เป็น มก. สำหรับช่องเดิม (mg_per_kg_* · max_mg_per_dose) */
 export const asMg = (i, v) => (v == null ? null : i?.unit === 'mcg' ? +(v / 1000).toFixed(6) : v);
 /** จำนวนครั้งที่แบ่งให้ต่อวัน — เลือกได้หลายแบบ (times = แบบที่ 1 · times_alt = แบบอื่น เช่น วันละ 1 หรือ 3 ครั้ง) */
+/** ช่องเดิม mg_per_kg_* (ต่อ กก. เสมอ) · ข้อบ่งใช้แรกเป็นขนาดคงที่ = 0 (ไม่ใช้ช่องเดิมคำนวณ) */
+const legacyKg = (f) => (f.fixed ? { mg_per_kg_min: 0, mg_per_kg_max: 0 } : { mg_per_kg_min: asMg(f, f.min), mg_per_kg_max: asMg(f, f.max) });
+/** คำเรียกร่างขนาดยา: นำเข้าจาก MIMS (ai_source ขึ้นต้น MIMS) หรือร่างจาก AI */
+export const draftWord = (d) => (/^MIMS/.test(d?.ai_source || '') ? 'ร่างจาก MIMS' : 'ร่าง AI');
 export const timesOf = (i) => [i.times, ...(i.times_alt || [])].map(Number).filter((n) => n >= 1);
 const parseTimes = (t) => [...new Set(String(t).split(/[,\s/หรือ]+/).map((x) => +x).filter((n) => Number.isInteger(n) && n >= 1 && n <= 12))].slice(0, 4);
-const perText = (i) => `${i.basis ? `[${i.basis}] ` : ''}${i.min ?? '?'}–${i.max ?? '?'} ${unitTh(i)}/กก./${i.per === 'day' ? 'วัน' + (timesOf(i).length ? ' แบ่ง ' + timesOf(i).join(' หรือ ') + ' ครั้ง' : '') : 'ครั้ง'}${i.cap_day ? ' · ไม่เกิน ' + i.cap_day + ` ${unitTh(i)}/วัน` : ''}${ageText(i) ? ' · ' + ageText(i) : ''}${i.cap ? ' · สูงสุด ' + i.cap + ` ${unitTh(i)}/ครั้ง` : ''}`;
+const perText = (i) => `${i.basis ? `[${i.basis}] ` : ''}${i.min ?? '?'}–${i.max ?? '?'} ${unitTh(i)}${i.fixed ? '' : '/กก.'}/${i.per === 'day' ? 'วัน' + (timesOf(i).length ? ' แบ่ง ' + timesOf(i).join(' หรือ ') + ' ครั้ง' : '') : 'ครั้ง'}${i.cap_day ? ' · ไม่เกิน ' + i.cap_day + ` ${unitTh(i)}/วัน` : ''}${ageText(i) ? ' · ' + ageText(i) : ''}${i.cap ? ' · สูงสุด ' + i.cap + ` ${unitTh(i)}/ครั้ง` : ''}${i.fixed ? ' · ขนาดคงที่' : ''}`;
 
 /** ช่วงอายุของข้อบ่งใช้ (ปี) เป็นข้อความ เช่น "อายุ 2–12 ปี" · ไม่ระบุ = '' */
 export const ageText = (i) => (i?.age_min != null && i?.age_max != null ? `อายุ ${i.age_min}–${i.age_max} ปี` : i?.age_min != null ? `อายุตั้งแต่ ${i.age_min} ปี` : i?.age_max != null ? `อายุไม่เกิน ${i.age_max} ปี` : '');
+/** แบบการคิดขนาดยา: ต่อ กก. (คูณน้ำหนัก) หรือขนาดคงที่ (fixed · ไม่คิดตามน้ำหนัก เช่น ผู้ใหญ่ 1–2 เม็ด) */
+const PER_OPTS = [['dose', 'ต่อ กก. ต่อครั้ง'], ['day', 'ต่อ กก. ต่อวัน (แบ่งให้)'], ['fdose', 'ขนาดคงที่ต่อครั้ง (ไม่คิดตามน้ำหนัก)'], ['fday', 'ขนาดคงที่ต่อวัน (แบ่งให้)']];
+const perVal = (i) => `${i.fixed ? 'f' : ''}${i.per === 'day' ? 'day' : 'dose'}`;
 function indBox(i = { per: 'dose' }, open = true) {
   const v = (k) => esc(i[k] ?? '');
   return `<details class="ind-box"${open ? ' open' : ''}><summary><span class="ind-sum"></span><button type="button" class="btn btn-no btn-sm" data-rmind>ลบ</button></summary><div class="form-grid">`
     + `<div class="field full"><label>ข้อบ่งใช้ <span class="req">*</span><input class="input i-name" maxlength="200" placeholder="เช่น ลดไข้" value="${v('name')}"></label></div>`
     + `<div class="field"><label>คิดจากสารสำคัญ (ยาสูตรผสม)<input class="input i-basis" maxlength="60" list="dfIngList" placeholder="ยาเดี่ยวเว้นว่าง · เช่น Trimethoprim" value="${v('basis')}"></label></div>`
     + `<div class="field"><label>หน่วยขนาดยา<select class="input i-unit"><option value="mg"${i.unit !== 'mcg' ? ' selected' : ''}>มก. (mg)</option><option value="mcg"${i.unit === 'mcg' ? ' selected' : ''}>ไมโครกรัม (mcg)</option></select></label></div>`
-    + `<div class="field"><label>คิดขนาดยาแบบ<select class="input i-per"><option value="dose"${i.per !== 'day' ? ' selected' : ''}>ต่อ กก. ต่อครั้ง</option><option value="day"${i.per === 'day' ? ' selected' : ''}>ต่อ กก. ต่อวัน (แบ่งให้)</option></select></label></div>`
+    + `<div class="field"><label>คิดขนาดยาแบบ<select class="input i-per">${PER_OPTS.map(([v, t]) => `<option value="${v}"${v === perVal(i) ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>`
     + `<div class="field i-times-wrap"${i.per === 'day' ? '' : ' hidden'}><label>แบ่งให้วันละ (ครั้ง) · ได้หลายแบบ<input class="input i-times" inputmode="numeric" maxlength="20" placeholder="เช่น 1, 3" value="${esc(timesOf(i).join(', '))}"></label><span class="small muted">คั่นด้วย , เช่น 1, 3 = แบบที่ 1 วันละ 1 ครั้ง · แบบที่ 2 วันละ 3 ครั้ง</span></div>`
-    + `<div class="field full ind-mm"><div class="field"><label>ขนาดต่ำสุด (ต่อ กก.) <span class="req">*</span><input class="input i-min" type="number" inputmode="decimal" min="0" step="0.01" value="${v('min')}"></label></div>`
-    + `<div class="field"><label>ขนาดสูงสุด (ต่อ กก.) <span class="req">*</span><input class="input i-max" type="number" inputmode="decimal" min="0" step="0.01" value="${v('max')}"></label></div></div>`
+    + `<div class="field full ind-mm"><div class="field"><label>ขนาดต่ำสุด <span class="i-mmu">${i.fixed ? '(มก. หรือ mcg)' : '(ต่อ กก.)'}</span> <span class="req">*</span><input class="input i-min" type="number" inputmode="decimal" min="0" step="0.01" value="${v('min')}"></label></div>`
+    + `<div class="field"><label>ขนาดสูงสุด <span class="i-mmu">${i.fixed ? '(มก. หรือ mcg)' : '(ต่อ กก.)'}</span> <span class="req">*</span><input class="input i-max" type="number" inputmode="decimal" min="0" step="0.01" value="${v('max')}"></label></div></div>`
     + `<div class="field"><label>เพดานต่อครั้ง (หน่วยเดียวกัน)<input class="input i-cap" type="number" inputmode="decimal" min="0" step="0.1" value="${v('cap')}"></label></div>`
     + `<div class="field"><label>ขนาดสูงสุดต่อวัน (หน่วยเดียวกัน)<input class="input i-capday" type="number" inputmode="decimal" min="0" step="0.1" value="${v('cap_day')}"></label></div>`
     + `<div class="field full ind-mm"><div class="field"><label>ใช้กับอายุตั้งแต่ (ปี)<input class="input i-agemin" type="number" inputmode="decimal" min="0" max="120" step="0.1" placeholder="ไม่จำกัด" value="${v('age_min')}"></label></div>`
     + `<div class="field"><label>ถึงอายุ (ปี)<input class="input i-agemax" type="number" inputmode="decimal" min="0" max="120" step="0.1" placeholder="ไม่จำกัด" value="${v('age_max')}"></label></div></div>`
     + `<div class="field"><label>ความถี่ (ข้อความ)<input class="input i-freq" maxlength="120" placeholder="เช่น ทุก 4–6 ชั่วโมง" value="${v('freq')}"></label></div>`
     + `<div class="field full"><label>ขนาดยาในโรคไต<textarea class="i-renal" rows="2" maxlength="1000">${v('renal')}</textarea></label></div>`
+    + `<div class="field full"><label>หมายเหตุ<input class="input i-note" maxlength="500" placeholder="เช่น ใช้ไม่เกิน 1 สัปดาห์" value="${v('note')}"></label></div>`
     + srcBlock(i) + '</div></details>';
 }
 /** ที่มาของข้อบ่งใช้ที่ AI กรอกให้: ข้อความจากฉลาก (quote) + อ้างอิงพร้อมลิงก์ (ref) · เก็บไว้กับข้อบ่งใช้แม้ผู้ดูแลแก้ตัวเลข */
@@ -86,7 +96,7 @@ const safeUrl = (u) => (/^https:\/\//.test(String(u || '')) ? String(u) : '');
 function srcBlock(i) {
   if (!i.quote && !i.ref) return '';
   const ref = i.ref || {};
-  return `<div class="full ai-src"><span class="chip c-fix">AI กรอกให้ · ตรวจกับต้นฉบับก่อนบันทึก</span>`
+  return `<div class="full ai-src"><span class="chip c-fix">${/^MIMS/.test(ref.label || '') ? 'นำเข้าจาก MIMS' : 'AI กรอกให้'} · ตรวจกับต้นฉบับก่อนบันทึก</span>`
     + (i.quote ? `<p class="small dh-quote">ข้อความจากฉลาก: “${esc(i.quote)}”</p>` : '')
     + (ref.label ? `<p class="small">อ้างอิง: ${safeUrl(ref.url) ? `<a href="${esc(safeUrl(ref.url))}" target="_blank" rel="noopener">${esc(ref.label)}</a>` : esc(ref.label)}</p>` : '')
     + `<input type="hidden" class="i-quote" value="${esc(i.quote || '')}"><input type="hidden" class="i-ref" value="${esc(i.ref ? JSON.stringify(i.ref) : '')}"></div>`;
@@ -94,19 +104,22 @@ function srcBlock(i) {
 function syncIndBoxes(root = $('#dfInds')) {
   root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value;
-    b.querySelector('.i-times-wrap').hidden = g('.i-per') !== 'day';
-    b.querySelector('.ind-sum').textContent = `ข้อบ่งใช้ ${k + 1}: ${g('.i-name').trim() || '(ยังไม่ระบุ)'} · ${perText({ basis: g('.i-basis').trim(), unit: g('.i-unit'), per: g('.i-per'), min: g('.i-min') || null, max: g('.i-max') || null, times: parseTimes(g('.i-times'))[0] || null, times_alt: parseTimes(g('.i-times')).slice(1), cap: g('.i-cap') || null })}`;
+    const pv = g('.i-per'), fixed = pv.startsWith('f');
+    b.querySelector('.i-times-wrap').hidden = !pv.endsWith('day');
+    b.querySelectorAll('.i-mmu').forEach((x) => { x.textContent = fixed ? '(มก. หรือ mcg)' : '(ต่อ กก.)'; });
+    b.querySelector('.ind-sum').textContent = `ข้อบ่งใช้ ${k + 1}: ${g('.i-name').trim() || '(ยังไม่ระบุ)'} · ${perText({ basis: g('.i-basis').trim(), unit: g('.i-unit'), per: pv.replace(/^f/, ''), fixed, min: g('.i-min') || null, max: g('.i-max') || null, times: parseTimes(g('.i-times'))[0] || null, times_alt: parseTimes(g('.i-times')).slice(1), cap: g('.i-cap') || null })}`;
   });
 }
 function readInds(root = $('#dfInds')) {
   const out = [];
   root.querySelectorAll('.ind-box').forEach((b, k) => {
     const g = (c) => b.querySelector(c).value.trim(), n = `ข้อบ่งใช้ ${k + 1}`;
-    const i = { name: g('.i-name'), basis: g('.i-basis') || null, unit: g('.i-unit') === 'mcg' ? 'mcg' : null, per: g('.i-per'), min: num(g('.i-min')), max: num(g('.i-max')), times: parseTimes(g('.i-times'))[0] ?? null, times_alt: parseTimes(g('.i-times')).slice(1), cap: num(g('.i-cap')), freq: g('.i-freq') || null, renal: g('.i-renal') || null,
+    const pv = g('.i-per');
+    const i = { name: g('.i-name'), basis: g('.i-basis') || null, unit: g('.i-unit') === 'mcg' ? 'mcg' : null, per: pv.replace(/^f/, ''), fixed: pv.startsWith('f') || null, note: b.querySelector('.i-note')?.value.trim() || null, min: num(g('.i-min')), max: num(g('.i-max')), times: parseTimes(g('.i-times'))[0] ?? null, times_alt: parseTimes(g('.i-times')).slice(1), cap: num(g('.i-cap')), freq: g('.i-freq') || null, renal: g('.i-renal') || null,
       cap_day: num(b.querySelector('.i-capday')?.value.trim() ?? ''), age_min: num(b.querySelector('.i-agemin')?.value.trim() ?? ''), age_max: num(b.querySelector('.i-agemax')?.value.trim() ?? '') };
     const bad = (t) => { b.open = true; throw new Error(`${n}: ${t}`); };
     if (!i.name) bad('กรุณาใส่ชื่อข้อบ่งใช้');
-    if (i.min == null || i.max == null || i.min < 0) bad('กรุณาใส่ขนาดยาต่ำสุดและสูงสุด (ต่อ กก.)');
+    if (i.min == null || i.max == null || i.min < 0) bad(`กรุณาใส่ขนาดยาต่ำสุดและสูงสุด${i.fixed ? '' : ' (ต่อ กก.)'}`);
     if (i.max < i.min) bad('ขนาดสูงสุดต้องไม่น้อยกว่าขนาดต่ำสุด');
     if (i.per === 'day' && !(i.times >= 1)) bad('ยาแบบ "ต่อวัน" ต้องระบุจำนวนครั้งที่แบ่งให้ต่อวัน');
     { const why = indsProblem([Object.fromEntries(Object.entries(i).filter(([, x]) => x != null))]); if (why) bad(why.replace(/^ข้อบ่งใช้ 1: /, '')); }
@@ -119,7 +132,7 @@ function readInds(root = $('#dfInds')) {
     out.push(i);
   });
   if (!out.length) throw new Error('ต้องมีข้อบ่งใช้อย่างน้อย 1 ข้อ');
-  const high = out.filter((i) => i.max * (i.unit === 'mcg' ? 0.001 : 1) > SOFT_MAX);
+  const high = out.filter((i) => !i.fixed && i.max * (i.unit === 'mcg' ? 0.001 : 1) > SOFT_MAX);   // ขนาดคงที่ไม่ใช่ มก./กก.
   if (high.length && !confirm(`ขนาดยาสูงผิดปกติ (เกิน ${SOFT_MAX} มก./กก.): ${high.map((i) => `${i.name} ${i.max} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก.`).join(', ')}\nตรวจหน่วยและจุดทศนิยมแล้วใช่ไหม?`)) throw new Error('ยังไม่บันทึก · ตรวจหน่วยและจุดทศนิยมของขนาดยาที่สูงผิดปกติ');
   return out;
 }
@@ -231,7 +244,7 @@ export function draftRow(name, r, sort) {
   const f = inds[0], lab = res.label || {};
   return {
     name: String(name).slice(0, 120), form: !concs.length ? 'อื่น ๆ' : concs.every((c) => c.mgPerTab != null) ? 'ยาเม็ด' : concs.every((c) => c.mgPerTab == null) ? 'ยาน้ำ' : 'อื่น ๆ',
-    indications: inds, indication: f.name, per: f.per, mg_per_kg_min: asMg(f, f.min), mg_per_kg_max: asMg(f, f.max), dose_freq_per_day: f.times ?? null, max_mg_per_dose: asMg(f, f.cap ?? null), freq: f.freq ?? null, renal_note: f.renal ?? null,
+    indications: inds, indication: f.name, per: f.per, ...legacyKg(f), dose_freq_per_day: f.times ?? null, max_mg_per_dose: asMg(f, f.cap ?? null), freq: f.freq ?? null, renal_note: f.renal ?? null,
     concs, sort, active: false, ai_draft: true,
     ai_source: `AI ร่างจากฉลากยา openFDA${lab.brand ? ' ' + lab.brand : ''}${lab.effective ? ' ฉบับ ' + lab.effective : ''} + ความแรงจาก RxNorm · ยังไม่ผ่านการตรวจ`.slice(0, 500),
   };
@@ -495,7 +508,7 @@ async function saveDrug(e) {
   if ($('#dfActive').checked && test.status === 'fail') { say(m, 'ผลทดสอบสูตรไม่ผ่าน · แก้ตามรายการด้านบนก่อน หรือเอาเครื่องหมาย "แสดงในเครื่องคำนวณ" ออกเพื่อบันทึกไว้แก้ต่อ'); return; }
   const f = inds[0];   // ช่องเดิม = ข้อบ่งใช้แรก (หน้าเว็บรุ่นเก่ายังใช้ได้)
   const row = {
-    name, form: $('#dfForm2').value, indications: inds, indication: f.name, per: f.per, mg_per_kg_min: asMg(f, f.min), mg_per_kg_max: asMg(f, f.max),
+    name, form: $('#dfForm2').value, indications: inds, indication: f.name, per: f.per, ...legacyKg(f),
     dose_freq_per_day: f.times ?? null, max_mg_per_dose: asMg(f, f.cap ?? null), freq: f.freq ?? null, renal_note: f.renal ?? null,
     concs, sort: num($('#dfSort').value) ?? 0, active: $('#dfActive').checked, ai_draft: false,   // บันทึกผ่านฟอร์ม = ผู้ดูแลตรวจแล้ว
   };
@@ -608,7 +621,7 @@ async function saveReview(card) {
   const f = inds[0], btn = card.querySelector('[type=submit]');
   busy(btn, true, 'กำลังบันทึก…');
   const { error } = await sb.from('dose_drugs').update({
-    name, form: card.querySelector('.r-form').value, indications: inds, indication: f.name, per: f.per, mg_per_kg_min: asMg(f, f.min), mg_per_kg_max: asMg(f, f.max),
+    name, form: card.querySelector('.r-form').value, indications: inds, indication: f.name, per: f.per, ...legacyKg(f),
     dose_freq_per_day: f.times ?? null, max_mg_per_dose: asMg(f, f.cap ?? null), freq: f.freq ?? null, renal_note: f.renal ?? null,
     concs, active: true, ai_draft: false,   // ผู้ดูแลตรวจแล้ว → ใช้ในเครื่องคำนวณ
   }).eq('id', +card.dataset.rv);

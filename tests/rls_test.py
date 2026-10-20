@@ -1218,5 +1218,26 @@ check("existing achievements got work_date", None, "select count(*) from achieve
 check("achievement work_date defaults to today (Bangkok)", None, "select column_default like '%Asia/Bangkok%' from information_schema.columns where table_name='achievements' and column_name='work_date'", eq("t"))
 check("achievement work_date out of range rejected", None, "update achievements set work_date='1990-01-01' where id=(select id from achievements limit 1)", "deny")
 
+# ---- 85 ฐานข้อมูล MIMS (ผู้ดูแลเท่านั้น) + ขนาดยาแบบคงที่ ----
+MIMS_IND = """'[{"name":"ทดสอบ","per":"dose","fixed":true,"min":10,"max":20,"note":"ทดสอบ","ref":{"label":"MIMS Thailand","url":"https://www.mims.com/thailand/drug/info/x"}}]'"""
+check("admin adds MIMS entry → MIMS code", "admin", f"insert into drug_mims(name,url,indications) values ('Xylometazoline test','https://www.mims.com/thailand/drug/info/xylometazoline-test',{MIMS_IND}) returning web_code ~ '^MIMS-X-[0-9]{{2}}$'", eq("t"))
+check("MIMS url must be mims.com", "admin", "insert into drug_mims(name,url) values ('x','https://evil.example/x')", "deny")
+check("duplicate MIMS url refused", "admin", "insert into drug_mims(name,url) values ('y','https://www.mims.com/thailand/drug/info/xylometazoline-test')", "deny")
+check("staff cannot read MIMS", "s2", "select count(*) from drug_mims", eq(0))
+check("citizen cannot read MIMS", "c1", "select count(*) from drug_mims", eq(0))
+check("anon cannot read MIMS", "anon", "select count(*) from drug_mims", "deny")
+check("staff cannot add MIMS", "s2", "insert into drug_mims(name) values ('x')", "deny")
+check("admin links local drug to MIMS", "admin", "update local_drugs set mims_id=(select id from drug_mims where name='Xylometazoline test') where code='1010042' returning mims_id is not null", eq("t"))
+check("link_na accepts mims", "admin", "update local_drugs set link_na='{mims}' where code='1010042' returning cardinality(link_na)", eq(1))
+check("rejection kind mims accepted", "admin", "insert into drug_link_rejects(local_id,kind,target) select id,'mims','1' from local_drugs where code='1010042' returning kind", eq("mims"))
+check("fixed-dose indication valid", None, f"select public.dose_inds_problem({MIMS_IND}) is null", eq("t"))
+check("fixed must be boolean", None, """select public.dose_inds_problem('[{"name":"x","per":"dose","fixed":"yes","min":1,"max":2}]') is not null""", eq("t"))
+check("fixed-dose draft can be approved", "admin", f"insert into dose_drugs(name,indication,per,mg_per_kg_min,mg_per_kg_max,active,ai_draft,indications) values ('ทดสอบขนาดคงที่ (Xylo)','ทดสอบ','dose',0,0,true,false,{MIMS_IND}) returning active", eq("t"))
+check("cleanup fixed dose test", "admin", "delete from dose_drugs where name='ทดสอบขนาดคงที่ (Xylo)' returning id", rows(1))
+check("delete MIMS entry unlinks local drug", "admin", "delete from drug_mims where name='Xylometazoline test' returning id", rows(1))
+check("local drug mims_id cleared", None, "select count(*) from local_drugs where code='1010042' and mims_id is not null", eq(0))
+check("cleanup mims link_na", "admin", "update local_drugs set link_na='{}' where code='1010042' returning id", rows(1))
+check("cleanup mims rejection", "admin", "delete from drug_link_rejects where kind='mims' returning id", rows(1))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

@@ -75,7 +75,9 @@ export function strengthOf(l) {
   return null;
 }
 const PER = { tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' };
-export const concOf = (st, label) => ({ label, ...(st.per === '5ml' ? { mgPer5ml: st.mg } : st.per === 'ml' ? { mgPerMl: st.mg } : { mgPerTab: st.mg }), ...(st.ings?.length > 1 ? { ings: st.ings, per: st.per } : {}) });
+export const concOf = (st, label) => ({ label, ...(st.per === '5ml' ? { mgPer5ml: st.mg } : st.per === 'ml' ? { mgPerMl: st.mg } : { mgPerTab: st.mg }), ...(st.ings?.length > 1 ? { ings: st.ings, per: st.per } : st.ings?.length === 1 ? { ing1: st.ings[0].name } : {}) });
+/** ข้อบ่งใช้ที่คิดจากสารที่ระบุ (basis เช่น Elemental iron) แต่ยา รพ.สต. ตัวนี้ไม่ได้บอกปริมาณสารนั้น → ไม่คิดจำนวนเม็ด/มล. (ความแรงตามชื่อยาอาจเป็นน้ำหนักเกลือ) */
+const basisAbsent = (c, basis) => { const b = String(basis || '').trim().toLowerCase(); if (!b || !c?.lname || c.ings) return false; const hay = `${c.lname} ${c.ing1 || ''}`.toLowerCase(); return !hay.includes(b) && !hay.includes(b.split(/\s+/)[0]); };
 const mgText = (st) => (st.ings?.length > 1 ? `${st.ings.map((x) => num(x.mg)).join('/')} ${PER[st.per]} (${st.ings.map((x) => x.name).join(' + ')})` : `${num(st.mg)} ${PER[st.per]}`);
 /** สารสำคัญที่ข้อบ่งใช้นี้ใช้คิดขนาดยา (basis) ในยาสูตรผสม */
 const basisOf = (ings, basis) => { const b = String(basis || '').trim().toLowerCase(); return b ? ings.find((x) => { const n = x.name.toLowerCase(); return n === b || n.startsWith(b) || b.startsWith(n); }) : null; };
@@ -109,7 +111,7 @@ function conc() {
     if (!st) return null;
     const c = concOf(st, `${it.loc.name} ${mgText(st)}`), ing = (it.loc.ingredients || []).find((x) => x.dose_id && x.dose_id === d?.id);
     if (ing && c.ings) c.fixed = ing.name;   // ผูกข้อมูลคำนวณไว้กับสารนี้ = คิดจากสารนี้เสมอ
-    c.auto = it.auto;
+    c.auto = it.auto; c.lname = it.loc.name;
     return c;
   }
   if (v.startsWith('c:')) return (d?.concs || [])[+v.slice(2)];
@@ -193,13 +195,15 @@ function renderEst() {
 /** ตัวเลขขนาดยาของข้อบ่งใช้ i สำหรับน้ำหนัก w (กก.) และความแรง c — สูตรเดียวที่ใช้ทั้งหน้าคำนวณและตัวทดสอบสูตร (dose-test.js)
  *  per dose: w × min–max · per day: w × min–max (จำกัด cap_day) ÷ จำนวนครั้ง · แล้วจำกัดด้วย cap ต่อครั้ง · mcg ÷1000 ก่อนเทียบความแรง (มก.)
  *  ยาสูตรผสม: คิดจากสารสำคัญที่ระบุ (basis / fixed) · ไม่ระบุ = ไม่คิดจำนวนเม็ด (comboMissing)
+ *  ขนาดคงที่ (fixed · 85_mims.sql): min/max เป็น มก. (หรือ mcg) ต่อครั้ง/ต่อวันอยู่แล้ว ไม่คูณน้ำหนัก
+ *  basis ที่ยา รพ.สต. ไม่ได้บอกปริมาณ (เช่น Elemental iron แต่ความแรงตามชื่อเป็นน้ำหนักเกลือ) = ไม่คิดจำนวนเม็ด (basisMissing)
  *  vol = จำนวนเม็ด/มล. { a, b, u: 'tab'|'ml', dp, tiny (ปัดแล้วเป็น 0), frac (แบ่ง ¼ เม็ดไม่ลงตัว) } */
 export function doseNumbers(i, w, c) {
-  const k = i.unit === 'mcg' ? 1 / 1000 : 1;
+  const k = i.unit === 'mcg' ? 1 / 1000 : 1, f = i.fixed ? 1 : w;
   let lo, hi, n = 1, dayMin = null, dayMax = null, rawDayMin = null, rawDayMax = null, dayCapped = false;
-  if (i.per !== 'day') { lo = w * i.min; hi = w * i.max; }
+  if (i.per !== 'day') { lo = f * i.min; hi = f * i.max; }
   else {
-    rawDayMin = dayMin = w * i.min; rawDayMax = dayMax = w * i.max;
+    rawDayMin = dayMin = f * i.min; rawDayMax = dayMax = f * i.max;
     if (+i.cap_day > 0 && dayMax > +i.cap_day) { dayCapped = true; dayMin = Math.min(dayMin, +i.cap_day); dayMax = +i.cap_day; }   // ขนาดสูงสุดต่อวัน (audit F-09)
     n = i.times || 1; lo = dayMin / n; hi = dayMax / n;
   }
@@ -207,12 +211,12 @@ export function doseNumbers(i, w, c) {
   let capped = false;
   if (+i.cap > 0 && hi > +i.cap) { capped = true; lo = Math.min(lo, +i.cap); hi = +i.cap; }
   const minMg = lo * k, maxMg = hi * k;
-  let cc = c, ing = null, comboMissing = false;
+  let cc = c, ing = null, comboMissing = false, basisMissing = false;
   if (c?.ings) {
     ing = c.fixed ? c.ings.find((x) => x.name === c.fixed) : basisOf(c.ings, i.basis);
     if (ing) cc = concOf({ mg: ing.mg, per: c.per }, `${c.label} · คิดจาก ${ing.name} ${num(ing.mg)} ${PER[c.per]}`);
     else { cc = null; comboMissing = true; }
-  }
+  } else if (basisAbsent(c, i.basis)) { cc = null; basisMissing = true; }
   let vol = null;
   if (cc?.mgPer5ml) { const a = minMg / cc.mgPer5ml * 5, b = maxMg / cc.mgPer5ml * 5; vol = { a, b, u: 'ml', dp: 1, tiny: tooSmall(b, 1) }; }
   else if (cc?.mgPerMl) { const a = minMg / cc.mgPerMl, b = maxMg / cc.mgPerMl; vol = { a, b, u: 'ml', dp: 2, tiny: tooSmall(b, 2) }; }
@@ -221,7 +225,7 @@ export function doseNumbers(i, w, c) {
     const q = Math.round(b * 4) / 4;   // มีจำนวนที่แบ่งได้ (ทีละ ¼ เม็ด) อยู่ในช่วงขนาดยาไหม (audit F-19)
     vol = { a, b, u: 'tab', dp: 2, tiny, frac: !tiny && !(q >= a - 1e-9 && q <= b + 1e-9 && q > 0) && !(Math.ceil(a * 4) / 4 <= b + 1e-9) };
   }
-  return { lo, hi, rawLo, rawHi, n, dayMin, dayMax, rawDayMin, rawDayMax, dayCapped, capped, minMg, maxMg, cc, ing, comboMissing, vol };
+  return { lo, hi, rawLo, rawHi, n, dayMin, dayMax, rawDayMin, rawDayMax, dayCapped, capped, minMg, maxMg, cc, ing, comboMissing, basisMissing, vol };
 }
 function render() {
   renderEst();
@@ -246,6 +250,7 @@ function render() {
   const doseOf = (i) => {
     const ts = [i.times, ...(i.times_alt || [])].map(Number).filter((n) => n >= 1);
     const tail = `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
+      + (i.note ? `<p class="small muted" data-ind-note>หมายเหตุ: ${esc(i.note)}</p>` : '')
       + (i.ref?.label ? `<p class="small muted">ที่มา: ${/^https:\/\//.test(i.ref.url || '') ? `<a href="${esc(i.ref.url)}" target="_blank" rel="noopener">${esc(i.ref.label)}</a>` : esc(i.ref.label)}${i.quote ? ` · <span lang="en">“${esc(i.quote)}”</span>` : ''}</p>` : '')
       + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '')
       + (renal === 'unknown' ? '<p class="small fx-warn">ขนาดยานี้ยังไม่ได้ปรับตามการทำงานของไต (ยังประเมินไตไม่ได้)</p>' : '')
@@ -263,9 +268,9 @@ function render() {
       const U = i.unit === 'mcg' ? 'mcg' : 'มก.';
       return `<div class="alert" data-dose-incomplete>${warnIcon}<div><b>ข้อมูลขนาดยาไม่ครบ</b>`
         + `<div class="small">เป็นขนาดต่อวัน แต่ไม่ได้ระบุว่าแบ่งให้วันละกี่ครั้ง จึงยังคำนวณขนาดต่อครั้งและจำนวนเม็ด/มล. ไม่ได้</div>`
-        + `<div class="small">ขนาดรวมตามน้ำหนัก ${drng(w * i.min, w * i.max)} ${U}/วัน (ยังไม่ทราบว่าให้ครั้งเดียวหรือแบ่งให้) · แจ้งผู้ดูแลให้เพิ่มจำนวนครั้งในข้อมูลคำนวณขนาดยา</div></div></div>` + tail;
+        + `<div class="small">ขนาดรวม${i.fixed ? '' : 'ตามน้ำหนัก'} ${drng((i.fixed ? 1 : w) * i.min, (i.fixed ? 1 : w) * i.max)} ${U}/วัน (ยังไม่ทราบว่าให้ครั้งเดียวหรือแบ่งให้) · แจ้งผู้ดูแลให้เพิ่มจำนวนครั้งในข้อมูลคำนวณขนาดยา</div></div></div>` + tail;
     }
-    const noMax = !(+i.cap > 0) && !(+i.cap_day > 0) ? '<p class="small fx-warn" data-no-max>ข้อบ่งใช้นี้ยังไม่มีขนาดสูงสุดในข้อมูล · ตรวจสอบไม่ให้เกินขนาดสูงสุดตามเอกสารกำกับยา (โดยเฉพาะผู้ใหญ่/เด็กโต)</p>' : '';
+    const noMax = !i.fixed && !(+i.cap > 0) && !(+i.cap_day > 0) ? '<p class="small fx-warn" data-no-max>ข้อบ่งใช้นี้ยังไม่มีขนาดสูงสุดในข้อมูล · ตรวจสอบไม่ให้เกินขนาดสูงสุดตามเอกสารกำกับยา (โดยเฉพาะผู้ใหญ่/เด็กโต)</p>' : '';
     if (i.per === 'day' && ts.length > 1) return agePre + ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + noMax + tail;
     return agePre + doseCore(i) + noMax + tail;
   };
@@ -275,9 +280,9 @@ function render() {
     const label = i.per !== 'day' ? 'ต่อครั้ง' : n > 1 ? `ต่อครั้ง (แบ่งจากขนาดรวม ${drng(r.dayMin, r.dayMax)} ${U}/วัน)` : 'ต่อวัน (วันละครั้ง)';
     let dayCapNote = '';
     if (i.per !== 'day') { if (+i.cap_day > 0) dayCapNote = `<p class="small muted">รวมทั้งวันไม่เกิน ${num(+i.cap_day)} ${U}/วัน</p>`; }
-    else if (r.dayCapped) dayCapNote = `<p class="small fx-warn" data-capped-day>จำกัดที่ขนาดสูงสุด ${num(+i.cap_day)} ${U}/วัน · ขนาดตามน้ำหนักคือ ${drng(r.rawDayMin, r.rawDayMax)} ${U}/วัน</p>`;
+    else if (r.dayCapped) dayCapNote = `<p class="small fx-warn" data-capped-day>จำกัดที่ขนาดสูงสุด ${num(+i.cap_day)} ${U}/วัน · ขนาด${i.fixed ? 'ตามข้อมูล' : 'ตามน้ำหนัก'}คือ ${drng(r.rawDayMin, r.rawDayMax)} ${U}/วัน</p>`;
     // ขนาดสูงสุดต่อครั้ง (cap · หน่วยเดียวกับขนาดยา) ใช้ทั้งแบบต่อครั้งและแบบต่อวันที่แบ่งให้ · ถูกจำกัด = บอกขนาดตามน้ำหนักเดิม (audit F-02)
-    const capNote = r.capped ? `<p class="small fx-warn" data-capped>จำกัดที่ขนาดสูงสุด ${num(+i.cap)} ${U}/ครั้ง · ขนาดตามน้ำหนักคือ ${drng(r.rawLo, r.rawHi)} ${U}/ครั้ง`
+    const capNote = r.capped ? `<p class="small fx-warn" data-capped>จำกัดที่ขนาดสูงสุด ${num(+i.cap)} ${U}/ครั้ง · ขนาด${i.fixed ? 'ตามข้อมูล' : 'ตามน้ำหนัก'}คือ ${drng(r.rawLo, r.rawHi)} ${U}/ครั้ง`
       + `${i.per === 'day' && n > 1 ? ` · รวมได้ไม่เกิน ${num(+(+i.cap * n).toFixed(3))} ${U}/วัน` : ''}</p>` : '';
     // ยาสูตรผสม: คิดจำนวนเม็ด/มล. จากปริมาณของสารสำคัญที่ใช้คิดขนาดยา (basis) + บอกปริมาณสารสำคัญทุกตัวที่ได้รับ
     let combo = '', basisName = i.basis ? ` · คิดจาก ${i.basis}` : '';
@@ -286,6 +291,7 @@ function render() {
       if (r.ing) { const uLo = minMg / r.ing.mg, uHi = maxMg / r.ing.mg; combo = `<p class="small">ได้รับสารสำคัญ: ${c.ings.map((x) => `${esc(x.name)} ${drng(uLo * x.mg, uHi * x.mg)} มก.`).join(' · ')}</p>`; }
       else combo = `<p class="small fx-warn">ยาสูตรผสม (${esc(c.ings.map((x) => x.name).join(' + '))}): ข้อบ่งใช้นี้ยังไม่ได้ระบุว่าคิดขนาดยาจากสารสำคัญตัวใด จึงยังไม่คิดจำนวนเม็ด/มล. · ผู้ดูแลระบุได้ในข้อมูลคำนวณขนาดยา (ช่อง "คิดจากสารสำคัญ")</p>`;
     }
+    if (r.basisMissing) combo = `<p class="small fx-warn" data-basis-missing>ข้อบ่งใช้นี้คิดขนาดจาก ${esc(i.basis)} แต่ยา ${esc(c.lname)} ยังไม่ได้ระบุปริมาณ ${esc(i.basis)} ต่อเม็ด/มล. (ความแรงตามชื่อยาอาจเป็นน้ำหนักเกลือ) จึงยังไม่คิดจำนวนเม็ด/มล. · ผู้ดูแลกรอกสารสำคัญในฟอร์มยา</p>`;
     let vol = '';
     const v = r.vol;
     if (v) {
@@ -294,7 +300,7 @@ function render() {
       if (v.tiny) vol += '<p class="small fx-warn" data-too-small>ปริมาณน้อยเกินกว่าจะตวง/แบ่งจากความแรงนี้ได้ · ใช้ยาความแรงที่เหมาะกว่า หรือปรึกษาเภสัชกร</p>';
     }
     const unadj = renal !== 'normal' ? ' · ขนาดปกติ ยังไม่ปรับตามไต' : '';   // audit F-10: ไตเสื่อม/ประเมินไม่ได้ → ตัวเลขยังไม่ได้ปรับ
-    return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}${unadj}`) + capNote + dayCapNote + vol + combo;
+    return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${i.fixed ? 'คงที่ (ไม่คิดตามน้ำหนัก)' : ''}${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}${unadj}`) + capNote + dayCapNote + vol + combo;
   };
   const inds = indsOf(d);
 
@@ -336,7 +342,7 @@ function render() {
       ? `<section class="ind-result"><h4>${title(i, k)}</h4>${doseOf(i)}</section>`
       : `<details class="ind-result"><summary>${title(i, k)}</summary>${doseOf(i)}</details>`)).join('') + '</div>'
     + bmi
-    + (d.ai_source ? `<p class="small muted">ที่มาขนาดยา: ${esc(d.ai_source.replace(' · ยังไม่ผ่านการตรวจ', ''))} · ผู้ดูแลตรวจแล้ว</p>` : '')
+    + (d.ai_source ? `<p class="small muted">ที่มาขนาดยา: ${esc(d.ai_source.replace(' · ยังไม่ผ่านการตรวจ', '').replace(/ · https?:\/\/\S+/, ''))} · ผู้ดูแลตรวจแล้ว</p>` : '')
     + '<p class="small muted">ตัวเลขนี้เป็นการประมาณตามช่วงขนาดยาทั่วไป โปรดตรวจสอบกับเอกสารกำกับยา/แนวทางการรักษาและดุลยพินิจทางคลินิกก่อนใช้จริงเสมอ</p>';
 }
 
@@ -580,10 +586,11 @@ function closeMono() {
 }
 const num = (n) => (n == null || n === '' ? '' : String(+n));
 /** ข้อความขนาดยาของข้อบ่งใช้ เช่น "10–15 มก./กก./ครั้ง · สูงสุด 500 มก./ครั้ง" */
-function doseText(i) {
+export function doseText(i) {
   if (!(+i.min > 0 || +i.max > 0)) return '-';
   const r = num(i.min) === num(i.max) || !+i.max ? num(i.min || i.max) : `${num(i.min)}–${num(i.max)}`;
+  const kg = i.fixed ? '' : '/กก.';   // ขนาดคงที่ = ไม่คิดตามน้ำหนัก
   return i.per === 'day'
-    ? `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก./วัน${i.basis ? ` (คิดจาก ${i.basis})` : ''}${i.times ? ` แบ่งให้วันละ ${[i.times, ...(i.times_alt || [])].map(num).join(' หรือ ')} ครั้ง` : ''}`
-    : `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/กก./ครั้ง${i.basis ? ` (คิดจาก ${i.basis})` : ''}${i.cap ? ` · สูงสุด ${num(i.cap)} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/ครั้ง` : ''}`;
+    ? `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}${kg}/วัน${i.basis ? ` (คิดจาก ${i.basis})` : ''}${i.times ? ` แบ่งให้วันละ ${[i.times, ...(i.times_alt || [])].map(num).join(' หรือ ')} ครั้ง` : ''}`
+    : `${r} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}${kg}/ครั้ง${i.basis ? ` (คิดจาก ${i.basis})` : ''}${i.cap ? ` · สูงสุด ${num(i.cap)} ${i.unit === 'mcg' ? 'mcg' : 'มก.'}/ครั้ง` : ''}`;
 }
