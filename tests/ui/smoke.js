@@ -1351,7 +1351,45 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await go(p, '#/admin/drugs/help'); await p.waitForTimeout(300);
       check('วิธีใช้: หน้าแยกจากศูนย์ข้อมูลยา (คำอธิบาย 3 คำถาม · สัญลักษณ์ · ข้อมูลครบ ≠ พร้อมใช้)', await visible(p, '#dcHelp') && !(await visible(p, '#dcCenter')) && !(await visible(p, '.adr-pick')) && (await text(p, '#dcHelp')).includes('ต้องกดตรงไหน') && (await text(p, '#dcHelp')).includes('พร้อมใช้คำนวณ') && (await p.getAttribute('#dcTabs [data-sub="help"]', 'aria-current')) === 'page');
       await go(p, '#/admin/drugs'); await p.waitForTimeout(500);
-      check('วิธีใช้ → กลับศูนย์ข้อมูลยา', await visible(p, '#dcCenter') && !(await visible(p, '#dcHelp')) && await visible(p, '.adr-pick'));
+      check('วิธีใช้ → กลับศูนย์ข้อมูลยา', await visible(p, '#dcCenter') && !(await visible(p, '#dcHelp')));
+      // flow ใหม่: หน้าเดียว · ฐานข้อมูล 7 ส่วนอยู่ในแผง "เครื่องมือฐานข้อมูล" · แก้จากแผงยา → บันทึกแล้วกลับมาที่ยาเดิมเอง
+      check('ศูนย์ข้อมูลยา: หน้าหลักไม่มีส่วนฐานข้อมูล 7 ส่วน (ซ่อนในเครื่องมือฐานข้อมูล)', !(await visible(p, '[data-adr-sec="local"]')) && !(await p.isVisible('#dcDrawer')) && await visible(p, '#dcAddBtn') && await visible(p, '#dcToolsBtn'));
+      await p.click('#dcAddBtn'); await p.waitForTimeout(600);
+      check('+ เพิ่มยา → แผงด้านขวาเปิดที่ "เพิ่มยา" (ตารางยังอยู่ด้านหลัง)', await p.isVisible('#dcDrawer') && await visible(p, '#dfBulk') && await visible(p, '#dcTable') && await p.$eval('[data-adr-sec="ai"]', (d) => d.open));
+      await p.click('#dcDrClose'); await p.waitForTimeout(500);
+      check('ปิดแผง (×) → กลับศูนย์ข้อมูลยา', !(await p.isVisible('#dcDrawer')) && (await p.evaluate(() => location.hash)) === '#/admin/drugs');
+      await p.click('#dcToolsBtn'); await p.waitForTimeout(600);
+      check('⋯ เครื่องมือฐานข้อมูล → ฐานข้อมูลทุกส่วนครบในแผง', await p.isVisible('#dcDrawer') && await count(p, '#dcDrawer .adr-sec') === 7);
+      await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+      check('กด Esc ปิดแผงได้', !(await p.isVisible('#dcDrawer')));
+      { // ร่าง AI → "ตรวจร่าง AI และอนุมัติ" เปิดฟอร์มตรวจในแผง → บันทึก → แผงปิดเอง กลับมาที่ยาเดิม
+        const lid = await p.evaluate(() => window.__db.local_drugs.find((x) => /Loratadine/.test(x.name))?.id);
+        await p.fill('#dcQ', 'Loratadine'); await p.waitForTimeout(150);
+        await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="dose"]`); await p.waitForTimeout(300);
+        await p.click('#dcSec-dose [data-dc-full="dose"]'); await p.waitForTimeout(700);
+        check('ตรวจร่าง AI จากแผงยา: ฟอร์มตรวจเปิดในแผงด้านขวา (ไม่เลื่อนหน้าไปที่อื่น)', await p.isVisible('#dcDrawer') && await visible(p, '#dfForm') && (await text(p, '#dfSubmit')) === 'ตรวจแล้ว · บันทึก (อนุมัติ)');
+        await p.click('#dfSubmit'); await p.waitForTimeout(900);
+        check('บันทึกในแผง → แผงปิดเอง + แผงยาเดิมยังเปิด (ไม่ต้องกลับไปหา)', !(await p.isVisible('#dcDrawer')) && /Loratadine/.test(await text(p, '#dcPanel h3')) && (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload?.ai_draft === false); }
+      { // อนุมัติใช้คำนวณ: ข้อมูลครบ + ขนาดยาตรวจแล้ว แต่ยายังซ่อน → ปุ่มเดียวแสดงยา + ใช้คำนวณ
+        const lid = await p.evaluate(() => { const L = window.__db.local_drugs, d = window.__db.dose_drugs.find((x) => /Paracetamol/.test(x.name) && !x.ai_draft);
+          const l = L.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)'); Object.assign(l, { active: false, dose_id: d.id }); d.active = true; return l.id; });
+        await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(700);
+        await p.fill('#dcQ', 'PARACETAMOL 500'); await p.waitForTimeout(150);
+        await p.click(`#dcTable [data-dc-row="${lid}"].dc-nm`); await p.waitForTimeout(300);
+        check('อนุมัติใช้คำนวณ: ยาครบแล้วแต่ซ่อน → มีปุ่ม "อนุมัติใช้คำนวณ"', await visible(p, '#dcPanel [data-dc-approve]'), await text(p, '#dcPanel'));
+        await p.click('#dcPanel [data-dc-approve]'); await p.waitForTimeout(600);
+        check('อนุมัติใช้คำนวณ: คลิกเดียว → ยาแสดง (active) + ปุ่มหายไป', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.active === true && !(await p.$('#dcPanel [data-dc-approve]'))); }
+      await p.fill('#dcQ', ''); await p.click('#dcCards [data-dc-f="miss"]'); await p.waitForTimeout(200);
+      { const first = await p.$eval('#dcTable .dc-nm', (b) => b.dataset.dcRow); await p.click('#dcTable .dc-nm'); await p.waitForTimeout(300);
+        const nextId = await p.$eval('#dcPanel [data-dc-next]', (b) => b.dataset.dcNext).catch(() => null);
+        await p.click('#dcPanel [data-dc-next]'); await p.waitForTimeout(300);
+        check('"ถัดไป ›" → ยาตัวต่อไปในรายการที่กรองอยู่ (ไม่ต้องกลับไปหาในตาราง)', !!nextId && nextId !== first && await p.$eval(`#dcTable [data-dc-row="${nextId}"].dc-nm`, (b) => b.closest('.dc-tr').classList.contains('is-sel'))); }
+      await p.click('#dcCards [data-dc-f="miss"]'); await p.waitForTimeout(150);
+      { // ปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา (ยา รพ.สต.) → เปิดแผงยานั้นในศูนย์ข้อมูลยา
+        const lid = await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'SIMVASTATIN 20 MG').id);
+        await p.evaluate((id) => sessionStorage.setItem('pcps_drug_edit', 'local:' + id), lid);
+        await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(700);
+        check('"แก้ไขข้อมูลนี้" (ยา รพ.สต.) → แผงยานั้นในศูนย์ข้อมูลยา', (await text(p, '#dcPanel h3')) === 'SIMVASTATIN 20 MG' && !(await p.isVisible('#dcDrawer'))); }
       await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(300);
       await p.click('#dcTable .dc-nm'); await p.waitForTimeout(400);
       check('ศูนย์ข้อมูลยา: มือถือ 390px ไม่มี scroll แนวนอน · ตารางเลื่อนในกรอบ · แผงอยู่ใต้ตาราง', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1) && await p.$eval('#dcPanel', (e) => e.getBoundingClientRect().top > document.querySelector('#dcTable').getBoundingClientRect().top));
@@ -1366,16 +1404,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click(`#dfList [data-edit="${did}"]`); await p.waitForTimeout(450);
       check('ผูกฐานข้อมูล: อยู่ล่างสุดของฟอร์มแก้ไข (ก่อนปุ่มบันทึก) + ยา รพ.สต. ที่ใช้ข้อมูลนี้พร้อมรหัส SHPS-P-…',
         await p.$eval('#dfLinkFold', (d) => d.closest('form')?.id === 'dfForm' && d.compareDocumentPosition(document.querySelector('#dfSubmit')) & Node.DOCUMENT_POSITION_FOLLOWING)
-        && (await text(p, '#dlLocals')).includes('PARACETAMOL') && /SHPS-P-\d\d/.test(await text(p, '#dlLocals')) && /NLEM-P-\d\d/.test(await text(p, '#dlMonos')), await text(p, '#dlLocals'));
+        && (await text(p, '#dlLocals')).includes('PARACETAMOL') && /SHPS-P-\d\d/.test(await text(p, '#dlLocals')) && !(await visible(p, '#dlMonos')) && !(await visible(p, '#dlDdi')), await text(p, '#dlLocals'));   // บัญชียาหลัก/ฉลาก/DDInter ผูกที่ศูนย์ข้อมูลยาที่เดียว
       await p.fill('#dlLocalQ', 'SIMVASTATIN 20 MG'); await p.waitForTimeout(150);
       check('ผูกฐานข้อมูล: พิมพ์/เลือกชื่อยา → เพิ่มในกล่อง', (await text(p, '#dlLocals')).includes('SIMVASTATIN 20 MG') && (await p.inputValue('#dlLocalQ')) === '');
-      await p.fill('#dlDdi', 'Acetaminophen, Ibuprofen'); await p.waitForTimeout(100);
-      check('ผูกฐานข้อมูล: ช่อง DDInter แสดงรหัส DDI-…', /DDI-A-\d\d/.test(await text(p, '#dlDdiChips')));
       const u0 = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).length;
       await p.click('#dfSubmit'); await p.waitForTimeout(600);
       const ups = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).slice(u0);
       const sim = await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'SIMVASTATIN 20 MG'));
-      check('ผูกฐานข้อมูล: บันทึกครั้งเดียว → ยาที่เพิ่มใช้ข้อมูลคำนวณนี้ + DDInter ที่แก้ใช้กับทุกตัวในกล่อง', sim.dose_id === did && ups.length >= 2 && ups.every((c) => JSON.stringify(c.payload.ddi_ids || ['x']) !== '[]'), JSON.stringify(ups.map((c) => c.payload)));
+      check('ผูกฐานข้อมูล: บันทึก → ยาที่เพิ่มใช้ข้อมูลคำนวณนี้', sim.dose_id === did && ups.length >= 1, JSON.stringify(ups.map((c) => c.payload)));
       await p.click(`#dfList [data-edit="${did}"]`); await p.waitForTimeout(450);
       await p.click(`#dlLocals [data-dl-rm="${sim.id}"]`); await p.click('#dfSubmit'); await p.waitForTimeout(600);
       check('ผูกฐานข้อมูล: เอายาออกจากกล่อง → เลิกใช้ข้อมูลคำนวณนี้', await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'SIMVASTATIN 20 MG').dose_id) === null);
@@ -1497,16 +1533,25 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ฐานข้อมูลยา: ฟอร์มเพิ่มยาใหม่ด้านบนย่อไว้ตอนเปิดหน้า (thread 3cb39a9f)', await p.evaluate(() => fetch('index.html').then((r) => r.text()).then((t) => { const d = new DOMParser().parseFromString(t, 'text/html').querySelector('#ldNewFold'); return !!d && !d.open; })));
     if (!(await p.$eval('#ldNewFold', (d) => d.open))) await p.click('#ldNewFold > summary'); await p.waitForTimeout(100);
     await p.fill('#ldName', 'OMEPRAZOLE 20 MG ทดสอบ'); await p.fill('#ldCode', '9999991'); await p.fill('#ldCat', 'ยาเม็ด/แคปซูล'); await p.fill('#ldPack', '100'); await p.fill('#ldUnit', 'CAP');
-    if (!(await p.$eval('#ldLinkFold', (d) => d.open))) await p.click('#ldLinkFold > summary');
-    await p.fill('#ldLinkQ', 'omepraz'); await p.waitForTimeout(100);
-    await p.click('#ldLinkOut [data-link="Omeprazole"]'); await p.waitForTimeout(100);
-    check('ฐานข้อมูลยา: ค้นหาแล้วกดผูกกับข้อมูลยาในบัญชียาหลัก', (await text(p, '#ldLinks')).includes('Omeprazole'));
+    check('ฟอร์มยา รพ.สต.: ไม่มีช่องผูกบัญชียาหลัก/ฉลาก/DDInter ซ้ำ (ผูกที่ศูนย์ข้อมูลยาที่เดียว)', !(await visible(p, '#ldLinkFold')) && !(await visible(p, '#ldLinkQ')));
     await p.click('#ldSubmit'); await p.waitForTimeout(400);
     { const ins = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'insert')).pop()?.payload || {};
-      check('ฐานข้อมูลยา: เพิ่มยา รพ.สต. พร้อมผูกข้อมูลยา (ref)', ins.name === 'OMEPRAZOLE 20 MG ทดสอบ' && ins.code === '9999991' && ins.mono_refs?.length >= 1 && ins.mono_refs.every((r) => r.startsWith('2569:')) && (await text(p, '#ldList')).includes('OMEPRAZOLE 20 MG ทดสอบ'), JSON.stringify(ins)); }
+      check('ฐานข้อมูลยา: เพิ่มยา รพ.สต.', ins.name === 'OMEPRAZOLE 20 MG ทดสอบ' && ins.code === '9999991' && (await text(p, '#ldList')).includes('OMEPRAZOLE 20 MG ทดสอบ'), JSON.stringify(ins)); }
+    { // ผูกบัญชียาหลักของยาใหม่ที่ศูนย์ข้อมูลยา (แผงยา › ดินสอ › ค้นหา › เพิ่ม › บันทึก)
+      const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '9999991')?.id);
+      await go(p, '#/admin/drugs'); await p.waitForTimeout(600);
+      await p.fill('#dcQ', 'OMEPRAZOLE 20 MG ทดสอบ'); await p.waitForTimeout(150);
+      await p.click(`#dcTable [data-dc-row="${id}"][data-dc-k="nlem"]`); await p.waitForTimeout(300);
+      await p.click('#dcSec-nlem [data-dc-edit]'); await p.waitForTimeout(200);
+      await p.fill('#dcMonoQ', 'omepraz'); await p.waitForTimeout(150);
+      await p.click('#dcMonoOut [data-dc-addmono="Omeprazole"]'); await p.waitForTimeout(150);
+      await p.click('#dcSec-nlem [data-dc-save]'); await p.waitForTimeout(500);
+      const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
+      check('ศูนย์ข้อมูลยา: ค้นหาแล้วผูกบัญชียาหลัก (ref) ให้ยาใหม่', up.mono_refs?.length >= 1 && up.mono_refs.every((r) => r.startsWith('2569:')) && (await text(p, '#dcSec-nlem')).includes('Omeprazole'), JSON.stringify(up));
+      await p.fill('#dcQ', ''); await go(p, '#/admin/drugs/local'); await dbAll(p); await p.waitForTimeout(400); }
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '9999991')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
-      check('ฐานข้อมูลยา: แก้ไขเปิดค่าเดิม + ข้อมูลยาที่ผูกไว้', (await p.inputValue('#ldName')) === 'OMEPRAZOLE 20 MG ทดสอบ' && (await text(p, '#ldLinks')).includes('Omeprazole') && await visible(p, '#ldCancel'));
+      check('ฐานข้อมูลยา: แก้ไขเปิดค่าเดิม', (await p.inputValue('#ldName')) === 'OMEPRAZOLE 20 MG ทดสอบ' && await visible(p, '#ldCancel'));
       await p.fill('#ldNote', 'เก็บให้พ้นแสง'); await p.click('#ldSubmit'); await p.waitForTimeout(400);
       check('ฐานข้อมูลยา: บันทึกการแก้ไขยา รพ.สต.', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.note === 'เก็บให้พ้นแสง');
       await go(p, '#/dose'); await p.waitForTimeout(300); await p.click('#doseTabs [data-dt="info"]'); await p.waitForTimeout(400);
@@ -1565,8 +1610,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#faName', 'Claritin (ทดสอบแก้)'); await p.click('#faSave'); await p.waitForTimeout(300);
     check('openFDA: บันทึกการแก้ไขฉลาก', (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'update')).pop()?.payload?.title === 'Claritin (ทดสอบแก้)');
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1700170')?.id);
-      await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100); await ldFold(p); await p.selectOption('#ldFda', 'loratadine|ORAL'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
-      check('openFDA: ผูกฉลากกับยา รพ.สต.', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.fda_key === 'loratadine|ORAL'); }
+      await go(p, '#/admin/drugs'); await p.waitForTimeout(600);
+      await p.fill('#dcQ', 'HYDROXYZINE'); await p.waitForTimeout(150);
+      await p.click(`#dcTable [data-dc-row="${id}"][data-dc-k="fda"]`); await p.waitForTimeout(300);
+      await p.click('#dcSec-fda [data-dc-edit]'); await p.waitForTimeout(200);
+      await p.selectOption('#dcFda', 'loratadine|ORAL'); await p.click('#dcSec-fda [data-dc-save]'); await p.waitForTimeout(500);
+      check('openFDA: ฉลากที่ดึงมาใหม่ผูกกับยาได้ที่ศูนย์ข้อมูลยา', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.fda_key === 'loratadine|ORAL');
+      await p.fill('#dcQ', ''); await go(p, '#/admin/drugs/fda'); await p.waitForTimeout(400); }
     await p.click('#faList [data-fa-del]'); await p.waitForTimeout(300);
     check('openFDA: ลบฉลาก', (await calls(p, (c) => c.table === 'drug_fda_labels' && c.op === 'delete')).length === 1);
     await p.unroute('https://api.fda.gov/**');
@@ -1611,17 +1661,6 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ผู้ดูแล › ข้อมูลยา: ปุ่มขยายทุกส่วน', await p.$$eval('.adr-sec', (a) => a.every((x) => x.open)));
     await go(p, '#/admin/drugs/ddi'); await p.waitForTimeout(300);
     check('ผู้ดูแล › ข้อมูลยา: ลิงก์เดิม #/admin/drugs/ddi เปิดส่วนอันตรกิริยา', await p.$eval('[data-adr-sec="ddi"]', (d) => d.open) && await visible(p, '#ddList'));
-    // เลือกยาด้านบน → ทุกฐานข้อมูลแสดงเฉพาะยานั้น
-    await p.fill('#adrQ', 'AMOXICILLIN 500 MG'); await p.waitForTimeout(300);
-    { const ids = await p.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'AMOXICILLIN 500 MG').ddi_ids);
-      const pairs = await p.$$eval('#ddList .li b', (b) => b.map((x) => x.textContent));
-      const ddiName = await p.evaluate((id) => window.__db.ddi_drugs.find((x) => x.id === id)?.name, ids[0]);
-      check('เลือกยาด้านบน: บัญชียา รพ.สต. เหลือยาตัวเดียว + ส่วนอื่นเปิดเอง', await count(p, '#ldList .li') === 1 && (await text(p, '#ldList')).includes('AMOXICILLIN 500 MG') && await p.$$eval('.adr-sec', (a) => a.every((x) => x.open)) && (await text(p, '#adrInfo')).includes('AMOXICILLIN'));
-      check('เลือกยาด้านบน: บัญชียาหลัก/ฉลากยา/ข้อมูลคำนวณ เหลือเฉพาะของยานี้ตัวเดียว', await count(p, '#dmList .li') === 1 && (await text(p, '#dmList')).includes('Amoxicillin') && await count(p, '#faList .li') === 1 && (await text(p, '#faList')).toLowerCase().includes('amoxicillin')
-        && await count(p, '#dfList .li') === 1 && (await text(p, '#dfList')).includes('Amoxicillin'), `${await count(p, '#dmList .li')}/${await count(p, '#faList .li')}/${await count(p, '#dfList .li')}`);
-      check('เลือกยาด้านบน: อันตรกิริยาแสดงเฉพาะคู่ที่มียานี้ + หัวข้อบอกจำนวนที่พบ', pairs.length > 0 && pairs.every((t) => t.includes(ddiName)) && (await text(p, '[data-adr-n="local"]')).includes('พบ 1') && (await text(p, '[data-adr-n="dose"]')).includes('พบ 1'), ddiName); }
-    await p.click('#adrClear'); await p.waitForTimeout(200);
-    check('เลือกยาด้านบน: กดล้าง → แสดงทุกรายการเหมือนเดิม', await count(p, '#ldList .li') > 10 && await count(p, '#dfList .li') > 1 && (await p.inputValue('#adrQ')) === '' && (await text(p, '[data-adr-n="local"]')).trim() === '');
     await go(p, '#/admin/drugs/db'); await dbAll(p);
     check('ผู้ดูแล › ฐานข้อมูลยา: บอกว่าระบบแปลไทยให้เองต่อเนื่อง (ฉลาก/คู่ยา)', (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองต่อเนื่องทีละฉลาก') && (await p.textContent('[data-view=admin]')).includes('ระบบแปลให้เองต่อเนื่องทีละคู่'));
     check('Drug interaction (ผู้ดูแล): รายการคู่ยา เรียงรุนแรงก่อน', await count(p, '#ddList .li') === 30 && (await text(p, '#ddList .li')).includes('Major') && (await text(p, '#ddCount')).includes('คู่'));
@@ -1649,7 +1688,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ยา รพ.สต.: ยาสูตรผสมกรอกแยกรายสาร (ชื่อ · ความแรง · หน่วย · ข้อมูลคำนวณ) + เตือนให้ทวนสอบข้อมูลที่ระบบใส่ให้', rows.join() === 'Sulfamethoxazole|400|mg|tab,Trimethoprim|80|mg|tab' && await count(p, '#ldIngs .r-dose') === 2 && await visible(p, '#ldIngWarn'), rows.join()); }
       await p.selectOption('#ldIngs .ld-ing-row:nth-child(2) .r-dose', { label: 'ยาทดสอบ' });
       check('ยา รพ.สต.: ช่องยาใน DDInter แสดงยาผสมครบ (Co-trimoxazole = 2 ตัว)', (await p.inputValue('#ldDdi')).split(',').length === 2, await p.inputValue('#ldDdi'));
-      await ldFold(p); await p.fill('#ldDdi', 'Sulfamethoxazole'); await p.click('#ldSubmit'); await p.waitForTimeout(300);
+      await p.$eval('#ldDdi', (e) => { e.value = 'Sulfamethoxazole'; }); await p.click('#ldSubmit'); await p.waitForTimeout(300);   // ช่องซ่อน (ผูกที่ศูนย์ข้อมูลยา) · ค่าเดิมยังบันทึกตามเดิม
       const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
       check('ยา รพ.สต.: บันทึกสารสำคัญรายตัว + ข้อมูลคำนวณของ Trimethoprim (ทวนสอบแล้ว = ไม่มีป้ายระบบใส่ให้)', up.ingredients?.length === 2 && up.ingredients[1].dose_id === await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id) && !up.ingredients[0].dose_id && !JSON.stringify(up.ingredients).includes('auto') && up.dose_id === null, JSON.stringify(up.ingredients));
       check('ยา รพ.สต.: แก้ยาใน DDInter → บันทึกเป็นรหัส', up.ddi_ids?.length === 1 && /^DDInter\d+$/.test(up.ddi_ids[0]), JSON.stringify(up.ddi_ids)); }

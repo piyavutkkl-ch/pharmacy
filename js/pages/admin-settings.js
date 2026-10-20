@@ -5,7 +5,7 @@ import { $, esc, toast, errText, busy, thaiDateTime } from '../util.js?v=4.4';
 import { loadUnits } from '../data.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { resetDose, latinOf, keysOf, sameDrug } from './dose.js?v=4.4';
-import { showForm, closeForm, parkForm, keepForm, isOpenAt, dlFill, dlSave, dlCheck, linkDrug, codeTag } from './admin-drugs.js?v=4.4';
+import { showForm, closeForm, parkForm, keepForm, isOpenAt, dlFill, dlSave, dlCheck, dlPreset, linkDrug, codeTag } from './admin-drugs.js?v=4.4';
 
 const num = (v) => (v === '' || v == null ? null : Number(v));
 /** ข้อบ่งใช้ใช้คำนวณได้หรือไม่ (กฎเดียวกับ public.dose_inds_problem ใน 73_dose_approval.sql) → null = ใช้ได้ */
@@ -183,7 +183,7 @@ function renderBulk() {
   $('#dfBulkN').textContent = bulk.length ? `รอเพิ่ม ${left} · เพิ่มแล้ว ${done} · ทั้งหมด ${bulk.length}` : '';
   $('#dfBulkClear').hidden = !bulk.length;
   $('#dfBulkList').innerHTML = bulk.map((x, i) => `<div class="li${i === bulkCur ? ' df-bulk-cur' : ''}"><div class="l"><b>${esc(x.name)}</b>`
-    + `<span class="small ${['done', 'draft', 'linked'].includes(x.st) ? 'ok-text' : x.st === 'nodata' ? 'ai-err' : 'muted'}">${x.st === 'done' ? '✓ เพิ่มแล้ว' : x.st === 'draft' ? '✓ เก็บเป็นร่างแล้ว · รอตรวจในรายการยา' : x.st === 'linked' ? '✓ ผูกฐานข้อมูลแล้ว (มีข้อมูลคำนวณอยู่แล้ว)' : x.st === 'nodata' ? esc(x.note || 'AI ไม่พบขนาดยา · กรอกเอง') : x.st === 'busy' ? 'AI กำลังดึงข้อมูล…' : x.dup ? 'มีในรายการยาแล้ว · ข้าม' : x.st === 'skip' ? 'ข้าม' : i === bulkCur ? 'กำลังกรอกในฟอร์มด้านล่าง' : 'รอเพิ่ม'}</span>${x.links ? `<span class="small muted" data-bulk-links>${esc(x.links)}</span>` : ''}</div>`
+    + `<span class="small ${['done', 'draft', 'linked'].includes(x.st) ? 'ok-text' : x.st === 'nodata' ? 'ai-err' : 'muted'}">${x.st === 'done' ? '✓ เพิ่มแล้ว' : x.st === 'draft' ? '✓ เก็บเป็นร่างแล้ว · รอตรวจในรายการยา' : x.st === 'linked' ? '✓ ผูกฐานข้อมูลแล้ว (มีข้อมูลคำนวณอยู่แล้ว)' : x.st === 'nodata' ? esc(x.note || 'AI ไม่พบขนาดยา · กรอกเอง') : x.st === 'busy' ? 'AI กำลังดึงข้อมูล…' : x.dup ? 'มีในรายการยาแล้ว · ข้าม' : x.st === 'skip' ? 'ข้าม' : i === bulkCur ? 'กำลังกรอกในฟอร์มด้านล่าง' : 'รอเพิ่ม'}</span>${x.links ? `<span class="small muted" data-bulk-links>${esc(x.links)}</span>` : ''}${x.lid ? `<button type="button" class="btn btn-o btn-sm" data-dc-open="${x.lid}">เปิดยานี้ในศูนย์ข้อมูลยา</button>` : ''}</div>`
     + (['done', 'draft', 'busy', 'linked'].includes(x.st) ? '' : `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-bulk-open="${i}">เปิดในฟอร์ม</button>${x.st === 'wait' ? `<button type="button" class="btn btn-o btn-sm" data-bulk-skip="${i}">ข้าม</button>` : ''}</div>`)
     + '</div>').join('');
 }
@@ -261,6 +261,7 @@ async function bulkAi() {
         }
         // ② ผูกทุกฐานข้อมูล: ยา รพ.สต. (ไม่มี = เพิ่มในบัญชียานอก รพ.สต.) · บัญชียาหลัก · ฉลาก openFDA · DDInter
         const ln = await linkDrug(x.name, { doseId, setId, us: q });
+        x.lid = ln.ids?.[0] || null;
         x.links = [...ln.parts, doseId ? (have ? 'ขนาดยา: มีแล้ว ✓' : 'ขนาดยา: ร่าง AI ✓') : `ขนาดยา: ${note}`].join(' · ');
         if (doseId) { x.st = have ? 'linked' : 'draft'; if (!have) saved++; } else { Object.assign(x, { st: 'nodata', note }); miss++; }
       } catch (err) {
@@ -444,6 +445,13 @@ function resetDrugForm() {
 }
 
 /** ศูนย์ข้อมูลยา: เปิดฟอร์มแก้ไขขนาดยาของรายการนี้ (ส่วนคำนวณขนาดยา) */
+/** ศูนย์ข้อมูลยา: สร้างข้อมูลคำนวณใหม่ให้ยาตัวนี้ (ชื่อ + ผูกยานั้นไว้ก่อน) */
+export async function openDoseNew(name, localId) {
+  const sec = document.querySelector('[data-adr-sec="dose"]'); if (sec) sec.open = true;
+  resetDrugForm(); $('#dfName').value = name;
+  await dlFill(null); dlPreset([localId]);
+  $('#dfForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); $('#dfName').focus({ preventScroll: true });
+}
 export function openDoseEdit(id) {
   const d = drugs.find((x) => x.id === id); if (!d) return;
   const sec = document.querySelector('[data-adr-sec="dose"]'); if (sec) sec.open = true;
@@ -487,7 +495,8 @@ async function saveDrug(e) {
   try { linked = await dlSave(editDrug?.id || data?.[0]?.id); } catch (err) { busy(btn, false); say(m, `บันทึกข้อมูลคำนวณแล้ว แต่ผูกฐานข้อมูลไม่สำเร็จ: ${errText(err)}`); return; }
   busy(btn, false);
   toast((editDrug?.ai_draft ? 'ตรวจแล้ว · อนุมัติแล้ว' : editDrug ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มยาแล้ว') + (linked ? ` · ผูกฐานข้อมูล ${linked} ยา` : ''));
-  const fromBulk = !editDrug && bulkCur >= 0;
+  const fromBulk = !editDrug && bulkCur >= 0, savedId = editDrug?.id || data?.[0]?.id, wasDraft = !!editDrug?.ai_draft;
+  window.dispatchEvent(new CustomEvent('pcps:dosesaved', { detail: { id: savedId, wasDraft } }));   // ศูนย์ข้อมูลยา: ปิดแผงเครื่องมือ กลับไปที่ยาเดิม
   resetDose();
   await reloadDrugs();
   if (fromBulk) { const i = bulkCur; resetDrugForm(); bulkCur = i; bulkSaved(); } else resetDrugForm();

@@ -692,6 +692,7 @@
         <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="center">ศูนย์ข้อมูลยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a></nav>
         <!-- ศูนย์ข้อมูลยา (drug-center.js): สรุป → วงกลมรายส่วน → ตารางสถานะยา → แผงรายละเอียด/แก้ไขทีละส่วน + คู่ที่ระบบเสนอ -->
         <div id="dcCenter" class="dc">
+          <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/ai" id="dcAddBtn">+ เพิ่มยา</a><a class="btn btn-o btn-sm" href="#/admin/drugs/tools" id="dcToolsBtn">⋯ เครื่องมือฐานข้อมูล</a><span class="small muted">แก้ข้อมูลยาแต่ละตัว: กดชื่อยาหรือช่องสถานะในตาราง</span></div>
           <div class="dc-cards" id="dcCards" role="group" aria-label="กรองตามสถานะ"></div>
           <div class="dc-stack" id="dcStack" aria-hidden="true"></div>
           <div class="dc-rings" id="dcRings" role="group" aria-label="ความครบของข้อมูลแต่ละส่วน · กดเพื่อดูยาที่ยังขาดส่วนนั้น"></div>
@@ -705,7 +706,6 @@
             <div class="dc-tbl" id="dcTable" role="table" aria-label="สถานะข้อมูลยา"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
             <aside class="dc-panel" id="dcPanel" aria-live="polite"><p class="empty">กดชื่อยาหรือช่องสถานะในตาราง เพื่อดูและแก้ข้อมูลยาตัวนั้น</p></aside>
           </div>
-          <h2 class="dc-dbh">ฐานข้อมูลทั้งหมด <span class="small muted">· แก้ไขแบบละเอียด</span></h2>
         </div>
         <div id="dcHelp" class="dc-help" hidden>
           <div class="panel"><h2>วิธีใช้ศูนย์ข้อมูลยา</h2>
@@ -715,6 +715,15 @@
               <div><b>2. ยาตัวไหนมีปัญหา</b><p class="small">กดการ์ด (เช่น "ผิดพลาด") หรือกดวงกลม (เช่น "ฉลาก") ตารางจะเหลือเฉพาะยาที่ต้องแก้ ยาที่มีปัญหาหนักอยู่บนสุด กดซ้ำเพื่อดูทั้งหมด</p></div>
               <div><b>3. ต้องกดตรงไหน</b><p class="small">กดช่องสถานะในแถว แผงรายละเอียดจะเปิดที่ส่วนนั้น ถ้าระบบหาคู่ให้ได้ กด "✓ ใช้คู่นี้" ถ้าไม่ใช่ กด "✗ ไม่ใช่" ส่วนอื่นกดปุ่มดินสอเพื่อแก้เฉพาะส่วนนั้นในแผง</p></div>
             </div>
+          </div>
+          <div class="panel"><h2>ลำดับงานที่แนะนำ</h2>
+            <ol class="dc-steps-help">
+              <li><b>เพิ่มยา</b> กด "+ เพิ่มยา" → พิมพ์ชื่อ (บรรทัดละ 1 ยา) → "ให้ AI ดึงข้อมูลและผูกทุกฐานข้อมูล" → กด "เปิดยานี้ในศูนย์ข้อมูลยา" ที่รายการ</li>
+              <li><b>ตรวจ</b> ในแผงยา: ช่อง ✗ กด ✓ ยืนยันคู่ที่ระบบเสนอ · ขนาดยาที่เป็นร่าง AI กด "ตรวจร่าง AI และอนุมัติ" → ฟอร์มเปิดในแผงด้านขวา บันทึกแล้วแผงปิดเอง กลับมาที่ยาเดิม</li>
+              <li><b>อนุมัติ</b> เมื่อข้อมูลครบและตรวจแล้ว กด "อนุมัติใช้คำนวณ" ครั้งเดียว = ยาแสดงที่หน้าหลัก + ใช้ในเครื่องคำนวณ</li>
+              <li><b>ทำตัวถัดไป</b> กดการ์ด (เช่น "รอเภสัชกรตรวจ") ให้ตารางเหลือเฉพาะยาที่ต้องทำ แล้วกด "ถัดไป ›" ในแผงยา ไม่ต้องกลับไปหาในตาราง</li>
+            </ol>
+            <p class="small muted">แต่ละเรื่องแก้ได้ที่เดียว: ข้อมูลของยาแต่ละตัว (ความแรง · บัญชียาหลัก · ฉลาก · DDInter) แก้ที่แผงยา · ขนาดยาแบบละเอียดและฐานข้อมูลกลาง (บัญชียาหลักทั้งบัญชี · ฉลากทั้งหมด · คู่ DDI ทั้งหมด) อยู่ใน "⋯ เครื่องมือฐานข้อมูล"</p>
           </div>
           <div class="panel"><h2>สัญลักษณ์ในช่องสถานะ</h2>
             <ul class="dc-legend-list">
@@ -738,31 +747,36 @@
             </ul>
           </div>
         </div>
+        <div class="dc-dr-back" id="dcDrBack" hidden></div>
+        <aside class="dc-drawer" id="dcDrawer" hidden aria-labelledby="dcDrTitle">
+          <div class="dc-dr-head"><h2 id="dcDrTitle">เครื่องมือฐานข้อมูล</h2><button type="button" class="dc-pen" id="dcDrClose" aria-label="ปิด กลับศูนย์ข้อมูลยา">×</button></div>
+          <div class="dc-dr-body" id="dcDrBody">
         <div class="panel adr-pick">
-          <div class="field"><label for="adrQ">เลือกยา (ทุกฐานข้อมูลด้านล่างจะแสดงเฉพาะยานี้)</label>
+          <div hidden><div class="field"><label for="adrQ">เลือกยา (ทุกฐานข้อมูลด้านล่างจะแสดงเฉพาะยานี้)</label>
             <div class="adr-bar"><input id="adrQ" class="input" type="search" list="adrNames" maxlength="200" placeholder="พิมพ์หรือเลือกชื่อยา รพ.สต. เช่น PARACETAMOL" autocomplete="off"><datalist id="adrNames"></datalist><button type="button" class="btn btn-o btn-sm" id="adrClear" hidden>ล้าง · แสดงทั้งหมด</button></div></div>
-          <p class="small muted" id="adrInfo" aria-live="polite">ยังไม่ได้เลือกยา · แสดงทุกรายการ</p>
+          <p class="small muted" id="adrInfo" aria-live="polite">ยังไม่ได้เลือกยา · แสดงทุกรายการ</p></div>
+          <p class="small muted">ฐานข้อมูลทุกส่วนสำหรับงานที่ทำนาน ๆ ครั้ง (บัญชียาหลักทั้งบัญชี · ฉลากทั้งหมด · คู่ DDI ทั้งหมด · รายการข้อมูลคำนวณทั้งหมด) · งานกับยาทีละตัวทำที่ศูนย์ข้อมูลยา</p>
           <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="adrOpenAll">ขยายทุกส่วน</button><button type="button" class="btn btn-o btn-sm" id="adrCloseAll">ย่อทุกส่วน</button></div>
         </div>
         <details class="adr-sec" data-adr-sec="ai">
-          <summary class="adr-sum"><span class="adr-t">ร่างขนาดยาจาก AI · เพิ่มหลายรายการ</span><span class="small muted adr-n" data-adr-n="ai"></span></summary>
+          <summary class="adr-sum"><span class="adr-t">เพิ่มยา · ร่างขนาดยาจาก AI รอตรวจ</span><span class="small muted adr-n" data-adr-n="ai"></span></summary>
 
+          <div class="panel">
+            <h2 id="dfAddTitle">เพิ่มยา</h2>
+            <p class="small">พิมพ์ชื่อยา (บรรทัดละ 1 ยา) แล้วกด "ให้ AI ดึงข้อมูลและผูกทุกฐานข้อมูล" · ยาที่มีอยู่แล้วระบบเปิดตัวเดิมให้ ไม่สร้างซ้ำ · กด "เปิดยานี้" ที่รายการเพื่อตรวจในศูนย์ข้อมูลยา · กรอกเองทีละตัว: <a href="#/admin/drugs/local" id="dfAddManual">ฟอร์มยา รพ.สต. / ยานอก</a></p>
+            <details class="vs-pfold df-bulk" id="dfBulkFold" open><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
+              <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>
+              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลและผูกทุกฐานข้อมูล</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
+              <p class="small muted">AI ร่างขนาดยาเป็น <b>ร่าง</b> (ยังไม่ใช้คำนวณ) · ยาที่ไม่มีในบัญชียา รพ.สต. = เพิ่มเป็นยานอก รพ.สต. แบบซ่อน · ผูกบัญชียาหลัก/ฉลาก/DDInter ให้เท่าที่หาได้ ไม่ทับข้อมูลเดิม · "สร้างรายการ (กรอกทีละตัว)" = เปิดฟอร์มขนาดยาทีละตัวแทน</p>
+              <span class="small" id="dfBulkMsg" aria-live="polite"></span>
+              <div class="list" id="dfBulkList"></div>
+            </details>
+          </div>
           <div class="panel" id="dfRvPanel">
             <h2>ร่างขนาดยาจาก AI · รอตรวจ <span class="num muted" id="dfRvCount"></span></h2>
             <p class="small muted">ระบบดึงข้อมูลให้ยารับประทานของ รพ.สต. ทุกตัวเอง ทีละยา (ฉลากยา openFDA + ความแรงจาก RxNorm → AI ร่างขนาดยา มก./กก.) · ตรวจ/แก้ตัวเลขในกล่องกับเอกสารอ้างอิง แล้วกด <b>"ตรวจแล้ว · ใช้คำนวณ"</b> ยานั้นจึงขึ้นในหน้าคำนวณขนาดยา</p>
             <div class="small" id="dfRvStatus" aria-live="polite"></div>
             <div id="dfReview" class="df-rv-list"></div>
-          </div>
-          <div class="panel">
-            <h2>เพิ่มหลายรายการ (วางรายชื่อยา · ให้ AI ร่าง)</h2>
-            <details class="vs-pfold df-bulk" id="dfBulkFold" open><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
-              <p class="small muted">พิมพ์หรือวางรายชื่อยา บรรทัดละ 1 ยา เช่น พาราเซตามอล (Paracetamol) · กด "สร้างรายการ" แล้วระบบเปิดยาทีละตัวในฟอร์มด้านล่าง พร้อมช่วยกรอกจากฐานข้อมูลยาให้ · ตรวจแล้วกด "เพิ่มยา" ระบบไปยาตัวถัดไปเอง (ไม่บันทึกยาที่ยังไม่ได้ตรวจ)</p>
-              <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>
-              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลและผูกทุกฐานข้อมูล</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
-              <p class="small muted">"ให้ AI ดึงข้อมูลและผูกทุกฐานข้อมูล" ทำทีละยา: ① ขนาดยา มก./กก. ที่ AI ร่างจากฉลากยา openFDA + ความแรง (RxNorm) เก็บเป็น <b>ร่าง (ซ่อนจากเครื่องคำนวณ)</b> ② หายาในบัญชียา รพ.สต. ถ้าไม่มี = เพิ่มใน <b>ฐานข้อมูลบัญชียานอก รพ.สต.</b> (ซ่อนจนตรวจ) ③ ผูกบัญชียาหลัก · ฉลาก openFDA (AI แปลไทยต่อเอง) · DDInter (เฉพาะยาที่มีในข้อมูลที่นำเข้า) · ไม่ทับข้อมูลที่ผูกไว้แล้ว · ตรวจแล้วกด "แก้ไข" ในรายการยาด้านล่าง</p>
-              <span class="small" id="dfBulkMsg" aria-live="polite"></span>
-              <div class="list" id="dfBulkList"></div>
-            </details>
           </div>
         </details>
         <details class="adr-sec" data-adr-sec="dose">
@@ -778,14 +792,14 @@
               <div class="field full dh"><div class="row-btns dh-bar"><button type="button" class="btn btn-o btn-sm" id="dfHelpBtn">ช่วยกรอกจากฐานข้อมูลยา</button><span class="small muted">ใช้ชื่อภาษาอังกฤษในวงเล็บของชื่อยา · ความแรงจาก RxNorm + ขนาดยาที่ AI ร่างจากฉลากยา openFDA · ตรวจก่อนบันทึก</span></div><div id="dfHelpOut" aria-live="polite"></div></div>
               <div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา <span class="req">*</span></span><span class="small muted">แต่ละข้อบ่งใช้ใส่ขนาดยาต่างกันได้ · กดที่หัวข้อเพื่อย่อ/ขยาย</span><div id="dfInds" class="ind-list"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddInd">+ เพิ่มข้อบ่งใช้</button></div></div>
               <div class="field full"><label>ความแรงของยา</label><div id="dfConcs" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddConc">+ เพิ่มความแรง</button></div></div>
-              <details class="field full vs-pfold df-link" id="dfLinkFold" open><summary><span class="lbl-t">ผูกฐานข้อมูล</span><span class="small muted" id="dlN"></span></summary>
-                <p class="small muted">ยา รพ.สต. / ยานอก รพ.สต. ที่ใช้ข้อมูลคำนวณนี้ + บัญชียาหลัก + ฉลาก openFDA + DDInter · กดบันทึกครั้งเดียว ระบบผูกให้ยาทุกตัวในรายการ</p>
+              <details class="field full vs-pfold df-link" id="dfLinkFold" open><summary><span class="lbl-t">ยาที่ใช้ข้อมูลคำนวณนี้</span><span class="small muted" id="dlN"></span></summary>
+                <p class="small muted">ข้อมูลคำนวณ 1 ชุดใช้ได้กับยาหลายตัว (เช่น เม็ด 325 / 500 / ยาน้ำ) · แก้ขนาดยาที่นี่มีผลกับทุกตัวในรายการ · บัญชียาหลัก ฉลาก DDInter ของแต่ละยาผูกที่ศูนย์ข้อมูลยา</p>
                 <div class="field"><span class="label-like">ยาที่ใช้ข้อมูลคำนวณนี้</span><div class="di-chips" id="dlLocals"></div>
                   <input id="dlLocalQ" class="input" type="search" list="adrNames" maxlength="200" placeholder="พิมพ์ชื่อยา รพ.สต. / ยานอก แล้วเลือกเพื่อเพิ่ม" aria-label="เพิ่มยา รพ.สต. ที่ใช้ข้อมูลคำนวณนี้" autocomplete="off"></div>
-                <div class="field"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติ</span><div class="di-chips" id="dlMonos"></div>
+                <div class="field" hidden><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติ</span><div class="di-chips" id="dlMonos"></div>
                   <input id="dlMonoQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="dlMonoOut"></div></div>
-                <div class="field"><label for="dlFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="dlFda" class="input"><option value="">— ไม่ผูก —</option></select></div>
-                <div class="field"><label for="dlDdi">ยาใน DDInter (สำหรับ Drug interaction)</label><input id="dlDdi" class="input" list="ddiNames" maxlength="300" placeholder="ชื่อยาภาษาอังกฤษ คั่นด้วย , เช่น Paracetamol"><div class="di-chips" id="dlDdiChips"></div></div>
+                <div class="field" hidden><label for="dlFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="dlFda" class="input"><option value="">— ไม่ผูก —</option></select></div>
+                <div class="field" hidden><label for="dlDdi">ยาใน DDInter (สำหรับ Drug interaction)</label><input id="dlDdi" class="input" list="ddiNames" maxlength="300" placeholder="ชื่อยาภาษาอังกฤษ คั่นด้วย , เช่น Paracetamol"><div class="di-chips" id="dlDdiChips"></div></div>
                 <p class="small fx-warn" id="dlWarn" hidden></p>
               </details>
               <div class="field"><label for="dfSort">ลำดับแสดง</label><input id="dfSort" class="input" type="number" inputmode="numeric" value="0"></div>
@@ -819,7 +833,7 @@
                 <div id="ldIngs" class="ld-ings"></div>
                 <div class="row-btns ld-ing-bar"><button type="button" class="btn btn-o btn-sm" id="ldIngAdd">+ เพิ่มสารสำคัญ (ยาสูตรผสม)</button><span class="small muted" id="ldStrHint"></span></div>
                 <p class="small fx-warn" id="ldIngWarn" hidden>สารสำคัญ/ความแรงชุดนี้ระบบใส่ให้ (ไม่ได้มาจากผู้ดูแล) · โปรดทวนสอบกับฉลากหรือเอกสารกำกับยาจริง แล้วกดบันทึก</p></div>
-              <details class="field full vs-pfold ld-linkfold" id="ldLinkFold"><summary><span class="lbl-t">ผูกฐานข้อมูล (บัญชียาหลัก · ฉลาก openFDA · DDInter)</span></summary>
+              <details class="field full vs-pfold ld-linkfold" id="ldLinkFold" hidden><summary><span class="lbl-t">ผูกฐานข้อมูล (บัญชียาหลัก · ฉลาก openFDA · DDInter)</span></summary>
                 <p class="small muted">ปกติผูกที่ <b>คำนวณขนาดยา › แก้ไข</b> (กล่อง "ผูกฐานข้อมูล" ล่างสุด) · ช่องนี้สำหรับยาที่ไม่มีข้อมูลคำนวณ เช่น ยาทา ยาฉีด</p>
                 <div class="field"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้</span><div class="di-chips" id="ldLinks"></div>
                 <input id="ldLinkQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="ldLinkOut"></div></div>
@@ -945,6 +959,8 @@
             <button type="button" class="btn btn-o btn-sm di-more" id="ddMore" hidden>แสดงเพิ่ม</button>
           </div>
         </details>
+          </div>
+        </aside>
       </div>
 
       

@@ -4,12 +4,15 @@
 //     na มาจากกลุ่มยา (ยาทาไม่ต้องคำนวณ ฯลฯ) หรือผู้ดูแลกำหนด local_drugs.link_na (83_drug_center.sql)
 //   แผงรายละเอียด: ขั้นความพร้อม 4 ขั้น (ข้อมูลครบ ≠ พร้อมใช้คำนวณ) + แผนผัง + แก้ทีละส่วนในแผง (กดปุ่มดินสอ · เปิดได้ทีละส่วน)
 //   คู่ที่ระบบเสนอ suggest(): หลักฐาน + ความมั่นใจ · กด ✓ ได้เฉพาะ ≥ 85% และหลักฐานตรงทุกข้อ · ✗ = จำใน drug_link_rejects ไม่เสนออีก · ระบบไม่ผูกเอง
-//   ใช้ข้อมูลชุดเดียวกับส่วนฐานข้อมูลด้านล่าง (admin-drugs.js drugData) · บันทึกแล้วโหลดใหม่ทั้งสองที่
+//   ใช้ข้อมูลชุดเดียวกับเครื่องมือฐานข้อมูล (admin-drugs.js drugData) · บันทึกแล้วโหลดใหม่ทั้งสองที่
+//   เครื่องมือฐานข้อมูล = แผงด้านขวา #dcDrawer (ส่วนฐานข้อมูลเดิม 7 ส่วน) · เปิดจากลิงก์ (#/admin/drugs/<ส่วน>) หรือจากแผงยา (ฟอร์มเต็ม)
+//     เปิดจากแผงยา → บันทึกแล้วปิดเอง กลับมาที่ยาเดิม (เหตุการณ์ pcps:dosesaved / pcps:localsaved) · ไม่ต้องเลื่อนหาหรือกลับไปดูอีกที่
+//   ปุ่ม "อนุมัติใช้คำนวณ" = แสดงยา + ขนาดยาในเครื่องคำนวณพร้อมกัน (ร่าง AI ต้องผ่านฟอร์มตรวจเสมอ · audit F-04) · "ถัดไป ›" = ยาตัวต่อไปในรายการที่กรองอยู่
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { strengthOf, comboName, keysOf, sameDrug } from './dose.js?v=4.4';
-import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel, editLocalForm, openDrugSection } from './admin-drugs.js?v=4.4';
-import { indsProblem, indsOf, openDoseEdit, doseQuery } from './admin-settings.js?v=4.4';
+import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel, editLocalForm } from './admin-drugs.js?v=4.4';
+import { indsProblem, indsOf, openDoseEdit, openDoseNew, doseQuery } from './admin-settings.js?v=4.4';
 
 const K = ['str', 'dose', 'nlem', 'fda', 'ddi'];
 const KN = { str: 'ความแรง / สารสำคัญ', dose: 'ขนาดยา (คำนวณ)', nlem: 'บัญชียาหลักแห่งชาติ', fda: 'ฉลาก openFDA', ddi: 'DDInter' };
@@ -25,7 +28,7 @@ const ORAL = /เม็ด|แคปซูล|น้ำรับประทา�
 const NO_FDA = /สมุนไพร/, NO_DDI = /ภายนอก|สมุนไพร|สารน้ำ|ป้ายปาก/;
 const STRONG = 85;
 
-let D = null, rejects = [], filt = 'all', scope = 'all', sel = null, focusK = null, edit = null, bound = false;
+let D = null, rejects = [], filt = 'all', scope = 'all', sel = null, focusK = null, edit = null, bound = false, drawerFrom = null, approveAfter = null;
 const like = (a, b) => !!a && !!b && (a === b || sameDrug(a, b) || sameDrug(b, a));
 const num = (x) => +(+x).toFixed(3);
 const isCombo = (l) => (l.ingredients || []).filter((x) => +x.mg > 0).length > 1;
@@ -229,7 +232,7 @@ function editorHtml(l, k) {
   }
   if (k === 'fda') {
     return `<select id="dcFda" class="input" aria-label="ฉลาก openFDA"><option value="">— ไม่ผูก —</option>${D.fdas.map((f) => `<option value="${esc(f.key)}"${f.key === l.fda_key ? ' selected' : ''}>${esc(`${f.web_code ? f.web_code + ' · ' : ''}${f.title} · ${f.generic} (${f.route})`)}</option>`).join('')}</select>`
-      + foot(`<button type="button" class="btn btn-o btn-sm" data-dc-fetch>ดึงฉลากใหม่จาก openFDA</button>`);
+      + foot(`<button type="button" class="btn btn-o btn-sm" data-dc-fetch>ดึงฉลากจาก openFDA และผูกเลย</button>`);
   }
   return `<div class="di-chips">${edit.ddi.map((i) => { const d = D.ddDrugs.find((x) => x.id === i); return `<span class="chip c-role">${codeTag(d)}${esc(d?.name || i)}<button type="button" class="nt-x" data-dc-unddi="${esc(i)}" aria-label="เอาออก">×</button></span>`; }).join('') || '<span class="small muted">ยังไม่ได้ผูก</span>'}</div>`
     + `<div class="dc-ed-row"><input id="dcDdiQ" class="input" list="ddiNames" maxlength="120" placeholder="ชื่อยาภาษาอังกฤษใน DDInter" aria-label="เพิ่มยาใน DDInter"><button type="button" class="btn btn-o btn-sm" data-dc-addddi>เพิ่ม</button></div>` + foot();
@@ -257,25 +260,57 @@ function renderPanel() {
     else body = (x.t ? `<p class="small${x.s === 'na' ? ' muted' : ''}">${esc(x.t)}</p>` : '')
       + (x.why ? `<p class="small ${x.s === 'err' ? 'dc-err' : 'dc-warn'}">${esc(x.why)}</p>` : '')
       + (sg && (k !== 'dose' || x.auto) ? sugHtml(l, k, sg) : x.s === 'miss' ? '<p class="small muted">ระบบยังหาคู่ที่น่าจะตรงไม่ได้ · กดปุ่มดินสอเพื่อค้นเอง</p>' : '')
-      + (x.s === 'wait' && x.dose && !x.auto ? `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-full="dose">เปิดตรวจขนาดยา</button></div>` : '');
+      + (k === 'dose' && x.dose ? sharedNote(x.dose, l) : '')
+      + (k === 'dose' && x.s === 'wait' && x.dose?.ai_draft ? `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-full="dose">ตรวจร่าง AI และอนุมัติ</button></div>` : '')
+      + (k === 'dose' && x.s === 'err' && x.dose ? `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-full="dose">แก้ขนาดยา</button></div>` : '')
+      + (k === 'dose' && x.s === 'miss' ? `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-newdose>สร้างข้อมูลคำนวณให้ยานี้</button></div>` : '');
     return `<section class="dc-sec s-${x.s}${open ? ' is-open' : ''}" id="dcSec-${k}" aria-label="${KN[k]}"><div class="dc-sec-h"><b>${KN[k]}</b><span class="dc-pill p-${x.s === 'ok' ? 'ok' : x.s}">${SYM[x.s]} ${SN[x.s]}</span>`
       + `<button type="button" class="dc-pen" data-dc-edit="${k}" aria-label="${open ? 'ปิดการแก้ไข' : 'แก้ไข'} ${KN[k]}" aria-expanded="${open}">${open ? '×' : '✎'}</button></div>${body}</section>`;
   }).join('');
-  $('#dcPanel').innerHTML = `<div class="dc-ph">${codeTag(l)}<h3>${esc(l.name)}</h3><div class="dc-tags"><span class="dc-pill p-${ROW[st][1]}">${ROW[st][0]}</span><span class="chip c-off">${esc(cat(l))}</span>${l.outside ? '<span class="chip c-off">ยานอก รพ.สต.</span>' : ''}${l.active ? '' : '<span class="chip c-fix">ซ่อนจากหน้าหลัก</span>'}</div></div>`
+  const list = visibleRows(), at = list.findIndex((x) => x.l.id === l.id), next = list[at + 1] || null;
+  const canApprove = sp[2] && !sp[3];
+  $('#dcPanel').innerHTML = `<div class="dc-ph"><div class="dc-ph-top">${codeTag(l)}${next ? `<button type="button" class="btn btn-o btn-sm dc-next" data-dc-next="${next.l.id}" title="${esc(next.l.name)}">ถัดไป ›</button>` : ''}</div><h3>${esc(l.name)}</h3><div class="dc-tags"><span class="dc-pill p-${ROW[st][1]}">${ROW[st][0]}</span><span class="chip c-off">${esc(cat(l))}</span>${l.outside ? '<span class="chip c-off">ยานอก รพ.สต.</span>' : ''}${l.active ? '' : '<span class="chip c-fix">ซ่อนจากหน้าหลัก</span>'}</div></div>`
     + `<ol class="dc-steps" aria-label="ขั้นความพร้อม">${['ข้อมูลยา', 'ผูกฐานข้อมูล', 'เภสัชกรตรวจ', 'อนุมัติใช้'].map((t, i) => `<li class="${sp[i] ? 'done' : i === first ? 'now' : ''}"><i></i>${i + 1} ${t}</li>`).join('')}</ol>`
+    + (canApprove ? `<div class="dc-approve"><span class="small">ข้อมูลครบและตรวจแล้ว · ยังไม่${l.active ? 'เปิดขนาดยาในเครื่องคำนวณ' : 'แสดงที่หน้าหลัก'}</span><button type="button" class="btn btn-p btn-sm" data-dc-approve>อนุมัติใช้คำนวณ</button></div>` : '')
     + `<div class="dc-mapbox">${mapSvg(j, l)}</div>${secs}`
     + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-full="all">เปิดฟอร์มยาเต็ม</button></div>`;
   if (focusK) { const el = $(`#dcSec-${focusK}`); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
+}
+/** ข้อมูลคำนวณใช้ร่วมหลายยา → บอกว่าแก้แล้วมีผลกับยาตัวไหนบ้าง */
+function sharedNote(d, l) {
+  const others = D.locals.filter((x) => x.id !== l.id && (x.dose_id === d.id || (x.ingredients || []).some((g) => g.dose_id === d.id)));
+  return others.length ? `<p class="small muted">ข้อมูลคำนวณนี้ใช้ร่วมกับ ${others.length} ยา: ${esc(others.slice(0, 4).map((x) => x.name).join(', '))}${others.length > 4 ? ' …' : ''} · แก้แล้วมีผลทุกตัว</p>` : '';
 }
 function renderAll() { compute(); renderTop(); renderTable(); renderPanel(); }
 
 /** เปิด/ปิดแท็บวิธีใช้ (แยกจากศูนย์ข้อมูลยา) */
 export function showDrugTab(help) {
   $('#dcCenter').hidden = help; $('#dcHelp').hidden = !help;
-  document.querySelectorAll('[data-admin-view="drugs"] .adr-pick, [data-admin-view="drugs"] .adr-sec').forEach((x) => { x.hidden = help; });
+  if (help) setDrawer(false);
+}
+/** แผงเครื่องมือฐานข้อมูล: from = 'route' (ลิงก์ #/admin/drugs/<ส่วน>) | 'center' (จากแผงยา · บันทึกแล้วปิดเอง) */
+export function setDrawer(open, from = null) {
+  $('#dcDrawer').hidden = !open; $('#dcDrBack').hidden = !open;
+  document.documentElement.classList.toggle('dc-dr-open', open);
+  drawerFrom = open ? from : null;
+  if (!open) approveAfter = null;
+}
+function openDrawer(sec) {
+  setDrawer(true, 'center');
+  const el = sec && document.querySelector(`[data-adr-sec="${sec}"]`);
+  if (el) el.open = true;
+}
+function closeDrawer() {
+  const wasRoute = drawerFrom === 'route';
+  setDrawer(false);
+  if (wasRoute && location.hash !== '#/admin/drugs') location.hash = '#/admin/drugs';
 }
 export async function initDrugCenter() {
   if (!bound) bind();
+  try {   // ปุ่ม "แก้ไขข้อมูลนี้" ในหน้าข้อมูลยา (ยา รพ.สต.) → เปิดแผงยานั้น
+    const [kind, id] = String(sessionStorage.getItem('pcps_drug_edit') || '').split(':');
+    if (kind === 'local' && +id) { sessionStorage.removeItem('pcps_drug_edit'); sel = +id; focusK = null; }
+  } catch { /* ไม่เป็นไร */ }
   try {
     const [d, rj] = await Promise.all([drugData(), sb.from('drug_link_rejects').select('local_id,kind,target')]);
     D = d; rejects = rj.data || [];
@@ -295,6 +330,22 @@ function openEdit(l, k) {
 }
 function bind() {
   bound = true;
+  $('#dcDrClose').addEventListener('click', closeDrawer);
+  $('#dcDrBack').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#dcDrawer').hidden) closeDrawer(); });
+  // รายการ "เพิ่มยา" ในแผงเครื่องมือ → เปิดยานั้นในศูนย์ข้อมูลยา
+  $('#dcDrawer').addEventListener('click', (e) => { const b = e.target.closest('[data-dc-open]'); if (!b) return; closeDrawer(); filt = 'all'; $('#dcQ').value = ''; renderTop(); pick(+b.dataset.dcOpen); });
+  // บันทึกฟอร์มเต็มที่เปิดจากแผงยา → ปิดแผงเครื่องมือ กลับมาที่ยาเดิม (สถานะในตารางเปลี่ยนทันที)
+  const back = async (k) => {
+    if (drawerFrom !== 'center') return;
+    const ap = approveAfter; setDrawer(false);
+    await reloadDrugData(); D = await drugData();
+    const l = D.locals.find((x) => x.id === sel);
+    if (ap && l && !l.active) { await save(l, { active: true }, 'อนุมัติแล้ว · ยาแสดงที่หน้าหลักและใช้คำนวณได้', 'dose'); return; }
+    focusK = k; renderAll(); $('#dcPanel').scrollIntoView({ block: 'nearest' });
+  };
+  window.addEventListener('pcps:dosesaved', () => back('dose'));
+  window.addEventListener('pcps:localsaved', () => back('str'));
   window.addEventListener('pcps:drugdata', async () => { if (!D) return; D = await drugData(); if (!$('#dcCenter').hidden) renderAll(); });   // ข้อมูลชุดใหม่หลังบันทึก (ที่นี่หรือส่วนฐานข้อมูลด้านล่าง)
   const onF = (e) => { const b = e.target.closest('[data-dc-f]'); if (!b) return; filt = filt === b.dataset.dcF ? 'all' : b.dataset.dcF; renderTop(); renderTable(); };
   $('#dcCards').addEventListener('click', onF); $('#dcRings').addEventListener('click', onF);
@@ -325,11 +376,14 @@ async function onPanel(e) {
   if (B('[data-dc-addmono]')) { const n = B('[data-dc-addmono]').dataset.dcAddmono; edit.refs = [...new Set([...edit.refs, ...D.monos.filter((m) => m.name === n).map((m) => m.ref)])]; edit.q = ''; renderPanel(); return; }
   if (B('[data-dc-unddi]')) { const i = B('[data-dc-unddi]').dataset.dcUnddi; edit.ddi = edit.ddi.filter((x) => x !== i); renderPanel(); return; }
   if (B('[data-dc-addddi]')) return addDdi();
-  if (B('[data-dc-full]')) {
+  if (B('[data-dc-next]')) return pick(+B('[data-dc-next]').dataset.dcNext);
+  if (B('[data-dc-approve]')) return approve(r, B('[data-dc-approve]'));
+  if (B('[data-dc-newdose]')) { openDrawer('dose'); await openDoseNew(l.name, l.id); return; }
+  if (B('[data-dc-full]')) {   // ฟอร์มเต็มในแผงเครื่องมือ (ตารางยังอยู่ด้านหลัง) · บันทึกแล้วปิดเอง
     const k = B('[data-dc-full]').dataset.dcFull, did = l.dose_id || r.j.dose.dose?.id;
-    if (k === 'dose' && did) { openDoseEdit(did); return; }
-    openDrugSection(l.outside ? 'outside' : 'local'); editLocalForm(l);
-    if (k === 'all' || k === 'str') document.querySelector('#ldForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (k === 'dose' && did) { openDrawer('dose'); openDoseEdit(did); return; }
+    openDrawer(l.outside ? 'outside' : 'local'); editLocalForm(l);
+    document.querySelector('#ldForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
   if (B('[data-dc-na]')) {
@@ -342,10 +396,11 @@ async function onPanel(e) {
     busy(btn, true, 'กำลังดึง…');
     try {
       const row = await fetchFdaLabel(g, routeOf(l) || 'ORAL');
-      if (!row?.sections?.length) { toast(`ไม่พบฉลาก "${g}" ใน openFDA · ลองค้นในส่วนฉลากยาด้านล่าง`, 'err'); return; }
+      if (!row?.sections?.length) { toast(`ไม่พบฉลาก "${g}" ใน openFDA · ลองค้น DailyMed ใน ⋯ เครื่องมือฐานข้อมูล › ฉลากยา`, 'err'); return; }
       const { error } = await sb.from('drug_fda_labels').upsert({ ...row, fetched_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'key' });
       if (error) throw error;
-      await reloadDrugData(true); D = await drugData(); compute(); renderPanel(); $('#dcFda').value = row.key; toast(`ดึงฉลาก "${row.title}" แล้ว · กดบันทึกเพื่อผูก`);
+      await reloadDrugData(true);
+      await save(l, { fda_key: row.key }, `ดึงและผูกฉลาก "${row.title}" แล้ว`, 'fda');
     } catch (err) { toast(errText(err), 'err'); } finally { busy(btn, false); }
     return;
   }
@@ -370,6 +425,18 @@ async function onPanel(e) {
     if (error && !/duplicate|23505/.test(errText(error) + error.code)) { toast(errText(error), 'err'); return; }
     rejects.push(row); focusK = k; toast('จำไว้แล้วว่าไม่ใช่คู่นี้'); renderAll();
   }
+}
+/** อนุมัติใช้คำนวณ: ร่าง AI → เปิดฟอร์มตรวจ (อนุมัติผ่านฟอร์มเท่านั้น) แล้วแสดงยาให้เองหลังบันทึก · ไม่ใช่ร่าง → เปิดขนาดยา + แสดงยาในคลิกเดียว */
+async function approve(r, btn) {
+  const { l, j } = r, d = j.dose.dose;
+  if (d?.ai_draft) { openDrawer('dose'); approveAfter = l.id; openDoseEdit(d.id); return; }
+  busy(btn, true, 'กำลังอนุมัติ…');
+  if (d && !d.active) {
+    const { error } = await sb.from('dose_drugs').update({ active: true }).eq('id', d.id);
+    if (error) { busy(btn, false); toast(errText(error), 'err'); return; }
+  }
+  if (!l.active) await save(l, { active: true }, 'อนุมัติแล้ว · ยาแสดงที่หน้าหลักและใช้คำนวณได้');
+  else { toast('อนุมัติแล้ว · ใช้คำนวณได้'); await reloadDrugData(); D = await drugData(); renderAll(); }
 }
 /** ยืนยันคู่ที่มั่นใจสูงทั้งหมดในรายการที่แสดงอยู่ */
 async function bulk() {

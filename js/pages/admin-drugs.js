@@ -43,7 +43,7 @@ export async function drugData() {
   return { locals, monos, fdas, doses, ddDrugs };
 }
 /** โหลดยา รพ.สต. ใหม่หลังศูนย์ข้อมูลยาบันทึก (รายการในส่วนฐานข้อมูลอัปเดตตาม) */
-export async function reloadDrugData(fda = false) { changed(); await Promise.all([loadLocals(), fda ? loadFdas() : null]); }
+export async function reloadDrugData(fda = false) { changed(); await Promise.all([loadDoses(), fda ? loadFdas() : null]); await loadLocals(); }
 /** id ข้อมูลคำนวณขนาดยาของยา รพ.สต. (ผูกไว้ หรือจับคู่ตามชื่อเหมือนหน้าคำนวณ) */
 export function doseIdsOf(l) {
   const ids = [l.dose_id, ...(l.ingredients || []).map((x) => x.dose_id)].filter(Boolean);
@@ -78,8 +78,8 @@ function placeForm(form, row, top0) {
   const moved = form.previousElementSibling !== row, top = top0 ?? row.getBoundingClientRect().top;
   row.after(form); form.classList.add('inline-edit'); form.classList.remove('closing');
   // ฟอร์มย้ายออกจากด้านบนของหน้า → เนื้อหาเลื่อนขึ้น · เลื่อนจอตามให้แถวที่กดอยู่ที่เดิม (ไม่ต้องเลื่อนหาเอง)
-  const shift = row.getBoundingClientRect().top - top;
-  if (Math.abs(shift) > 1) window.scrollBy({ top: shift, behavior: 'instant' });
+  const shift = row.getBoundingClientRect().top - top, box = row.closest('.dc-dr-body');   // ในแผงเครื่องมือฐานข้อมูล = เลื่อนแผง
+  if (Math.abs(shift) > 1) (box || window).scrollBy({ top: shift, behavior: 'instant' });
   if (moved && !calm()) { form.classList.remove('opening'); void form.offsetWidth; form.classList.add('opening'); }
 }
 export function parkForm(form) { const ph = homes.get(form); if (ph && form.previousSibling !== ph) ph.after(form); form.classList.remove('inline-edit', 'opening', 'closing'); }
@@ -375,7 +375,9 @@ async function saveLocal(e) {
   busy(btn, false);
   if (error) { toast(errText(error), 'err'); return; }
   toast(editLocal ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มยาแล้ว'); changed();
+  const savedId = editLocal?.id;
   await loadLocals(); resetLocal();
+  window.dispatchEvent(new CustomEvent('pcps:localsaved', { detail: { id: savedId } }));   // ศูนย์ข้อมูลยา: ปิดแผงเครื่องมือ กลับไปที่ยาเดิม
 }
 async function onLocalList(e) {
   const ed = e.target.closest('[data-ld-edit]'), del = e.target.closest('[data-ld-del]');
@@ -458,6 +460,8 @@ export async function dlFill(dose) {
   $('#dlWarn').textContent = keys.length > 1 ? `ยาแต่ละตัวผูกฉลากต่างกัน (${keys.length} ฉลาก) · ถ้าเปลี่ยนช่องฉลากแล้วบันทึก ทุกตัวจะใช้ฉลากเดียวกัน` : '';
   renderLinkBox();
 }
+/** ข้อมูลคำนวณใหม่ของยาตัวนี้ (ศูนย์ข้อมูลยา › สร้างข้อมูลคำนวณ) → ใส่ยานั้นในรายการ "ยาที่ใช้ข้อมูลคำนวณนี้" ไว้ก่อน */
+export function dlPreset(ids) { dl.ids = [...new Set([...dl.ids, ...ids])]; renderLinkBox(); }
 /** บันทึกกล่องผูกฐานข้อมูลหลังบันทึกข้อมูลคำนวณ (id) → จำนวนยาที่แก้ · throw = ข้อมูลในกล่องไม่ถูกต้อง */
 export function dlCheck() {
   const names = $('#dlDdi').value.split(',').map((x) => x.trim()).filter(Boolean);
@@ -530,7 +534,7 @@ export async function linkDrug(name, { doseId = null, setId = null, us = '' } = 
   const ddi = [...new Set(ddDrugs.filter((d) => { const k = d.name.toLowerCase(); return k === g || k === en; }).map((d) => d.id))];
   if (!ls.length) {
     // ไม่มีในบัญชียา รพ.สต. → เพิ่มในบัญชียานอก รพ.สต. เฉพาะเมื่อพบข้อมูลอย่างน้อย 1 ฐาน (ชื่อที่พิมพ์ผิด/ไม่มีจริง = ไม่สร้าง)
-    if (!refs.length && !fda && !ddi.length && !doseId) return { created: false, names: [], parts: ['ไม่พบในฐานข้อมูลใดเลย · ตรวจชื่อยาภาษาอังกฤษ'] };
+    if (!refs.length && !fda && !ddi.length && !doseId) return { created: false, names: [], ids: [], parts: ['ไม่พบในฐานข้อมูลใดเลย · ตรวจชื่อยาภาษาอังกฤษ'] };
     const row = { name: String(name).trim().slice(0, 200), category: 'ยานอก รพ.สต.', outside: true, active: false,
       note: 'ระบบเพิ่มจากรายชื่อยาที่พิมพ์ (เพิ่มหลายรายการ) · รอผู้ดูแลตรวจ', sort: (locals.length ? Math.max(...locals.map((l) => l.sort)) : 0) + 1 };
     const { data, error } = await sb.from('local_drugs').insert(row).select();
@@ -551,7 +555,7 @@ export async function linkDrug(name, { doseId = null, setId = null, us = '' } = 
   const has = (k) => ls.some((l) => (locals.find((x) => x.id === l.id) || l)[k]?.length);
   const parts = [created ? 'เพิ่มในบัญชียานอก รพ.สต. (ซ่อน · รอตรวจ)' : `ยา รพ.สต.: ${ls.map((l) => l.name).join(', ')}`,
     has('mono_refs') ? 'บัญชียาหลัก ✓' : 'บัญชียาหลัก: ไม่พบ', has('fda_key') ? 'ฉลาก openFDA ✓' : 'ฉลาก openFDA: ไม่พบ', has('ddi_ids') ? 'DDInter ✓' : 'DDInter: ไม่มีในข้อมูลที่นำเข้า'];
-  return { created, names: ls.map((l) => l.name), parts };
+  return { created, names: ls.map((l) => l.name), ids: ls.map((l) => l.id), parts };
 }
 
 /* ======================= บัญชียาหลักแห่งชาติ ======================= */

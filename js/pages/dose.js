@@ -543,8 +543,8 @@ async function labelDose() {
 }
 
 /** ผู้ดูแล: ลิงก์ไปแก้ข้อมูลส่วนนี้ใน ตั้งค่า › ฐานข้อมูลยา (เปิดฟอร์มของรายการนั้นให้เลย) */
-const EDIT_TAB = { local: 'local', mono: 'nlem', fda: 'fda', ddi: 'ddi' };
-const editLink = (key) => (isAdmin() ? `<a class="btn btn-o btn-sm mono-edit" href="#/admin/drugs/${EDIT_TAB[key.split(':')[0]] || 'local'}" data-edit-drug="${esc(key)}">แก้ไขข้อมูลนี้</a>` : '');
+const EDIT_TAB = { local: '', mono: 'nlem', fda: 'fda', ddi: 'ddi' };   // ยา รพ.สต. = เปิดแผงยานั้นในศูนย์ข้อมูลยา
+const editLink = (key) => (isAdmin() ? `<a class="btn btn-o btn-sm mono-edit" href="#/admin/drugs${EDIT_TAB[key.split(':')[0]] ? '/' + EDIT_TAB[key.split(':')[0]] : ''}" data-edit-drug="${esc(key)}">แก้ไขข้อมูลนี้</a>` : '');
 /** ข้อความในฉลาก openFDA: ขึ้นต้นด้วย • หลายข้อ → รายการ */
 const fdaBody = (t) => { const p = String(t).split(/\s*•\s*/).map((x) => x.trim()).filter(Boolean); return p.length > 1 ? `<ul>${p.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : `<p>${esc(t)}</p>`; };
 const FDA_OPEN = new Set(['คำเตือนกรอบดำ', 'ข้อบ่งใช้', 'ขนาดยาและวิธีใช้', 'ข้อห้ามใช้']);
