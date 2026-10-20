@@ -1305,6 +1305,60 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#loNew'); await p.waitForTimeout(350);
       check('บัญชียานอก รพ.สต.: กด "+ เพิ่มยานอก" ซ้ำ = ย่อกลับ', await p.$eval('#ldForm', (f) => f.parentElement.id === 'ldNewFold'));
     }
+    { // ศูนย์ข้อมูลยา (drug-center.js · ระยะ 1+2): การ์ด → วงกลมรายส่วน → ตาราง → แผงรายละเอียด/แก้ทีละส่วน + คู่ที่ระบบเสนอ · วิธีใช้แยกหน้า
+      const amx = await p.evaluate(() => { const l = window.__db.local_drugs.find((x) => x.name === 'AMOXICILLIN 500 MG'); l.ddi_ids = []; l.fda_key = null; window.__db.local_drugs.find((x) => x.name === 'METFORMIN 500 MG').fda_key = 'gone|ORAL'; return l.id; });   // ฉลากที่ไม่มีแล้ว = ผิดพลาด
+      await go(p, '#/admin/drugs/db'); await go(p, '#/admin/drugs'); await p.waitForTimeout(900);
+      const nAll = await p.evaluate(() => window.__db.local_drugs.length);
+      check('ศูนย์ข้อมูลยา: อยู่บนสุดของข้อมูลยา · การ์ดสรุป 5 ใบ + วงกลม 5 ส่วน (กดได้) + ตารางยาทุกตัว',
+        await visible(p, '#dcCenter') && await count(p, '#dcCards .dc-card') === 5 && await count(p, '#dcRings .dc-ring') === 5 && await count(p, '#dcTable .dc-nm') === nAll
+        && (await text(p, '#dcCards [data-dc-f="all"] .dc-num')) === String(nAll) && await p.$eval('#dcCenter', (c) => c.compareDocumentPosition(document.querySelector('.adr-pick')) & Node.DOCUMENT_POSITION_FOLLOWING), String(nAll));
+      { const n = +(await text(p, '#dcCards [data-dc-f="err"] .dc-num'));
+        await p.click('#dcCards [data-dc-f="err"]'); await p.waitForTimeout(150);
+        const pills = await p.$$eval('#dcTable .dc-pill', (x) => x.map((e) => e.textContent));
+        check('ศูนย์ข้อมูลยา: กดการ์ด "ผิดพลาด" → ตารางเหลือเฉพาะยาที่ผิดพลาด (จำนวนตรงการ์ด)', n > 0 && pills.length === n && pills.every((t) => t === 'ผิดพลาด'), `${n} ${pills.length}`);
+        await p.click('#dcCards [data-dc-f="err"]'); await p.waitForTimeout(150); }
+      { await p.click('#dcRings [data-dc-f="sec:fda"]'); await p.waitForTimeout(150);
+        const cells = await p.$$eval('#dcTable [data-dc-k="fda"]', (x) => x.map((e) => e.className));
+        check('ศูนย์ข้อมูลยา: กดวงกลม "ฉลาก" → เหลือยาที่ยังขาด/รอตรวจฉลาก', cells.length > 0 && cells.every((c) => !/s-ok|s-na/.test(c)) && (await text(p, '#dcCount')).includes('ฉลาก'));
+        await p.click('#dcRings [data-dc-f="sec:fda"]'); await p.waitForTimeout(150); }
+      const ranks = await p.$$eval('#dcTable .dc-pill', (x) => x.map((e) => ({ 'ผิดพลาด': 0, 'ยังไม่ครบ': 1, 'รอตรวจ': 2, 'พร้อมใช้': 3 })[e.textContent]));
+      check('ศูนย์ข้อมูลยา: เรียงปัญหาหนักก่อน (ผิดพลาด → ยังไม่ครบ → รอตรวจ → พร้อมใช้)', ranks.every((r, i) => !i || r >= ranks[i - 1]));
+      await p.fill('#dcQ', 'AMOXICILLIN 500'); await p.waitForTimeout(150);
+      await p.click(`#dcTable [data-dc-row="${amx}"][data-dc-k="ddi"]`); await p.waitForTimeout(400);
+      check('แผงรายละเอียด: กดช่อง DDInter → แผงยานั้น + ขั้นความพร้อม 4 ขั้น + แผนผัง + ส่วน DDInter เด่นขึ้น', (await text(p, '#dcPanel h3')) === 'AMOXICILLIN 500 MG' && await count(p, '#dcPanel .dc-steps li') === 4 && await count(p, '#dcPanel .dc-map .dc-node') === 5 && await p.$eval('#dcSec-ddi', (e) => e.classList.contains('flash')));
+      check('คู่ที่ระบบเสนอ: DDInter "Amoxicillin" + หลักฐาน + ความมั่นใจ · กด ✓ ได้', (await text(p, '#dcSec-ddi .dc-sug')).includes('Amoxicillin') && (await text(p, '#dcSec-ddi .dc-conf')).includes('%') && await p.$eval('#dcSec-ddi [data-dc-ok]', (b) => !b.disabled), await text(p, '#dcSec-ddi'));
+      await p.click('#dcSec-ddi [data-dc-ok]'); await p.waitForTimeout(500);
+      { const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
+        check('คู่ที่ระบบเสนอ: กด ✓ → ผูก DDInter ให้ยานั้น + ช่องเปลี่ยนเป็น ✓ ครบ', JSON.stringify(up.ddi_ids) === JSON.stringify(['DDInter83']) && (await p.$eval(`#dcTable [data-dc-row="${amx}"][data-dc-k="ddi"]`, (b) => b.classList.contains('s-ok'))), JSON.stringify(up)); }
+      check('คู่ที่ระบบเสนอ: ฉลาก amoxicillin (ORAL) + หลักฐานช่องทางให้ยาตรง', (await text(p, '#dcSec-fda .dc-sug')).includes('amoxicillin') && (await text(p, '#dcSec-fda .dc-ev')).includes('ORAL'), await text(p, '#dcSec-fda'));
+      await p.click('#dcSec-fda [data-dc-no]'); await p.waitForTimeout(400);
+      check('คู่ที่ระบบเสนอ: กด ✗ ไม่ใช่ → จำไว้ (drug_link_rejects) และไม่เสนอคู่นั้นอีก', (await calls(p, (c) => c.table === 'drug_link_rejects' && c.op === 'insert')).pop()?.payload?.target === 'amoxicillin|ORAL' && !(await text(p, '#dcSec-fda')).includes('amoxicillin|ORAL') && !(await p.$('#dcSec-fda [data-dc-ok]')));
+      await p.click('#dcSec-fda [data-dc-edit]'); await p.waitForTimeout(200);
+      check('แก้ทีละส่วน: กดปุ่มดินสอ → ตัวแก้ของส่วนนั้นในแผง (ส่วนเดียว)', await count(p, '#dcPanel .dc-sec.is-open') === 1 && await visible(p, '#dcFda') && await visible(p, '#dcSec-fda [data-dc-save]'));
+      await p.selectOption('#dcFda', 'amoxicillin|ORAL'); await p.click('#dcSec-fda [data-dc-save]'); await p.waitForTimeout(500);
+      check('แก้ทีละส่วน: บันทึกฉลาก → ผูก fda_key + ปิดตัวแก้', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.fda_key === 'amoxicillin|ORAL' && !(await count(p, '#dcPanel .dc-sec.is-open')));
+      await p.click('#dcSec-str [data-dc-edit]'); await p.waitForTimeout(200);
+      await p.fill('#dcStrAmt', '250'); await p.selectOption('#dcStrUnit', 'mg|5ml'); await p.click('#dcSec-str [data-dc-save]'); await p.waitForTimeout(500);
+      check('แก้ทีละส่วน: ความแรง 250 มก./5 มล.', JSON.stringify((await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.strength) === '{"mg":250,"per":"5ml"}');
+      await p.click('#dcSec-dose [data-dc-edit]'); await p.waitForTimeout(200); await p.click('#dcSec-dose [data-dc-na]'); await p.waitForTimeout(500);
+      check('แก้ทีละส่วน: "ไม่ใช้กับยานี้" → link_na + ช่องเป็น – ไม่นับเป็นปัญหา', ((await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.link_na || []).includes('dose') && await p.$eval(`#dcTable [data-dc-row="${amx}"][data-dc-k="dose"]`, (b) => b.classList.contains('s-na')));
+      await p.fill('#dcQ', ''); await p.waitForTimeout(150);
+      if (await visible(p, '#dcBulk')) {
+        const u0 = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).length;
+        await p.click('#dcBulk'); await p.waitForTimeout(800);
+        check('ยืนยันคู่ที่มั่นใจสูงทั้งหมด: ผูกหลายยาในครั้งเดียว', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).length > u0);
+      }
+      await go(p, '#/admin/drugs/help'); await p.waitForTimeout(300);
+      check('วิธีใช้: หน้าแยกจากศูนย์ข้อมูลยา (คำอธิบาย 3 คำถาม · สัญลักษณ์ · ข้อมูลครบ ≠ พร้อมใช้)', await visible(p, '#dcHelp') && !(await visible(p, '#dcCenter')) && !(await visible(p, '.adr-pick')) && (await text(p, '#dcHelp')).includes('ต้องกดตรงไหน') && (await text(p, '#dcHelp')).includes('พร้อมใช้คำนวณ') && (await p.getAttribute('#dcTabs [data-sub="help"]', 'aria-current')) === 'page');
+      await go(p, '#/admin/drugs'); await p.waitForTimeout(500);
+      check('วิธีใช้ → กลับศูนย์ข้อมูลยา', await visible(p, '#dcCenter') && !(await visible(p, '#dcHelp')) && await visible(p, '.adr-pick'));
+      await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(300);
+      await p.click('#dcTable .dc-nm'); await p.waitForTimeout(400);
+      check('ศูนย์ข้อมูลยา: มือถือ 390px ไม่มี scroll แนวนอน · ตารางเลื่อนในกรอบ · แผงอยู่ใต้ตาราง', await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1) && await p.$eval('#dcPanel', (e) => e.getBoundingClientRect().top > document.querySelector('#dcTable').getBoundingClientRect().top));
+      await p.screenshot({ path: path.join(SHOTS, 'admin-drug-center-390.png') });
+      await p.setViewportSize({ width: 1280, height: 900 }); await p.waitForTimeout(300);
+      await p.locator('#dcCenter').screenshot({ path: path.join(SHOTS, 'admin-drug-center-1280.png') });
+    }
     { // threads 29a58c37 / 2afaeffd: กล่อง "ผูกฐานข้อมูล" ล่างสุดในฟอร์มแก้ไขของคำนวณขนาดยา · thread c1783058: รหัสยา SHPS-…
       await go(p, '#/admin/drugs/dose'); await p.waitForTimeout(400);
       await p.selectOption('#dfFForm', 'all'); await p.fill('#dfQ', ''); await p.waitForTimeout(150);
@@ -1315,7 +1369,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         && (await text(p, '#dlLocals')).includes('PARACETAMOL') && /SHPS-P-\d\d/.test(await text(p, '#dlLocals')) && /NLEM-P-\d\d/.test(await text(p, '#dlMonos')), await text(p, '#dlLocals'));
       await p.fill('#dlLocalQ', 'SIMVASTATIN 20 MG'); await p.waitForTimeout(150);
       check('ผูกฐานข้อมูล: พิมพ์/เลือกชื่อยา → เพิ่มในกล่อง', (await text(p, '#dlLocals')).includes('SIMVASTATIN 20 MG') && (await p.inputValue('#dlLocalQ')) === '');
-      await p.fill('#dlDdi', 'Acetaminophen'); await p.waitForTimeout(100);
+      await p.fill('#dlDdi', 'Acetaminophen, Ibuprofen'); await p.waitForTimeout(100);
       check('ผูกฐานข้อมูล: ช่อง DDInter แสดงรหัส DDI-…', /DDI-A-\d\d/.test(await text(p, '#dlDdiChips')));
       const u0 = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).length;
       await p.click('#dfSubmit'); await p.waitForTimeout(600);
@@ -1673,9 +1727,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.waitForTimeout(3500);
     check('AI แนะนำ: ได้ผลแล้วแสดงข้อที่ตรง + เหตุผล + ติ๊กให้อัตโนมัติ', (await text(p, '#saAiOut')).includes('AI แนะนำ') && (await text(p, '#saAiOut')).includes('ข้อ 1.1') && await p.isChecked(`#saCrit input[value="${i11}"]`));
     await (await p.$('#saForm')).screenshot({ path: path.join(SHOTS, 'staff-ach-ai.png') });
+    { const t = new Date(), today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      check('ผลงาน: มีช่องวันที่ทำ/นำเสนอผลงาน · ค่าเริ่ม = วันนี้ (thread af21c69b)', (await p.inputValue('#saDate')) === today, await p.inputValue('#saDate')); }
+    await p.fill('#saDate', '2026-09-15');
     await p.click('#saSubmit'); await p.waitForTimeout(800);
     check('ผลงาน: บันทึกแล้วกล่องมาตรฐานย่อกลับ', !(await p.$eval('#saCritFold', (d) => d.open)));
     const ai = (await calls(p, (c) => c.table === 'achievements' && c.op === 'insert'))[0]?.payload || {};
+    check('ผลงาน: บันทึกวันที่ทำผลงานที่เลือก (ปฏิทินใช้วันนี้ ไม่ใช่วันที่โพสต์)', ai.work_date === '2026-09-15' && (await text(p, '#saList')).includes('15 ก.ย.'), JSON.stringify(ai.work_date));
     check('ผลงาน: บันทึกข้อมาตรฐานที่เลือก (item_ids) + ไม่ส่งตรวจ (ไม่แตะ item_status)', ai.item_ids?.includes(i11) && ai.item_ids.includes(i21) && (await calls(p, isW)).length === isW0, JSON.stringify(ai));
     check('AI แนะนำ: ผลในฟอร์มผูกกับผลงานที่บันทึก → รายการขึ้น "AI: ตรงกับข้อ 1.1"', (await calls(p, (c) => c.rpc === 'ai_match_link')).length === 1 && (await text(p, '#saList')).includes('AI: ตรงกับข้อ 1.1'));
     const seedRow = await p.evaluate(() => [...document.querySelectorAll('#saList .newsrow')].findIndex((r) => r.textContent.includes('ตู้เย็นเก็บยา')));

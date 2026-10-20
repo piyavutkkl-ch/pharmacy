@@ -454,6 +454,7 @@
           <form id="saForm" class="form-grid" novalidate>
             <div class="field full" id="saUnitWrap" hidden><label for="saUnit">รพ.สต. ที่ทำผลงานนี้ <span class="req">*</span></label><select id="saUnit" class="input"></select><span class="small muted">ผู้ดูแลเปลี่ยน รพ.สต. ภายหลังได้ (กด "แก้ไข" ที่รายการ) · หลักฐานมาตรฐานย้ายไปหน่วยใหม่ด้วย</span></div>
             <div class="field full"><label for="saTitle">ชื่อผลงาน <span class="req">*</span></label><input id="saTitle" class="input" maxlength="200"></div>
+            <div class="field"><label for="saDate">วันที่ทำ / นำเสนอผลงาน <span class="req">*</span></label><input id="saDate" class="input" type="date"><span class="small muted">ผลงานจะขึ้นในปฏิทินผลการดำเนินงานตามวันที่นี้ (ไม่ใช่วันที่โพสต์)</span></div>
             <div class="field full"><label for="saBody">รายละเอียด</label><textarea id="saBody" maxlength="10000" rows="4"></textarea></div>
             <div class="field full"><label for="saImage">รูปผลงาน (ถ้ามี)</label><input id="saImage" class="input" type="file" accept="image/*"><span class="small muted" id="saImageNote"></span></div>
             <div class="field full"><details class="vs-pfold" id="saCritFold"><summary><span class="lbl-t">สอดคล้องกับมาตรฐานข้อ (เลือกได้มากกว่า 1 ข้อ)</span><span class="small vs-people-n" id="saCritN" aria-live="polite"></span></summary><p class="small muted" id="saCritHint">ผลงานจะแนบเป็นหลักฐานของข้อที่เลือกโดยอัตโนมัติ ไม่ต้องส่งให้ผู้ดูแลตรวจ</p><div class="ai-box" id="saAi"><p class="small"><b>✨ ให้ AI ช่วยแนะนำ</b> — พิมพ์ "รายละเอียด" ผลงานด้านบนให้ครบก่อน แล้วกดปุ่มนี้ AI จะเทียบกับหัวข้อมาตรฐานทุกข้อที่ผู้ดูแลกำหนด แล้วติ๊กข้อที่ตรงให้ (ใช้เวลาสักครู่ ประมาณ 10–30 วินาที · ห้ามใส่ชื่อหรือข้อมูลผู้ป่วย)</p><button type="button" class="btn btn-o btn-sm" id="saAiBtn">ให้ AI วิเคราะห์รายละเอียด</button><div class="ai-out" id="saAiOut" aria-live="polite"></div></div><input id="saCritQ" class="input" type="search" maxlength="60" placeholder="ค้นหาเลขข้อหรือข้อความ เช่น 1.1"><div class="crit-pick" id="saCrit" role="group" aria-label="ข้อมาตรฐานที่สอดคล้อง"></div></details></div>
@@ -688,6 +689,55 @@
 
       <!-- ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา (เฉพาะผู้ดูแลแก้ไขได้) -->
       <div data-admin-view="drugs" hidden>
+        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="center">ศูนย์ข้อมูลยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a></nav>
+        <!-- ศูนย์ข้อมูลยา (drug-center.js): สรุป → วงกลมรายส่วน → ตารางสถานะยา → แผงรายละเอียด/แก้ไขทีละส่วน + คู่ที่ระบบเสนอ -->
+        <div id="dcCenter" class="dc">
+          <div class="dc-cards" id="dcCards" role="group" aria-label="กรองตามสถานะ"></div>
+          <div class="dc-stack" id="dcStack" aria-hidden="true"></div>
+          <div class="dc-rings" id="dcRings" role="group" aria-label="ความครบของข้อมูลแต่ละส่วน · กดเพื่อดูยาที่ยังขาดส่วนนั้น"></div>
+          <div class="dc-tools">
+            <input id="dcQ" class="input" type="search" maxlength="80" placeholder="ค้นชื่อยา ชื่อสามัญ หรือรหัส เช่น SHPS-P" aria-label="ค้นหายา">
+            <select id="dcScope" class="input" aria-label="บัญชียา"><option value="all">ยา รพ.สต. + ยานอก</option><option value="local">ยา รพ.สต.</option><option value="outside">ยานอก รพ.สต.</option></select>
+            <button type="button" class="btn btn-p btn-sm" id="dcBulk" hidden></button>
+          </div>
+          <p class="small muted" id="dcCount" aria-live="polite"></p>
+          <div class="dc-split">
+            <div class="dc-tbl" id="dcTable" role="table" aria-label="สถานะข้อมูลยา"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
+            <aside class="dc-panel" id="dcPanel" aria-live="polite"><p class="empty">กดชื่อยาหรือช่องสถานะในตาราง เพื่อดูและแก้ข้อมูลยาตัวนั้น</p></aside>
+          </div>
+          <h2 class="dc-dbh">ฐานข้อมูลทั้งหมด <span class="small muted">· แก้ไขแบบละเอียด</span></h2>
+        </div>
+        <div id="dcHelp" class="dc-help" hidden>
+          <div class="panel"><h2>วิธีใช้ศูนย์ข้อมูลยา</h2>
+            <p class="muted">หน้าเดียวตอบ 3 คำถาม: มียาอะไรบ้าง → ยาตัวไหนมีปัญหา → ต้องกดตรงไหนเพื่อแก้ ไม่ต้องไล่เปิดฐานข้อมูลทีละส่วน</p>
+            <div class="dc-help-grid">
+              <div><b>1. มียาอะไรบ้าง</b><p class="small">การ์ดบนสุดบอกจำนวนยาทั้งหมดและแต่ละสถานะ วงกลม 5 วงบอกว่าแต่ละส่วนผูกครบกี่ตัวจากที่ต้องมี ตารางมียาละ 1 แถวพร้อมรหัส SHPS (ยา รพ.สต.) / OUT (ยานอก รพ.สต.)</p></div>
+              <div><b>2. ยาตัวไหนมีปัญหา</b><p class="small">กดการ์ด (เช่น "ผิดพลาด") หรือกดวงกลม (เช่น "ฉลาก") ตารางจะเหลือเฉพาะยาที่ต้องแก้ ยาที่มีปัญหาหนักอยู่บนสุด กดซ้ำเพื่อดูทั้งหมด</p></div>
+              <div><b>3. ต้องกดตรงไหน</b><p class="small">กดช่องสถานะในแถว แผงรายละเอียดจะเปิดที่ส่วนนั้น ถ้าระบบหาคู่ให้ได้ กด "✓ ใช้คู่นี้" ถ้าไม่ใช่ กด "✗ ไม่ใช่" ส่วนอื่นกดปุ่มดินสอเพื่อแก้เฉพาะส่วนนั้นในแผง</p></div>
+            </div>
+          </div>
+          <div class="panel"><h2>สัญลักษณ์ในช่องสถานะ</h2>
+            <ul class="dc-legend-list">
+              <li><span class="dc-cell s-ok">✓</span> ครบ · ผูกแล้วและผ่านการตรวจ</li>
+              <li><span class="dc-cell s-wait">●</span> รอตรวจ · มีข้อมูลแล้ว (เช่น ร่าง AI หรือจับคู่ตามชื่อ) รอเภสัชกรยืนยัน</li>
+              <li><span class="dc-cell s-miss">✗</span> ยังไม่ผูก · กดเพื่อดูคู่ที่ระบบเสนอ หรือค้นเอง</li>
+              <li><span class="dc-cell s-err">!</span> ผิดพลาด · ข้อมูลขัดกัน เช่น ขนาดต่อวันไม่บอกจำนวนครั้ง ยาสูตรผสมไม่มีสารสำคัญ</li>
+              <li><span class="dc-cell s-na">–</span> ไม่ใช้ · ไม่ต้องมี เช่น ยาทาไม่ต้องคำนวณตามน้ำหนัก (ไม่นับเป็นปัญหา · เปลี่ยนได้ในแผง)</li>
+            </ul>
+          </div>
+          <div class="panel"><h2>"ข้อมูลครบ" กับ "พร้อมใช้คำนวณ" แยกกัน</h2>
+            <p class="small muted">ยาที่ผูกครบทุกฐานยังไม่ได้แปลว่าตัวเลขขนาดยาถูกต้อง แผงรายละเอียดจึงแสดงขั้นความพร้อม 4 ขั้น และสถานะในตารางคือขั้นที่ยังติดอยู่</p>
+            <ol class="dc-steps-help"><li><b>ข้อมูลยา</b> ชื่อ ความแรง สารสำคัญ (ยาสูตรผสม)</li><li><b>ผูกฐานข้อมูล</b> บัญชียาหลัก · ฉลาก · DDInter · ขนาดยา</li><li><b>เภสัชกรตรวจ</b> ร่าง AI ตรวจแล้ว ไม่มีข้อมูลขัดกัน</li><li><b>อนุมัติใช้คำนวณ</b> มีชื่อผู้อนุมัติ + แสดงในเครื่องคำนวณ</li></ol>
+          </div>
+          <div class="panel"><h2>คู่ที่ระบบเสนอ</h2>
+            <ul class="small dc-rules">
+              <li>ทุกคู่มีหลักฐาน (ชื่อสามัญ · รูปแบบยา · ช่องทางให้ยา · ผ่านบัญชียาหลักที่ผูกไว้) และคะแนนความมั่นใจ</li>
+              <li>หลักฐานไม่ตรงข้อใดข้อหนึ่ง หรือความมั่นใจต่ำกว่า 85% = กด ✓ ไม่ได้ ต้องค้นเองหรือเปิดดูก่อน</li>
+              <li>ระบบไม่ผูกเอง ผู้ดูแลกด ✓ ทุกครั้ง · กด ✗ แล้วระบบจำว่าไม่ใช่คู่นี้ ไม่เสนออีก</li>
+              <li>ปุ่ม "✓ ยืนยันคู่ที่มั่นใจสูง" ยืนยันทีละหลายรายการได้เฉพาะคู่ที่หลักฐานตรงทุกข้อ</li>
+            </ul>
+          </div>
+        </div>
         <div class="panel adr-pick">
           <div class="field"><label for="adrQ">เลือกยา (ทุกฐานข้อมูลด้านล่างจะแสดงเฉพาะยานี้)</label>
             <div class="adr-bar"><input id="adrQ" class="input" type="search" list="adrNames" maxlength="200" placeholder="พิมพ์หรือเลือกชื่อยา รพ.สต. เช่น PARACETAMOL" autocomplete="off"><datalist id="adrNames"></datalist><button type="button" class="btn btn-o btn-sm" id="adrClear" hidden>ล้าง · แสดงทั้งหมด</button></div></div>

@@ -443,6 +443,14 @@ function resetDrugForm() {
   dlFill(null);
 }
 
+/** ศูนย์ข้อมูลยา: เปิดฟอร์มแก้ไขขนาดยาของรายการนี้ (ส่วนคำนวณขนาดยา) */
+export function openDoseEdit(id) {
+  const d = drugs.find((x) => x.id === id); if (!d) return;
+  const sec = document.querySelector('[data-adr-sec="dose"]'); if (sec) sec.open = true;
+  $('#dfSortBy').value = 'order'; $('#dfQ').value = ''; $('#dfFForm').value = 'all'; renderDrugs();
+  if (!isOpenAt($('#dfForm'), $('#dfList'), `[data-edit="${d.id}"]`)) startEditDrug(d);
+  $('#dfForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 function startEditDrug(d) {
   if (isOpenAt($('#dfForm'), $('#dfList'), `[data-edit="${d.id}"]`)) { closeForm($('#dfForm'), true, resetDrugForm); return; }   // กดแก้ไขซ้ำ = ย่อ
   editDrug = d;

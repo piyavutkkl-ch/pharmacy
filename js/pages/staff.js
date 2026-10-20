@@ -147,6 +147,8 @@ function bindNews() {
 /* ---------------- ผลงาน ---------------- */
 let unitAch = [], editingAch = null, achUnit = null, achBound = false;
 
+/** วันนี้ตามเวลาในเครื่อง (yyyy-mm-dd) · ค่าเริ่มของวันที่ทำผลงาน */
+const todayYmd = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 /** หน้าผลงานลงใน slot — เจ้าหน้าที่: unit = หน่วยตัวเอง · ผู้ดูแล: unit = 'all' (ทุกหน่วย + ช่องเลือก/เปลี่ยน รพ.สต. ในฟอร์ม) */
 const ALL_UNITS = 'all';
 export async function mountAch(slot, unit) {
@@ -163,9 +165,9 @@ export async function mountAch(slot, unit) {
 
 async function loadAch() {
   $('#saList').innerHTML = '<div class="skeleton"></div>';
-  const q = sb.from('achievements').select('id,unit_id,title,body,image_path,item_ids,hidden,created_at');
+  const q = sb.from('achievements').select('id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date');
   const [{ data, error }] = await Promise.all([
-    (achUnit === ALL_UNITS ? q : q.eq('unit_id', achUnit)).order('created_at', { ascending: false }),
+    (achUnit === ALL_UNITS ? q : q.eq('unit_id', achUnit)).order('work_date', { ascending: false }).order('created_at', { ascending: false }),
     loadCritPick(),
   ]);
   if (error) { $('#saList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
@@ -179,7 +181,7 @@ async function loadAch() {
 }
 function renderAchList() {
   $('#saList').innerHTML = unitAch.length ? unitAch.map((a) => `<div class="newsrow"><div class="thumb2">${a.image_path ? `<img src="${esc(publicImageUrl(a.image_path))}" alt="" loading="lazy">` : ''}</div>`
-    + `<div class="l"><b>${esc(a.title)}${a.hidden ? ' <span class="chip c-off">ระงับการแสดง</span>' : ''}</b><span class="small muted">${achUnit === ALL_UNITS ? 'รพ.สต.' + esc(unitName(a.unit_id)) + ' · ' : ''}${esc(thaiDate(a.created_at))}${critLabel(a.item_ids) ? ' · มาตรฐานข้อ ' + esc(critLabel(a.item_ids)) : ''}</span></div>`
+    + `<div class="l"><b>${esc(a.title)}${a.hidden ? ' <span class="chip c-off">ระงับการแสดง</span>' : ''}</b><span class="small muted">${achUnit === ALL_UNITS ? 'รพ.สต.' + esc(unitName(a.unit_id)) + ' · ' : ''}${esc(thaiDate(a.work_date || a.created_at))}${critLabel(a.item_ids) ? ' · มาตรฐานข้อ ' + esc(critLabel(a.item_ids)) : ''}</span></div>`
     + aiStatus(a)
     + `<div class="row-btns"><a class="btn btn-o btn-sm" href="#/achievement/${esc(a.id)}">ดู</a><button type="button" class="btn btn-o btn-sm" data-edit="${a.id}">แก้ไข</button>`
     + `<button type="button" class="btn btn-o btn-sm" data-hide="${a.id}" aria-pressed="${!!a.hidden}">${a.hidden ? 'แสดงอีกครั้ง' : 'ระงับการแสดง'}</button><button type="button" class="btn btn-no btn-sm" data-del="${a.id}">ลบ</button></div></div>`).join('')
@@ -283,7 +285,7 @@ function critCount() {
 }
 
 function resetAch() {
-  editingAch = null; $('#saForm').reset(); $('#saImageNote').textContent = '';
+  editingAch = null; $('#saForm').reset(); $('#saImageNote').textContent = ''; $('#saDate').value = todayYmd();
   critPicked.clear(); renderCritPick(); formAi = null; $('#saAiOut').innerHTML = ''; $('#saCritFold').open = false;
   $('#saFormTitle').textContent = 'เพิ่มผลงาน'; $('#saSubmit').textContent = 'เผยแพร่ผลงาน'; $('#saCancel').hidden = true; $('#saMsg').textContent = '';
 }
@@ -326,7 +328,7 @@ function bindAch() {
     const ed = e.target.closest('[data-edit]');
     if (ed) {
       const a = unitAch.find((x) => x.id === ed.dataset.edit); if (!a) return;
-      editingAch = a; $('#saTitle').value = a.title; $('#saBody').value = a.body || ''; $('#saUnit').value = String(a.unit_id ?? '');
+      editingAch = a; $('#saTitle').value = a.title; $('#saBody').value = a.body || ''; $('#saDate').value = a.work_date || String(a.created_at).slice(0, 10); $('#saUnit').value = String(a.unit_id ?? '');
       critPicked.clear(); (a.item_ids || []).forEach((id) => critPicked.add(id)); $('#saCritQ').value = ''; renderCritPick();
       formAi = null; $('#saAiOut').innerHTML = '';
       $('#saImageNote').textContent = a.image_path ? 'มีรูปเดิมอยู่แล้ว · เลือกรูปใหม่เพื่อเปลี่ยน' : '';
@@ -348,12 +350,14 @@ function bindAch() {
     e.preventDefault();
     const title = $('#saTitle').value.trim(), m = $('#saMsg');
     if (!title) { m.style.color = 'var(--error)'; m.textContent = 'กรุณากรอกชื่อผลงาน'; return; }
+    const workDate = $('#saDate').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || workDate < '2015-01-01') { m.style.color = 'var(--error)'; m.textContent = 'กรุณาเลือกวันที่ทำ/นำเสนอผลงาน'; $('#saDate').focus(); return; }
     const btn = $('#saSubmit'); busy(btn, true, 'กำลังบันทึก…'); m.textContent = '';
     try {
       const file = $('#saImage').files[0];
       const unit = achUnit === ALL_UNITS ? +$('#saUnit').value : achUnit;   // ผู้ดูแล: หน่วยที่เลือกในฟอร์ม (เปลี่ยนภายหลังได้)
       if (unit == null || Number.isNaN(unit) || (achUnit === ALL_UNITS && $('#saUnit').value === '')) throw new Error('กรุณาเลือก รพ.สต. ที่ทำผลงานนี้');   // รพ.สต.ควนกาหลง = id 0
-      const row = { title, body: $('#saBody').value.trim() || null, item_ids: [...critPicked], ...(achUnit === ALL_UNITS ? { unit_id: unit } : {}) };
+      const row = { title, work_date: workDate, body: $('#saBody').value.trim() || null, item_ids: [...critPicked], ...(achUnit === ALL_UNITS ? { unit_id: unit } : {}) };
       if (file) row.image_path = await uploadPublicImage(file, `achievements/${unit}`);
       const res = editingAch
         ? await sb.from('achievements').update(row).eq('id', editingAch.id).select()

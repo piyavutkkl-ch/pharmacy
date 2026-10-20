@@ -37,8 +37,15 @@ export function openDrugSection(v) {
   el.open = true;
   requestAnimationFrame(() => el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
 }
+/** ข้อมูลยาทุกฐาน (ศูนย์ข้อมูลยา · drug-center.js) · รอโหลดเสร็จก่อน */
+export async function drugData() {
+  if (!ready) await initDrugsAdmin(); else await ready;
+  return { locals, monos, fdas, doses, ddDrugs };
+}
+/** โหลดยา รพ.สต. ใหม่หลังศูนย์ข้อมูลยาบันทึก (รายการในส่วนฐานข้อมูลอัปเดตตาม) */
+export async function reloadDrugData(fda = false) { changed(); await Promise.all([loadLocals(), fda ? loadFdas() : null]); }
 /** id ข้อมูลคำนวณขนาดยาของยา รพ.สต. (ผูกไว้ หรือจับคู่ตามชื่อเหมือนหน้าคำนวณ) */
-function doseIdsOf(l) {
+export function doseIdsOf(l) {
   const ids = [l.dose_id, ...(l.ingredients || []).map((x) => x.dose_id)].filter(Boolean);
   if (ids.length) return [...new Set(ids)];
   const keys = keysOf(l.name);
@@ -104,7 +111,7 @@ function openPending() {
   if (kind === 'ddi') { const d = ddPairs.find((x) => x.id === +id); if (d) openDdForm(d); }
 }
 async function loadDoses() {
-  const { data } = await sb.from('dose_drugs').select('id,name,active,ai_draft,web_code').order('sort');
+  const { data } = await sb.from('dose_drugs').select('id,name,active,ai_draft,web_code,draft_issue,approved_at,indications').order('sort');
   doses = data || [];
   doseOpts = '<option value="">ข้อมูลคำนวณ: อัตโนมัติ (จับคู่ตามชื่อยา)</option>' + doses.map((d) => `<option value="${d.id}">${esc(codeTxt(d))}${esc(d.name)}${d.ai_draft ? ' (ร่าง · รอตรวจ)' : d.active ? '' : ' (ซ่อน)'}</option>`).join('');
   document.querySelectorAll('#ldIngs .r-dose').forEach((x) => { const v = x.value; x.innerHTML = doseOpts; x.value = v; });
@@ -118,6 +125,7 @@ async function loadLocals() {
   $('#adrNames').innerHTML = locals.map((l) => `<option value="${esc(l.name)}"></option>`).join('');
   if (pick) pick = locals.find((l) => l.id === pick.id) || null;   // ข้อมูลล่าสุดหลังบันทึก
   renderLocals();
+  window.dispatchEvent(new CustomEvent('pcps:drugdata'));   // ศูนย์ข้อมูลยา (drug-center.js) วาดใหม่
 }
 async function loadMonos() {
   const all = [];
@@ -334,7 +342,7 @@ function resetLocal() {
   restoreNew();
   $('#ldNewNote').hidden = true;
 }
-function editLocalForm(l) {
+export function editLocalForm(l) {
   const list = l.outside ? $('#loList') : $('#ldList');
   if (isOpenAt($('#ldForm'), list, `[data-ld-edit="${l.id}"]`)) { closeForm($('#ldForm'), true, resetLocal); return; }   // กดแก้ไขซ้ำ = ย่อ
   snapNew();

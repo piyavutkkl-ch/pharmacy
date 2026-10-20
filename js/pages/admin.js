@@ -13,6 +13,7 @@ import { mountVisits, ALL } from './visits.js?v=4.4';
 import { initAdminDocs } from './docs.js?v=4.4';
 import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.4';
 import { initDrugsAdmin, openDrugSection } from './admin-drugs.js?v=4.4';
+import { initDrugCenter, showDrugTab } from './drug-center.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
@@ -52,9 +53,14 @@ export async function showAdmin(tab, sub) {
     return mountRiderEditor($('#adminRiderSlot'));
   }
   if (tab === 'drugs') {   // ข้อมูลยา: เลือกยาด้านบน + ส่วนต่าง ๆ เรียงแนวตั้ง ย่อ/ขยายได้ (ai · dose · local · nlem · fda · ddi) · /db เดิม = บัญชียา รพ.สต.
+    const help = sub === 'help';   // วิธีใช้ = หน้าแยก · ไม่ระบุ = ศูนย์ข้อมูลยา (drug-center.js) บนสุด + ฐานข้อมูลทั้งหมดด้านล่าง
+    subTabs('#dcTabs', help ? 'help' : 'center'); showDrugTab(help);
+    if (help) return;
     const v = sub === 'db' ? 'local' : DB_PARTS.includes(sub) || sub === 'ai' ? sub : sub === 'dose' ? 'dose' : null;   // ไม่ระบุ = ไม่เลื่อน
     openDrugSection(v);
-    return Promise.all([initDrugsAdmin(), initDoseAdmin()]);
+    const run = Promise.all([initDrugsAdmin(), initDoseAdmin()]);
+    initDrugCenter();
+    return run;
   }
   if (tab === 'docs') return initAdminDocs();
   if (!SUBS[sub]) sub = 'contacts';
