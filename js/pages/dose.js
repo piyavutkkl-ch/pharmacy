@@ -75,7 +75,7 @@ export function strengthOf(l) {
   return null;
 }
 const PER = { tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' };
-const concOf = (st, label) => ({ label, ...(st.per === '5ml' ? { mgPer5ml: st.mg } : st.per === 'ml' ? { mgPerMl: st.mg } : { mgPerTab: st.mg }), ...(st.ings?.length > 1 ? { ings: st.ings, per: st.per } : {}) });
+export const concOf = (st, label) => ({ label, ...(st.per === '5ml' ? { mgPer5ml: st.mg } : st.per === 'ml' ? { mgPerMl: st.mg } : { mgPerTab: st.mg }), ...(st.ings?.length > 1 ? { ings: st.ings, per: st.per } : {}) });
 const mgText = (st) => (st.ings?.length > 1 ? `${st.ings.map((x) => num(x.mg)).join('/')} ${PER[st.per]} (${st.ings.map((x) => x.name).join(' + ')})` : `${num(st.mg)} ${PER[st.per]}`);
 /** สารสำคัญที่ข้อบ่งใช้นี้ใช้คิดขนาดยา (basis) ในยาสูตรผสม */
 const basisOf = (ings, basis) => { const b = String(basis || '').trim().toLowerCase(); return b ? ings.find((x) => { const n = x.name.toLowerCase(); return n === b || n.startsWith(b) || b.startsWith(n); }) : null; };
@@ -121,7 +121,7 @@ function toggleRenal() {
   $('#doseRenalCalcWrap').hidden = !on;
 }
 /** ข้อบ่งใช้ของยา — ยาเก่าที่ยังไม่มี indications ใช้ช่องเดิมเป็นข้อแรก */
-const indsOf = (d) => (d.indications?.length ? d.indications
+export const indsOf = (d) => (d.indications?.length ? d.indications
   : [{ name: d.indication, per: d.per, min: d.mg_per_kg_min, max: d.mg_per_kg_max, times: d.dose_freq_per_day, cap: d.max_mg_per_dose, freq: d.freq, renal: d.renal_note }]);
 const SHOW_OPEN = 3;   // แสดงพร้อมกันได้ 3 ข้อบ่งใช้ ที่เหลือย่อไว้ กดเพื่อขยาย
 /** ตัวเลขไม่ถูกปัดจนเป็น 0: ค่าที่มากกว่า 0 แต่ปัดแล้วเป็น 0 → แสดง 2 หลักนัยสำคัญ (audit F-06) */
@@ -190,6 +190,39 @@ function renderEst() {
     + `<button type="button" class="btn btn-o btn-sm" data-use-weight="${e.mid.toFixed(1)}">ใช้น้ำหนักนี้</button></div>`;
 }
 
+/** ตัวเลขขนาดยาของข้อบ่งใช้ i สำหรับน้ำหนัก w (กก.) และความแรง c — สูตรเดียวที่ใช้ทั้งหน้าคำนวณและตัวทดสอบสูตร (dose-test.js)
+ *  per dose: w × min–max · per day: w × min–max (จำกัด cap_day) ÷ จำนวนครั้ง · แล้วจำกัดด้วย cap ต่อครั้ง · mcg ÷1000 ก่อนเทียบความแรง (มก.)
+ *  ยาสูตรผสม: คิดจากสารสำคัญที่ระบุ (basis / fixed) · ไม่ระบุ = ไม่คิดจำนวนเม็ด (comboMissing)
+ *  vol = จำนวนเม็ด/มล. { a, b, u: 'tab'|'ml', dp, tiny (ปัดแล้วเป็น 0), frac (แบ่ง ¼ เม็ดไม่ลงตัว) } */
+export function doseNumbers(i, w, c) {
+  const k = i.unit === 'mcg' ? 1 / 1000 : 1;
+  let lo, hi, n = 1, dayMin = null, dayMax = null, rawDayMin = null, rawDayMax = null, dayCapped = false;
+  if (i.per !== 'day') { lo = w * i.min; hi = w * i.max; }
+  else {
+    rawDayMin = dayMin = w * i.min; rawDayMax = dayMax = w * i.max;
+    if (+i.cap_day > 0 && dayMax > +i.cap_day) { dayCapped = true; dayMin = Math.min(dayMin, +i.cap_day); dayMax = +i.cap_day; }   // ขนาดสูงสุดต่อวัน (audit F-09)
+    n = i.times || 1; lo = dayMin / n; hi = dayMax / n;
+  }
+  const rawLo = lo, rawHi = hi;
+  let capped = false;
+  if (+i.cap > 0 && hi > +i.cap) { capped = true; lo = Math.min(lo, +i.cap); hi = +i.cap; }
+  const minMg = lo * k, maxMg = hi * k;
+  let cc = c, ing = null, comboMissing = false;
+  if (c?.ings) {
+    ing = c.fixed ? c.ings.find((x) => x.name === c.fixed) : basisOf(c.ings, i.basis);
+    if (ing) cc = concOf({ mg: ing.mg, per: c.per }, `${c.label} · คิดจาก ${ing.name} ${num(ing.mg)} ${PER[c.per]}`);
+    else { cc = null; comboMissing = true; }
+  }
+  let vol = null;
+  if (cc?.mgPer5ml) { const a = minMg / cc.mgPer5ml * 5, b = maxMg / cc.mgPer5ml * 5; vol = { a, b, u: 'ml', dp: 1, tiny: tooSmall(b, 1) }; }
+  else if (cc?.mgPerMl) { const a = minMg / cc.mgPerMl, b = maxMg / cc.mgPerMl; vol = { a, b, u: 'ml', dp: 2, tiny: tooSmall(b, 2) }; }
+  else if (cc?.mgPerTab) {
+    const a = minMg / cc.mgPerTab, b = maxMg / cc.mgPerTab, tiny = tooSmall(b, 2);
+    const q = Math.round(b * 4) / 4;   // มีจำนวนที่แบ่งได้ (ทีละ ¼ เม็ด) อยู่ในช่วงขนาดยาไหม (audit F-19)
+    vol = { a, b, u: 'tab', dp: 2, tiny, frac: !tiny && !(q >= a - 1e-9 && q <= b + 1e-9 && q > 0) && !(Math.ceil(a * 4) / 4 <= b + 1e-9) };
+  }
+  return { lo, hi, rawLo, rawHi, n, dayMin, dayMax, rawDayMin, rawDayMax, dayCapped, capped, minMg, maxMg, cc, ing, comboMissing, vol };
+}
 function render() {
   renderEst();
   const ga = ageOf();   // กราฟการเจริญเติบโต (กรมอนามัย) + จุดแดงของเด็กคนนี้
@@ -237,54 +270,29 @@ function render() {
     return agePre + doseCore(i) + noMax + tail;
   };
   const doseCore = (i) => {
-    const mcg = i.unit === 'mcg', U = mcg ? 'mcg' : 'มก.', k = mcg ? 1 / 1000 : 1;
-    let lo, hi, label, n = 1, dayCapNote = '';
-    if (i.per !== 'day') {
-      lo = w * i.min; hi = w * i.max;
-      label = 'ต่อครั้ง';
-      if (+i.cap_day > 0) dayCapNote = `<p class="small muted">รวมทั้งวันไม่เกิน ${num(+i.cap_day)} ${U}/วัน</p>`;
-    } else {
-      let dayMin = w * i.min, dayMax = w * i.max;
-      if (+i.cap_day > 0 && dayMax > +i.cap_day) {   // ขนาดสูงสุดต่อวัน (audit F-09)
-        dayCapNote = `<p class="small fx-warn" data-capped-day>จำกัดที่ขนาดสูงสุด ${num(+i.cap_day)} ${U}/วัน · ขนาดตามน้ำหนักคือ ${drng(dayMin, dayMax)} ${U}/วัน</p>`;
-        dayMin = Math.min(dayMin, +i.cap_day); dayMax = +i.cap_day;
-      }
-      n = i.times || 1;
-      lo = dayMin / n; hi = dayMax / n;
-      label = n > 1 ? `ต่อครั้ง (แบ่งจากขนาดรวม ${drng(dayMin, dayMax)} ${U}/วัน)` : 'ต่อวัน (วันละครั้ง)';
-    }
+    const mcg = i.unit === 'mcg', U = mcg ? 'mcg' : 'มก.';
+    const r = doseNumbers(i, w, c), { lo, hi, n, minMg, maxMg, cc } = r;   // ตัวเลขจากสูตรเดียวกับตัวทดสอบสูตร (ศูนย์ข้อมูลยา · ระยะ 3)
+    const label = i.per !== 'day' ? 'ต่อครั้ง' : n > 1 ? `ต่อครั้ง (แบ่งจากขนาดรวม ${drng(r.dayMin, r.dayMax)} ${U}/วัน)` : 'ต่อวัน (วันละครั้ง)';
+    let dayCapNote = '';
+    if (i.per !== 'day') { if (+i.cap_day > 0) dayCapNote = `<p class="small muted">รวมทั้งวันไม่เกิน ${num(+i.cap_day)} ${U}/วัน</p>`; }
+    else if (r.dayCapped) dayCapNote = `<p class="small fx-warn" data-capped-day>จำกัดที่ขนาดสูงสุด ${num(+i.cap_day)} ${U}/วัน · ขนาดตามน้ำหนักคือ ${drng(r.rawDayMin, r.rawDayMax)} ${U}/วัน</p>`;
     // ขนาดสูงสุดต่อครั้ง (cap · หน่วยเดียวกับขนาดยา) ใช้ทั้งแบบต่อครั้งและแบบต่อวันที่แบ่งให้ · ถูกจำกัด = บอกขนาดตามน้ำหนักเดิม (audit F-02)
-    let capNote = '';
-    if (+i.cap > 0 && hi > +i.cap) {
-      const cap = +i.cap, rawLo = lo, rawHi = hi;
-      lo = Math.min(lo, cap); hi = cap;
-      capNote = `<p class="small fx-warn" data-capped>จำกัดที่ขนาดสูงสุด ${num(cap)} ${U}/ครั้ง · ขนาดตามน้ำหนักคือ ${drng(rawLo, rawHi)} ${U}/ครั้ง`
-        + `${i.per === 'day' && n > 1 ? ` · รวมได้ไม่เกิน ${num(+(cap * n).toFixed(3))} ${U}/วัน` : ''}</p>`;
-    }
-    const minMg = lo * k, maxMg = hi * k;
+    const capNote = r.capped ? `<p class="small fx-warn" data-capped>จำกัดที่ขนาดสูงสุด ${num(+i.cap)} ${U}/ครั้ง · ขนาดตามน้ำหนักคือ ${drng(r.rawLo, r.rawHi)} ${U}/ครั้ง`
+      + `${i.per === 'day' && n > 1 ? ` · รวมได้ไม่เกิน ${num(+(+i.cap * n).toFixed(3))} ${U}/วัน` : ''}</p>` : '';
     // ยาสูตรผสม: คิดจำนวนเม็ด/มล. จากปริมาณของสารสำคัญที่ใช้คิดขนาดยา (basis) + บอกปริมาณสารสำคัญทุกตัวที่ได้รับ
-    let cc = c, combo = '', basisName = i.basis ? ` · คิดจาก ${i.basis}` : '';
+    let combo = '', basisName = i.basis ? ` · คิดจาก ${i.basis}` : '';
     if (c?.ings) {
-      const ing = c.fixed ? c.ings.find((x) => x.name === c.fixed) : basisOf(c.ings, i.basis);
-      if (ing && !i.basis) basisName = ` · คิดจาก ${ing.name}`;
-      if (ing) {
-        cc = concOf({ mg: ing.mg, per: c.per }, `${c.label} · คิดจาก ${ing.name} ${num(ing.mg)} ${PER[c.per]}`);
-        const uLo = minMg / ing.mg, uHi = maxMg / ing.mg;
-        combo = `<p class="small">ได้รับสารสำคัญ: ${c.ings.map((x) => `${esc(x.name)} ${drng(uLo * x.mg, uHi * x.mg)} มก.`).join(' · ')}</p>`;
-      } else {
-        cc = null;
-        combo = `<p class="small fx-warn">ยาสูตรผสม (${esc(c.ings.map((x) => x.name).join(' + '))}): ข้อบ่งใช้นี้ยังไม่ได้ระบุว่าคิดขนาดยาจากสารสำคัญตัวใด จึงยังไม่คิดจำนวนเม็ด/มล. · ผู้ดูแลระบุได้ในข้อมูลคำนวณขนาดยา (ช่อง "คิดจากสารสำคัญ")</p>`;
-      }
+      if (r.ing && !i.basis) basisName = ` · คิดจาก ${r.ing.name}`;
+      if (r.ing) { const uLo = minMg / r.ing.mg, uHi = maxMg / r.ing.mg; combo = `<p class="small">ได้รับสารสำคัญ: ${c.ings.map((x) => `${esc(x.name)} ${drng(uLo * x.mg, uHi * x.mg)} มก.`).join(' · ')}</p>`; }
+      else combo = `<p class="small fx-warn">ยาสูตรผสม (${esc(c.ings.map((x) => x.name).join(' + '))}): ข้อบ่งใช้นี้ยังไม่ได้ระบุว่าคิดขนาดยาจากสารสำคัญตัวใด จึงยังไม่คิดจำนวนเม็ด/มล. · ผู้ดูแลระบุได้ในข้อมูลคำนวณขนาดยา (ช่อง "คิดจากสารสำคัญ")</p>`;
     }
-    let vol = '', tiny = false;
-    if (cc?.mgPer5ml) { const a = minMg / cc.mgPer5ml * 5, b = maxMg / cc.mgPer5ml * 5; tiny = tooSmall(b, 1); vol = fig(`${rng(a, b, 1)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`); }
-    else if (cc?.mgPerMl) { const a = minMg / cc.mgPerMl, b = maxMg / cc.mgPerMl; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} มล.`, `ปริมาณยา (${esc(cc.label)}) ${label}`); }
-    else if (cc?.mgPerTab) {
-      const a = minMg / cc.mgPerTab, b = maxMg / cc.mgPerTab; tiny = tooSmall(b, 2); vol = fig(`${rng(a, b, 2)} เม็ด/แคปซูล`, `จาก ${esc(cc.label)} ${label}`);
-      const q = Math.round(b * 4) / 4;   // มีจำนวนที่แบ่งได้ (ทีละ ¼ เม็ด) อยู่ในช่วงขนาดยาไหม (audit F-19)
-      if (!tiny && !(q >= a - 1e-9 && q <= b + 1e-9 && q > 0) && !(Math.ceil(a * 4) / 4 <= b + 1e-9)) vol += '<p class="small fx-warn" data-tab-fraction>จำนวนเม็ดนี้แบ่งจริงได้ยาก (ไม่ลงตัว ½ หรือ ¼ เม็ด) · ใช้จำนวนที่แบ่งได้ใกล้เคียงตามดุลยพินิจเภสัชกร หรือใช้ยาน้ำ</p>';
+    let vol = '';
+    const v = r.vol;
+    if (v) {
+      vol = fig(`${rng(v.a, v.b, v.dp)} ${v.u === 'tab' ? 'เม็ด/แคปซูล' : 'มล.'}`, v.u === 'tab' ? `จาก ${esc(cc.label)} ${label}` : `ปริมาณยา (${esc(cc.label)}) ${label}`);
+      if (v.frac) vol += '<p class="small fx-warn" data-tab-fraction>จำนวนเม็ดนี้แบ่งจริงได้ยาก (ไม่ลงตัว ½ หรือ ¼ เม็ด) · ใช้จำนวนที่แบ่งได้ใกล้เคียงตามดุลยพินิจเภสัชกร หรือใช้ยาน้ำ</p>';
+      if (v.tiny) vol += '<p class="small fx-warn" data-too-small>ปริมาณน้อยเกินกว่าจะตวง/แบ่งจากความแรงนี้ได้ · ใช้ยาความแรงที่เหมาะกว่า หรือปรึกษาเภสัชกร</p>';
     }
-    if (tiny) vol += '<p class="small fx-warn" data-too-small>ปริมาณน้อยเกินกว่าจะตวง/แบ่งจากความแรงนี้ได้ · ใช้ยาความแรงที่เหมาะกว่า หรือปรึกษาเภสัชกร</p>';
     const unadj = renal !== 'normal' ? ' · ขนาดปกติ ยังไม่ปรับตามไต' : '';   // audit F-10: ไตเสื่อม/ประเมินไม่ได้ → ตัวเลขยังไม่ได้ปรับ
     return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}${unadj}`) + capNote + dayCapNote + vol + combo;
   };

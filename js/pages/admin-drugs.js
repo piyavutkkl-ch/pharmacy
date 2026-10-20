@@ -111,7 +111,7 @@ function openPending() {
   if (kind === 'ddi') { const d = ddPairs.find((x) => x.id === +id); if (d) openDdForm(d); }
 }
 async function loadDoses() {
-  const { data } = await sb.from('dose_drugs').select('id,name,active,ai_draft,web_code,draft_issue,approved_at,indications').order('sort');
+  const { data } = await sb.from('dose_drugs').select('*').order('sort');   // ศูนย์ข้อมูลยาใช้ทั้งข้อบ่งใช้ ความแรงทั่วไป และช่องเดิม (ทดสอบสูตร)
   doses = data || [];
   doseOpts = '<option value="">ข้อมูลคำนวณ: อัตโนมัติ (จับคู่ตามชื่อยา)</option>' + doses.map((d) => `<option value="${d.id}">${esc(codeTxt(d))}${esc(d.name)}${d.ai_draft ? ' (ร่าง · รอตรวจ)' : d.active ? '' : ' (ซ่อน)'}</option>`).join('');
   document.querySelectorAll('#ldIngs .r-dose').forEach((x) => { const v = x.value; x.innerHTML = doseOpts; x.value = v; });
@@ -461,6 +461,8 @@ export async function dlFill(dose) {
   renderLinkBox();
 }
 /** ข้อมูลคำนวณใหม่ของยาตัวนี้ (ศูนย์ข้อมูลยา › สร้างข้อมูลคำนวณ) → ใส่ยานั้นในรายการ "ยาที่ใช้ข้อมูลคำนวณนี้" ไว้ก่อน */
+/** ยาที่อยู่ในกล่อง "ยาที่ใช้ข้อมูลคำนวณนี้" ตอนนี้ (ทดสอบสูตรในฟอร์มขนาดยา) */
+export const dlLocals = () => dl.ids.map((id) => locals.find((l) => l.id === id)).filter(Boolean);
 export function dlPreset(ids) { dl.ids = [...new Set([...dl.ids, ...ids])]; renderLinkBox(); }
 /** บันทึกกล่องผูกฐานข้อมูลหลังบันทึกข้อมูลคำนวณ (id) → จำนวนยาที่แก้ · throw = ข้อมูลในกล่องไม่ถูกต้อง */
 export function dlCheck() {

@@ -5,7 +5,8 @@ import { $, esc, toast, errText, busy, thaiDateTime } from '../util.js?v=4.4';
 import { loadUnits } from '../data.js?v=4.4';
 import { uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 import { resetDose, latinOf, keysOf, sameDrug } from './dose.js?v=4.4';
-import { showForm, closeForm, parkForm, keepForm, isOpenAt, dlFill, dlSave, dlCheck, dlPreset, linkDrug, codeTag } from './admin-drugs.js?v=4.4';
+import { showForm, closeForm, parkForm, keepForm, isOpenAt, dlFill, dlSave, dlCheck, dlPreset, dlLocals, linkDrug, codeTag } from './admin-drugs.js?v=4.4';
+import { testDose, testHtml } from './dose-test.js?v=4.4';
 
 const num = (v) => (v === '' || v == null ? null : Number(v));
 /** ข้อบ่งใช้ใช้คำนวณได้หรือไม่ (กฎเดียวกับ public.dose_inds_problem ใน 73_dose_approval.sql) → null = ใช้ได้ */
@@ -142,6 +143,12 @@ export async function initDoseAdmin() {
     $('#dfConcs').addEventListener('click', (e) => { if (e.target.closest('[data-rm]')) e.target.closest('.med-row').remove(); });
     $('#dfHelpBtn').addEventListener('click', runDoseHelp);
     $('#dfBulkMake').addEventListener('click', makeBulk);
+    $('#dfTestBtn').addEventListener('click', () => {   // ทดสอบสูตรจากค่าในฟอร์มตอนนี้ (ยังไม่บันทึก)
+      let inds, concs;
+      try { inds = readInds(); concs = readConcs(); } catch (err) { say($('#dfMsg'), err.message); return; }
+      say($('#dfMsg'), '');
+      $('#dfTestOut').innerHTML = testHtml(testDose({ id: editDrug?.id, indications: inds, concs }, dlLocals()), esc);
+    });
     $('#dfBulkAi').addEventListener('click', bulkAi);
     $('#dfBulkStop').addEventListener('click', () => { bulkStop = true; });
     $('#dfBulkClear').addEventListener('click', () => { if (confirm('ล้างรายการยาที่รอเพิ่มทั้งหมด?')) { bulk = []; bulkCur = -1; saveBulk(); renderBulk(); } });
@@ -439,7 +446,7 @@ function resetDrugForm() {
   $('#dfTitle').textContent = 'เพิ่มรายการยา';
   $('#dfSubmit').textContent = 'เพิ่มยา';
   $('#dfCancel').hidden = true;
-  $('#dfHelpOut').innerHTML = ''; help = null;
+  $('#dfHelpOut').innerHTML = ''; help = null; $('#dfTestOut').innerHTML = '';
   say($('#dfMsg'), '');
   dlFill(null);
 }
@@ -469,7 +476,7 @@ function startEditDrug(d) {
   $('#dfConcs').innerHTML = (d.concs || []).map(concRow).join('') || concRow();
   $('#dfTitle').textContent = 'แก้ไข: ' + d.name;
   $('#dfSubmit').textContent = d.ai_draft ? 'ตรวจแล้ว · บันทึก (อนุมัติ)' : 'บันทึกการแก้ไข';
-  $('#dfCancel').hidden = false;
+  $('#dfCancel').hidden = false; $('#dfTestOut').innerHTML = '';
   say($('#dfMsg'), '');
   dlFill(d);
   showForm($('#dfForm'), $('#dfList'), `[data-edit="${d.id}"]`, $('#dfName'));   // ขยายใต้ยาที่กด
@@ -482,6 +489,10 @@ async function saveDrug(e) {
   if (!name) { say(m, 'กรุณาใส่ชื่อยา'); $('#dfName').focus(); return; }
   let concs, inds;
   try { inds = readInds(); concs = readConcs(); dlCheck(); } catch (err) { say(m, err.message); return; }
+  // ระยะ 3: ทดสอบสูตรก่อนเปิดใช้ในเครื่องคำนวณ · ไม่ผ่าน = บันทึกแบบแสดงไม่ได้ (บันทึกแบบซ่อนไว้แก้ต่อได้)
+  const test = testDose({ id: editDrug?.id, indications: inds, concs }, dlLocals());
+  $('#dfTestOut').innerHTML = test.status === 'pass' ? '' : testHtml(test, esc);
+  if ($('#dfActive').checked && test.status === 'fail') { say(m, 'ผลทดสอบสูตรไม่ผ่าน · แก้ตามรายการด้านบนก่อน หรือเอาเครื่องหมาย "แสดงในเครื่องคำนวณ" ออกเพื่อบันทึกไว้แก้ต่อ'); return; }
   const f = inds[0];   // ช่องเดิม = ข้อบ่งใช้แรก (หน้าเว็บรุ่นเก่ายังใช้ได้)
   const row = {
     name, form: $('#dfForm2').value, indications: inds, indication: f.name, per: f.per, mg_per_kg_min: asMg(f, f.min), mg_per_kg_max: asMg(f, f.max),

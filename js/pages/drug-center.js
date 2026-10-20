@@ -13,10 +13,11 @@ import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { strengthOf, comboName, keysOf, sameDrug } from './dose.js?v=4.4';
 import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel, editLocalForm } from './admin-drugs.js?v=4.4';
 import { indsProblem, indsOf, openDoseEdit, openDoseNew, doseQuery } from './admin-settings.js?v=4.4';
+import { testDose, testHtml } from './dose-test.js?v=4.4';
 
-const K = ['str', 'dose', 'nlem', 'fda', 'ddi'];
-const KN = { str: 'ความแรง / สารสำคัญ', dose: 'ขนาดยา (คำนวณ)', nlem: 'บัญชียาหลักแห่งชาติ', fda: 'ฉลาก openFDA', ddi: 'DDInter' };
-const KS = { str: 'ความแรง', dose: 'ขนาดยา', nlem: 'บัญชียาหลัก', fda: 'ฉลาก', ddi: 'DDInter' };
+const K = ['str', 'dose', 'test', 'nlem', 'fda', 'ddi'];   // test = ทดสอบสูตร (ระยะ 3 · dose-test.js)
+const KN = { str: 'ความแรง / สารสำคัญ', dose: 'ขนาดยา (คำนวณ)', test: 'ทดสอบสูตรก่อนใช้', nlem: 'บัญชียาหลักแห่งชาติ', fda: 'ฉลาก openFDA', ddi: 'DDInter' };
+const KS = { str: 'ความแรง', dose: 'ขนาดยา', test: 'ทดสอบสูตร', nlem: 'บัญชียาหลัก', fda: 'ฉลาก', ddi: 'DDInter' };
 const SYM = { ok: '✓', wait: '●', miss: '✗', err: '!', na: '–' };
 const SN = { ok: 'ครบ', wait: 'รอตรวจ', miss: 'ยังไม่ผูก', err: 'ผิดพลาด', na: 'ไม่ใช้' };
 const ROW = { err: ['ผิดพลาด', 'err'], miss: ['ยังไม่ครบ', 'miss'], wait: ['รอตรวจ', 'wait'], ready: ['พร้อมใช้', 'ok'] };
@@ -59,6 +60,13 @@ function judge(l, k) {
     if (!own.length) return { s: 'wait', t: `${name} · จับคู่ตามชื่อ ยังไม่ได้ยืนยัน`, dose: d, auto: d };
     if (!d.active) return { s: 'wait', t: `${name} · ซ่อนจากเครื่องคำนวณ`, dose: d };
     return { s: 'ok', t: `${name}${d.approved_at ? ' · อนุมัติแล้ว' : ''}`, dose: d };
+  }
+  if (k === 'test') {   // ทดสอบสูตรด้วยน้ำหนักตัวอย่าง × ความแรงของยานี้ (สูตรเดียวกับหน้าคำนวณ)
+    const dj = judge(l, 'dose');
+    if (!dj.dose) return { s: 'na', t: dj.s === 'na' ? 'ยาไม่คำนวณตามน้ำหนัก ไม่ต้องทดสอบ' : 'ยังไม่มีข้อมูลคำนวณให้ทดสอบ' };
+    const t = testDose(dj.dose, [l]), warns = t.issues.filter((x) => x.sev === 'warn').length;
+    if (t.status === 'fail') return { s: 'err', why: `ผลทดสอบไม่ผ่าน: ${t.issues.find((x) => x.sev === 'fail').text}`, test: t };
+    return { s: 'ok', t: t.status === 'pass' ? 'ผ่านทุกน้ำหนักตัวอย่าง' : `ผ่าน · มีข้อควรตรวจ ${warns} ข้อ (ดูตาราง)`, test: t };
   }
   if (k === 'nlem') {
     const ms = [...new Map((l.mono_refs || []).map((r) => D.monos.find((m) => m.ref === r)).filter(Boolean).map((m) => [m.name, m])).values()];
@@ -193,7 +201,7 @@ function renderTable() {
   const strong = list.flatMap((r) => K.filter((k) => ['miss', 'wait'].includes(r.j[k].s)).map((k) => ({ r, k, sg: suggest(r.l, k, r.j) })).filter((x) => x.sg?.strong && (x.k !== 'dose' || x.r.j.dose.auto)));
   $('#dcBulk').hidden = !strong.length;
   $('#dcBulk').textContent = `✓ ยืนยันคู่ที่มั่นใจสูง (${strong.length})`;
-  $('#dcTable').innerHTML = `<div class="dc-tr dc-th" role="row"><span role="columnheader">ยา</span>${K.map((k) => `<span role="columnheader" title="${KN[k]}">${KS[k]}</span>`).join('')}<span role="columnheader">สถานะ</span></div>`
+  $('#dcTable').innerHTML = `<div class="dc-tr dc-th" role="row"><span role="columnheader">ยา</span>${K.map((k) => `<span role="columnheader" title="${KN[k]}">${k === 'ddi' ? 'DDI' : KS[k]}</span>`).join('')}<span role="columnheader">สถานะ</span></div>`
     + (list.length ? list.map(({ l, j, st }) => `<div class="dc-tr${l.id === sel ? ' is-sel' : ''}" role="row">`
       + `<button type="button" class="dc-nm" data-dc-row="${l.id}"><b>${esc(l.name)}</b><span class="code">${esc(l.web_code || '')}${l.outside ? ' · ยานอก รพ.สต.' : ''}${l.active ? '' : ' · ซ่อน'}</span></button>`
       + K.map((k) => `<button type="button" class="dc-cell s-${j[k].s}" data-dc-row="${l.id}" data-dc-k="${k}" title="${KN[k]}: ${SN[j[k].s]}" aria-label="${esc(l.name)} · ${KN[k]}: ${SN[j[k].s]}">${SYM[j[k].s]}</button>`).join('')
@@ -201,8 +209,8 @@ function renderTable() {
       : '<p class="empty">ไม่มียาในกลุ่มนี้</p>');
 }
 function mapSvg(j, l) {
-  const pos = { str: [62, 70], dose: [190, 24], nlem: [190, 70], fda: [190, 116], ddi: [316, 70] };
-  const E = [['str', 'dose'], ['str', 'nlem'], ['str', 'fda'], ['nlem', 'ddi'], ['fda', 'ddi']];
+  const pos = { str: [58, 70], dose: [180, 24], test: [304, 24], nlem: [180, 70], fda: [180, 116], ddi: [304, 92] };
+  const E = [['str', 'dose'], ['dose', 'test'], ['str', 'nlem'], ['str', 'fda'], ['nlem', 'ddi'], ['fda', 'ddi']];
   const bad = (k) => ['miss', 'err'].includes(j[k].s);
   return `<svg class="dc-map" viewBox="0 0 380 140" role="img" aria-label="แผนผังการเชื่อมข้อมูลของ ${esc(l.name)}">`
     + E.map(([a, b]) => `<line x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}" class="dc-edge${bad(b) ? ' e-' + j[b].s : ''}"/>`).join('')
@@ -263,7 +271,8 @@ function renderPanel() {
       + (k === 'dose' && x.dose ? sharedNote(x.dose, l) : '')
       + (k === 'dose' && x.s === 'wait' && x.dose?.ai_draft ? `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-full="dose">ตรวจร่าง AI และอนุมัติ</button></div>` : '')
       + (k === 'dose' && x.s === 'err' && x.dose ? `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-full="dose">แก้ขนาดยา</button></div>` : '')
-      + (k === 'dose' && x.s === 'miss' ? `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-newdose>สร้างข้อมูลคำนวณให้ยานี้</button></div>` : '');
+      + (k === 'dose' && x.s === 'miss' ? `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-newdose>สร้างข้อมูลคำนวณให้ยานี้</button></div>` : '')
+      + (k === 'test' && x.test ? `<details class="dc-test"${x.s === 'err' ? ' open' : ''}><summary>ดูตารางผลทดสอบ</summary>${testHtml(x.test, esc)}</details>` : '');
     return `<section class="dc-sec s-${x.s}${open ? ' is-open' : ''}" id="dcSec-${k}" aria-label="${KN[k]}"><div class="dc-sec-h"><b>${KN[k]}</b><span class="dc-pill p-${x.s === 'ok' ? 'ok' : x.s}">${SYM[x.s]} ${SN[x.s]}</span>`
       + `<button type="button" class="dc-pen" data-dc-edit="${k}" aria-label="${open ? 'ปิดการแก้ไข' : 'แก้ไข'} ${KN[k]}" aria-expanded="${open}">${open ? '×' : '✎'}</button></div>${body}</section>`;
   }).join('');
@@ -324,6 +333,11 @@ function pick(id, k) {
   else if (k) $(`#dcSec-${k}`)?.scrollIntoView({ block: 'nearest' });
 }
 function openEdit(l, k) {
+  if (k === 'test') {   // ผลทดสอบมาจากข้อมูลคำนวณ → แก้ที่ฟอร์มขนาดยา
+    const did = l.dose_id || judge(l, 'dose').dose?.id;
+    if (did) { openDrawer('dose'); openDoseEdit(did); } else toast('ยังไม่มีข้อมูลคำนวณ · สร้างที่ส่วน "ขนาดยา" ก่อน', 'err');
+    return;
+  }
   edit = edit?.k === k ? null : { k, refs: [...(l.mono_refs || [])], ddi: [...(l.ddi_ids || [])], q: '' };
   focusK = null; renderPanel();
   if (edit) { $(`#dcSec-${k}`)?.scrollIntoView({ block: 'nearest' }); $(`#dcSec-${k} input, #dcSec-${k} select`)?.focus({ preventScroll: true }); }

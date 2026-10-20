@@ -1203,7 +1203,7 @@ details[open] > summary::before{transform:rotate(90deg)}
 .d-ok{background:var(--success)}.d-wait{background:var(--warning)}.d-miss{background:#C98A1B}.d-err{background:var(--error)}
 .dc-stack{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--sunken)}
 .dc-stack span{display:block;height:100%}
-.dc-rings{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.dc-rings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .dc-ring{display:flex;align-items:center;gap:10px;padding:8px 12px}
 .dc-ring svg{width:56px;height:56px;flex-shrink:0}
 .dc-ring-bg{fill:none;stroke:var(--sunken);stroke-width:6}
@@ -1211,20 +1211,21 @@ details[open] > summary::before{transform:rotate(90deg)}
 .r-ok{stroke:var(--success)}.r-miss{stroke:#C98A1B}.r-err{stroke:var(--error)}
 .dc-ring text{font-size:12px;font-weight:700;fill:var(--ink);font-family:var(--font)}
 .dc-ring-t{display:grid;font-size:12.5px;color:var(--muted);min-width:0}.dc-ring-t b{color:var(--ink);font-size:14px}
-@media (max-width:900px){.dc-cards{grid-template-columns:repeat(3,minmax(0,1fr))}.dc-rings{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:900px){.dc-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:520px){.dc-cards,.dc-rings{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .dc-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .dc-tools #dcQ{flex:1 1 220px}.dc-tools #dcScope{flex:0 1 200px}
 .dc-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,340px);gap:14px;align-items:start}
 @media (max-width:1100px){.dc-split{grid-template-columns:1fr}}
 .dc-tbl{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:auto;max-height:min(75vh,760px)}
-.dc-tr{display:grid;grid-template-columns:minmax(130px,1fr) repeat(5,44px) 78px;align-items:center;gap:3px;padding:6px 10px;border-top:1px solid var(--line);min-width:480px}
+.dc-tr{display:grid;grid-template-columns:minmax(100px,1fr) repeat(6,38px) 84px;align-items:center;gap:3px;padding:6px 8px;border-top:1px solid var(--line);min-width:450px}
+.dc-tr .dc-pill{white-space:normal;line-height:1.25}
 .dc-th{position:sticky;top:0;z-index:1;background:var(--sunken);border-top:0;font-size:11.5px;font-weight:600;color:var(--muted)}
 .dc-th span{text-align:center}.dc-th span:first-child,.dc-th span:last-child{text-align:left}
 .dc-tr.is-sel{background:var(--primary-soft)}
 .dc-nm{appearance:none;border:0;background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer;display:grid;min-width:0;padding:4px 0;min-height:40px}
 .dc-nm b{font-size:13.5px;overflow-wrap:anywhere}.dc-nm .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--muted)}
-.dc-cell{appearance:none;justify-self:center;width:36px;height:36px;border-radius:8px;border:1.5px solid transparent;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:grid;place-items:center}
+.dc-cell{appearance:none;justify-self:center;width:34px;height:36px;border-radius:8px;border:1.5px solid transparent;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:grid;place-items:center}
 .s-ok.dc-cell{background:var(--success-soft);color:var(--success)}
 .s-wait.dc-cell{background:var(--warning-soft);color:var(--warning)}
 .s-miss.dc-cell{background:var(--warning-soft);color:#A8650B;border-style:dashed;border-color:currentColor}
@@ -1290,3 +1291,16 @@ details[open] > summary::before{transform:rotate(90deg)}
 html.dc-dr-open,html.dc-dr-open body{overflow:hidden}
 @media (prefers-reduced-motion:reduce){.dc-drawer{animation:none}}
 .toast{z-index:90}   /* อยู่เหนือแผงเครื่องมือฐานข้อมูล */
+/* ทดสอบสูตรก่อนใช้ (dose-test.js): สรุปผล + ข้อควรตรวจ + ตารางน้ำหนักตัวอย่าง × ความแรง */
+.dt{display:grid;gap:8px;border-radius:10px;padding:10px;background:var(--sunken)}
+.dt-h{margin:0}.dt-pass .dt-h b{color:var(--success)}.dt-warn .dt-h b{color:var(--warning)}.dt-fail .dt-h b{color:var(--error)}
+.dt-issues{margin:0;padding-left:20px;display:grid;gap:2px;font-size:13px}
+li.dt-fail{color:var(--error)}li.dt-warn{color:var(--warning)}
+.dt-tbl{overflow-x:auto}
+.dt-tbl table{border-collapse:collapse;font-size:12.5px;min-width:100%;font-variant-numeric:tabular-nums}
+.dt-tbl caption{text-align:left;font-weight:600;padding:4px 0}
+.dt-tbl th,.dt-tbl td{border-top:1px solid var(--line);padding:4px 8px;text-align:left;white-space:nowrap}
+.dt-tbl th{color:var(--muted);font-weight:600}
+td.dt-warn{color:var(--warning)}td.dt-fail{color:var(--error);font-weight:600}
+.dc-test > summary{cursor:pointer;font-size:13px;color:var(--primary);min-height:32px;display:flex;align-items:center}
+#dfTestOut{margin-top:6px}
