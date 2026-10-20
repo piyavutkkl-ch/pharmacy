@@ -26,7 +26,7 @@ import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.', rider: 'จัดส่งยาถึงบ้าน · Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', drugs: 'ข้อมูลยา', settings: 'ตั้งค่า' };
 const SUBS = { contacts: initContactsAdmin, staff: initRoster, audit: initAudit, feedback: () => initFeedback() };
 // ย้ายจากตั้งค่า: ข้อมูลยา (คำนวณขนาดยา/ฐานข้อมูลยา) → เมนูข้อมูลยา · จัดส่งยาถึงบ้าน → เมนู Health Rider
-const DB_PARTS = ['local', 'nlem', 'fda', 'ddi'];
+const DB_PARTS = ['local', 'outside', 'nlem', 'fda', 'ddi'];
 const MOVED = { dose: '#/admin/drugs/dose', drugs: '#/admin/drugs/db', delivery: '#/admin/rider/delivery' };
 
 export async function showAdmin(tab, sub) {

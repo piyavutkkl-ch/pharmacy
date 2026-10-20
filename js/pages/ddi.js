@@ -22,13 +22,13 @@ async function load() {
     const [d, p, l] = await Promise.all([
       sb.from('ddi_drugs').select('*'),
       sb.from('ddi_pairs').select('id,a,b,level,mech,description,management,description_th,management_th,th_reviewed,iid'),
-      sb.from('local_drugs').select('id,name,category,ddi_ids,fda_key,mono_refs,sort').eq('active', true).order('sort'),
+      sb.from('local_drugs').select('*').eq('active', true).order('sort'),
     ]);
     const err = d.error || p.error || l.error;
     if (err) { loaded = null; throw err; }
     drugs = new Map(d.data.map((x) => [x.id, x]));
     pairs = p.data;
-    locals = l.data.filter((x) => (x.ddi_ids || []).some((i) => drugs.has(i)));
+    locals = l.data.filter((x) => (x.ddi_ids || []).some((i) => drugs.has(i))).sort((a, b) => !!a.outside - !!b.outside);   // ยานอก รพ.สต. (81) อยู่ท้าย
     return true;
   })();
   return loaded;
@@ -65,7 +65,8 @@ const namesOf = (l) => (l?.ddi_ids || []).map((i) => drugs.get(i)?.name).filter(
 function options(sel) {
   let cat = null, out = '<option value="">— เลือกยา รพ.สต. —</option>';
   for (const l of locals) {
-    if (l.category !== cat) { out += `${cat ? '</optgroup>' : ''}<optgroup label="${esc(l.category)}">`; cat = l.category; }
+    const g = l.outside ? `ยานอก รพ.สต. · ${l.category}` : l.category;
+    if (g !== cat) { out += `${cat ? '</optgroup>' : ''}<optgroup label="${esc(g)}">`; cat = g; }
     out += `<option value="${l.id}"${l.id === sel ? ' selected' : ''}>${esc(l.name)}</option>`;
   }
   return out + (cat ? '</optgroup>' : '');

@@ -113,7 +113,7 @@
       <div id="doseInfoPick">
         <div class="form-grid di-filters">
           <div class="field"><label for="doseInfoQ">ค้นหายา</label><input id="doseInfoQ" class="input" type="search" placeholder="ชื่อยา รหัสยา หรือกลุ่มยา เช่น paracetamol"></div>
-          <div class="field"><label for="doseScope">แหล่งข้อมูล</label><select id="doseScope" class="input"><option value="all">ทั้งหมด</option><option value="local" selected>ยา รพ.สต.</option><option value="nlem">บัญชียาหลักแห่งชาติ</option></select></div>
+          <div class="field"><label for="doseScope">แหล่งข้อมูล</label><select id="doseScope" class="input"><option value="all">ทั้งหมด</option><option value="local" selected>ยา รพ.สต.</option><option value="outside">ยานอก รพ.สต.</option><option value="nlem">บัญชียาหลักแห่งชาติ</option></select></div>
           <div class="field"><label for="doseInfoGroup" id="doseInfoGroupLbl">หมวดยา</label><select id="doseInfoGroup" class="input"><option value="all">ทั้งหมด</option></select></div>
         </div>
         <p class="small muted" id="doseInfoN" aria-live="polite"></p>
@@ -708,8 +708,8 @@
             <details class="vs-pfold df-bulk" id="dfBulkFold" open><summary><span class="lbl-t">เพิ่มหลายรายการ (วางรายชื่อยายาว ๆ)</span><span class="small vs-people-n" id="dfBulkN" aria-live="polite"></span></summary>
               <p class="small muted">พิมพ์หรือวางรายชื่อยา บรรทัดละ 1 ยา เช่น พาราเซตามอล (Paracetamol) · กด "สร้างรายการ" แล้วระบบเปิดยาทีละตัวในฟอร์มด้านล่าง พร้อมช่วยกรอกจากฐานข้อมูลยาให้ · ตรวจแล้วกด "เพิ่มยา" ระบบไปยาตัวถัดไปเอง (ไม่บันทึกยาที่ยังไม่ได้ตรวจ)</p>
               <textarea id="dfBulk" rows="6" maxlength="20000" placeholder="พาราเซตามอล (Paracetamol)&#10;ไอบูโพรเฟน (Ibuprofen)&#10;อะม็อกซีซิลลิน (Amoxicillin)" aria-label="รายชื่อยา บรรทัดละ 1 ยา"></textarea>
-              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
-              <p class="small muted">"ให้ AI ดึงข้อมูลยาเก็บเป็นร่างทั้งหมด" = ดึงความแรง (RxNorm) + ขนาดยา มก./กก. ที่ AI ร่างจากฉลากยา openFDA แล้วบันทึกเป็น <b>ร่าง (ซ่อนจากเครื่องคำนวณ)</b> ทุกตัว · ตรวจแล้วกด "ตรวจแล้ว · แสดง" ทีละตัวในรายการยาด้านล่าง</p>
+              <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfBulkMake">สร้างรายการ (กรอกทีละตัว)</button><button type="button" class="btn btn-p btn-sm" id="dfBulkAi">ให้ AI ดึงข้อมูลและผูกทุกฐานข้อมูล</button><button type="button" class="btn btn-o btn-sm" id="dfBulkStop" hidden>หยุด</button><button type="button" class="btn btn-o btn-sm" id="dfBulkClear" hidden>ล้างรายการ</button></div>
+              <p class="small muted">"ให้ AI ดึงข้อมูลและผูกทุกฐานข้อมูล" ทำทีละยา: ① ขนาดยา มก./กก. ที่ AI ร่างจากฉลากยา openFDA + ความแรง (RxNorm) เก็บเป็น <b>ร่าง (ซ่อนจากเครื่องคำนวณ)</b> ② หายาในบัญชียา รพ.สต. ถ้าไม่มี = เพิ่มใน <b>ฐานข้อมูลบัญชียานอก รพ.สต.</b> (ซ่อนจนตรวจ) ③ ผูกบัญชียาหลัก · ฉลาก openFDA (AI แปลไทยต่อเอง) · DDInter (เฉพาะยาที่มีในข้อมูลที่นำเข้า) · ไม่ทับข้อมูลที่ผูกไว้แล้ว · ตรวจแล้วกด "แก้ไข" ในรายการยาด้านล่าง</p>
               <span class="small" id="dfBulkMsg" aria-live="polite"></span>
               <div class="list" id="dfBulkList"></div>
             </details>
@@ -728,6 +728,16 @@
               <div class="field full dh"><div class="row-btns dh-bar"><button type="button" class="btn btn-o btn-sm" id="dfHelpBtn">ช่วยกรอกจากฐานข้อมูลยา</button><span class="small muted">ใช้ชื่อภาษาอังกฤษในวงเล็บของชื่อยา · ความแรงจาก RxNorm + ขนาดยาที่ AI ร่างจากฉลากยา openFDA · ตรวจก่อนบันทึก</span></div><div id="dfHelpOut" aria-live="polite"></div></div>
               <div class="field full"><span class="label-like">ข้อบ่งใช้และขนาดยา <span class="req">*</span></span><span class="small muted">แต่ละข้อบ่งใช้ใส่ขนาดยาต่างกันได้ · กดที่หัวข้อเพื่อย่อ/ขยาย</span><div id="dfInds" class="ind-list"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddInd">+ เพิ่มข้อบ่งใช้</button></div></div>
               <div class="field full"><label>ความแรงของยา</label><div id="dfConcs" class="med-rows"></div><div><button type="button" class="btn btn-o btn-sm" id="dfAddConc">+ เพิ่มความแรง</button></div></div>
+              <details class="field full vs-pfold df-link" id="dfLinkFold" open><summary><span class="lbl-t">ผูกฐานข้อมูล</span><span class="small muted" id="dlN"></span></summary>
+                <p class="small muted">ยา รพ.สต. / ยานอก รพ.สต. ที่ใช้ข้อมูลคำนวณนี้ + บัญชียาหลัก + ฉลาก openFDA + DDInter · กดบันทึกครั้งเดียว ระบบผูกให้ยาทุกตัวในรายการ</p>
+                <div class="field"><span class="label-like">ยาที่ใช้ข้อมูลคำนวณนี้</span><div class="di-chips" id="dlLocals"></div>
+                  <input id="dlLocalQ" class="input" type="search" list="adrNames" maxlength="200" placeholder="พิมพ์ชื่อยา รพ.สต. / ยานอก แล้วเลือกเพื่อเพิ่ม" aria-label="เพิ่มยา รพ.สต. ที่ใช้ข้อมูลคำนวณนี้" autocomplete="off"></div>
+                <div class="field"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติ</span><div class="di-chips" id="dlMonos"></div>
+                  <input id="dlMonoQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="dlMonoOut"></div></div>
+                <div class="field"><label for="dlFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="dlFda" class="input"><option value="">— ไม่ผูก —</option></select></div>
+                <div class="field"><label for="dlDdi">ยาใน DDInter (สำหรับ Drug interaction)</label><input id="dlDdi" class="input" list="ddiNames" maxlength="300" placeholder="ชื่อยาภาษาอังกฤษ คั่นด้วย , เช่น Paracetamol"><div class="di-chips" id="dlDdiChips"></div></div>
+                <p class="small fx-warn" id="dlWarn" hidden></p>
+              </details>
               <div class="field"><label for="dfSort">ลำดับแสดง</label><input id="dfSort" class="input" type="number" inputmode="numeric" value="0"></div>
               <label class="small" style="align-self:end"><input type="checkbox" id="dfActive" checked> แสดงในเครื่องคำนวณ</label>
               <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dfSubmit">เพิ่มยา</button><button class="btn btn-o btn-sm" type="button" id="dfCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="dfMsg" aria-live="polite"></span></div>
@@ -742,8 +752,9 @@
         <details class="adr-sec" data-adr-sec="local" data-db-part="local">
           <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลบัญชียา รพ.สต.</span><span class="small muted adr-n" data-adr-n="local"></span></summary>
 
-          <div class="panel">
-            <h2 id="ldFormTitle">เพิ่ม / แก้ไข · รายการยา รพ.สต. อ.ควนกาหลง</h2>
+          <details class="panel vs-pfold ld-newfold" id="ldNewFold">
+            <summary><h2 id="ldFormTitle">+ เพิ่มยา รพ.สต. ใหม่ · อ.ควนกาหลง</h2></summary>
+            <p class="small muted" id="ldNewNote" hidden>กำลังแก้ไขยาในรายการด้านล่าง · ข้อมูลยาใหม่ที่กรอกค้างไว้ที่นี่จะกลับมาเมื่อบันทึกหรือยกเลิกการแก้ไข</p>
             <p class="small muted">แสดงที่หน้าหลัก › ข้อมูลยา / คำนวณขนาดยา › ข้อมูลยา · ผูกยาแต่ละรายการกับข้อมูลยาในบัญชียาหลักแห่งชาติ เพื่อให้ข้อมูลยา (กลุ่มยา เงื่อนไข คำเตือน ฯลฯ) ขึ้นเมื่อเลือกยานั้น</p>
             <form id="ldForm" class="form-grid" novalidate>
               <div class="field"><label for="ldName">ชื่อยา <span class="req">*</span></label><input id="ldName" class="input" maxlength="200" placeholder="เช่น PARACETAMOL 500 MG"></div>
@@ -753,21 +764,25 @@
                 <div class="field"><label for="ldPack">ขนาดบรรจุ</label><input id="ldPack" class="input" maxlength="40"></div>
                 <div class="field"><label for="ldUnit">หน่วย</label><input id="ldUnit" class="input" maxlength="40" placeholder="TAB, BOT, หลอด"></div>
               </div>
-              <div class="field full"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้</span><div class="di-chips" id="ldLinks"></div>
-                <input id="ldLinkQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="ldLinkOut"></div></div>
               <div class="field full ld-ing"><span class="label-like">สารสำคัญ · ความแรง · ข้อมูลคำนวณขนาดยา</span>
                 <span class="small muted">ยาเดี่ยวกรอก 1 แถว (ชื่อเว้นว่างได้ · ความแรงว่าง = อ่านจากชื่อยา) · ยาสูตรผสมกรอกแถวละ 1 สาร พร้อมความแรงและหน่วย แล้วเลือกข้อมูลคำนวณขนาดยาของแต่ละสาร (เลือกบางตัวก็ได้) → หน้าคำนวณคิดจากสารนั้น</span>
                 <div id="ldIngs" class="ld-ings"></div>
                 <div class="row-btns ld-ing-bar"><button type="button" class="btn btn-o btn-sm" id="ldIngAdd">+ เพิ่มสารสำคัญ (ยาสูตรผสม)</button><span class="small muted" id="ldStrHint"></span></div>
                 <p class="small fx-warn" id="ldIngWarn" hidden>สารสำคัญ/ความแรงชุดนี้ระบบใส่ให้ (ไม่ได้มาจากผู้ดูแล) · โปรดทวนสอบกับฉลากหรือเอกสารกำกับยาจริง แล้วกดบันทึก</p></div>
-              <div class="field full"><label for="ldDdi">ยาใน DDInter (สำหรับ Drug interaction)</label><input id="ldDdi" class="input" list="ddiNames" maxlength="300" placeholder="ชื่อยาภาษาอังกฤษ คั่นด้วย , เช่น Sulfamethoxazole, Trimethoprim"><datalist id="ddiNames"></datalist><span class="small muted">ว่าง = ไม่ตรวจ interaction ของยานี้ (เช่น ยาทาภายนอก)</span></div>
-              <div class="field full"><label for="ldFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="ldFda" class="input"><option value="">— ไม่ผูก —</option></select><span class="small muted">ยังไม่มีในรายการ → ดึงเพิ่มได้ในกล่อง "ฉลากยาสหรัฐฯ (openFDA)" ด้านล่าง</span></div>
+              <details class="field full vs-pfold ld-linkfold" id="ldLinkFold"><summary><span class="lbl-t">ผูกฐานข้อมูล (บัญชียาหลัก · ฉลาก openFDA · DDInter)</span></summary>
+                <p class="small muted">ปกติผูกที่ <b>คำนวณขนาดยา › แก้ไข</b> (กล่อง "ผูกฐานข้อมูล" ล่างสุด) · ช่องนี้สำหรับยาที่ไม่มีข้อมูลคำนวณ เช่น ยาทา ยาฉีด</p>
+                <div class="field"><span class="label-like">ข้อมูลยาในบัญชียาหลักแห่งชาติที่ผูกไว้</span><div class="di-chips" id="ldLinks"></div>
+                <input id="ldLinkQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหาแล้วกดเพื่อผูก" aria-label="ค้นหาข้อมูลยาในบัญชียาหลักเพื่อผูก"><div class="ld-pick" id="ldLinkOut"></div></div>
+                <div class="field"><label for="ldDdi">ยาใน DDInter (สำหรับ Drug interaction)</label><input id="ldDdi" class="input" list="ddiNames" maxlength="300" placeholder="ชื่อยาภาษาอังกฤษ คั่นด้วย , เช่น Sulfamethoxazole, Trimethoprim"><datalist id="ddiNames"></datalist><div class="di-chips" id="ldDdiChips"></div><span class="small muted">ว่าง = ไม่ตรวจ interaction ของยานี้ (เช่น ยาทาภายนอก)</span></div>
+                <div class="field"><label for="ldFda">ฉลากยาสหรัฐฯ (openFDA)</label><select id="ldFda" class="input"><option value="">— ไม่ผูก —</option></select><span class="small muted">ยังไม่มีในรายการ → ดึงเพิ่มได้ในกล่อง "ฉลากยาสหรัฐฯ (openFDA)" ด้านล่าง</span></div>
+              </details>
               <div class="field full"><label for="ldNote">หมายเหตุ (ถ้ามี)</label><textarea id="ldNote" rows="2" maxlength="2000" placeholder="เช่น เก็บในตู้เย็น"></textarea></div>
               <div class="field"><label for="ldSort">ลำดับแสดง</label><input id="ldSort" class="input" type="number" inputmode="numeric" value="0"></div>
               <label class="small" style="align-self:end"><input type="checkbox" id="ldActive" checked> แสดงที่หน้าหลัก</label>
+              <label class="small" style="align-self:end"><input type="checkbox" id="ldOutside"> ยานอก รพ.สต. (ไม่มีในบัญชียา รพ.สต.)</label>
               <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="ldSubmit">เพิ่มยา</button><button class="btn btn-o btn-sm" type="button" id="ldCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="ldMsg" aria-live="polite"></span></div>
             </form>
-          </div>
+          </details>
           <div class="panel">
             <h2>รายการยา รพ.สต. ที่บันทึกแล้ว <span class="num muted" id="ldCount"></span></h2>
             <div class="form-grid">
@@ -775,6 +790,23 @@
               <div class="field"><label for="ldFilter">แสดง</label><select id="ldFilter" class="input"><option value="all">ทั้งหมด</option><option value="unlinked">ยังไม่ผูกข้อมูลยา</option><option value="hidden">ซ่อนอยู่</option></select></div>
             </div>
             <div class="list" id="ldList"></div>
+          </div>
+        </details>
+        <details class="adr-sec" data-adr-sec="outside" data-db-part="outside">
+          <summary class="adr-sum"><span class="adr-t">ฐานข้อมูลบัญชียานอก รพ.สต.</span><span class="small muted adr-n" data-adr-n="outside"></span></summary>
+
+          <div class="panel">
+            <h2>เพิ่ม / แก้ไข · ยานอก รพ.สต.</h2>
+            <p class="small muted">ยาที่ไม่มีในบัญชียา รพ.สต. (เช่น ยาจากโรงพยาบาลที่ผู้ป่วยใช้ที่บ้าน) · ยาที่พิมพ์ใน "เพิ่มหลายรายการ" แล้วไม่พบในบัญชียา รพ.สต. ระบบเพิ่มมาที่นี่ให้เอง <b>ซ่อนไว้จนผู้ดูแลตรวจ</b> · กด "แก้ไข" ตรวจข้อมูล แล้วติ๊ก "แสดงที่หน้าหลัก"</p>
+            <div class="row-btns" id="loBar"><button type="button" class="btn btn-o btn-sm" id="loNew">+ เพิ่มยานอก รพ.สต.</button></div>
+          </div>
+          <div class="panel">
+            <h2>รายการยานอก รพ.สต. ที่บันทึกแล้ว <span class="num muted" id="loCount"></span></h2>
+            <div class="form-grid">
+              <div class="field"><label for="loQ">ค้นหา</label><input id="loQ" class="input" type="search" placeholder="ชื่อยา หมวด"></div>
+              <div class="field"><label for="loFilter">แสดง</label><select id="loFilter" class="input"><option value="all">ทั้งหมด</option><option value="hidden">รอตรวจ (ซ่อนอยู่)</option></select></div>
+            </div>
+            <div class="list" id="loList"></div>
           </div>
         </details>
         <details class="adr-sec" data-adr-sec="nlem" data-db-part="nlem">

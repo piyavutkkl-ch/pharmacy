@@ -1183,3 +1183,9 @@ details[open] > summary::before{transform:rotate(90deg)}
 @keyframes ieOpen{from{opacity:0;max-height:0;transform:translateY(-10px)}to{opacity:1;max-height:3000px;transform:none}}
 @keyframes ieClose{from{opacity:1;max-height:1500px}to{opacity:0;max-height:0;transform:translateY(-10px);padding-top:0;padding-bottom:0;margin:0}}
 @media (prefers-reduced-motion:reduce){.inline-edit.opening,.inline-edit.closing{animation:none}}
+/* ฐานข้อมูลยา: ฟอร์มเพิ่มยาใหม่ด้านบน (ย่อไว้) · กล่องผูกฐานข้อมูลในฟอร์มคำนวณขนาดยา · รหัสยาในเว็บ (SHPS-A-01) */
+.ld-newfold > summary h2{margin:0}
+.ld-linkfold,.df-link{border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.df-link > .field + .field{margin-top:10px}
+.chip.c-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--sunken);color:var(--ink);letter-spacing:.02em}
+.df-link .chip,.ld-linkfold .chip{display:inline-block;white-space:normal;max-width:100%;border-radius:10px;line-height:1.6}.df-link .chip .c-code,.ld-linkfold .chip .c-code{display:inline-block;padding:0 6px;margin-right:4px}

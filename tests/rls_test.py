@@ -1188,5 +1188,21 @@ check("anon reads visits per day (numbers only)", "anon", "select string_agg(day
 check("visit calendar by unit (other unit = empty)", "anon", "select count(*) from public_visit_days('2026-10-01','2026-11-30', 7::smallint)", eq(0))
 check("visit calendar: range over 62 days rejected", "anon", "select * from public_visit_days('2026-01-01','2026-12-31', null)", "deny")
 
+
+# ---- 81 ยานอก รพ.สต. · 82 รหัสยาในเว็บ (SHPS-A-01) ----
+check("Albendazole in รพ.สต. list = SHPS-A-01", "anon", "select web_code from local_drugs where code='1010042'", eq("SHPS-A-01"))
+check("every drug table has codes", None, "select (select count(*) from local_drugs where web_code is null) + (select count(*) from drug_monographs where web_code is null) + (select count(*) from drug_fda_labels where web_code is null) + (select count(*) from ddi_drugs where web_code is null) + (select count(*) from dose_drugs where web_code is null)", eq(0))
+check("codes follow <db>-<letter>-<nn>", None, "select bool_and(web_code ~ '^(SHPS|OUT|NLEM|FDA|DDI|DOSE)-[A-Z]-[0-9]{2,}$') from (select web_code from local_drugs union all select web_code from drug_monographs union all select web_code from drug_fda_labels union all select web_code from ddi_drugs union all select web_code from dose_drugs) x", eq("t"))
+check("same NLEM name shares one code", None, "select count(distinct web_code) from drug_monographs where name='Paracetamol (Acetaminophen)'", eq(1))
+check("admin adds outside drug (hidden) → OUT code", "admin", "insert into local_drugs(name,category,outside,active,web_code) values ('Zolpidem 10 mg','ยานอก รพ.สต.',true,false,'SHPS-Z-99') returning web_code", eq("OUT-Z-01"))
+check("anon cannot see hidden outside drug", "anon", "select count(*) from local_drugs where name='Zolpidem 10 mg'", eq(0))
+check("code cannot be edited", "admin", "update local_drugs set web_code='OUT-Q-77', name='Zolpidem tartrate 10 mg' where name='Zolpidem 10 mg' returning web_code", eq("OUT-Z-01"))
+check("moved into รพ.สต. list → new SHPS code", "admin", "update local_drugs set outside=false where name='Zolpidem tartrate 10 mg' returning web_code ~ '^SHPS-Z-[0-9]{2}$'", eq("t"))
+check("outside flag change logged in history", None, "select count(*) > 0 from drug_data_history where table_name='local_drugs' and 'outside' = any(fields)", eq("t"))
+check("staff cannot add outside drug", "s2", "insert into local_drugs(name,category,outside) values ('x','y',true)", "deny")
+check("admin deletes test outside drug", "admin", "delete from local_drugs where name='Zolpidem tartrate 10 mg' returning name", eq("Zolpidem tartrate 10 mg"))
+check("new dose drug gets DOSE code", "admin", "insert into dose_drugs(name,indication,per,mg_per_kg_min,mg_per_kg_max,active,ai_draft) values ('ทดสอบรหัส (Xylitol)','ทดสอบ','dose',1,2,false,false) returning web_code ~ '^DOSE-X-[0-9]{2}$'", eq("t"))
+check("delete test dose drug", "admin", "delete from dose_drugs where name='ทดสอบรหัส (Xylitol)' returning id", rows(1))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
