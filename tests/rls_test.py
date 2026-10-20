@@ -1204,5 +1204,19 @@ check("admin deletes test outside drug", "admin", "delete from local_drugs where
 check("new dose drug gets DOSE code", "admin", "insert into dose_drugs(name,indication,per,mg_per_kg_min,mg_per_kg_max,active,ai_draft) values ('ทดสอบรหัส (Xylitol)','ทดสอบ','dose',1,2,false,false) returning web_code ~ '^DOSE-X-[0-9]{2}$'", eq("t"))
 check("delete test dose drug", "admin", "delete from dose_drugs where name='ทดสอบรหัส (Xylitol)' returning id", rows(1))
 
+
+# ---- 83 ศูนย์ข้อมูลยา · 84 วันที่ทำผลงาน ----
+check("link_na accepts known sections only", "admin", "update local_drugs set link_na='{dose,ddi}' where code='1010042' returning cardinality(link_na)", eq(2))
+check("link_na rejects unknown section", "admin", "update local_drugs set link_na='{xyz}' where code='1010042'", "deny")
+check("admin records rejected suggestion", "admin", "insert into drug_link_rejects(local_id,kind,target) select id,'fda','amoxicillin|ORAL' from local_drugs where code='1010042' returning kind", eq("fda"))
+check("duplicate rejection refused", "admin", "insert into drug_link_rejects(local_id,kind,target) select id,'fda','amoxicillin|ORAL' from local_drugs where code='1010042'", "deny")
+check("staff cannot read rejections", "s2", "select count(*) from drug_link_rejects", eq(0))
+check("anon cannot read rejections", "anon", "select count(*) from drug_link_rejects", "deny")
+check("staff cannot add rejection", "s2", "insert into drug_link_rejects(local_id,kind,target) select id,'ddi','x' from local_drugs limit 1", "deny")
+check("admin clears rejection", "admin", "delete from drug_link_rejects where target='amoxicillin|ORAL' returning id", rows(1))
+check("existing achievements got work_date", None, "select count(*) from achievements where work_date is null", eq(0))
+check("achievement work_date defaults to today (Bangkok)", None, "select column_default like '%Asia/Bangkok%' from information_schema.columns where table_name='achievements' and column_name='work_date'", eq("t"))
+check("achievement work_date out of range rejected", None, "update achievements set work_date='1990-01-01' where id=(select id from achievements limit 1)", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

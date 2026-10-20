@@ -420,7 +420,7 @@ async function syncAchievement(sid, row, old) {
   const achId = old?.achievement_id || null;
   if (!items.length && !achId) return;
   if (!achId && auth.profile.role === 'staff' && row.unit_id !== auth.profile.unit_id) throw new Error('บันทึกเป็นผลงานได้เฉพาะ รพ.สต. ของตัวเอง');
-  const a = { unit_id: row.unit_id, title: row.title, body: row.body || null, image_path: row.image_path, item_ids: items };
+  const a = { unit_id: row.unit_id, title: row.title, body: row.body || null, image_path: row.image_path, item_ids: items, ...(row.summary_date ? { work_date: row.summary_date } : {}) };   // วันที่ทำผลงาน = วันที่สรุป
   if (achId) { const { error } = await sb.from('achievements').update(a).eq('id', achId); if (error) throw error; return; }
   const { data, error } = await sb.from('achievements').insert(a).select('id');
   if (error) throw error;
