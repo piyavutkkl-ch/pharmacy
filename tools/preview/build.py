@@ -132,10 +132,20 @@ def main():
         text = rename(f.read_text(encoding="utf-8"))
         if f.name == "supabase.js":
             text = must_sub(text, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm", "./mock-supabase.js", "js/supabase.js")
+        if f.name == "drug-grid.js":   # ตารางแก้ไขยา: หน้าตัวอย่างโหลดสไตล์จาก jsDelivr ไม่ได้ → ใช้สำเนาในหน้าตัวอย่าง
+            text = must_sub(text, "const TAB_JS = `${TAB}/js/tabulator_esm.min.mjs`, TAB_CSS = `${TAB}/css/tabulator.min.css`;",
+                            "const TAB_JS = '../../vendor/tabulator_esm.min.js', TAB_CSS = 'vendor/tabulator.min.css';", "js/pages/drug-grid.js")
         if f.name == "config.js":
             text = re.sub(r"https://[a-z0-9]+\.supabase\.co", "https://preview.invalid", text)
             text = re.sub(r"sb_publishable_[A-Za-z0-9_-]+", "preview-key", text)
         dst.write_text(text, encoding="utf-8")
+
+    tab = ROOT / "tests/ui/node_modules/tabulator-tables/dist"   # ติดตั้งโดย tests/setup_env.sh / npm install ใน tests/ui
+    if not tab.exists():
+        sys.exit("preview: ไม่มี Tabulator ในเครื่อง — รัน bash tests/setup_env.sh ก่อน")
+    (OUT / "vendor").mkdir()
+    shutil.copy(tab / "js/tabulator_esm.min.mjs", OUT / "vendor/tabulator_esm.min.js")
+    shutil.copy(tab / "css/tabulator.min.css", OUT / "vendor/tabulator.min.css")
 
     mock = (ROOT / "tests/ui/mock_supabase.js").read_text(encoding="utf-8")
     mock = must_sub(mock, "fetch('/tests/ui/fixtures.json')", "fetch('fixtures.json')", "mock_supabase.js")

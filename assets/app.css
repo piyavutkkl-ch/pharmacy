@@ -1271,6 +1271,67 @@ details[open] > summary::before{transform:rotate(90deg)}
 .dc-help-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}
 .dc-help-grid > div{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:4px;align-content:start}
 @media (max-width:760px){.dc-help-grid{grid-template-columns:1fr}}
+/* ตารางแก้ไขยา (drug-grid.js · Tabulator 6.3.1) — สีตาม token ใช้ได้ทั้งโหมดสว่าง/มืด */
+.dg{display:grid;gap:10px;min-width:0}
+.dg-bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.dg-mode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--surface)}
+.dg-seg{appearance:none;border:0;background:none;color:var(--ink);font:inherit;font-weight:600;font-size:13.5px;padding:0 14px;min-height:44px;cursor:pointer}
+.dg-seg[aria-pressed="true"]{background:var(--primary);color:var(--on-primary)}
+.dg-dbs{display:flex;flex-wrap:wrap;gap:6px}
+.dg-chip{appearance:none;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:13.5px;font-weight:600;padding:0 14px;min-height:44px;cursor:pointer}
+.dg-chip[aria-pressed="true"]{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.dg-chip[aria-pressed="true"]::before{content:"✓ "}
+.dg-chip-str{margin-right:6px}
+.dg-seg:focus-visible,.dg-chip:focus-visible,.dg-open:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.dg-tools{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center}
+.dg-tools #dgQ{flex:1 1 220px}.dg-tools #dgScope{flex:0 1 200px}
+.dg-chk{display:inline-flex;gap:6px;align-items:center;min-height:44px}
+.dg-table{min-width:0}
+.dg .tabulator{border:1px solid var(--line);border-radius:12px;background:var(--surface);font:inherit;font-size:13.5px;color:var(--ink)}
+.dg .tabulator .tabulator-header{background:var(--sunken);border-bottom:1px solid var(--line);color:var(--muted)}
+.dg .tabulator .tabulator-header .tabulator-col{background:var(--sunken);border-right:1px solid var(--line)}
+.dg .tabulator .tabulator-header .tabulator-col .tabulator-col-content{padding:7px 8px}
+.dg .tabulator .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-group-cols{border-top:1px solid var(--line)}
+.dg .tabulator .tabulator-header .tabulator-col .tabulator-col-title{font-size:12.5px;font-weight:700}
+@media (hover:hover) and (pointer:fine){.dg .tabulator .tabulator-header .tabulator-col.tabulator-sortable.tabulator-col-sorter-element:hover{background:var(--line)}}
+.dg .tabulator .tabulator-header .tabulator-col.tabulator-sortable .tabulator-col-content .tabulator-col-sorter{color:var(--faint)}
+.dg .tabulator .tabulator-header .tabulator-col.tabulator-sortable[aria-sort=none] .tabulator-col-content .tabulator-col-sorter .tabulator-arrow{border-bottom-color:var(--line)}
+.dg .tabulator .tabulator-header .tabulator-col.tabulator-sortable[aria-sort=ascending] .tabulator-col-content .tabulator-col-sorter .tabulator-arrow{border-bottom-color:var(--primary)}
+.dg .tabulator .tabulator-header .tabulator-col.tabulator-sortable[aria-sort=descending] .tabulator-col-content .tabulator-col-sorter .tabulator-arrow{border-top-color:var(--primary)}
+.dg .tabulator .tabulator-tableholder,.dg .tabulator .tabulator-tableholder .tabulator-table{background:var(--surface);color:var(--ink)}
+.dg .tabulator .tabulator-tableholder .tabulator-placeholder .tabulator-placeholder-contents{color:var(--muted);font-size:14px;font-weight:500}
+.dg .tabulator-row,.dg .tabulator-row.tabulator-row-even{background:var(--surface);border-bottom:1px solid var(--line);min-height:44px}
+@media (hover:hover) and (pointer:fine){.dg .tabulator-row.tabulator-selectable:hover{background:var(--sunken);cursor:default}}
+.dg .tabulator-row .tabulator-cell{border-right:1px solid var(--line);padding:8px;line-height:1.4;min-height:44px}
+.dg .tabulator-row .tabulator-cell.dg-wrap{white-space:normal;overflow-wrap:anywhere}
+.dg .tabulator-row .tabulator-cell.dg-ed{cursor:pointer}
+@media (hover:hover) and (pointer:fine){.dg .tabulator-row .tabulator-cell.dg-ed:hover{box-shadow:inset 0 0 0 1px var(--primary)}}
+.dg .tabulator-row .tabulator-cell.tabulator-editing{box-shadow:inset 0 0 0 2px var(--primary);background:var(--surface);padding:0}
+.dg .tabulator-row .tabulator-cell.tabulator-editing input,.dg .tabulator-row .tabulator-cell.tabulator-editing select{color:var(--ink);font:inherit;padding:8px!important;height:100%;min-height:42px}
+.dg .tabulator-row .tabulator-cell.dg-pend{box-shadow:inset 3px 0 0 var(--warning);background:var(--warning-soft)}
+.dg .tabulator-row .tabulator-cell.dg-opencell{padding:4px}
+.dg .tabulator-row.tabulator-group{background:var(--sunken);border-top:1px solid var(--line);border-bottom:1px solid var(--line);border-right:0;color:var(--ink);padding:9px 10px;font-weight:700}
+.dg .tabulator-row.tabulator-group span.dg-gn{color:var(--muted);font-weight:500;margin-left:6px}
+.dg .tabulator-row.tabulator-group .tabulator-arrow{border-left-color:var(--muted)}
+.dg .tabulator-row.tabulator-group.tabulator-group-visible .tabulator-arrow{border-top-color:var(--muted);border-left-color:transparent}
+.dg-open{appearance:none;width:36px;height:36px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--primary);font:inherit;font-weight:700;cursor:pointer}
+.dg-name b{font-weight:700}
+.dg-tag{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--sunken);color:var(--muted);font-size:11.5px;font-weight:600}
+.dg-c{display:inline-flex;gap:6px;align-items:baseline}
+.dg-c i{font-style:normal;font-weight:800;min-width:1em}
+.dg-c.s-ok i{color:var(--success)}.dg-c.s-wait i,.dg-c.s-miss i{color:var(--warning)}.dg-c.s-err i{color:var(--error)}.dg-c.s-na i,.dg-c.s-opt i{color:var(--faint)}
+.dg-sg{display:block;font-size:12px;color:var(--primary)}
+.dg-go{display:block;font-size:12px;color:var(--primary);font-weight:600}
+.dg .tabulator-row .tabulator-cell.dg-goto{cursor:pointer}
+.dg-mut{color:var(--muted)}.dg-err{color:var(--error)}.dg-ok{color:var(--success);font-weight:600}
+.dg-sgb{display:grid;gap:4px}
+.dg-ev{display:flex;flex-wrap:wrap;gap:2px 8px;font-size:12px}.dg-ev .y{color:var(--success)}.dg-ev .n{color:var(--error)}
+.dg-act{display:flex;flex-wrap:wrap;gap:6px}
+.tabulator-edit-list{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);font-family:var(--font);font-size:13.5px;max-height:320px}
+.tabulator-edit-list .tabulator-edit-list-item{color:var(--ink);padding:9px 10px;min-height:40px}
+.tabulator-edit-list .tabulator-edit-list-item.active,.tabulator-edit-list .tabulator-edit-list-item.focused{background:var(--primary-soft);color:var(--ink);outline:none}
+@media (hover:hover) and (pointer:fine){.tabulator-edit-list .tabulator-edit-list-item:hover{background:var(--primary-soft);color:var(--ink)}}
+.tabulator-edit-list .tabulator-edit-list-placeholder,.tabulator-edit-list .tabulator-edit-list-notice{color:var(--muted)}
 .dc-legend-list{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14px}
 .dc-legend-list li{display:flex;gap:10px;align-items:center}
 .dc-legend-list .dc-cell{cursor:default;flex-shrink:0}

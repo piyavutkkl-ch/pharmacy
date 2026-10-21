@@ -689,7 +689,7 @@
 
       <!-- ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา (เฉพาะผู้ดูแลแก้ไขได้) -->
       <div data-admin-view="drugs" hidden>
-        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="center">ศูนย์ข้อมูลยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a></nav>
+        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="center">ศูนย์ข้อมูลยา</a><a class="tab-link" href="#/admin/drugs/grid" data-sub="grid">ตารางแก้ไขยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a></nav>
         <!-- ศูนย์ข้อมูลยา (drug-center.js): สรุป → วงกลมรายส่วน → ตารางสถานะยา → แผงรายละเอียด/แก้ไขทีละส่วน + คู่ที่ระบบเสนอ -->
         <div id="dcCenter" class="dc">
           <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/ai" id="dcAddBtn">+ เพิ่มยา</a><a class="btn btn-o btn-sm" href="#/admin/drugs/tools" id="dcToolsBtn">⋯ เครื่องมือฐานข้อมูล</a><span class="small muted">แก้ข้อมูลยาแต่ละตัว: กดชื่อยาหรือช่องสถานะในตาราง</span></div>
@@ -707,6 +707,22 @@
             <aside class="dc-panel" id="dcPanel" aria-live="polite"><p class="empty">กดชื่อยาหรือช่องสถานะในตาราง เพื่อดูและแก้ข้อมูลยาตัวนั้น</p></aside>
           </div>
         </div>
+        <!-- ตารางแก้ไขยา (drug-grid.js · Tabulator): ยา 1 แถว · คลิกช่อง = แก้ · เลือกฐานข้อมูลที่แสดง (หลายฐานพร้อมกัน / ทีละฐาน) -->
+        <div id="dcGrid" class="dg" hidden>
+          <div class="dg-bar">
+            <div class="dg-mode" role="group" aria-label="วิธีแสดงฐานข้อมูล"><button type="button" class="dg-seg" data-dg-mode="multi">หลายฐานพร้อมกัน</button><button type="button" class="dg-seg" data-dg-mode="one">ทีละฐาน</button></div>
+            <div class="dg-dbs" id="dgDbs" role="group" aria-label="ฐานข้อมูลที่แสดงในตาราง"></div>
+          </div>
+          <div class="dg-tools">
+            <input id="dgQ" class="input" type="search" maxlength="80" placeholder="ค้นชื่อยา หรือรหัส" aria-label="ค้นหายาในตาราง">
+            <select id="dgScope" class="input" aria-label="บัญชียา"><option value="all">ยา รพ.สต. + ยานอก</option><option value="local">ยา รพ.สต.</option><option value="outside">ยานอก รพ.สต.</option></select>
+            <label class="small dg-chk"><input type="checkbox" id="dgGap"> เฉพาะยาที่ยังขาด/รอตรวจ ในฐานที่แสดง</label>
+            <label class="small dg-chk"><input type="checkbox" id="dgGroup" checked> จัดกลุ่มตามรูปแบบยา</label>
+          </div>
+          <p class="small muted" id="dgHint">คลิกช่องเพื่อแก้ · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป · ช่องขนาดยา: กดแล้วไปตารางข้อบ่งใช้ในแผงยา (ตรวจซ้ำก่อนอนุมัติ)</p>
+          <p class="small muted" id="dgCount" aria-live="polite"></p>
+          <div id="dgTable" class="dg-table"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
+        </div>
         <div id="dcHelp" class="dc-help" hidden>
           <div class="panel"><h2>วิธีใช้ศูนย์ข้อมูลยา</h2>
             <p class="muted">หน้าเดียวตอบ 3 คำถาม: มียาอะไรบ้าง → ยาตัวไหนมีปัญหา → ต้องกดตรงไหนเพื่อแก้ ไม่ต้องไล่เปิดฐานข้อมูลทีละส่วน</p>
@@ -723,6 +739,15 @@
               <li><b>ขนาดยา</b> ตารางรวมข้อบ่งใช้จากทุกแหล่ง (MIMS · ฉลาก · ที่กรอกเอง) ติ๊กข้อที่จะใช้ แก้ตัวเลขด้วยปุ่ม ✎ → ระบบตรวจซ้ำด้วยทดสอบสูตร → กด "อนุมัติใช้คำนวณ" · ยาเม็ด/ยาน้ำตัวเดียวกันใช้ข้อมูลร่วมกันให้เอง</li>
             </ol>
             <p class="small muted">ขั้นที่เสร็จแล้วย่อเหลือบรรทัดเดียว (กดเพื่อเปิดดู) · กด "ถัดไป ›" ไปยาตัวต่อไปในรายการที่กรองอยู่ · ฟอร์มละเอียดและฐานข้อมูลทั้งชุดอยู่ใน "⋯ เครื่องมือฐานข้อมูล"</p>
+          </div>
+          <div class="panel"><h2>ตารางแก้ไขยา (แบบ Excel)</h2>
+            <ul class="small dc-rules">
+              <li>แท็บ "ตารางแก้ไขยา": ยา 1 แถว · คลิกช่องแล้วแก้ได้เลย · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป</li>
+              <li><b>เลือกฐานข้อมูลที่แสดง</b>: "หลายฐานพร้อมกัน" กดเปิด/ปิดทีละฐาน · "ทีละฐาน" แสดงฐานเดียวพร้อมรายละเอียด เหตุผล และคู่ที่ระบบเสนอ (✓ ใช้ / ✗ ไม่ใช่) · ปุ่ม "① ข้อมูลยา" ซ่อนช่องรหัส/รูปแบบ/ความแรงได้</li>
+              <li>ช่องผูกฐานข้อมูล: พิมพ์ค้นหาแล้วเลือก · คู่ที่ระบบเสนออยู่บนสุด (★) · บัญชียาหลัก/DDInter ผูกได้หลายรายการ เลือกตัวที่มี ✓ = เอาออก</li>
+              <li>ช่อง "คิดเป็น" ต้องกรอกทั้งสารและ มก. ระบบจึงบันทึก (กรอกไม่ครบช่องจะมีแถบสีส้ม)</li>
+              <li>ขนาดยาแก้ตัวเลขในตารางไม่ได้ (เพื่อความปลอดภัย) กดช่องขนาดยาแล้วไปตารางข้อบ่งใช้ในแผงยา ตรวจซ้ำก่อนอนุมัติ</li>
+            </ul>
           </div>
           <div class="panel"><h2>เพิ่มยาจากบัญชียา รพ.สต.</h2>
             <p class="small muted">⋯ เครื่องมือฐานข้อมูล › ฐานข้อมูลบัญชียา รพ.สต. → ปุ่ม "เพิ่มยาในบัญชีที่ยังไม่มีในเว็บแอพ" ดึงทุกรายการที่ยังไม่มีมาครั้งเดียว · หรือนำเข้าไฟล์บัญชี (Excel/CSV จากระบบโรงพยาบาล) แล้วติ๊ก "เพิ่มยาใหม่เป็นยาในเว็บแอพด้วย" ทำในขั้นตอนเดียว · ยานอก รพ.สต. เพิ่มด้วยปุ่ม "+ เพิ่มยา"</p>

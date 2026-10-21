@@ -16,6 +16,7 @@ import { initDrugsAdmin, openDrugSection } from './admin-drugs.js?v=4.4';
 import { initMimsAdmin } from './admin-mims.js?v=4.4';
 import { initRpstAdmin } from './admin-rpst.js?v=4.4';
 import { initDrugCenter, showDrugTab, setDrawer } from './drug-center.js?v=4.4';
+import { initDrugGrid } from './drug-grid.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
@@ -55,10 +56,11 @@ export async function showAdmin(tab, sub) {
     return mountRiderEditor($('#adminRiderSlot'));
   }
   if (tab === 'drugs') {   // ข้อมูลยา: เลือกยาด้านบน + ส่วนต่าง ๆ เรียงแนวตั้ง ย่อ/ขยายได้ (ai · dose · local · nlem · fda · ddi) · /db เดิม = บัญชียา รพ.สต.
-    // ไม่ระบุ = ศูนย์ข้อมูลยา (drug-center.js) · help = วิธีใช้ (หน้าแยก) · ai/dose/rpst/local/outside/nlem/fda/ddi/mims/db/tools = เครื่องมือฐานข้อมูล (แผงด้านขวา) เปิดที่ส่วนนั้น
-    const help = sub === 'help';
-    subTabs('#dcTabs', help ? 'help' : 'center'); showDrugTab(help);
-    if (help) return;
+    // ไม่ระบุ = ศูนย์ข้อมูลยา (drug-center.js) · grid = ตารางแก้ไขยา (drug-grid.js) · help = วิธีใช้ (หน้าแยก) · ai/dose/rpst/local/outside/nlem/fda/ddi/mims/db/tools = เครื่องมือฐานข้อมูล (แผงด้านขวา) เปิดที่ส่วนนั้น
+    const page = sub === 'help' || sub === 'grid' ? sub : 'center';
+    subTabs('#dcTabs', page); showDrugTab(page);
+    if (page === 'help') return;
+    if (page === 'grid') return initDrugGrid();
     const v = sub === 'db' ? 'local' : DB_PARTS.includes(sub) || sub === 'ai' || sub === 'dose' ? sub : null;
     setDrawer(!!sub, 'route');
     if (sub) openDrugSection(v);

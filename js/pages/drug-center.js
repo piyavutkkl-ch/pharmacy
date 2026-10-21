@@ -35,7 +35,7 @@ const ORAL = /เม็ด|แคปซูล|น้ำรับประทา�
 const NO_FDA = /สมุนไพร/, NO_DDI = /ภายนอก|สมุนไพร|สารน้ำ|ป้ายปาก/;
 const STRONG = 85;
 
-let stepOpen = {};
+let stepOpen = {}, jump = false;   // jump = เปิดจากตารางแก้ไขยา → เลื่อนไปที่แผงยา
 let D = null, rejects = [], filt = 'all', scope = 'all', sel = null, focusK = null, edit = null, bound = false, drawerFrom = null, approveAfter = null, dt = null;   // dt = ตารางขนาดยาของยาที่เลือก (ขั้นที่ 3)
 const like = (a, b) => !!a && !!b && (a === b || sameDrug(a, b) || sameDrug(b, a));
 const num = (x) => +(+x).toFixed(3);
@@ -435,10 +435,35 @@ function sharedNote(d, l) {
 }
 function renderAll() { compute(); renderTop(); renderTable(); renderPanel(); }
 
-/** เปิด/ปิดแท็บวิธีใช้ (แยกจากศูนย์ข้อมูลยา) */
-export function showDrugTab(help) {
-  $('#dcCenter').hidden = help; $('#dcHelp').hidden = !help;
-  if (help) setDrawer(false);
+/** แท็บข้อมูลยา: center = ศูนย์ข้อมูลยา · grid = ตารางแก้ไขยา (drug-grid.js) · help = วิธีใช้ */
+export function showDrugTab(page) {
+  $('#dcCenter').hidden = page !== 'center'; $('#dcHelp').hidden = page !== 'help'; $('#dcGrid').hidden = page !== 'grid';
+  if (page !== 'center') setDrawer(false);
+}
+
+/* ---------- ใช้ร่วมกับตารางแก้ไขยา (drug-grid.js) · สถานะ/คู่ที่ระบบเสนอชุดเดียวกับศูนย์ข้อมูลยา ---------- */
+export const DC = { K, SRC, KN, KS, SYM, SN, ROW, PER, UNITS, cellS, idv, isCombo };
+export { judgeAll, suggest, applyRow, basesOf };
+/** ยาทุกตัว + สถานะ (โหลดใหม่เมื่อ reload) */
+export async function centerRows(reload = false) {
+  if (reload || !D) {
+    const [d, rj] = await Promise.all([drugData(), D ? null : sb.from('drug_link_rejects').select('local_id,kind,target')]);
+    D = d; if (rj) rejects = rj.data || [];
+  }
+  compute(); return rowsCache;
+}
+/** เปิดยานี้ในแผงยาของศูนย์ข้อมูลยา (เรียกก่อนเปลี่ยนหน้าไป #/admin/drugs) */
+export function focusDrug(id, k = null) {
+  if (id !== sel) { dt = null; stepOpen = {}; }
+  sel = id; focusK = k; edit = null; jump = true; filt = 'all';
+  const q = $('#dcQ'); if (q) q.value = '';
+}
+/** ✗ ไม่ใช่คู่นี้ (จำไว้ ไม่เสนออีก) */
+export async function rejectPair(l, k, target) {
+  const row = { local_id: l.id, kind: k, target: String(target) };
+  const { error } = await sb.from('drug_link_rejects').insert(row);
+  if (error && !/duplicate|23505/.test(errText(error) + error.code)) throw error;
+  rejects.push(row);
 }
 /** แผงเครื่องมือฐานข้อมูล: from = 'route' (ลิงก์ #/admin/drugs/<ส่วน>) | 'center' (จากแผงยา · บันทึกแล้วปิดเอง) */
 export function setDrawer(open, from = null) {
@@ -468,6 +493,7 @@ export async function initDrugCenter() {
     D = d; rejects = rj.data || [];
   } catch (err) { toast(errText(err), 'err'); $('#dcTable').innerHTML = '<p class="empty">โหลดข้อมูลยาไม่สำเร็จ กรุณาลองใหม่</p>'; return; }
   renderAll();
+  if (jump) { jump = false; $('#dcPanel').scrollIntoView({ block: 'start' }); }
 }
 function pick(id, k) {
   if (id !== sel) { dt = null; stepOpen = {}; }
