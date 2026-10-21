@@ -1354,11 +1354,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('แก้ทีละส่วน: บันทึกฉลาก → ผูก fda_key + ปิดตัวแก้', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.fda_key === 'amoxicillin|ORAL' && !(await count(p, '#dcPanel .dc-sec.is-open')));
       if (!(await p.$eval('[data-dc-step="1"]', (d) => d.open))) await p.click('[data-dc-step="1"] > summary');
       check('ขั้นที่ 1 ยาในเว็บแอพ: ชื่อยา · รูปแบบยา · ความแรง', /ชื่อยา[\s\S]*AMOXICILLIN 500 MG[\s\S]*รูปแบบยา[\s\S]*ความแรง[\s\S]*500/.test(await text(p, '#dcSec-str')), await text(p, '#dcSec-str'));
-      await p.click('#dcSec-str [data-dc-edit="str"]'); await p.waitForTimeout(200);
-      check('ขั้นที่ 1 แก้: ชื่อยา + รูปแบบยา (หมวด) + ความแรง ในที่เดียว', await visible(p, '#dcName') && await visible(p, '#dcCat') && await visible(p, '#dcStrAmt'));
-      await p.fill('#dcStrAmt', '250'); await p.selectOption('#dcStrUnit', 'mg|5ml'); await p.click('#dcSec-str [data-dc-save]'); await p.waitForTimeout(500);
-      { const up = (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload || {};
-        check('แก้ทีละส่วน: ความแรง 250 มก./5 มล. (+ ชื่อ/รูปแบบเดิม)', JSON.stringify(up.strength) === '{"mg":250,"per":"5ml"}' && up.name === 'AMOXICILLIN 500 MG' && !!up.category, JSON.stringify(up)); }
+      check('แผงยา: ไม่มีปุ่ม "เปิดฟอร์มยาเต็ม" แล้ว (แก้ที่ตารางแก้ไขยาแทน)', !(await p.$('#dcPanel [data-dc-full="all"]')) && await count(p, '#dcPanel [data-dc-grid]') === 2);
+      await p.click('#dcSec-str [data-dc-grid]'); await p.waitForTimeout(1800);
+      { // thread e4572bed: ✎ แก้ข้อมูลยา → ตารางแก้ไขยา ที่แถวยานั้น (ไฮไลต์ + อยู่บนจอ)
+        const row = '#dgTable .tabulator-row:has(.tabulator-cell[tabulator-field="name"] b:text-is("AMOXICILLIN 500 MG"))', c = (f) => `${row} .tabulator-cell[tabulator-field="${f}"]`;
+        check('ขั้นที่ 1 ✎ แก้ข้อมูลยา → ไปตารางแก้ไขยา เลื่อนไปแถวยานั้น + ไฮไลต์', (await p.evaluate(() => location.hash)) === '#/admin/drugs/grid' && await p.$eval(row, (r) => r.classList.contains('dg-flash') && r.getBoundingClientRect().top >= 0 && r.getBoundingClientRect().bottom <= innerHeight + 1));
+        await p.click(c('amt')); await p.waitForTimeout(150); await p.fill(`${c('amt')} input`, '250'); await p.keyboard.press('Enter'); await p.waitForTimeout(600);
+        await p.click(c('unit')); await p.waitForSelector('.tabulator-edit-list .tabulator-edit-list-item'); await p.click('.tabulator-edit-list .tabulator-edit-list-item:text-is("มก./5 มล.")'); await p.waitForTimeout(600);
+        const up = (await calls(p, (x) => x.table === 'local_drugs' && x.op === 'update')).pop()?.payload || {};
+        check('ตารางแก้ไขยา: ความแรง 250 มก./5 มล. ของยานั้น', JSON.stringify(up.strength) === '{"mg":250,"per":"5ml"}' && JSON.stringify(await p.evaluate((id) => window.__db.local_drugs.find((x) => x.id === id).strength, amx)) === '{"mg":250,"per":"5ml"}', JSON.stringify(up)); }
+      await go(p, '#/admin/drugs'); await p.waitForTimeout(700);
       if (!(await p.$eval('[data-dc-step="3"]', (d) => d.open))) await p.click('[data-dc-step="3"] > summary');
       await p.click('[data-dc-step="3"] [data-dc-na="dose"]'); await p.waitForTimeout(500);
       check('แก้ทีละส่วน: "ไม่ใช้กับยานี้" → link_na + ช่องเป็น – ไม่นับเป็นปัญหา', ((await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.link_na || []).includes('dose') && await p.$eval(`#dcTable [data-dc-row="${amx}"][data-dc-k="dose"]`, (b) => b.classList.contains('s-na')));
@@ -1508,9 +1513,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.fill('#dcQ', 'FERROUS FUM'); await p.waitForTimeout(150);
         await p.click(`#dcTable [data-dc-row="${fid}"][data-dc-k="str"]`); await p.waitForTimeout(300);
         check('ขั้นที่ 1: ขนาดยาคิดจาก Elemental iron แต่ยังไม่กรอก "คิดเป็น" → เตือนในข้อมูลยา (รอตรวจ)', /คิดเป็น/.test(await text(p, '#dcSec-str')) && await p.$eval(`#dcTable [data-dc-row="${fid}"][data-dc-k="str"]`, (b) => b.classList.contains('s-wait')), await text(p, '#dcSec-str'));
-        await p.click('#dcSec-str [data-dc-edit="str"]'); await p.waitForTimeout(200);
-        check('ขั้นที่ 1 แก้: ช่อง "คิดเป็น" มีตัวเลือก Elemental iron (จากข้อบ่งใช้)', (await p.$$eval('#dcAsName option', (o) => o.map((x) => x.textContent))).includes('Elemental iron'));
-        await p.fill('#dcStrAmt', '200'); await p.selectOption('#dcAsName', 'Elemental iron'); await p.fill('#dcAsMg', '66'); await p.click('#dcSec-str [data-dc-save]'); await p.waitForTimeout(600);
+        await p.click('#dcSec-str [data-dc-grid]'); await p.waitForTimeout(1800);
+        { const row = '#dgTable .tabulator-row:has(.tabulator-cell[tabulator-field="name"] b:text-is("FERROUS FUMARATE 200 MG"))', c = (f) => `${row} .tabulator-cell[tabulator-field="${f}"]`;
+          await p.click(c('amt')); await p.waitForTimeout(150); await p.fill(`${c('amt')} input`, '200'); await p.keyboard.press('Enter'); await p.waitForTimeout(600);
+          await p.click(c('asName')); await p.waitForSelector('.tabulator-edit-list .tabulator-edit-list-item');
+          check('ตารางแก้ไขยา: ช่อง "คิดเป็น" มีตัวเลือก Elemental iron (จากข้อบ่งใช้)', (await p.$$eval('.tabulator-edit-list .tabulator-edit-list-item', (o) => o.map((x) => x.textContent))).includes('Elemental iron'));
+          await p.click('.tabulator-edit-list .tabulator-edit-list-item:text-is("Elemental iron")'); await p.waitForTimeout(400);
+          await p.click(c('asMg')); await p.waitForTimeout(150); await p.fill(`${c('asMg')} input`, '66'); await p.keyboard.press('Enter'); await p.waitForTimeout(700); }
+        await go(p, '#/admin/drugs'); await p.waitForTimeout(700);
         check('ขั้นที่ 1: บันทึกความแรง 200 มก./เม็ด คิดเป็นธาตุเหล็ก 66 มก.', JSON.stringify(await p.evaluate((id) => window.__db.local_drugs.find((x) => x.id === id).strength, fid)) === '{"mg":200,"per":"tab","as":{"name":"Elemental iron","mg":66}}');
         if (!(await p.$eval('[data-dc-step="3"]', (d) => d.open))) await p.click('[data-dc-step="3"] > summary');
         const rowsTxt = await text(p, '[data-dc-step="3"] .dt-rows');
@@ -2139,6 +2149,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('คิดเป็น (สาร) อย่างเดียว → ยังไม่บันทึก + ช่องมีแถบสีเตือน', (await nUpd()) === n0 && await q.$eval(cell('asName'), (e) => e.classList.contains('dg-pend')) && (await text(q, cell('asName'))) === 'Elemental iron'); }
       await q.click(cell('asMg')); await q.waitForTimeout(150); await q.fill(`${cell('asMg')} input`, '33'); await q.keyboard.press('Enter'); await q.waitForTimeout(600);
       check('คิดเป็น (มก.) กรอกครบ → บันทึก strength.as', JSON.stringify((await upd()).strength) === '{"mg":250,"per":"5ml","as":{"name":"Elemental iron","mg":33}}' && !(await q.$eval(cell('asName'), (e) => e.classList.contains('dg-pend'))), JSON.stringify(await upd()));
+      // ช่องเดิมของฟอร์มยาเต็ม: บรรจุ · หน่วยนับ · หมายเหตุ · แสดง
+      await q.click(cell('note')); await q.waitForTimeout(150); await q.fill(`${cell('note')} input`, 'เก็บให้พ้นแสง'); await q.keyboard.press('Enter'); await q.waitForTimeout(600);
+      check('ตารางแก้ไขยา: หมายเหตุ (ช่องเดิมของฟอร์มยาเต็ม)', (await upd()).note === 'เก็บให้พ้นแสง');
+      await q.click(cell('pack')); await q.waitForTimeout(150); await q.fill(`${cell('pack')} input`, '250 ทดสอบ'); await q.keyboard.press('Enter'); await q.waitForTimeout(600);
+      check('ตารางแก้ไขยา: ขนาดบรรจุ', (await upd()).pack_size === '250 ทดสอบ');
+      await q.click(cell('active')); await pickItem('ซ่อน');
+      check('ตารางแก้ไขยา: แสดง/ซ่อนจากหน้าหลัก', (await upd()).active === false && (await text(q, cell('active'))).includes('ซ่อน'));
+      await q.click(cell('active')); await pickItem('แสดง');
       // ช่องผูก: คู่ที่ระบบเสนออยู่บนสุด · บัญชียาหลัก/DDInter เลือก = เพิ่ม, เลือกซ้ำ (✓) = เอาออก
       await q.click(cell('ddi')); await q.waitForSelector('.tabulator-edit-list .tabulator-edit-list-item');
       check('ช่องผูก DDInter: คู่ที่ระบบเสนออยู่บนสุดของรายการ', /^★ ระบบเสนอ \d+% · .*Amoxicillin/i.test(await q.$eval('.tabulator-edit-list .tabulator-edit-list-item', (e) => e.textContent)), await q.$eval('.tabulator-edit-list .tabulator-edit-list-item', (e) => e.textContent));

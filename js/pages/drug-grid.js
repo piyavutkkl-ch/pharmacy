@@ -37,6 +37,7 @@ function rowOf({ l, j, st: status }) {
     name: l.name, code: l.web_code || '', category: l.category || '',
     amt: s && +s.mg > 0 ? (s.u === 'mcg' ? +s.amt : +s.mg) : null, unit: `${s?.u || 'mg'}|${s?.per || 'tab'}`,
     asName: s?.as?.name || '', asMg: s?.as?.mg ? +s.as.mg : null,
+    pack: l.pack_size || '', cunit: l.unit || '', note: l.note || '', active: !!l.active,
     rpst: l.code || '', mims: l.mims_id ?? '', fda: l.fda_key || '', nlem: monoNames(l), ddi: [...(l.ddi_ids || [])], dose: j.dose.s,
   };
 }
@@ -138,13 +139,19 @@ function columns() {
       { title: 'รหัส', field: 'code', width: 110, formatter: (cell) => mut(cell.getValue() || '—') },
       { title: 'รูปแบบ', field: 'category', minWidth: 150, maxWidth: 200, cssClass: 'dg-ed dg-wrap', editor: 'list',
         editorParams: () => ({ values: [...new Set(D.locals.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')) }), formatter: (cell) => esc(cell.getValue() || '—') },
-      { title: 'ความแรง', field: 'amt', width: 130, cssClass: 'dg-ed dg-wrap', editor: 'number', editorParams: { min: 0, step: 0.001, selectContents: true }, editable: ed((d) => !combo(d.l)), formatter: (cell) => amtHtml(cell.getRow().getData()), sorter: 'number' },
+      { title: 'ความแรง', field: 'amt', width: 130, cssClass: 'dg-ed dg-wrap', editor: 'number', editorParams: { min: 0, step: 0.001, selectContents: true }, editable: ed((d) => !combo(d.l)), formatter: (cell) => amtHtml(cell.getRow().getData()), sorter: 'number',
+        cellClick: (e, cell) => { const d = cell.getRow().getData(); if (combo(d.l)) openPanel(d.id, 'str'); } },
       { title: 'หน่วย', field: 'unit', width: 110, headerSort: false, cssClass: 'dg-ed', editor: 'list', editorParams: { values: DC.UNITS.map(([value, label]) => ({ value, label })) }, editable: ed((d) => !combo(d.l)), formatter: (cell) => unitHtml(cell.getRow().getData()) },
       { title: 'คิดเป็น (สาร)', field: 'asName', width: 140, headerSort: false, cssClass: 'dg-ed dg-wrap', editor: 'list', editable: ed((d) => !combo(d.l)),
         editorParams: (cell) => { const d = cell.getRow().getData(); return listParams([{ label: '— ไม่มี —', value: '' }, ...[...new Set([...basesOf(d.l), ...(d.asName ? [d.asName] : [])])].map((n) => ({ label: n, value: n }))], { freetext: true }); },
         formatter: (cell) => { const d = cell.getRow().getData(); if (pending(d)) cell.getElement().classList.add('dg-pend'); else cell.getElement().classList.remove('dg-pend'); return d.asName ? esc(d.asName) : ''; } },
       { title: 'คิดเป็น (มก.)', field: 'asMg', width: 120, headerSort: false, cssClass: 'dg-ed', editor: 'number', editorParams: { min: 0, step: 0.001, selectContents: true }, editable: ed((d) => !combo(d.l)),
         formatter: (cell) => { const d = cell.getRow().getData(); if (pending(d)) cell.getElement().classList.add('dg-pend'); else cell.getElement().classList.remove('dg-pend'); return d.asMg ? esc(String(num(d.asMg))) : ''; } },
+      { title: 'บรรจุ', field: 'pack', width: 90, cssClass: 'dg-ed', editor: 'input', editorParams: { elementAttributes: { maxlength: '40' } }, formatter: (cell) => esc(cell.getValue() || '') },
+      { title: 'หน่วยนับ', field: 'cunit', width: 100, cssClass: 'dg-ed', editor: 'input', editorParams: { elementAttributes: { maxlength: '40' } }, formatter: (cell) => esc(cell.getValue() || '') },
+      { title: 'หมายเหตุ', field: 'note', minWidth: 140, maxWidth: 260, cssClass: 'dg-ed dg-wrap', editor: 'input', editorParams: { elementAttributes: { maxlength: '500' } }, formatter: (cell) => esc(cell.getValue() || '') },
+      { title: 'แสดง', field: 'active', width: 96, cssClass: 'dg-ed', editor: 'list', editorParams: { values: [{ label: 'แสดง', value: true }, { label: 'ซ่อน', value: false }] },
+        formatter: (cell) => (cell.getValue() ? '<span class="dg-ok">✓ แสดง</span>' : mut('ซ่อน')) },
     ] }] : []),
   ];
   const groups = st.dbs.map((k) => {
@@ -178,6 +185,10 @@ async function onEdited(cell) {
   let row = null, msg = 'บันทึกแล้ว';
   if (f === 'name') { const n = String(v || '').trim(); if (!n) return undo('กรุณาใส่ชื่อยา'); row = { name: n }; msg = 'บันทึกชื่อยาแล้ว'; }
   else if (f === 'category') { row = { category: v || null }; msg = 'บันทึกรูปแบบยาแล้ว'; }
+  else if (f === 'pack') { row = { pack_size: String(v ?? '').trim() }; msg = 'บันทึกขนาดบรรจุแล้ว'; }
+  else if (f === 'cunit') { row = { unit: String(v ?? '').trim() }; msg = 'บันทึกหน่วยนับแล้ว'; }
+  else if (f === 'note') { row = { note: String(v ?? '').trim() || null }; msg = 'บันทึกหมายเหตุแล้ว'; }
+  else if (f === 'active') { row = { active: v === true || v === 'true' }; msg = row.active ? 'แสดงยานี้ที่หน้าหลักแล้ว' : 'ซ่อนยานี้จากหน้าหลักแล้ว'; }
   else if (['amt', 'unit', 'asName', 'asMg'].includes(f)) {
     const r = strengthRow(d);
     if (r.err) return undo(r.err);
@@ -270,13 +281,26 @@ async function loadLib() {
   });
   [{ TabulatorFull: Tabulator }] = await Promise.all([import(TAB_JS), css]);
 }
+/** มาจากแผงยา (✎ แก้ข้อมูลยา) → ล้างตัวกรอง แสดงช่องข้อมูลยา เลื่อนไปแถวยานั้น + ไฮไลต์ */
+async function focusPending() {
+  let id = null;
+  try { id = sessionStorage.getItem('pcps_grid_focus'); sessionStorage.removeItem('pcps_grid_focus'); } catch { /* ไม่เป็นไร */ }
+  const row = id && table.getRow(DC.idv(id));
+  if (!row) return;
+  $('#dgQ').value = ''; $('#dgGap').checked = false; $('#dgScope').value = 'all';
+  if (!st.str) { st.str = true; applyCols(); } else { table.refreshFilter(); count(); }
+  const r = table.getRow(DC.idv(id));
+  await r.scrollTo('center', false).catch(() => {});
+  const el = r.getElement(); el.classList.add('dg-flash'); el.scrollIntoView({ block: 'center' });
+  setTimeout(() => el.classList.remove('dg-flash'), 3000);
+}
 export async function initDrugGrid() {
   if (!bound) bind();
   renderBar();
   try { await Promise.all([loadLib(), refresh(true)]); } catch (err) {
     toast(errText(err), 'err'); $('#dgTable').innerHTML = '<p class="empty">โหลดตารางไม่สำเร็จ กรุณาลองใหม่</p>'; return;
   }
-  if (table) { table.redraw(true); count(); return; }
+  if (table) { table.redraw(true); count(); await focusPending(); return; }
   $('#dgTable').innerHTML = '';
   table = new Tabulator('#dgTable', {
     data: rows, index: 'id', columns: columns(), layout: 'fitData', renderVertical: 'basic', maxHeight: '72vh',
@@ -285,7 +309,7 @@ export async function initDrugGrid() {
     initialSort: [{ column: 'name', dir: 'asc' }], columnDefaults: { vertAlign: 'middle' },
     placeholder: 'ไม่มียาตามเงื่อนไขนี้', editTriggerEvent: 'click',
   });
-  table.on('tableBuilt', () => { table.setFilter(filterFn); count(); });
+  table.on('tableBuilt', () => { table.setFilter(filterFn); count(); setTimeout(focusPending, 0); });
   table.on('cellEdited', (cell) => { onEdited(cell).catch((err) => toast(errText(err), 'err')); });
   // ช่องค้นหา (รายการ) เริ่มด้วยค่าเดิมที่เลือกทั้งข้อความ → พิมพ์แล้วแทนที่ (ไม่ต่อท้ายค่าเดิม)
   table.on('cellEditing', (cell) => setTimeout(() => { const i = cell.getElement().querySelector('input'); if (i && i.type !== 'number' && document.activeElement === i) i.select(); }, 0));

@@ -5,6 +5,7 @@
 //   สถานะต่อส่วน judge(): ok ครบ · wait รอตรวจ (ร่าง AI / จับคู่ตามชื่อ / สารสำคัญที่ระบบใส่) · miss ยังไม่ผูก · err ข้อมูลขัดกัน · na ไม่ใช้กับยานี้
 //     na มาจากกลุ่มยา (ยาทาไม่ต้องคำนวณ ฯลฯ) หรือผู้ดูแลกำหนด local_drugs.link_na (83_drug_center.sql)
 //   แผงรายละเอียด: ขั้นความพร้อม 4 ขั้น (ข้อมูลครบ ≠ พร้อมใช้คำนวณ) + แผนผัง + แก้ทีละส่วนในแผง (กดปุ่มดินสอ · เปิดได้ทีละส่วน)
+//   แก้ข้อมูลยา (ขั้นที่ 1) / ฟอร์มยาเต็ม → ตารางแก้ไขยา ที่แถวยานี้ (sessionStorage 'pcps_grid_focus') · ยาสูตรผสมแก้สารสำคัญที่ฟอร์มยา
 //   คู่ที่ระบบเสนอ suggest(): หลักฐาน + ความมั่นใจ · กด ✓ ได้เฉพาะ ≥ 85% และหลักฐานตรงทุกข้อ · ✗ = จำใน drug_link_rejects ไม่เสนออีก · ระบบไม่ผูกเอง
 //   ใช้ข้อมูลชุดเดียวกับเครื่องมือฐานข้อมูล (admin-drugs.js drugData) · บันทึกแล้วโหลดใหม่ทั้งสองที่
 //   เครื่องมือฐานข้อมูล = แผงด้านขวา #dcDrawer (ส่วนฐานข้อมูลเดิม 7 ส่วน) · เปิดจากลิงก์ (#/admin/drugs/<ส่วน>) หรือจากแผงยา (ฟอร์มเต็ม)
@@ -321,7 +322,7 @@ function step1Body(l, j) {
   return `<div class="dc-sec s-${j.str.s}" id="dcSec-str"><div class="dc-kv"><span><small>ชื่อยา</small>${esc(l.name)}</span><span><small>รูปแบบยา</small>${esc(cat(l) || '—')}</span>`
     + `<span><small>ความแรง</small>${esc(strT)}</span>${asT ? `<span><small>คิดเป็น</small>${esc(asT)}</span>` : ''}</div>`
     + (j.str.why ? `<p class="small ${j.str.s === 'err' ? 'dc-err' : 'dc-warn'}">${esc(j.str.why)}</p>` : '')
-    + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-edit="str">✎ แก้ข้อมูลยา</button></div></div>`;
+    + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-grid="${l.id}">✎ แก้ข้อมูลยา (ตารางแก้ไขยา)</button>${isCombo(l) || comboName(l.name) ? '<button type="button" class="btn btn-o btn-sm" data-dc-full="str">แก้สารสำคัญ (ยาสูตรผสม)</button>' : ''}</div></div>`;
 }
 function stepBox(n, title, done, open, right, body) {
   return `<details class="dc-step${done ? ' done' : ''}" data-dc-step="${n}"${open ? ' open' : ''}><summary><span class="dc-n">${done ? '✓' : n}</span><b>${title}</b><span class="small muted dc-step-r">${right}</span></summary><div class="dc-step-b">${body}</div></details>`;
@@ -339,7 +340,7 @@ function renderPanel() {
     + stepBox(1, 'ยาในเว็บแอพ', sp[0], openOf(1), sp[0] ? '' : SN[j.str.s], step1Body(l, j))
     + stepBox(2, 'แหล่งข้อมูล', sp[1], openOf(2), `ผูก ${okSrc}/${nSrc.length}${j.mims.s === 'ok' ? ' + MIMS' : ''}`, SRC.map((k) => secHtml(l, j, k)).join(''))
     + stepBox(3, 'ขนาดยา', sp[2], openOf(3), j.dose.s === 'na' ? 'ไม่ใช้คำนวณ' : SN[j.dose.s], doseHtml(l, j))
-    + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-full="all">เปิดฟอร์มยาเต็ม</button></div>`;
+    + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-grid="${l.id}">แก้ในตารางแก้ไขยา ›</button></div>`;
   if (focusK) { const el = $(`#dcSec-${focusK}`) || $(`[data-dc-step="${focusK === 'str' ? 1 : focusK === 'dose' ? 3 : 2}"]`); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
 }
 
@@ -574,6 +575,10 @@ async function onPanel(e) {
   if (B('[data-dc-unddi]')) { const i = B('[data-dc-unddi]').dataset.dcUnddi; edit.ddi = edit.ddi.filter((x) => x !== i); renderPanel(); return; }
   if (B('[data-dc-addddi]')) return addDdi();
   if (B('[data-dc-next]')) return pick(+B('[data-dc-next]').dataset.dcNext);
+  if (B('[data-dc-grid]')) {   // แก้ข้อมูลยา = ตารางแก้ไขยา (เจ้าของเว็บ 21 ต.ค.) · เลื่อนไปแถวยานี้
+    try { sessionStorage.setItem('pcps_grid_focus', String(l.id)); } catch { /* ไม่เป็นไร */ }
+    location.hash = '#/admin/drugs/grid'; return;
+  }
   if (B('[data-dc-tool]')) { openDrawer(B('[data-dc-tool]').dataset.dcTool); return; }
   if (B('[data-dc-newdose]')) { openDrawer('dose'); await openDoseNew(l.name, l.id); return; }
   if (B('[data-dc-full]')) {   // ฟอร์มเต็มในแผงเครื่องมือ (ตารางยังอยู่ด้านหลัง) · บันทึกแล้วปิดเอง
