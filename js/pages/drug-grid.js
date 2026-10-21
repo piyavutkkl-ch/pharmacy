@@ -8,7 +8,7 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, $$, esc, toast, errText } from '../util.js?v=4.4';
 import { strengthOf, comboName } from './dose.js?v=4.4';
 import { reloadDrugData, drugData } from './admin-drugs.js?v=4.4';
-import { DC, centerRows, suggest, applyRow, basesOf, focusDrug, rejectPair } from './drug-center.js?v=4.4';
+import { DC, centerRows, suggest, applyRow, basesOf, rejectPair } from './drug-center.js?v=4.4';
 
 const TAB = 'https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist';
 const TAB_JS = `${TAB}/js/tabulator_esm.min.mjs`, TAB_CSS = `${TAB}/css/tabulator.min.css`;
@@ -140,7 +140,7 @@ function columns() {
       { title: 'รูปแบบ', field: 'category', minWidth: 150, maxWidth: 200, cssClass: 'dg-ed dg-wrap', editor: 'list',
         editorParams: () => ({ values: [...new Set(D.locals.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')) }), formatter: (cell) => esc(cell.getValue() || '—') },
       { title: 'ความแรง', field: 'amt', width: 130, cssClass: 'dg-ed dg-wrap', editor: 'number', editorParams: { min: 0, step: 0.001, selectContents: true }, editable: ed((d) => !combo(d.l)), formatter: (cell) => amtHtml(cell.getRow().getData()), sorter: 'number',
-        cellClick: (e, cell) => { const d = cell.getRow().getData(); if (combo(d.l)) openPanel(d.id, 'str'); } },
+        cellClick: (e, cell) => { const d = cell.getRow().getData(); if (combo(d.l)) openPanel(d.id); } },
       { title: 'หน่วย', field: 'unit', width: 110, headerSort: false, cssClass: 'dg-ed', editor: 'list', editorParams: { values: DC.UNITS.map(([value, label]) => ({ value, label })) }, editable: ed((d) => !combo(d.l)), formatter: (cell) => unitHtml(cell.getRow().getData()) },
       { title: 'คิดเป็น (สาร)', field: 'asName', width: 140, headerSort: false, cssClass: 'dg-ed dg-wrap', editor: 'list', editable: ed((d) => !combo(d.l)),
         editorParams: (cell) => { const d = cell.getRow().getData(); return listParams([{ label: '— ไม่มี —', value: '' }, ...[...new Set([...basesOf(d.l), ...(d.asName ? [d.asName] : [])])].map((n) => ({ label: n, value: n }))], { freetext: true }); },
@@ -156,7 +156,7 @@ function columns() {
   ];
   const groups = st.dbs.map((k) => {
     const link = k === 'dose'
-      ? { title: st.mode === 'one' ? 'ข้อมูลคำนวณ' : DBN[k], field: 'dose', minWidth: 170, maxWidth: 280, cssClass: 'dg-link dg-goto dg-wrap', headerSort: false, formatter: (cell) => cellHtml(cell.getRow().getData(), 'dose'), cellClick: (e, cell) => openPanel(cell.getRow().getData().id, 'dose') }
+      ? { title: st.mode === 'one' ? 'ข้อมูลคำนวณ' : DBN[k], field: 'dose', minWidth: 170, maxWidth: 280, cssClass: 'dg-link dg-goto dg-wrap', headerSort: false, formatter: (cell) => cellHtml(cell.getRow().getData(), 'dose'), cellClick: (e, cell) => openPanel(cell.getRow().getData().id) }
       : { title: st.mode === 'one' ? 'ผูกกับ' : DBN[k], field: k, minWidth: 170, maxWidth: 300, cssClass: 'dg-link dg-ed dg-wrap', headerSort: false, editor: 'list',
         editorParams: (cell) => listParams(linkValues(cell.getRow().getData(), k)), formatter: (cell) => cellHtml(cell.getRow().getData(), k) };
     if (st.mode === 'multi') return link;
@@ -225,7 +225,8 @@ async function onSug(e, cell, k) {
   if (b.matches('[data-dg-ok]')) { await save(d.l, applyRow(d.l, k, sg.target), `ผูก ${DBN[k]} แล้ว`); return; }
   try { await rejectPair(d.l, k, sg.target); toast('จำไว้แล้วว่าไม่ใช่คู่นี้'); await refresh(false); } catch (err) { toast(errText(err), 'err'); }
 }
-function openPanel(id, k = null) { focusDrug(id, k); location.hash = '#/admin/drugs'; }
+/** เปิดยานี้ในหน้าทำงานทีละยา (#/admin/drugs) · ขนาดยาแก้ที่การ์ดขนาดยาในหน้านั้น */
+function openPanel(id) { try { sessionStorage.setItem('pcps_work_focus', String(id)); } catch { /* ไม่เป็นไร */ } location.hash = '#/admin/drugs'; }
 
 /* ---------- ตาราง ---------- */
 async function refresh(reload) {

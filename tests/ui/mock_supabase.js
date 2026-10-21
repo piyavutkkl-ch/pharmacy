@@ -532,6 +532,30 @@ function rpc(name, a = {}) {
       if (r.status === 'pending' && ++r.polls >= 2) Object.assign(r, { status: 'done', result: r._fake });
       return { data: { id: r.id, status: r.status, result: r.result || null, note: r.note, query: r.query }, error: null };
     }
+    /* แทน ai_dose_fix_start / poll (87_drug_work.sql): AI ช่วยแก้ข้อบ่งใช้ที่ทดสอบสูตรไม่ผ่าน · ตอบ "รอ" 1 รอบ
+       ต้องผูกฉลาก OpenFDA (ไม่ส่ง MIMS) · ต่อวันไม่มีจำนวนครั้ง → เติมวันละ 3 ครั้ง · ไม่มีตัวเลข → 10–15 · ชื่อข้อมีคำว่า AIBAD = คำตอบตรวจกับฉลากไม่ผ่าน */
+    case 'ai_dose_fix_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const l = (db.local_drugs || []).find((x) => String(x.id) === String(a.p_local));
+      if (!l) return err('ไม่พบยานี้', 'P0001');
+      if (!l.fda_key) return err('ยาตัวนี้ยังไม่ได้ผูกฉลาก OpenFDA+DailyMed ที่มีข้อความขนาดยา · ผูกฉลากก่อน (AI ใช้เฉพาะข้อมูลสาธารณะ ไม่ส่งข้อความ MIMS)', 'P0001');
+      const ind = { ...(a.p_ind || {}) }; delete ind.ref;
+      const fx = { ...ind, quote: '10 to 15 mg/kg every 8 hours (ข้อความฉลากจำลอง)' };
+      if (fx.min == null || fx.max == null) Object.assign(fx, { min: 10, max: 15 });
+      if (fx.per === 'day' && !(fx.times >= 1)) fx.times = 3;
+      if (!(fx.cap > 0) && !(fx.cap_day > 0) && !fx.fixed) fx.cap_day = 1500;
+      const bad = /AIBAD/.test(ind.name || '');
+      const row = { id: newId('ai_dose_fixes'), local_id: l.id, status: 'pending', polls: 0,
+        _fake: bad ? { rejected: fx, why: 'ข้อความที่ AI อ้างไม่พบในฉลากยา' } : { ind: fx, why: 'เติมจำนวนครั้งต่อวันและขนาดสูงสุดต่อวันตามฉลาก (ข้อมูลจำลอง)' } };
+      (db.ai_dose_fixes ||= []).push(row); return { data: row.id, error: null };
+    }
+    case 'ai_dose_fix_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.ai_dose_fixes || []).find((x) => x.id === a.p_id);
+      if (!r) return err('ไม่พบรายการนี้', 'P0001');
+      if (r.status === 'pending' && ++r.polls >= 2) Object.assign(r, { status: 'done', result: r._fake, note: r._fake.rejected ? 'ค่าที่ AI เสนอตรวจกับฉลากไม่ผ่าน จึงไม่ใช้' : null });
+      return { data: { id: r.id, status: r.status, result: r.result || null, note: r.note || null }, error: null };
+    }
     /* แทน ai_delivery_start / ai_delivery_poll (53_delivery_reports.sql): ตอบ "รอ" 1 รอบ แล้วได้ข้อความสรุปจากตัวเลข */
     case 'ai_delivery_start': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');

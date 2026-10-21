@@ -5,11 +5,13 @@
 //   แปลงตามกฎตายตัว ไม่เดา: "ไม่พบ" = ไม่ใส่ · ขาดตัวเลขต่ำสุด/สูงสุด หรือต่อวันไม่บอกจำนวนครั้ง = เก็บไว้อ้างอิงใน MIMS (skip) ไม่เข้าเครื่องคำนวณ
 //     fixed_mg = ขนาดคงที่ (fixed) · "มก. = SMX+TMP รวม" → ÷6 คิดจาก Trimethoprim (อัตราส่วน 5:1) · "elemental Fe" → คิดจาก Elemental iron (ยาต้องกรอกปริมาณธาตุเหล็กก่อนจึงคิดเม็ดได้)
 //   ทุกข้อบ่งใช้มี ref {label: 'MIMS Thailand', url} → แสดง "ที่มา" ในหน้าคำนวณเมื่อเภสัชกรอนุมัติแล้ว
+//   วางข้อความหน้า MIMS (87): parseMimsText (mims-text.js) แยกหัวข้อ → drug_mims.sections + การ์ดข้อบ่งใช้ (รอกรอกตัวเลข) · saveMimsText ใช้ร่วมกับหน้าทำงานยา
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { drugData, reloadDrugData, codeTag } from './admin-drugs.js?v=4.4';
 import { indsProblem } from './admin-settings.js?v=4.4';
 import { doseText } from './dose.js?v=4.4';
+import { parseMimsText, headTh } from './mims-text.js?v=4.4';
 
 const LABEL = 'MIMS Thailand';
 const SRC = 'MIMS Thailand (นำเข้าข้อมูลขนาดยา) · ยังไม่ผ่านการตรวจ';
@@ -17,7 +19,7 @@ const NF = (v) => v == null || v === '' || (typeof v === 'string' && /^\s*(ไ�
 const numOf = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && /^\s*\d+(\.\d+)?\s*$/.test(v) ? +v : null);
 const okUrl = (u) => (typeof u === 'string' && /^https:\/\/(www\.)?mims\.com\//.test(u) && u.length <= 300 ? u : null);
 const normName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toUpperCase();
-let pending = null, bound = false, shown = 30;
+let pending = null, bound = false, shown = 30, textParsed = null;
 
 /** จำนวนครั้งต่อวัน: 3 → [3] · "2-4" → [2,3,4] (≤ 4 แบบ) · อื่น ๆ (เช่น "1+") → null */
 function timesList(v) {
@@ -195,6 +197,56 @@ async function onFile() {
   } catch (err) { $('#mmPreview').innerHTML = `<p class="small dc-err">อ่านไฟล์ไม่ได้: ${esc(err.message || String(err))}</p>`; }
 }
 
+
+/* ---- วางข้อความหน้า MIMS (87) ---- */
+/** ตัวอย่างผลการแยกหัวข้อ (ใช้ร่วมกับหน้าทำงานยา) */
+export function mimsPreviewHtml(p) {
+  if (!p) return '';
+  if (!p.sections.length) return '<p class="small dc-err" data-mims-text-empty>ไม่พบหัวข้อของหน้า MIMS ในข้อความ · คัดลอกทั้งหน้า (ให้มีหัวข้อ "Indications and Dosage")</p>';
+  return `<div class="mm-pre" data-mims-text-preview><p><b>${esc(p.name || '(ไม่พบชื่อยา)')}</b>${p.url ? ` · <span class="small muted">${esc(p.url)}</span>` : ' · <span class="small dc-warn">ไม่พบลิงก์หน้า MIMS ในข้อความ</span>'}</p>`
+    + `<div class="mm-heads">${p.sections.map((x) => `<span class="chip">${esc(headTh(x.title))}</span>`).join('')}</div>`
+    + `<p class="small">แยกได้ ${p.sections.length} หัวข้อ · การ์ดข้อบ่งใช้ ${p.inds.length} ข้อ (รอเภสัชกรกรอกตัวเลขจากข้อความ ไม่เดาตัวเลข)</p></div>`;
+}
+/** บันทึกข้อความที่แยกแล้ว → drug_mims (ลิงก์เดียวกัน = อัปเดตหัวข้อ + เติมการ์ดข้อบ่งใช้ที่ยังไม่มี) · localId = ผูกกับยานี้ด้วย */
+export async function saveMimsText(p, localId = null) {
+  if (!p?.sections?.length) throw new Error('ไม่พบหัวข้อของหน้า MIMS ในข้อความ');
+  const D = await drugData();
+  const old = D.mims.find((x) => (p.url && x.url === p.url) || (!p.url && x.name.toLowerCase() === String(p.name || '').toLowerCase()));
+  const key = (i) => String(i.quote || i.name || '').toLowerCase();
+  const have = new Set((old?.indications || []).map(key)), add = p.inds.filter((i) => !have.has(key(i)));
+  const row = { name: (p.name || old?.name || '').slice(0, 200), url: p.url || old?.url || null, label: LABEL, sections: p.sections, indications: [...(old?.indications || []), ...add].slice(0, 40) };
+  if (!row.name) throw new Error('ไม่พบชื่อยาในข้อความ');
+  const q = old ? sb.from('drug_mims').update(row).eq('id', old.id) : sb.from('drug_mims').insert(row);
+  const { data: m, error } = await q.select().single();
+  if (error) throw error;
+  if (localId != null) {
+    const { error: e2 } = await sb.from('local_drugs').update({ mims_id: m.id, updated_at: new Date().toISOString() }).eq('id', localId);
+    if (e2) throw e2;
+  }
+  await reloadDrugData();
+  return { m, added: add.length, updated: !!old };
+}
+async function onText() {
+  const t = $('#mmText').value;
+  textParsed = t.trim() ? parseMimsText(t) : null;
+  $('#mmTextPreview').innerHTML = mimsPreviewHtml(textParsed);
+  $('#mmTextSave').disabled = !textParsed?.sections.length;
+}
+async function saveText(btn) {
+  if (!textParsed?.sections.length) return;
+  busy(btn, true, 'กำลังบันทึก…');
+  try {
+    const sel = $('#mmTextDrug').value, r = await saveMimsText(textParsed, sel ? (/^\d+$/.test(sel) ? +sel : sel) : null);
+    toast(`${r.updated ? 'อัปเดต' : 'บันทึก'}ข้อมูล MIMS "${r.m.name}" แล้ว · หัวข้อ ${r.m.sections.length} · การ์ดข้อบ่งใช้ใหม่ ${r.added}`);
+    $('#mmText').value = ''; textParsed = null; $('#mmTextPreview').innerHTML = ''; btn.disabled = true;
+  } catch (err) { toast(errText(err), 'err'); } finally { busy(btn, false); }
+}
+async function fillDrugs() {
+  const sel = $('#mmTextDrug'); if (!sel) return;
+  const D = await drugData(), cur = sel.value;
+  sel.innerHTML = '<option value="">— ไม่ผูก —</option>' + D.locals.slice().sort((a, b) => a.name.localeCompare(b.name)).map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('');
+  sel.value = cur;
+}
 /* ---- รายการข้อมูล MIMS ที่บันทึกแล้ว ---- */
 async function renderList() {
   if (!$('#mmList')) return;
@@ -208,6 +260,7 @@ async function renderList() {
       + `<span class="small muted">ข้อบ่งใช้ ${inds.length} (ใช้คำนวณได้ ${ok}) · ${locs.length ? `ผูกกับ ${esc(locs.map((l) => l.name).join(', '))}` : 'ยังไม่ผูกกับยา'}</span></summary>`
       + `<div class="mm-body">${m.url ? `<p class="small">อ้างอิง: <a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.label)} · ${esc(m.name)}</a> (ต้อง login MIMS)</p>` : ''}`
       + (m.note ? `<p class="small muted">${esc(m.note)}</p>` : '')
+      + ((m.sections || []).length ? `<details class="mm-secs"><summary class="small">หัวข้อจากหน้า MIMS (${m.sections.length})</summary>${m.sections.map((x) => `<div class="mm-sec"><b>${esc(headTh(x.title))}</b><span class="small muted"> · ${esc(x.title)}</span><p class="small">${esc(x.body)}</p></div>`).join('')}</details>` : '')
       + `<ul class="mm-inds">${inds.map((i) => `<li class="${i.skip ? 'mm-skip' : ''}"><b>${esc(i.name)}</b> · ${esc(doseText(i))}${i.fixed ? ' (ขนาดคงที่)' : ''}${i.cap_day ? ` · ไม่เกิน ${esc(i.cap_day)} มก./วัน` : ''}${i.freq ? ` · ${esc(i.freq)}` : ''}`
         + `${i.age_min != null || i.age_max != null ? ` · อายุ ${esc(i.age_min ?? 0)}–${esc(i.age_max ?? '')} ปี` : ''}${i.note ? `<br><span class="small muted">${esc(i.note)}</span>` : ''}${i.skip ? `<br><span class="small dc-warn">ยังใช้คำนวณไม่ได้: ${esc(i.skip)}</span>` : ''}</li>`).join('') || '<li class="muted">ไม่มีข้อบ่งใช้</li>'}</ul>`
       + `<div class="row-btns">${ok && locs.length ? `<button type="button" class="btn btn-o btn-sm" data-mims-draft="${m.id}">สร้าง/เติมร่างขนาดยาให้ยาที่ผูก</button>` : ''}<button type="button" class="btn btn-no btn-sm" data-mims-del="${m.id}">ลบ</button></div></div></details>`;
@@ -245,9 +298,12 @@ export function initMimsAdmin() {
     $('#mmImport').addEventListener('click', (e) => runImport(e.currentTarget));
     $('#mmQ').addEventListener('input', () => { shown = 30; renderList(); });
     $('#mmList').addEventListener('click', onList);
+    $('#mmText').addEventListener('input', onText);
+    $('#mmTextSave').addEventListener('click', (e) => saveText(e.currentTarget));
+    window.addEventListener('pcps:drugdata', fillDrugs);
     window.addEventListener('pcps:mimsdata', renderList);
     window.addEventListener('pcps:drugdata', renderList);   // ยาที่ผูก (โหลดยา รพ.สต. เสร็จทีหลัง)
   }
   $('#mmList').innerHTML = '<div class="skeleton"></div>';
-  renderList();
+  renderList(); fillDrugs();
 }

@@ -15,7 +15,8 @@ import { initDoseAdmin, initContactsAdmin } from './admin-settings.js?v=4.4';
 import { initDrugsAdmin, openDrugSection } from './admin-drugs.js?v=4.4';
 import { initMimsAdmin } from './admin-mims.js?v=4.4';
 import { initRpstAdmin } from './admin-rpst.js?v=4.4';
-import { initDrugCenter, showDrugTab, setDrawer } from './drug-center.js?v=4.4';
+import { initDrugCenter, showDrugTab, setDrawer, drugPage } from './drug-center.js?v=4.4';
+import { initDrugWork } from './drug-work.js?v=4.4';
 import { initDrugGrid } from './drug-grid.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
@@ -55,16 +56,18 @@ export async function showAdmin(tab, sub) {
     if (d) { initDeliveryAdmin(); initDeliveryReportAdmin(); return; }
     return mountRiderEditor($('#adminRiderSlot'));
   }
-  if (tab === 'drugs') {   // ข้อมูลยา: เลือกยาด้านบน + ส่วนต่าง ๆ เรียงแนวตั้ง ย่อ/ขยายได้ (ai · dose · local · nlem · fda · ddi) · /db เดิม = บัญชียา รพ.สต.
-    // ไม่ระบุ = ศูนย์ข้อมูลยา (drug-center.js) · grid = ตารางแก้ไขยา (drug-grid.js) · help = วิธีใช้ (หน้าแยก) · ai/dose/rpst/local/outside/nlem/fda/ddi/mims/db/tools = เครื่องมือฐานข้อมูล (แผงด้านขวา) เปิดที่ส่วนนั้น
-    const page = sub === 'help' || sub === 'grid' ? sub : 'center';
+  if (tab === 'drugs') {   // ข้อมูลยา
+    // ไม่ระบุ = ทำงานทีละยา (drug-work.js) · center = ภาพรวม (drug-center.js) · grid = ตารางแก้ไขยา (drug-grid.js) · help = วิธีใช้
+    // ai/dose/rpst/local/outside/nlem/fda/ddi/mims/db/tools = เครื่องมือฐานข้อมูล (แผงด้านขวา) เปิดที่ส่วนนั้น · หน้าด้านหลังแผง = หน้าที่เปิดอยู่ล่าสุด
+    const page = !sub ? 'work' : ['center', 'grid', 'help'].includes(sub) ? sub : drugPage();
     subTabs('#dcTabs', page); showDrugTab(page);
     if (page === 'help') return;
-    if (page === 'grid') return initDrugGrid();
     const v = sub === 'db' ? 'local' : DB_PARTS.includes(sub) || sub === 'ai' || sub === 'dose' ? sub : null;
-    setDrawer(!!sub, 'route');
-    if (sub) openDrugSection(v);
-    const run = Promise.all([initDrugsAdmin(), initDoseAdmin()]);
+    const drawer = !!sub && !['center', 'grid'].includes(sub);
+    setDrawer(drawer, 'route');
+    if (drawer) openDrugSection(v);
+    const first = page === 'work' ? initDrugWork() : page === 'grid' ? initDrugGrid() : null;   // หน้าที่เปิดอยู่รับ "แก้ไขข้อมูลนี้" (pcps_drug_edit) ก่อน
+    const run = Promise.all([initDrugsAdmin(), initDoseAdmin(), first]);
     initMimsAdmin(); initRpstAdmin();
     initDrugCenter();
     return run;

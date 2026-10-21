@@ -393,42 +393,50 @@ function doseHtml(l, j) {
     + (live ? '' : `<button type="button" class="btn btn-o btn-sm" data-dt-save="draft"${on.length ? '' : ' disabled'}>บันทึกไว้ก่อน (ยังไม่ใช้คำนวณ)</button>`)
     + `<button type="button" class="dc-na-t" data-dc-na="dose">ยานี้ไม่ต้องคำนวณขนาดยา</button></div>`;
 }
-/** บันทึกตารางขนาดยา: approve = ใช้คำนวณ (ต้องผ่านตรวจซ้ำ) · save = แก้ข้อมูลที่ใช้อยู่ · draft = เก็บเป็นร่าง (ซ่อน) */
-async function saveDt(l, j, mode, btn) {
-  const on = onInds(), off = dt.rows.filter((r) => !r.on && !/^MIMS/.test(r.ind.ref?.label || '')).map((r) => (r.skip ? { ...r.ind, skip: r.skip } : r.ind));
-  if (!on.length) { toast('ติ๊กข้อบ่งใช้ที่จะใช้อย่างน้อย 1 ข้อ', 'err'); return; }
+/** บันทึกข้อบ่งใช้ของยา l (ใช้ร่วมกับหน้าทำงานยา drug-work.js)
+ *  rows = [{ ind, on, skip }] · approve = ใช้คำนวณ (ต้องผ่านตรวจซ้ำ) · save = แก้ข้อมูลที่ใช้อยู่ · draft = เก็บเป็นร่าง (ซ่อน)
+ *  ข้อบ่งใช้ที่ไม่ได้ติ๊ก (ยกเว้นที่มาจาก MIMS · เก็บใน drug_mims อยู่แล้ว) → spare_inds · ผิดเงื่อนไข = throw Error ข้อความไทย → { sib } ยาที่ใช้ข้อมูลนี้ร่วม */
+export async function saveDose(l, j, rows, mode) {
+  const on = rows.filter((r) => r.on).map((r) => r.ind), off = rows.filter((r) => !r.on && !/^MIMS/.test(r.ind.ref?.label || '')).map((r) => (r.skip ? { ...r.ind, skip: r.skip } : r.ind));
+  if (!on.length) throw new Error('ติ๊กข้อบ่งใช้ที่จะใช้อย่างน้อย 1 ข้อ');
   const d = j.dose.dose;
   if (mode !== 'draft') {
-    const why = indsProblem(on); if (why) { toast(why, 'err'); return; }
-    if (testDose({ ...(d || {}), indications: on }, [l]).status === 'fail') { toast('ผลตรวจซ้ำ (ทดสอบสูตร) ไม่ผ่าน · แก้ตามรายการก่อน', 'err'); return; }
+    const why = indsProblem(on); if (why) throw new Error(why);
+    if (testDose({ ...(d || {}), indications: on }, [l]).status === 'fail') throw new Error('ผลตรวจซ้ำ (ทดสอบสูตร) ไม่ผ่าน · แก้ตามรายการก่อน');
   }
   const f = on[0], row = { indications: on, spare_inds: off.slice(0, 60), indication: f.name, per: f.per, mg_per_kg_min: f.fixed ? 0 : asMg(f, f.min), mg_per_kg_max: f.fixed ? 0 : asMg(f, f.max),
     dose_freq_per_day: f.times ?? null, max_mg_per_dose: asMg(f, f.cap ?? null), freq: f.freq ?? null, renal_note: f.renal ?? null, ai_draft: mode === 'draft', active: mode !== 'draft' };
+  let id = d?.id;
+  if (d) { const { error } = await sb.from('dose_drugs').update(row).eq('id', d.id); if (error) throw error; }
+  else {
+    const m = l.mims_id && (D.mims || []).find((x) => x.id === l.mims_id), name = (m?.name || String(l.name).replace(/\s+\d[\d.,/ ]*(MG|MCG|G|ML|%).*$/i, '')).slice(0, 120);
+    const form = /เม็ด|แคปซูล/.test(cat(l)) ? 'ยาเม็ด' : /น้ำ/.test(cat(l)) ? 'ยาน้ำ' : 'อื่น ๆ';
+    const { data, error } = await sb.from('dose_drugs').insert({ name, form, concs: [], sort: 0, ...row }).select().single();
+    if (error) throw error;
+    id = data.id;
+  }
+  // ยาตัวนี้ + ยาเม็ด/ยาน้ำตัวเดียวกันที่ยังไม่มีข้อมูลคำนวณ (MIMS เดียวกัน หรือชื่อสามัญเดียวกัน) ใช้ข้อมูลนี้ร่วมกัน
+  const own = (x) => [x.dose_id, ...(x.ingredients || []).map((g) => g.dose_id)].filter(Boolean).length;
+  const sib = D.locals.filter((x) => x.id !== l.id && !own(x) && !(x.link_na || []).includes('dose') && ((l.mims_id && x.mims_id === l.mims_id) || genericKey(x.name) === genericKey(l.name)));
+  const links = [...(own(l) && l.dose_id === id ? [] : [l]), ...sib];
+  for (const x of links) {
+    const up = { dose_id: id, updated_at: new Date().toISOString(), ...(x.id === l.id && mode !== 'draft' && !l.active ? { active: true } : {}) };
+    const { error } = await sb.from('local_drugs').update(up).eq('id', x.id); if (error) throw error;
+  }
+  if (mode !== 'draft' && !l.active && !links.includes(l)) await sb.from('local_drugs').update({ active: true }).eq('id', l.id);
+  return { sib };
+}
+async function saveDt(l, j, mode, btn) {
   busy(btn, true, 'กำลังบันทึก…');
   try {
-    let id = d?.id;
-    if (d) { const { error } = await sb.from('dose_drugs').update(row).eq('id', d.id); if (error) throw error; }
-    else {
-      const m = l.mims_id && (D.mims || []).find((x) => x.id === l.mims_id), name = (m?.name || String(l.name).replace(/\s+\d[\d.,/ ]*(MG|MCG|G|ML|%).*$/i, '')).slice(0, 120);
-      const form = /เม็ด|แคปซูล/.test(cat(l)) ? 'ยาเม็ด' : /น้ำ/.test(cat(l)) ? 'ยาน้ำ' : 'อื่น ๆ';
-      const { data, error } = await sb.from('dose_drugs').insert({ name, form, concs: [], sort: 0, ...row }).select().single();
-      if (error) throw error;
-      id = data.id;
-    }
-    // ยาตัวนี้ + ยาเม็ด/ยาน้ำตัวเดียวกันที่ยังไม่มีข้อมูลคำนวณ (MIMS เดียวกัน หรือชื่อสามัญเดียวกัน) ใช้ข้อมูลนี้ร่วมกัน
-    const own = (x) => [x.dose_id, ...(x.ingredients || []).map((g) => g.dose_id)].filter(Boolean).length;
-    const sib = D.locals.filter((x) => x.id !== l.id && !own(x) && !(x.link_na || []).includes('dose') && ((l.mims_id && x.mims_id === l.mims_id) || genericKey(x.name) === genericKey(l.name)));
-    const links = [...(own(l) && l.dose_id === id ? [] : [l]), ...sib];
-    for (const x of links) {
-      const up = { dose_id: id, updated_at: new Date().toISOString(), ...(x.id === l.id && mode !== 'draft' && !l.active ? { active: true } : {}) };
-      const { error } = await sb.from('local_drugs').update(up).eq('id', x.id); if (error) throw error;
-    }
-    if (mode !== 'draft' && !l.active && !links.includes(l)) await sb.from('local_drugs').update({ active: true }).eq('id', l.id);
+    const { sib } = await saveDose(l, j, dt.rows, mode);
     toast(mode === 'draft' ? 'บันทึกเป็นร่างแล้ว (ยังไม่ใช้คำนวณ)' : mode === 'approve' ? `อนุมัติแล้ว · ใช้คำนวณได้${sib.length ? ` (ใช้ร่วมกับ ${sib.map((x) => x.name).join(', ')})` : ''}` : 'บันทึกแล้ว');
     dt = null; edit = null; focusK = 'dose';
     await reloadDrugData(); D = await drugData(); renderAll();
   } catch (err) { toast(errText(err), 'err'); } finally { busy(btn, false); }
 }
+/** แถวข้อบ่งใช้ของยา l จากทุกแหล่ง (ข้อมูลคำนวณเดิม · spare_inds · MIMS) → [{ ind, on, skip }] */
+export function doseRows(l, j) { return buildDt(l, j).rows; }
 /** ข้อมูลคำนวณใช้ร่วมหลายยา → บอกว่าแก้แล้วมีผลกับยาตัวไหนบ้าง */
 function sharedNote(d, l) {
   const others = D.locals.filter((x) => x.id !== l.id && (x.dose_id === d.id || (x.ingredients || []).some((g) => g.dose_id === d.id)));
@@ -438,9 +446,14 @@ function renderAll() { compute(); renderTop(); renderTable(); renderPanel(); }
 
 /** แท็บข้อมูลยา: center = ศูนย์ข้อมูลยา · grid = ตารางแก้ไขยา (drug-grid.js) · help = วิธีใช้ */
 export function showDrugTab(page) {
-  $('#dcCenter').hidden = page !== 'center'; $('#dcHelp').hidden = page !== 'help'; $('#dcGrid').hidden = page !== 'grid';
-  if (page !== 'center') setDrawer(false);
+  $('#dcCenter').hidden = page !== 'center'; $('#dcHelp').hidden = page !== 'help'; $('#dcGrid').hidden = page !== 'grid'; $('#dcWork').hidden = page !== 'work';
+  if (page === 'help') setDrawer(false);
+  curPage = page;
 }
+let curPage = 'work';
+/** หน้าที่อยู่ด้านหลังแผงเครื่องมือ (ปิดแผงแล้วกลับมาที่หน้านี้) */
+export const drugPage = () => curPage;
+export const pageHash = (p) => (p === 'work' ? '#/admin/drugs' : `#/admin/drugs/${p}`);
 
 /* ---------- ใช้ร่วมกับตารางแก้ไขยา (drug-grid.js) · สถานะ/คู่ที่ระบบเสนอชุดเดียวกับศูนย์ข้อมูลยา ---------- */
 export const DC = { K, SRC, KN, KS, SYM, SN, ROW, PER, UNITS, cellS, idv, isCombo };
@@ -473,6 +486,12 @@ export function setDrawer(open, from = null) {
   drawerFrom = open ? from : null;
   if (!open) approveAfter = null;
 }
+/** หน้าทำงานยา: เปิดเครื่องมือฐานข้อมูลที่ส่วนนั้น · บันทึกแล้วปิดเอง (เหตุการณ์ pcps:workback) */
+export function openTools(sec) {
+  setDrawer(true, 'work');
+  const el = sec && document.querySelector(`[data-adr-sec="${sec}"]`);
+  if (el) el.open = true;
+}
 function openDrawer(sec) {
   setDrawer(true, 'center');
   const el = sec && document.querySelector(`[data-adr-sec="${sec}"]`);
@@ -481,7 +500,7 @@ function openDrawer(sec) {
 function closeDrawer() {
   const wasRoute = drawerFrom === 'route';
   setDrawer(false);
-  if (wasRoute && location.hash !== '#/admin/drugs') location.hash = '#/admin/drugs';
+  if (wasRoute && location.hash !== pageHash(curPage)) location.hash = pageHash(curPage);
 }
 export async function initDrugCenter() {
   if (!bound) bind();
@@ -493,6 +512,7 @@ export async function initDrugCenter() {
     const [d, rj] = await Promise.all([drugData(), sb.from('drug_link_rejects').select('local_id,kind,target')]);
     D = d; rejects = rj.data || [];
   } catch (err) { toast(errText(err), 'err'); $('#dcTable').innerHTML = '<p class="empty">โหลดข้อมูลยาไม่สำเร็จ กรุณาลองใหม่</p>'; return; }
+  if ($('#dcCenter').hidden) return;   // เปิดหน้าอื่นอยู่ (ทำงานทีละยา/ตาราง) · ผูกปุ่มแผงเครื่องมือไว้อย่างเดียว
   renderAll();
   if (jump) { jump = false; $('#dcPanel').scrollIntoView({ block: 'start' }); }
 }
@@ -519,9 +539,12 @@ function bind() {
   $('#dcDrBack').addEventListener('click', closeDrawer);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#dcDrawer').hidden) closeDrawer(); });
   // รายการ "เพิ่มยา" ในแผงเครื่องมือ → เปิดยานั้นในศูนย์ข้อมูลยา
-  $('#dcDrawer').addEventListener('click', (e) => { const b = e.target.closest('[data-dc-open]'); if (!b) return; closeDrawer(); filt = 'all'; $('#dcQ').value = ''; renderTop(); pick(+b.dataset.dcOpen); });
+  $('#dcDrawer').addEventListener('click', (e) => { const b = e.target.closest('[data-dc-open]'); if (!b) return;
+    if (curPage === 'work') { try { sessionStorage.setItem('pcps_work_focus', b.dataset.dcOpen); } catch { /* ไม่เป็นไร */ } setDrawer(false); if (location.hash !== '#/admin/drugs') location.hash = '#/admin/drugs'; else window.dispatchEvent(new CustomEvent('pcps:workback', { detail: 'pick' })); return; }   // หน้าทำงานทีละยา → เปิดยานั้น
+    closeDrawer(); filt = 'all'; $('#dcQ').value = ''; renderTop(); pick(+b.dataset.dcOpen); });
   // บันทึกฟอร์มเต็มที่เปิดจากแผงยา → ปิดแผงเครื่องมือ กลับมาที่ยาเดิม (สถานะในตารางเปลี่ยนทันที)
   const back = async (k) => {
+    if (drawerFrom === 'work') { setDrawer(false); window.dispatchEvent(new CustomEvent('pcps:workback', { detail: k })); return; }   // เปิดจากหน้าทำงานยา → กลับไปยาเดิม
     if (drawerFrom !== 'center') return;
     const ap = approveAfter; setDrawer(false);
     await reloadDrugData(); D = await drugData();

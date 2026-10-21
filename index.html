@@ -689,9 +689,43 @@
 
       <!-- ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา (เฉพาะผู้ดูแลแก้ไขได้) -->
       <div data-admin-view="drugs" hidden>
-        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="center">ศูนย์ข้อมูลยา</a><a class="tab-link" href="#/admin/drugs/grid" data-sub="grid">ตารางแก้ไขยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a><a class="dc-tools-link" href="#/admin/drugs/tools" id="dcToolsBtn" title="งานทั้งฐานข้อมูล: นำเข้าไฟล์ · ดึง/แปลฉลาก · ขนาดยา · ลบยา" aria-label="เครื่องมือฐานข้อมูล">⋯<span class="dc-tl-x"> เครื่องมือฐานข้อมูล</span></a></nav>
+        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="work">ทำงานทีละยา</a><a class="tab-link" href="#/admin/drugs/center" data-sub="center">ภาพรวม</a><a class="tab-link" href="#/admin/drugs/grid" data-sub="grid">ตารางแก้ไขยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a><a class="dc-tools-link" href="#/admin/drugs/tools" id="dcToolsBtn" title="งานทั้งฐานข้อมูล: นำเข้าไฟล์ · ดึง/แปลฉลาก · ขนาดยา · ลบยา" aria-label="เครื่องมือฐานข้อมูล">⋯<span class="dc-tl-x"> เครื่องมือฐานข้อมูล</span></a></nav>
+        <!-- ทำงานทีละยา (drug-work.js · หน้าแรกของข้อมูลยา): ค้นหา → เลือกยา → จัดการจบในหน้าเดียว (หัวยา · แหล่งข้อมูล · การ์ดขนาดยา · ต้นฉบับข้างกัน · ผลคำนวณสด) -->
+        <div id="dcWork" class="dw" hidden>
+          <svg class="dw-sprite" width="0" height="0" aria-hidden="true" focusable="false"><defs>
+<symbol id="dwi-pill" viewBox="0 0 24 24"><path d="M10.5 20.5 3.5 13.5a4.95 4.95 0 0 1 7-7l7 7a4.95 4.95 0 0 1-7 7z"/><path d="M8.5 8.5l7 7"/></symbol>
+<symbol id="dwi-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="dwi-scale" viewBox="0 0 24 24"><path d="M12 3v18M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0z"/><path d="M19 7l-3 7a3 3 0 0 0 6 0z"/></symbol>
+<symbol id="dwi-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4 19a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-6-10V3"/></symbol>
+<symbol id="dwi-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></symbol>
+<symbol id="dwi-tick" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></symbol>
+<symbol id="dwi-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+<symbol id="dwi-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17v4M17 19h4"/></symbol>
+<symbol id="dwi-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="dwi-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="dwi-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+<symbol id="dwi-ruler" viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></symbol>
+<symbol id="dwi-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+<symbol id="dwi-one" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 9l2-1v8"/></symbol>
+<symbol id="dwi-baby" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M7 21v-3a5 5 0 0 1 10 0v3"/></symbol>
+<symbol id="dwi-kid" viewBox="0 0 24 24"><circle cx="12" cy="6" r="3.2"/><path d="M7 21v-6a5 5 0 0 1 10 0v6"/></symbol>
+<symbol id="dwi-adult" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><path d="M6 22V13a6 6 0 0 1 12 0v9"/></symbol>
+<symbol id="dwi-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="dwi-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+<symbol id="dwi-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/></symbol>
+<symbol id="dwi-swap" viewBox="0 0 24 24"><path d="M4 7h14l-3-3M20 17H6l3 3"/></symbol>
+<symbol id="dwi-doc" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></symbol>
+          </defs></svg>
+          <aside class="card dw-rail" aria-label="รายการยา">
+            <div class="dw-add-new"><svg class="ic" aria-hidden="true"><use href="#dwi-spark"/></svg><input id="dwNew" class="input" maxlength="200" placeholder="ชื่อยาใหม่ → AI เตรียมให้" aria-label="ชื่อยาใหม่"><button type="button" class="btn btn-p btn-sm" id="dwNewGo">เพิ่ม</button></div>
+            <input id="dwQ" class="input" type="search" maxlength="80" placeholder="ค้นชื่อยา สารสำคัญ หรือรหัส" aria-label="ค้นหายา">
+            <div class="dw-filt" role="group" aria-label="กรองรายการยา"><button type="button" data-dw-filt="todo" aria-pressed="true">ยังไม่เสร็จ <b></b></button><button type="button" data-dw-filt="ready" aria-pressed="false">พร้อมใช้ <b></b></button><button type="button" data-dw-filt="all" aria-pressed="false">ทั้งหมด <b></b></button></div>
+            <div class="dw-list" id="dwList"><div class="skeleton"></div></div>
+          </aside>
+          <div class="dw-main" id="dwMain"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
+        </div>
         <!-- ศูนย์ข้อมูลยา (drug-center.js): สรุป → วงกลมรายส่วน → ตารางสถานะยา → แผงรายละเอียด/แก้ไขทีละส่วน + คู่ที่ระบบเสนอ -->
-        <div id="dcCenter" class="dc">
+        <div id="dcCenter" class="dc" hidden>
           <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/ai" id="dcAddBtn">+ เพิ่มยา</a><span class="small muted">แก้ข้อมูลยาแต่ละตัว: กดชื่อยาหรือช่องสถานะในตาราง</span></div>
           <div class="dc-cards" id="dcCards" role="group" aria-label="กรองตามสถานะ"></div>
           <div class="dc-stack" id="dcStack" aria-hidden="true"></div>
@@ -720,12 +754,23 @@
             <label class="small dg-chk"><input type="checkbox" id="dgGap"> เฉพาะยาที่ยังขาด/รอตรวจ ในฐานที่แสดง</label>
             <label class="small dg-chk"><input type="checkbox" id="dgGroup" checked> จัดกลุ่มตามรูปแบบยา</label>
           </div>
-          <p class="small muted" id="dgHint">คลิกช่องเพื่อแก้ · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป · ช่องขนาดยา: กดแล้วไปตารางข้อบ่งใช้ในแผงยา (ตรวจซ้ำก่อนอนุมัติ)</p>
+          <p class="small muted" id="dgHint">คลิกช่องเพื่อแก้ · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป · ช่องขนาดยา: กดแล้วไปการ์ดขนาดยาในหน้าทำงานทีละยา (ทดสอบสูตรก่อนอนุมัติ)</p>
           <p class="small muted" id="dgCount" aria-live="polite"></p>
           <div id="dgTable" class="dg-table"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
         </div>
         <div id="dcHelp" class="dc-help" hidden>
-          <div class="panel"><h2>วิธีใช้ศูนย์ข้อมูลยา</h2>
+          <div class="panel"><h2>ทำงานทีละยา (แท็บแรก · แนะนำ)</h2>
+            <p class="muted">ค้นหา → เลือกยาจากรายการด้านซ้าย → ทำจบในหน้าเดียว ไม่ต้องสลับหน้า · ปุ่ม "ถัดไป" พาไปสิ่งที่ยังค้าง</p>
+            <ol class="dc-steps-help">
+              <li><b>หัวยา</b> กดชื่อ/ความแรง/รูปแบบเพื่อแก้ในที่ · วงกลมบอกว่าครบกี่ส่วน · แถบ 5 ขั้น: ข้อมูลยา → แหล่งข้อมูล → ขนาดยา → ทดสอบสูตร → พร้อมใช้คำนวณ</li>
+              <li><b>แหล่งข้อมูล</b> กดชิป (บัญชี รพ.สต. · MIMS · OpenFDA+DailyMed · บัญชียาหลัก · DDInter) เพื่อผูก/เปลี่ยน · MIMS: วางข้อความทั้งหน้า ระบบแยกหัวข้อให้เอง</li>
+              <li><b>การ์ดขนาดยา</b> ข้อบ่งใช้ละ 1 การ์ด กดปุ่มรูป (กลุ่มอายุ · ตามน้ำหนัก/คงที่ · ต่อครั้ง/ต่อวัน · วันละกี่ครั้ง) แล้วกรอก Min / Max ตามหน่วยของต้นฉบับ · ต้นฉบับอยู่ข้างกัน ลากเลือกข้อความเพื่อใช้เป็นที่มา</li>
+              <li><b>ตรวจ</b> ทุกการ์ดทดสอบสูตรทันที: ผ่าน → กด "ตรวจแล้ว ถูกต้อง" · ไม่ผ่าน → กด "ส่งให้ AI ตรวจและแก้ให้" (AI ใช้เฉพาะฉลาก OpenFDA+DailyMed) แล้วตรวจค่าที่ AI เสนอเอง</li>
+              <li><b>อนุมัติใช้คำนวณ</b> ที่แถบล่าง (ได้เมื่อตรวจครบทุกข้อและทดสอบสูตรผ่าน) · ป้าย: AI สร้าง · กรอกเอง · ตรวจแล้ว · พร้อมคำนวณ</li>
+            </ol>
+            <p class="small muted">พิมพ์ชื่อยาใหม่ในช่องบนสุดด้านซ้าย → ระบบเพิ่มยา (ซ่อนไว้ก่อน) ดึงฉลาก และให้ AI ร่างขนาดยาเป็นการ์ดรอตรวจ</p>
+          </div>
+          <div class="panel"><h2>ภาพรวม (ศูนย์ข้อมูลยา)</h2>
             <p class="muted">หน้าเดียวตอบ 3 คำถาม: มียาอะไรบ้าง → ยาตัวไหนมีปัญหา → ต้องกดตรงไหนเพื่อแก้ ไม่ต้องไล่เปิดฐานข้อมูลทีละส่วน</p>
             <div class="dc-help-grid">
               <div><b>1. มียาอะไรบ้าง</b><p class="small">การ์ดบนสุดบอกจำนวนยาทั้งหมดและแต่ละสถานะ วงกลม 7 วงบอกว่าแต่ละส่วนครบกี่ตัวจากที่ต้องมี (ข้อมูลยา · บัญชี รพ.สต. · MIMS ที่ไม่บังคับ · ฉลาก · บัญชียาหลัก · DDInter · ขนาดยา) ตารางมียาละ 1 แถวพร้อมรหัส SHPS (ยา รพ.สต.) / OUT (ยานอก รพ.สต.)</p></div>
@@ -1053,7 +1098,14 @@
         <details class="adr-sec" data-adr-sec="mims" data-db-part="mims">
           <summary class="adr-sum"><span class="adr-t">ฐานข้อมูล MIMS (ผู้ดูแลเท่านั้น)</span><span class="small muted adr-n" data-adr-n="mims"></span></summary>
           <div class="panel">
-            <h2>นำเข้าข้อมูลขนาดยาจาก MIMS</h2>
+            <h2>เพิ่มข้อมูล MIMS</h2>
+            <h3 class="mm-h">① วางข้อความหน้า MIMS (แยกหัวข้อให้อัตโนมัติ)</h3>
+            <p class="small">เปิดหน้ายาใน MIMS (login) → เลือกทั้งหน้า → คัดลอก → วางด้านล่าง (หรือข้อความจากไฟล์ PDF ที่พิมพ์หน้า MIMS) · ระบบตัดโฆษณา/หัว-ท้ายหน้า แยกเป็นหัวข้อ และสร้างการ์ดข้อบ่งใช้ให้เภสัชกรกรอกตัวเลขจากข้อความ · ทำในเครื่อง ไม่ใช้ AI</p>
+            <div class="field"><label for="mmText">ข้อความหน้า MIMS</label><textarea id="mmText" rows="6" maxlength="300000" placeholder="วางข้อความทั้งหน้า (ตั้งแต่ชื่อยา ถึง ATC Classification)"></textarea></div>
+            <div class="field"><label for="mmTextDrug">ผูกกับยาในเว็บแอพ (ไม่บังคับ)</label><select id="mmTextDrug" class="input"><option value="">— ไม่ผูก —</option></select></div>
+            <div id="mmTextPreview" aria-live="polite"></div>
+            <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="mmTextSave" disabled>บันทึกเป็นข้อมูล MIMS</button></div>
+            <h3 class="mm-h">② หรือนำเข้าไฟล์ JSON (จาก Claude in Chrome)</h3>
             <p class="small">เลือกไฟล์ <b>mims_doses.json</b> ที่ได้จาก Claude in Chrome (ค้นยาใน MIMS ที่ login ไว้) · ระบบอ่านไฟล์ในเครื่อง แล้วบันทึก ① ข้อมูล MIMS ของแต่ละยา ② ผูกกับยาที่ชื่อตรงกัน ③ <b>ร่างขนาดยา (ซ่อน)</b> ให้ยาที่ยังไม่มีข้อมูลคำนวณ พร้อมลิงก์อ้างอิง MIMS ทุกข้อบ่งใช้</p>
             <p class="small muted">ข้อมูล MIMS เป็นข้อมูลสำหรับสมาชิก จึงเห็นได้เฉพาะผู้ดูแล · หน้าคำนวณแสดงเฉพาะตัวเลขขนาดยาที่เภสัชกรตรวจและอนุมัติแล้ว + ลิงก์ที่มา · ข้อบ่งใช้ที่ข้อมูลไม่ครบ (เช่น ไม่บอกจำนวนครั้งต่อวัน) เก็บไว้อ้างอิง ไม่เข้าเครื่องคำนวณ</p>
             <div class="field"><label for="mmFile">ไฟล์ JSON</label><input id="mmFile" class="input" type="file" accept=".json,application/json"></div>

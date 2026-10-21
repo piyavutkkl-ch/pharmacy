@@ -1374,6 +1374,10 @@ td.dt-warn{color:var(--warning)}td.dt-fail{color:var(--error);font-weight:600}
 /* ฐานข้อมูล MIMS (admin-mims.js · ผู้ดูแลเท่านั้น) */
 .mm-pre{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--sunken);margin-top:8px}
 .mm-pre p{margin:4px 0}
+.mm-h{font-size:14px;margin:14px 0 4px}.panel > h2 + .mm-h{margin-top:4px}
+.mm-heads{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.mm-secs{margin:6px 0}.mm-secs > summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.mm-sec{border-top:1px dashed var(--line);padding:6px 0}.mm-sec p{white-space:pre-wrap;margin:4px 0;overflow-wrap:anywhere}
 .mm-done{border-radius:10px;padding:10px 12px;background:var(--success-soft);margin-top:8px}
 .mm-done b{color:var(--success)}
 .mm-item{border-top:1px solid var(--line);padding:6px 0}
@@ -1436,3 +1440,193 @@ input[type=file]::file-selector-button:hover{border-color:var(--primary)}
   .dc-tabs .dc-tools-link .dc-tl-x{display:none}
   .dc-tabs .dc-tools-link{min-width:44px;justify-content:center;font-size:20px;border:1px solid var(--line);border-radius:999px}
 }
+
+/* ข้อมูลยา › ทำงานทีละยา (drug-work.js): ซ้าย = รายการยา · ขวา = หัวยา → แหล่งข้อมูล → การ์ดขนาดยา + ต้นฉบับ/ผลคำนวณ → แถบล่าง */
+.dw{display:grid;grid-template-columns:230px minmax(0,1fr);gap:12px;align-items:start}
+.dw-sprite{position:absolute;width:0;height:0;overflow:hidden}
+.dw .card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.dw svg.ic{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.dw svg.ic.lg{width:26px;height:26px}
+.dw .c-ai{color:var(--warning)}.dw .c-ok{color:var(--success)}.dw .c-p{color:var(--primary)}
+.dw button{font-family:inherit;cursor:pointer}
+/* รายการยา */
+.dw-rail{padding:10px;display:grid;gap:8px;position:sticky;top:70px;max-height:calc(100vh - 90px);grid-template-rows:auto auto auto minmax(0,1fr)}
+.dw-add-new{display:flex;gap:6px;align-items:center;border:1.5px dashed var(--primary);border-radius:12px;padding:6px 6px 6px 10px;color:var(--primary);background:var(--primary-soft)}
+.dw-add-new .input{flex:1;min-width:0;border:0;background:transparent;padding:6px 2px}
+.dw-filt{display:flex;gap:4px}
+.dw-filt button{flex:1;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:5px 6px;font-size:12px;font-weight:600;min-height:34px}
+.dw-filt button[aria-pressed="true"]{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.dw-filt b{font-weight:700}
+.dw-list{overflow:auto;display:grid;gap:2px;align-content:start;min-height:120px}
+.dw-dr{display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:10px;border:0;background:none;text-align:left;color:var(--ink);min-height:44px;width:100%}
+.dw-dr:hover{background:var(--sunken)}
+.dw-dr.on{background:var(--primary-soft);outline:1.5px solid var(--primary)}
+.dw-dr-t{display:grid;min-width:0}
+.dw-dr-t b{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dw-dr-t small{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dw-dot{width:12px;height:12px;border-radius:50%;flex:none}
+.dw-dot.d-ok{background:var(--success)}.dw-dot.d-wait{background:var(--warning)}.dw-dot.d-miss{background:var(--faint)}.dw-dot.d-err{background:var(--error)}
+/* ส่วนหลัก */
+.dw-main{display:grid;gap:12px;min-width:0;container-type:inline-size;container-name:dwm}
+.dw .btn{white-space:normal;text-align:center}
+.dw-sh{display:flex;gap:8px;align-items:center;font-weight:700;flex-wrap:wrap}
+.dw-tag{display:inline-flex;gap:4px;align-items:center;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.dw-tag svg.ic{width:13px;height:13px}
+.dw-tag.t-ai,.dw-tag.t-warn{background:var(--warning-soft);color:var(--warning)}
+.dw-tag.t-ok{background:var(--success-soft);color:var(--success)}
+.dw-tag.t-man{background:var(--sunken);color:var(--muted)}
+.dw-tag.t-src{background:var(--info-soft);color:var(--info)}
+.dw-link{border:0;background:none;color:var(--primary);text-decoration:underline;padding:4px 2px;font-size:12.5px;min-height:32px}
+.dw-x{border:0;background:none;color:var(--muted);font-size:20px;line-height:1;width:36px;height:36px;border-radius:50%;flex:none}
+.dw-x:hover{background:var(--sunken);color:var(--error)}
+.dw-f{display:grid;gap:3px;font-size:12px;color:var(--muted);font-weight:600}
+.dw-f .input,.dw-f textarea{font-weight:400;color:var(--ink)}
+.dw-f.s .input{width:120px}
+.dw-inl{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.dw-inl .input{min-width:0}
+/* หัวยา */
+.dw-head{padding:14px 16px;display:grid;gap:12px}
+.dw-h1{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.dw-ring{position:relative;width:62px;height:62px;flex:none}
+.dw-ring svg{width:62px;height:62px}
+.dw-ring-bg{fill:none;stroke:var(--sunken);stroke-width:7}
+.dw-ring-fg{fill:none;stroke:var(--success);stroke-width:7;stroke-linecap:round}
+.dw-ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:15px}
+.dw-ttl{flex:1;min-width:220px;display:grid;gap:6px}
+.dw-ttl h3{margin:0;font-size:19px}
+.dw-name{border:0;background:none;padding:0;font-weight:700;font-size:inherit;color:var(--ink);text-align:left}
+.dw-pen{color:var(--faint);font-size:.85em;font-weight:400}
+.dw-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.dw-chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-weight:600;font-size:12.5px;background:var(--surface);color:var(--ink);min-height:32px}
+.dw-chip select{border:0;background:transparent;font:inherit;color:inherit;padding:2px 0;max-width:170px}
+.dw-chip.p{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.dw-chip.p.warn{background:var(--warning-soft);border-color:var(--warning);color:var(--warning)}
+.dw-next{white-space:normal;text-align:left;max-width:280px}
+.dw-prep{display:flex;gap:8px;align-items:center;margin:0;border-radius:10px;background:var(--warning-soft);color:var(--warning);padding:8px 12px;font-weight:600;font-size:13px}
+.dw-str{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--sunken)}
+.dw-steps{display:flex;list-style:none;margin:0;padding:0}
+.dw-stp{flex:1;position:relative;min-width:0}
+.dw-stp button{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;border:0;background:none;font-size:12px;font-weight:600;color:var(--muted);padding:0 2px;text-align:center}
+.dw-stp .c{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);background:var(--surface);position:relative;z-index:1}
+.dw-stp.ok .c{background:var(--success-soft);border-color:var(--success);color:var(--success)}
+.dw-stp.warn .c{background:var(--error-soft);border-color:var(--error);color:var(--error)}
+.dw-stp:not(:last-child)::after{content:"";position:absolute;top:20px;left:calc(50% + 22px);right:calc(-50% + 22px);height:2px;background:var(--line)}
+.dw-stp.ok:not(:last-child)::after{background:var(--success)}
+/* แหล่งข้อมูล */
+.dw-src{padding:12px 16px;display:grid;gap:10px}
+.dw-srow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.dw-s{border:1.5px solid var(--line);border-radius:12px;display:grid;gap:4px;justify-items:center;padding-bottom:6px}
+.dw-s-b{display:grid;gap:3px;justify-items:center;text-align:center;border:0;background:none;padding:8px 4px 2px;width:100%;color:var(--muted);font-size:11.5px;font-weight:600;min-height:44px}
+.dw-s-b b{color:var(--ink);font-size:12px;overflow-wrap:anywhere}
+.dw-s-t{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.dw-s .ic-w{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--sunken)}
+.dw-s.s-ok{border-color:var(--success)}.dw-s.s-ok .ic-w{background:var(--success-soft);color:var(--success)}
+.dw-s.s-wait,.dw-s.sg{border-color:var(--warning);background:var(--warning-soft)}.dw-s.s-wait .ic-w,.dw-s.sg .ic-w{background:var(--surface);color:var(--warning)}
+.dw-s.s-err{border-color:var(--error);background:var(--error-soft)}.dw-s.s-err .ic-w{background:var(--surface);color:var(--error)}
+.dw-s.s-na,.dw-s.s-opt{border-style:dashed}
+.dw-s.open{outline:2px solid var(--primary);outline-offset:1px}
+.dw-mini{border:0;border-radius:999px;background:var(--primary);color:var(--on-primary);padding:4px 10px;font-size:11.5px;font-weight:700;min-height:30px}
+.dw-mini.o{background:var(--surface);color:var(--warning);border:1px solid var(--warning);display:inline-flex;align-items:center}
+.dw-pop{border:1.5px solid var(--primary);border-radius:12px;padding:10px 12px;display:grid;gap:8px;background:var(--surface)}
+.dw-pop-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dw-pop-h .sp{flex:1}
+.dw-sug{border-radius:10px;background:var(--warning-soft);padding:8px 10px;display:grid;gap:6px}
+.dw-cur{display:flex;gap:6px;flex-wrap:wrap}
+.dw-cands{display:flex;gap:6px;flex-wrap:wrap;max-height:220px;overflow:auto}
+.dw-opt{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:6px 10px;font-size:12.5px;text-align:left;color:var(--ink);min-height:36px;max-width:100%}
+.dw-opt:hover{border-color:var(--primary);color:var(--primary)}
+.dw-mims{display:grid;gap:6px;border-top:1px dashed var(--line);padding-top:8px}
+.dw-mims textarea{width:100%;font:inherit;font-size:12.5px}
+/* การ์ดขนาดยา + ด้านขวา */
+.dw-work{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}
+.dw-side{display:grid;gap:12px;min-width:0}
+@container dwm (min-width:860px){.dw-work{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}.dw-side{position:sticky;top:70px}}
+@container dwm (max-width:560px){.dw-srow{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@container dwm (max-width:380px){.dw-srow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.dw-dose{padding:14px 16px;display:grid;gap:12px}
+.dw-card{border:1.5px solid var(--line);border-radius:14px;padding:12px;display:grid;gap:10px}
+.dw-card.foc{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.dw-card.off{opacity:.62}
+.dw-card.sm{display:flex;gap:10px;align-items:center;padding:8px 12px;flex-wrap:wrap}
+.dw-sum{flex:1;min-width:0;font-size:13px}
+.dw-ch{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dw-use{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;font-weight:600;color:var(--muted)}
+.dw-iname{flex:1;min-width:160px;font-weight:600}
+.dw-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dw-lbl{width:62px;font-size:12px;color:var(--muted);font-weight:600;flex:none}
+.dw-opt2{display:inline-flex;flex-direction:column;align-items:center;gap:2px;border:1.5px solid var(--line);border-radius:12px;padding:6px 10px;min-width:70px;min-height:44px;font-size:12px;font-weight:600;color:var(--muted);background:var(--surface)}
+.dw-opt2 small{font-weight:500;font-size:10.5px}
+.dw-opt2.on,.dw-opt3.on{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.dw-seg{display:inline-flex;gap:4px;flex-wrap:wrap}
+.dw-opt3{display:inline-flex;gap:6px;align-items:center;border:1.5px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface);min-height:38px}
+.dw-opt3 svg.ic{width:16px;height:16px}
+.dw-mm{align-items:end}
+.dw-num{display:grid;gap:2px;justify-items:center}
+.dw-num small{font-size:11px;font-weight:700;color:var(--primary);letter-spacing:.04em}
+.dw-num .input{width:110px;border:1.5px solid var(--primary);border-radius:12px;font-size:20px;font-weight:700;text-align:center;padding:6px 8px}
+.dw-mm > b{padding-bottom:12px;color:var(--muted)}
+.dw-unit{border-radius:999px;background:var(--sunken);padding:5px 12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.dw-cap{display:inline-flex;gap:6px;align-items:center;border-radius:10px;border:1.5px solid var(--warning);background:var(--warning-soft);padding:4px 10px;font-weight:700;color:var(--warning);font-size:12.5px}
+.dw-cap .input{width:84px;padding:4px 6px;text-align:center;font-weight:700}
+.dw-grow{flex:1;min-width:160px}
+.dw-more{border-top:1px dashed var(--line);padding-top:8px;display:grid;gap:8px}
+.dw-more > summary{cursor:pointer;font-weight:600;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:36px}
+.dw-more[open] > summary{margin-bottom:6px}
+.dw-d{width:8px;height:8px;border-radius:50%;background:var(--line);display:inline-block}
+.dw-d.y{background:var(--success)}
+.dw-more textarea{width:100%;font:inherit;font-size:13px}
+.dw-cst{margin:0;border-radius:10px;padding:7px 10px;font-weight:600;font-size:12.5px;display:flex;gap:6px;align-items:center}
+.dw-cst.t-pass{background:var(--success-soft);color:var(--success)}
+.dw-cst.t-warn{background:var(--warning-soft);color:var(--warning)}
+.dw-cst.t-fail{background:var(--error-soft);color:var(--error)}
+.dw-fix{border:1.5px dashed var(--warning);border-radius:12px;padding:10px 12px;display:grid;gap:6px;background:var(--warning-soft);font-size:13px}
+.dw-fix.bad{border-color:var(--error);background:var(--error-soft);color:var(--error)}
+.dw-fix ul{margin:0;padding-left:20px}
+.dw-fix s{color:var(--muted)}
+.dw-cf{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dw-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border:1.5px dashed var(--line);border-radius:12px;padding:10px}
+.dw-panel{padding:12px 14px;display:grid;gap:9px}
+.dw-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.dw-tab{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--muted);min-height:36px}
+.dw-tab[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.dw-srcbody{background:var(--sunken);border-radius:10px;padding:10px;font-size:12.5px;line-height:1.55;max-height:46vh;overflow:auto;display:grid;gap:8px;align-content:start}
+.dw-sec p{margin:2px 0 0;white-space:pre-wrap;color:var(--muted)}
+.dw-srcbody mark{background:#FFE8A3;color:var(--ink);border-radius:4px;padding:1px 3px}
+:root[data-theme="dark"] .dw-srcbody mark{background:#5b4a14;color:#fff}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .dw-srcbody mark{background:#5b4a14;color:#fff}}
+.dw-ws{display:flex;gap:4px;flex-wrap:wrap}
+#dwLive .dw-res{border-radius:12px;background:var(--success-soft);padding:10px 12px;display:grid;gap:2px}
+.dw-big{font-size:19px;font-weight:700;color:var(--success)}
+.dw-tl{margin:0;font-weight:600;font-size:12.5px;display:flex;gap:6px;align-items:center}
+.dw-tl.ok{color:var(--success)}.dw-tl.warn{color:var(--warning)}.dw-tl.bad{color:var(--error)}
+/* แถบล่าง (ติดล่างจอ) */
+.dw-bar{position:sticky;bottom:8px;z-index:5;padding:10px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow)}
+.dw-left{flex:1;min-width:200px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.dw-left > .small{flex-basis:100%}
+.dw-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);align-items:center}
+.dw-leg span{display:inline-flex;gap:4px;align-items:center}
+.dw-leg svg.ic{width:15px;height:15px}
+@media (max-width:900px){
+  .dw{grid-template-columns:minmax(0,1fr)}
+  .dw-rail{position:static;max-height:none}
+  .dw-list{max-height:260px}
+}
+@media (max-width:600px){
+  .dw-steps span:not(.c){font-size:10.5px}
+  .dw-lbl{width:100%}
+  .dw-num .input{width:96px}
+  .dw-leg{display:none}
+  .dw-left > .small{display:none}
+  .dw-bar{padding:8px 10px;gap:8px}
+  .dw-bar .row-btns{width:100%;flex-wrap:nowrap}
+  .dw-bar .row-btns .btn{flex:1}
+  .dw-next{max-width:none;width:100%}
+  .dw-bar{bottom:calc(64px + env(safe-area-inset-bottom))}
+}
+@media (pointer:coarse), (max-width:600px){
+  .dw-filt button,.dw-opt3,.dw-opt,.dw-tab,.dw-link,.dw-x,.dw-mini,.dw-chip,.dw-more > summary{min-height:44px}
+  .dw-x{width:44px}
+  .dw-chip select,.dw .dc-na-t{min-height:44px}
+}
+/* หน้าทำงานทีละยา: ขยายความกว้างหน้าให้วางการ์ดขนาดยาคู่กับต้นฉบับได้ (เฉพาะตอนเปิดหน้านี้) */
+body:has(section[data-view="admin"]:not([hidden]) [data-admin-view="drugs"]:not([hidden]) > #dcWork:not([hidden])) .wrap{max-width:1480px}

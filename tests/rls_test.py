@@ -1251,5 +1251,48 @@ check("cleanup pulled drug", "admin", "delete from local_drugs where code='T-999
 check("cleanup list item", "admin", "delete from rpst_list where code='T-999' returning id", rows(1))
 check("dose spare_inds default empty array", None, "select count(*) from dose_drugs where spare_inds <> '[]'::jsonb", eq(0))
 
+# ---- 87 หน้าทำงานยา: ข้อความหน้า MIMS แยกหัวข้อ + AI ช่วยแก้ข้อบ่งใช้ที่ทดสอบสูตรไม่ผ่าน ----
+check("MIMS sections must be an array", "admin", """insert into drug_mims(name,sections) values ('Sec test','{}'::jsonb)""", "deny")
+check("admin saves MIMS text sections", "admin", """insert into drug_mims(name,sections) values ('Sec test','[{"title":"Indications and Dosage","body":"Adult: 10 mg daily"}]') returning jsonb_array_length(sections)""", eq(1))
+check("staff cannot read MIMS sections", "s2", "select count(*) from drug_mims where name='Sec test'", eq(0))
+check("cleanup MIMS sections", "admin", "delete from drug_mims where name='Sec test' returning id", rows(1))
+run("""insert into drug_fda_labels(key,generic,route,title,sections) values ('fixtest|ORAL','fixtest','ORAL','Fixtest',
+  '[{"title":"ขนาดยาและวิธีใช้","body":"Children: 25 to 45 mg/kg/day in divided doses every 8 hours. Do not exceed 1500 mg per day."},{"title":"อาการไม่พึงประสงค์","body":"Rash 99 mg."}]')""")
+run("insert into local_drugs(name,category,fda_key) values ('FIXTEST 250 MG/5 ML','ยาน้ำรับประทาน','fixtest|ORAL')")
+run("insert into local_drugs(name,category) values ('FIXTEST NOLABEL 10 MG','ยาเม็ด/แคปซูล')")
+FIXL = "(select id from local_drugs where name='FIXTEST 250 MG/5 ML')"
+FIND = """'{"name":"ติดเชื้อ","per":"day","min":25,"max":45,"ref":{"label":"MIMS Thailand","url":"https://www.mims.com/x"}}'"""
+FISS = """'["ข้อบ่งใช้ 1: ขนาดต่อวันแต่ไม่ระบุจำนวนครั้ง"]'"""
+check("staff cannot use AI fix", "s2", f"select ai_dose_fix_start({FIXL}, {FIND}, {FISS})", "deny")
+check("anon cannot use AI fix", "anon", f"select ai_dose_fix_start({FIXL}, {FIND}, {FISS})", "deny")
+check("AI fix refused without linked OpenFDA label (MIMS text never sent)", "admin", f"select ai_dose_fix_start((select id from local_drugs where name='FIXTEST NOLABEL 10 MG'), {FIND}, {FISS})", "deny")
+check("source = dosing sections of the linked label only", "admin", f"select public.ai_dose_fix_src({FIXL})", "deny")
+check("label source text (dosing sections, not adverse reactions)", None, f"select (s like '%25 to 45 mg/kg/day%' and s not like '%Rash 99%')::text from (select public.ai_dose_fix_src({FIXL}) s) t", eq("true"))
+f1 = check("admin starts AI fix", "admin", f"select ai_dose_fix_start({FIXL}, {FIND}, {FISS})", lambda o: o.strip().isdigit()).strip()
+check("Gemini gets label text + test problems (no MIMS ref · key only in header)", None, f"select (convert_from(q.body,'utf8') like '%25 to 45 mg/kg/day%' and convert_from(q.body,'utf8') like '%ไม่ระบุจำนวนครั้ง%' and convert_from(q.body,'utf8') not like '%mims.com%' and q.headers->>'x-goog-api-key'='test-key-123' and convert_from(q.body,'utf8') not like '%test-key-123%' and d.ai_job is not null)::text from ai_dose_fixes d join net.http_request_queue q on q.id=d.request_id where d.id={f1}", eq("true"))
+check("web cannot read fixes except admin", "s2", "select count(*) from ai_dose_fixes", eq(0))
+check("admin cannot insert fixes directly", "admin", "insert into ai_dose_fixes(ind) values ('{}')", "deny")
+check("pending while AI has not answered", "admin", f"select ai_dose_fix_poll({f1})->>'status'", eq("pending"))
+def fix_answer(fid, ans):
+    run(f"""insert into net._http_response(id,status_code,content) select request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${ans}$q$))))))::text from ai_dose_fixes where id={fid}""")
+fix_answer(f1, '{"ind":{"name":"ติดเชื้อ","per":"day","min":25,"max":45,"times":3,"cap_day":1500,"quote":"25 to 45 mg/kg/day in divided doses every 8 hours"},"why":"เติมจำนวนครั้ง 3 ครั้งต่อวันตามฉลาก"}')
+check("valid AI fix accepted (quote in label · numbers in quote)", "admin", f"select ai_dose_fix_poll({f1})->'result'->'ind'->>'times'", eq(3))
+check("AI fix result keeps label quote + explanation", "admin", f"select (result->'ind'->>'quote' like '25 to 45%' and result->>'why' like '%จำนวนครั้ง%' and result->'ind'->>'cap_day' = '1500')::text from ai_dose_fixes where id={f1}", eq("true"))
+f2 = check("second AI fix", "admin", f"select ai_dose_fix_start({FIXL}, {FIND}, {FISS})", lambda o: o.strip().isdigit()).strip()
+fix_answer(f2, '{"ind":{"name":"ติดเชื้อ","per":"day","min":30,"max":60,"times":3,"quote":"30 to 60 mg/kg/day every 8 hours"},"why":"เดา"}')
+check("AI fix quoting text not in label → rejected", "admin", f"select ai_dose_fix_poll({f2})->'result'->>'why'", eq("ข้อความที่ AI อ้างไม่พบในฉลากยา"))
+f3 = check("third AI fix", "admin", f"select ai_dose_fix_start({FIXL}, {FIND}, {FISS})", lambda o: o.strip().isdigit()).strip()
+fix_answer(f3, '{"ind":{"name":"ติดเชื้อ","per":"day","min":25,"max":90,"times":3,"quote":"25 to 45 mg/kg/day in divided doses every 8 hours"},"why":"x"}')
+check("AI fix numbers not in quote → rejected", "admin", f"select ai_dose_fix_poll({f3})->'result'->>'why'", eq("ตัวเลขขนาดยาไม่ตรงกับข้อความในฉลาก"))
+f4 = check("fourth AI fix", "admin", f"select ai_dose_fix_start({FIXL}, {FIND}, {FISS})", lambda o: o.strip().isdigit()).strip()
+fix_answer(f4, '{"ind":{"name":"ติดเชื้อ","per":"day","min":25,"max":45,"quote":"25 to 45 mg/kg/day in divided doses every 8 hours"},"why":"x"}')
+check("AI fix still invalid (per day without times) → rejected", "admin", f"select ai_dose_fix_poll({f4})->'result'->>'why' like '%จำนวนครั้ง%'", eq("t"))
+f5 = check("fifth AI fix", "admin", f"select ai_dose_fix_start({FIXL}, {FIND}, {FISS})", lambda o: o.strip().isdigit()).strip()
+fix_answer(f5, '{"ind":null,"why":"ฉลากไม่มีขนาดยาเด็ก"}')
+check("AI says label not enough → none + reason", "admin", f"select (ai_dose_fix_poll({f5})->'result'->>'none')", eq("true"))
+check("cleanup AI fix test drugs", "admin", "delete from local_drugs where name like 'FIXTEST%' returning id", rows(2))
+check("fixes removed with drug (cascade)", None, "select count(*) from ai_dose_fixes", eq(0))
+run("delete from drug_fda_labels where key='fixtest|ORAL'")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
