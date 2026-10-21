@@ -10,6 +10,7 @@ import { strengthOf, comboName } from './dose.js?v=4.4';
 import { reloadDrugData, drugData } from './admin-drugs.js?v=4.4';
 import { DC, centerRows, suggest, applyRow, basesOf, rejectPair } from './drug-center.js?v=4.4';
 import { trashDrug } from './drug-trash.js?v=4.4';
+import { exportDrugs, readDrugFile, planDrugImport, planHtml, applyDrugImport, fileText, isOwnFormat, aiAnalyze, planFromAi, aiPlanHtml, applyAiPlan, knownCats, addCats } from './drug-io.js?v=4.4';
 
 const TAB = 'https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist';
 const TAB_JS = `${TAB}/js/tabulator_esm.min.mjs`, TAB_CSS = `${TAB}/css/tabulator.min.css`;
@@ -283,7 +284,7 @@ async function saveIngs(btn) {
 }
 
 /** เปิดยานี้ในหน้าทำงานทีละยา (#/admin/drugs) · ขนาดยาแก้ที่การ์ดขนาดยาในหน้านั้น */
-function openPanel(id) { try { sessionStorage.setItem('pcps_work_focus', String(id)); } catch { /* ไม่เป็นไร */ } location.hash = '#/admin/drugs'; }
+function openPanel(id) { try { sessionStorage.setItem('pcps_work_focus', String(id)); } catch { /* ไม่เป็นไร */ } location.hash = '#/admin/drugs/work'; }
 
 /* ---------- ตาราง ---------- */
 async function refresh(reload) {
@@ -331,6 +332,38 @@ function bind() {
   });
   const re = () => { if (table) { table.refreshFilter(); count(); } };
   $('#dgQ').addEventListener('input', re); $('#dgScope').addEventListener('change', re); $('#dgGap').addEventListener('change', re);
+  // นำเข้า/ส่งออก (drug-io.js)
+  $$('[data-dg-export]').forEach((b) => b.addEventListener('click', async () => { if (!table) return; try { await exportDrugs(table.getData('active'), b.dataset.dgExport); } catch (err) { toast(errText(err), 'err'); } }));
+  let plan = null, aiRes = null, aiFile = '';
+  const box = () => $('#dgImpBox');
+  const stepHtml = (on, msg) => `<div class="dg-steps">${[['📄', 'อ่านไฟล์'], ['✦', 'AI วิเคราะห์ว่าเป็นข้อมูลฐานไหน'], ['✓', 'ตรวจแล้วกดบันทึก']].map(([i, t], k) => `<span class="dg-step${k < on ? ' ok' : k === on ? ' now' : ''}"><b aria-hidden="true">${i}</b>${t}</span>`).join('')}</div>${msg ? `<p class="small muted">${esc(msg)}</p>` : '<div class="skeleton"></div>'}`;
+  const showAi = async () => { plan = await planFromAi(aiRes); plan.ai = true; box().innerHTML = stepHtml(2, '') .replace('<div class="skeleton"></div>', '') + aiPlanHtml(plan, aiFile); };
+  $('#dgImport').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    box().hidden = false; box().innerHTML = stepHtml(0, ''); box().scrollIntoView({ block: 'nearest' });
+    plan = null; aiRes = null; aiFile = f.name;
+    try {
+      if (await isOwnFormat(f)) { plan = await planDrugImport(await readDrugFile(f)); box().innerHTML = planHtml(plan, f.name); return; }   // ไฟล์ที่ส่งออกจากเว็บนี้ = นำเข้าตรง ไม่ใช้ AI
+      const text = await fileText(f);
+      if (text.replace(/\s/g, '').length < 10) throw new Error('ไม่พบข้อความในไฟล์ (PDF ที่เป็นภาพสแกนอ่านไม่ได้)');
+      box().innerHTML = stepHtml(1, 'AI กำลังวิเคราะห์ไฟล์… (ไม่ส่งข้อมูล MIMS · ห้ามใช้ไฟล์ที่มีข้อมูลผู้ป่วย)');
+      aiRes = await aiAnalyze(f.name, text);
+      await showAi();
+    } catch (err) { plan = null; box().innerHTML = `<p class="small dc-err">นำเข้าไม่สำเร็จ: ${esc(errText(err))}</p><div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dg-impno>ปิด</button></div>`; }
+  });
+  box().addEventListener('click', async (e) => {
+    if (e.target.closest('[data-dg-impno]')) { plan = null; aiRes = null; box().hidden = true; return; }
+    const c = e.target.closest('[data-dg-addcat]');
+    if (c) { try { await addCats([c.dataset.dgAddcat]); toast(`เพิ่มหมวด "${c.dataset.dgAddcat}" แล้ว`); renderCats(); await showAi(); } catch (err) { toast(errText(err), 'err'); } return; }
+    const b = e.target.closest('[data-dg-impok]'); if (!b || !plan) return;
+    const r = plan.ai ? await applyAiPlan(plan, b) : await applyDrugImport(plan, b); plan = null; aiRes = null;
+    toast(`นำเข้าแล้ว ${r.ok} รายการ${r.bad ? ` · ไม่สำเร็จ ${r.bad}` : ''}`, r.bad ? 'err' : undefined);
+    box().hidden = true; await refresh(true); renderCats();
+  });
+  // หมวดยา: เจ้าของเว็บเพิ่มเอง (นำเข้าไฟล์ที่มีหมวดใหม่ต้องเพิ่มหมวดก่อน)
+  const renderCats = async () => { const cs = await knownCats(); $('#dgCatN').textContent = `(${cs.length})`; $('#dgCatList').innerHTML = cs.map((x) => `<span class="chip c-role">${esc(x)}</span>`).join(''); };
+  $('#dgCats').addEventListener('toggle', () => { if ($('#dgCats').open) renderCats(); });
+  $('#dgCatAdd').addEventListener('click', async () => { const v = $('#dgCatNew').value.trim(); if (!v) { $('#dgCatNew').focus(); return; } try { await addCats([v]); $('#dgCatNew').value = ''; toast(`เพิ่มหมวด "${v}" แล้ว`); renderCats(); } catch (err) { toast(errText(err), 'err'); } });
   $('#dgIngAdd').addEventListener('click', () => { $('#dgIngRows').insertAdjacentHTML('beforeend', ingRow({ u: $('#dgIngRows .i-u')?.value.split('|')[0], per: $('#dgIngRows .i-u')?.value.split('|')[1] })); $('#dgIngRows .dg-ing-row:last-child .i-n').focus(); });
   $('#dgIngRows').addEventListener('click', (e) => { const b = e.target.closest('[data-ing-rm]'); if (!b) return; if ($$('#dgIngRows .dg-ing-row').length > 1) b.closest('.dg-ing-row').remove(); else b.closest('.dg-ing-row').querySelectorAll('input').forEach((x) => { x.value = ''; }); });
   $('#dgIngSave').addEventListener('click', (e) => saveIngs(e.currentTarget));
@@ -359,6 +392,8 @@ async function focusPending() {
   setTimeout(() => el.classList.remove('dg-flash'), 3000);
 }
 export async function initDrugGrid() {
+  // นำเข้าทั้งไฟล์ (บัญชียา รพ.สต. · MIMS) ย้ายจากเครื่องมือฐานข้อมูลมาไว้ที่หน้าตาราง (ตัวกล่องเดิม · การทำงานเดิมของ admin-rpst/admin-mims)
+  for (const id of ['rlImportFold', 'mmImportFold']) { const el = document.getElementById(id); if (el && el.parentElement?.id !== 'dgBulkSlot') $('#dgBulkSlot').append(el); }
   if (!bound) bind();
   renderBar();
   try { await Promise.all([loadLib(), refresh(true)]); } catch (err) {

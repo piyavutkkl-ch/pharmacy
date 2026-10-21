@@ -689,7 +689,7 @@
 
       <!-- ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา (เฉพาะผู้ดูแลแก้ไขได้) -->
       <div data-admin-view="drugs" hidden>
-        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="work">ทำงานทีละยา</a><a class="tab-link" href="#/admin/drugs/center" data-sub="center">ภาพรวม</a><a class="tab-link" href="#/admin/drugs/grid" data-sub="grid">ตารางแก้ไขยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a><a class="dc-tools-link" href="#/admin/drugs/tools" id="dcToolsBtn" title="งานทั้งฐานข้อมูล: นำเข้าไฟล์ · ดึง/แปลฉลาก · ขนาดยา · ลบยา" aria-label="เครื่องมือฐานข้อมูล">⋯<span class="dc-tl-x"> เครื่องมือฐานข้อมูล</span></a></nav>
+        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="center">ภาพรวม</a><a class="tab-link" href="#/admin/drugs/work" data-sub="work">ทำงานทีละยา</a><a class="tab-link" href="#/admin/drugs/grid" data-sub="grid">ตารางแก้ไขยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a></nav>
         <!-- ทำงานทีละยา (drug-work.js · หน้าแรกของข้อมูลยา): ค้นหา → เลือกยา → จัดการจบในหน้าเดียว (หัวยา · แหล่งข้อมูล · การ์ดขนาดยา · ต้นฉบับข้างกัน · ผลคำนวณสด) -->
         <div id="dcWork" class="dw" hidden>
           <svg class="dw-sprite" width="0" height="0" aria-hidden="true" focusable="false"><defs>
@@ -726,8 +726,8 @@
           <div class="dw-main" id="dwMain"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
         </div>
         <!-- ศูนย์ข้อมูลยา (drug-center.js): สรุป → วงกลมรายส่วน → ตารางสถานะยา → แผงรายละเอียด/แก้ไขทีละส่วน + คู่ที่ระบบเสนอ -->
-        <div id="dcCenter" class="dc" hidden>
-          <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/ai" id="dcAddBtn">+ เพิ่มยา</a><span class="small muted">แก้ข้อมูลยาแต่ละตัว: กดชื่อยาหรือช่องสถานะในตาราง</span></div>
+        <div id="dcCenter" class="dc">
+          <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/work" id="dcAddBtn" data-dw-new>+ เพิ่มยา</a><span class="small muted">ดูว่ายาไหนขาดอะไร · ผูกจากฐานข้อมูลที่มีได้เลยในแผงด้านขวา · แก้ละเอียดกด "แก้ไขในหน้าทำงานทีละยา"</span></div>
           <div class="dc-cards" id="dcCards" role="group" aria-label="กรองตามสถานะ"></div>
           <div class="dc-stack" id="dcStack" aria-hidden="true"></div>
           <div class="dc-rings" id="dcRings" role="group" aria-label="ความครบของข้อมูลแต่ละส่วน · กดเพื่อดูยาที่ยังขาดส่วนนั้น"></div>
@@ -749,12 +749,22 @@
             <div class="dg-dbs" id="dgDbs" role="group" aria-label="ฐานข้อมูลที่แสดงในตาราง"></div>
           </div>
           <div class="dg-tools">
-            <a class="btn btn-p btn-sm" href="#/admin/drugs/ai" id="dgAddBtn">+ เพิ่มยา</a>
+            <a class="btn btn-p btn-sm" href="#/admin/drugs/work" id="dgAddBtn" data-dw-new>+ เพิ่มยา</a>
             <input id="dgQ" class="input" type="search" maxlength="80" placeholder="ค้นชื่อยา หรือรหัส" aria-label="ค้นหายาในตาราง">
             <select id="dgScope" class="input" aria-label="บัญชียา"><option value="all">ยา รพ.สต. + ยานอก</option><option value="local">ยา รพ.สต.</option><option value="outside">ยานอก รพ.สต.</option></select>
             <label class="small dg-chk"><input type="checkbox" id="dgGap"> เฉพาะยาที่ยังขาด/รอตรวจ ในฐานที่แสดง</label>
             <label class="small dg-chk"><input type="checkbox" id="dgGroup" checked> จัดกลุ่มตามรูปแบบยา</label>
           </div>
+          <!-- นำเข้า/ส่งออก (drug-grid.js · เจ้าของเว็บ 21 ต.ค.): ส่งออกแถวที่แสดงอยู่เป็น Excel/CSV/JSON · นำเข้าไฟล์แบบเดียวกันเพื่อแก้หลายยาในครั้งเดียว (แสดงสิ่งที่จะเปลี่ยนก่อนบันทึก) -->
+          <div class="dg-io" role="group" aria-label="นำเข้า/ส่งออกตารางยา">
+            <span class="small muted">ส่งออกแถวที่แสดง:</span>
+            <button type="button" class="btn btn-o btn-sm" data-dg-export="xlsx">Excel</button><button type="button" class="btn btn-o btn-sm" data-dg-export="csv">CSV</button><button type="button" class="btn btn-o btn-sm" data-dg-export="json">JSON</button>
+            <label class="btn btn-p btn-sm dg-imp">✦ นำเข้าไฟล์ (Excel/CSV/PDF/JSON · AI ช่วยจับช่อง)<input type="file" id="dgImport" accept=".xlsx,.xls,.csv,.json,.pdf,.txt,application/json,text/csv,application/pdf,text/plain" hidden></label>
+            <a class="dc-tools-link" href="#/admin/drugs/tools" id="dcToolsBtn" title="ฐานข้อมูลแบบเดิม: นำเข้าบัญชี/MIMS ทั้งไฟล์ · ดึง/แปลฉลากทั้งชุด · คู่ยา DDInter" aria-label="เครื่องมือฐานข้อมูล (แบบเดิม)">⋯<span class="dc-tl-x"> เครื่องมือฐานข้อมูล (แบบเดิม)</span></a>
+          </div>
+          <div id="dgImpBox" class="dg-impbox card" hidden aria-live="polite"></div>
+          <details class="dg-bulk" id="dgCats"><summary class="small"><b>หมวดยา</b> <span id="dgCatN"></span> · เพิ่มหมวดเองก่อนนำเข้าไฟล์ที่มีหมวดใหม่</summary><div class="dg-catlist" id="dgCatList"></div><div class="dw-inl"><input id="dgCatNew" class="input" maxlength="100" placeholder="ชื่อหมวดใหม่ เช่น ยาหยอดตา" aria-label="ชื่อหมวดใหม่"><button type="button" class="btn btn-o btn-sm" id="dgCatAdd">+ เพิ่มหมวด</button></div></details>
+          <details class="dg-bulk" id="dgBulk"><summary class="small"><b>นำเข้าฐานข้อมูลทั้งไฟล์</b> · บัญชียา รพ.สต. (Excel/CSV) · MIMS (JSON)</summary><div id="dgBulkSlot"></div></details>
           <p class="small muted" id="dgHint">คลิกช่องเพื่อแก้ · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป · ช่องขนาดยา: กดแล้วไปการ์ดขนาดยาในหน้าทำงานทีละยา (ทดสอบสูตรก่อนอนุมัติ)</p>
           <p class="small muted" id="dgCount" aria-live="polite"></p>
           <div class="dg-ing card" id="dgIng" hidden role="group" aria-labelledby="dgIngTitle">
@@ -765,7 +775,14 @@
           <div id="dgTable" class="dg-table"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
         </div>
         <div id="dcHelp" class="dc-help" hidden>
-          <div class="panel"><h2>ทำงานทีละยา (แท็บแรก · แนะนำ)</h2>
+          <div class="panel"><h2>3 หน้าหลักของข้อมูลยา</h2>
+            <div class="dc-help-grid">
+              <div><b>① ภาพรวม (หน้าแรก)</b><p class="small">ดูว่ายาไหนขาดอะไร · ผูกจากฐานข้อมูลที่มีได้เร็วในแผงด้านขวา (✓ ใช้คู่ที่ระบบเสนอ) · ต้องแก้ละเอียด กด "แก้ไขละเอียดในหน้าทำงานทีละยา"</p></div>
+              <div><b>② ทำงานทีละยา</b><p class="small">แก้ทุกอย่างของยา 1 ตัวในหน้าเดียว: ข้อมูลยา · สารสำคัญ · แหล่งข้อมูลทุกฐาน (แก้เนื้อหาได้ + บอกยาที่ใช้ข้อมูลเดียวกัน) · ขนาดยา · ประวัติแก้ไข</p></div>
+              <div><b>③ ตารางแก้ไขยา</b><p class="small">ตารางฐานข้อมูลแบบ Excel แก้ในช่องได้ · ส่งออก Excel/CSV/JSON · นำเข้าไฟล์ (AI ช่วยจับช่อง · หมวดใหม่ต้องเพิ่มก่อน) · เครื่องมือแบบเดิมซ่อนอยู่ที่นี่</p></div>
+            </div>
+          </div>
+          <div class="panel"><h2>ทำงานทีละยา</h2>
             <p class="muted">ค้นหา → เลือกยาจากรายการด้านซ้าย → ทำจบในหน้าเดียว ไม่ต้องสลับหน้า · ปุ่ม "ถัดไป" พาไปสิ่งที่ยังค้าง</p>
             <ol class="dc-steps-help">
               <li><b>หัวยา</b> กดชื่อ/ความแรง/รูปแบบเพื่อแก้ในที่ · วงกลมบอกว่าครบกี่ส่วน · แถบ 5 ขั้น: ข้อมูลยา → แหล่งข้อมูล → ขนาดยา → ทดสอบสูตร → พร้อมใช้คำนวณ</li>
@@ -1116,13 +1133,15 @@
             <div class="field"><label for="mmTextDrug">ผูกกับยาในเว็บแอพ (ไม่บังคับ)</label><select id="mmTextDrug" class="input"><option value="">— ไม่ผูก —</option></select></div>
             <div id="mmTextPreview" aria-live="polite"></div>
             <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="mmTextSave" disabled>บันทึกเป็นข้อมูล MIMS</button></div>
-            <h3 class="mm-h">② หรือนำเข้าไฟล์ JSON (จาก Claude in Chrome)</h3>
+            <details class="vs-pfold" id="mmImportFold">
+            <summary><span class="lbl-t">นำเข้าข้อมูล MIMS จากไฟล์ JSON (Claude in Chrome)</span></summary>
             <p class="small">เลือกไฟล์ <b>mims_doses.json</b> ที่ได้จาก Claude in Chrome (ค้นยาใน MIMS ที่ login ไว้) · ระบบอ่านไฟล์ในเครื่อง แล้วบันทึก ① ข้อมูล MIMS ของแต่ละยา ② ผูกกับยาที่ชื่อตรงกัน ③ <b>ร่างขนาดยา (ซ่อน)</b> ให้ยาที่ยังไม่มีข้อมูลคำนวณ พร้อมลิงก์อ้างอิง MIMS ทุกข้อบ่งใช้</p>
             <p class="small muted">ข้อมูล MIMS เป็นข้อมูลสำหรับสมาชิก จึงเห็นได้เฉพาะผู้ดูแล · หน้าคำนวณแสดงเฉพาะตัวเลขขนาดยาที่เภสัชกรตรวจและอนุมัติแล้ว + ลิงก์ที่มา · ข้อบ่งใช้ที่ข้อมูลไม่ครบ (เช่น ไม่บอกจำนวนครั้งต่อวัน) เก็บไว้อ้างอิง ไม่เข้าเครื่องคำนวณ</p>
             <div class="field"><label for="mmFile">ไฟล์ JSON</label><input id="mmFile" class="input" type="file" accept=".json,application/json"></div>
             <div id="mmPreview" aria-live="polite"></div>
             <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="mmImport" disabled>นำเข้า</button></div>
             <div id="mmResult" aria-live="polite"></div>
+            </details>
           </div>
           <div class="panel">
             <h2>ข้อมูล MIMS ที่บันทึกแล้ว <span class="num muted" id="mmCount"></span></h2>

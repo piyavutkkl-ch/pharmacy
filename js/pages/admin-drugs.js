@@ -588,8 +588,8 @@ function renderMonos() {
   if (list.length > dmShown) $('#dmMore').textContent = `แสดงเพิ่ม (เหลืออีก ${list.length - dmShown} รายการ)`;
 }
 /** หัวข้อในยา ⇄ ข้อความ "## หัวข้อ\nบรรทัด…" */
-const sectionsText = (secs) => (secs || []).map((x) => `## ${x.title}\n${(x.body || []).join('\n')}`).join('\n');
-function parseSections(txt) {
+export const sectionsText = (secs) => (secs || []).map((x) => `## ${x.title}\n${(x.body || []).join('\n')}`).join('\n');
+export function parseSections(txt) {
   const out = [];
   for (const raw of String(txt).split('\n')) {
     const line = raw.trim(); if (!line) continue;
@@ -599,8 +599,8 @@ function parseSections(txt) {
   }
   return out.filter((x) => x.body.length || x.title);
 }
-const formsText = (forms) => (forms || []).map((f) => [f.form, f.acct].filter(Boolean).join(' | ')).join('\n');
-const parseForms = (txt) => String(txt).split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+export const formsText = (forms) => (forms || []).map((f) => [f.form, f.acct].filter(Boolean).join(' | ')).join('\n');
+export const parseForms = (txt) => String(txt).split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
   const [form, acct = ''] = l.split('|').map((x) => x.trim());
   return { form, acct };
 });

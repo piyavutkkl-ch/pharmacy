@@ -549,6 +549,29 @@ function rpc(name, a = {}) {
         _fake: bad ? { rejected: fx, why: 'ข้อความที่ AI อ้างไม่พบในฉลากยา' } : { ind: fx, why: 'เติมจำนวนครั้งต่อวันและขนาดสูงสุดต่อวันตามฉลาก (ข้อมูลจำลอง)' } };
       (db.ai_dose_fixes ||= []).push(row); return { data: row.id, error: null };
     }
+    /* แทน ai_drug_import_start / poll (89_ai_drug_import.sql): AI วิเคราะห์ไฟล์ยา · ตอบ "รอ" 1 รอบ
+       ข้อความแบบตาราง (แท็บ) แถวแรก = หัวตาราง · มีคำว่า "รหัส" = บัญชียา รพ.สต. (code · name · category) ไม่มี = ยาในเว็บแอพ (name · category · strength)
+       แถวที่ชื่อไม่อยู่ในไฟล์ = ตัดทิ้ง (เหมือนฐานข้อมูลจริง) · ข้อความ MIMS = ปฏิเสธ */
+    case 'ai_drug_import_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const t = String(a.p_text || '');
+      if (t.trim().length < 10) return err('ไฟล์ไม่มีข้อความให้อ่าน', 'P0001');
+      if (/mims\.com|MIMS Thailand|MIMS Class/i.test(t)) return err('ไฟล์นี้เป็นข้อมูล MIMS · ไม่ส่งให้ AI (ข้อมูลสมาชิก) · ใช้ "นำเข้า MIMS" หรือวางข้อความหน้า MIMS ในหน้าทำงานทีละยาแทน', 'P0001');
+      const lines = t.split('\n').map((x) => x.split('\t').map((c) => c.trim())).filter((r) => r.some(Boolean));
+      const rpst = /รหัส/.test(lines[0].join(' '));
+      const rowsOut = lines.slice(1).map((r) => (rpst ? { code: r[0], name: r[1], category: r[2] } : { name: r[0], category: r[1], strength: r[2], strength_unit: r[3] }))
+        .map((o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v)));
+      const keep = rowsOut.filter((o) => o.name && t.toLowerCase().includes(o.name.toLowerCase()));
+      const row = { id: newId('ai_drug_imports'), status: 'pending', polls: 0, _fake: { target: rpst ? 'rpst' : 'drugs', why: rpst ? 'เป็นบัญชียาที่มีรหัสยาโรงพยาบาล (ข้อมูลจำลอง)' : 'เป็นรายการยาพร้อมความแรง (ข้อมูลจำลอง)', rows: keep, dropped: rowsOut.length - keep.length, unmapped: [] } };
+      (db.ai_drug_imports ||= []).push(row); return { data: row.id, error: null };
+    }
+    case 'ai_drug_import_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.ai_drug_imports || []).find((x) => x.id === a.p_id);
+      if (!r) return err('ไม่พบรายการนี้', 'P0001');
+      if (r.status === 'pending' && ++r.polls >= 2) Object.assign(r, { status: 'done', result: r._fake });
+      return { data: { id: r.id, status: r.status, result: r.result || null, note: null }, error: null };
+    }
     case 'ai_dose_fix_poll': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
       const r = (db.ai_dose_fixes || []).find((x) => x.id === a.p_id);

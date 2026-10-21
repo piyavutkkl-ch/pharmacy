@@ -14,8 +14,8 @@
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { strengthOf, comboName, keysOf, sameDrug, doseText, sameBasis } from './dose.js?v=4.4';
-import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel, editLocalForm } from './admin-drugs.js?v=4.4';
-import { indsProblem, indsOf, openDoseEdit, openDoseNew, doseQuery, draftWord, indBox, readInds, syncIndBoxes, asMg, ageText } from './admin-settings.js?v=4.4';
+import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel } from './admin-drugs.js?v=4.4';
+import { indsProblem, indsOf, doseQuery, draftWord, indBox, readInds, syncIndBoxes, asMg, ageText } from './admin-settings.js?v=4.4';
 import { testDose, testHtml } from './dose-test.js?v=4.4';
 
 const K = ['str', 'rpst', 'mims', 'fda', 'nlem', 'ddi', 'dose'];   // ตามลำดับขั้น: ① str ② rpst/mims/fda/nlem/ddi ③ dose (รวมผลทดสอบสูตร)
@@ -260,19 +260,19 @@ function editorHtml(l, k) {
     const bases = basesOf(l), combo = isCombo(l) || comboName(l.name);
     return `<div class="dc-f"><label class="small" for="dcName">ชื่อยา</label><input id="dcName" class="input" maxlength="200" value="${esc(l.name)}"></div>`
       + `<div class="dc-f"><label class="small" for="dcCat">รูปแบบยา</label><select id="dcCat" class="input">${cats.map((c) => `<option${c === l.category ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></div>`
-      + (combo ? `<p class="small">ยาสูตรผสม: กรอกสารสำคัญทีละตัวในฟอร์มยา</p><div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-full="str">แก้สารสำคัญ (ฟอร์มยา)</button></div>`
+      + (combo ? `<p class="small">ยาสูตรผสม: กรอกสารสำคัญทีละตัวในฟอร์มยา</p><div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-work="drug">✎ แก้สารสำคัญ (หน้าทำงานทีละยา)</button></div>`
         : `<div class="dc-f"><span class="small">ความแรง</span><div class="dc-ed-row"><input id="dcStrAmt" class="input" type="number" inputmode="decimal" min="0" step="0.001" placeholder="ว่าง = อ่านจากชื่อยา" aria-label="ความแรง" value="${s ? esc(s.u === 'mcg' ? s.amt : s.mg) : ''}">`
         + `<select id="dcStrUnit" class="input" aria-label="หน่วย">${UNITS.map(([v, t]) => `<option value="${v}"${v === u ? ' selected' : ''}>${t}</option>`).join('')}</select></div></div>`
         + (bases.length || s?.as ? `<div class="dc-f"><span class="small">คิดเป็น (ขนาดยาบางข้อคิดจากสารนี้ · ไม่ใช่น้ำหนักเกลือ)</span><div class="dc-ed-row"><select id="dcAsName" class="input" aria-label="คิดเป็นสาร"><option value="">— ไม่มี —</option>${[...new Set([...bases, ...(s?.as ? [s.as.name] : [])])].map((n) => `<option${s?.as && sameBasis(s.as.name, n) ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>`
           + `<input id="dcAsMg" class="input" type="number" inputmode="decimal" min="0" step="0.001" placeholder="มก. ต่อหน่วยเดียวกัน" aria-label="ปริมาณที่คิดเป็น" value="${s?.as ? esc(s.as.mg) : ''}"></div></div>` : ''))
-      + `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-save="str">บันทึก</button><button type="button" class="btn btn-o btn-sm" data-dc-cancel>ยกเลิก</button><button type="button" class="btn btn-o btn-sm" data-dc-full="str">ฟอร์มเต็ม</button></div>`;
+      + `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-save="str">บันทึก</button><button type="button" class="btn btn-o btn-sm" data-dc-cancel>ยกเลิก</button><button type="button" class="btn btn-o btn-sm" data-dc-work="drug">แก้ละเอียด ›</button></div>`;
   }
   if (k === 'rpst') {   // ② บัญชียา รพ.สต.: เลือกรายการในบัญชี (รหัสโรงพยาบาล) หรือเป็นยานอก รพ.สต.
     const used = new Set(D.locals.filter((x) => x.id !== l.id).map((x) => x.code).filter(Boolean));
     const opts = (D.rpst || []).filter((it) => !used.has(it.code));
     return `<select id="dcRpst" class="input" aria-label="รายการในบัญชียา รพ.สต."><option value="">— ไม่อยู่ในบัญชี (ยานอก รพ.สต.) —</option>${opts.map((it) => `<option value="${esc(it.code)}"${it.code === l.code ? ' selected' : ''}>${esc(`${it.code} · ${it.name}`)}</option>`).join('')}</select>`
       + `<p class="small muted">ยังไม่มีในรายการ = เพิ่ม/นำเข้าที่ ⋯ เครื่องมือฐานข้อมูล › บัญชียา รพ.สต.</p>`
-      + `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-save="rpst">บันทึก</button><button type="button" class="btn btn-o btn-sm" data-dc-cancel>ยกเลิก</button><button type="button" class="btn btn-o btn-sm" data-dc-tool="rpst">เปิดบัญชียา รพ.สต.</button></div>`;
+      + `<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dc-save="rpst">บันทึก</button><button type="button" class="btn btn-o btn-sm" data-dc-cancel>ยกเลิก</button><button type="button" class="btn btn-o btn-sm" data-dc-work="rpst">✎ แก้ไข/เพิ่มในบัญชียา รพ.สต. ›</button></div>`;
   }
   if (k === 'nlem') {
     const names = [...new Set(edit.refs.map((r) => D.monos.find((m) => m.ref === r)?.name).filter(Boolean))];
@@ -322,7 +322,7 @@ function step1Body(l, j) {
   return `<div class="dc-sec s-${j.str.s}" id="dcSec-str"><div class="dc-kv"><span><small>ชื่อยา</small>${esc(l.name)}</span><span><small>รูปแบบยา</small>${esc(cat(l) || '—')}</span>`
     + `<span><small>ความแรง</small>${esc(strT)}</span>${asT ? `<span><small>คิดเป็น</small>${esc(asT)}</span>` : ''}</div>`
     + (j.str.why ? `<p class="small ${j.str.s === 'err' ? 'dc-err' : 'dc-warn'}">${esc(j.str.why)}</p>` : '')
-    + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-grid="${l.id}">✎ แก้ข้อมูลยา (ตารางแก้ไขยา)</button>${isCombo(l) || comboName(l.name) ? '<button type="button" class="btn btn-o btn-sm" data-dc-full="str">แก้สารสำคัญ (ยาสูตรผสม)</button>' : ''}</div></div>`;
+    + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-work="drug">✎ แก้ไขในหน้าทำงานทีละยา</button></div></div>`;
 }
 function stepBox(n, title, done, open, right, body) {
   return `<details class="dc-step${done ? ' done' : ''}" data-dc-step="${n}"${open ? ' open' : ''}><summary><span class="dc-n">${done ? '✓' : n}</span><b>${title}</b><span class="small muted dc-step-r">${right}</span></summary><div class="dc-step-b">${body}</div></details>`;
@@ -336,11 +336,11 @@ function renderPanel() {
   const openOf = (n) => inStep(n) || (stepOpen[n] ?? (first === -1 ? n === 3 : first + 1 === n));
   const nSrc = SRC.filter((k) => k !== 'mims' && j[k].s !== 'na'), okSrc = nSrc.filter((k) => j[k].s === 'ok').length;
   const list = visibleRows(), at = list.findIndex((x) => x.l.id === l.id), next = list[at + 1] || null;
-  $('#dcPanel').innerHTML = `<div class="dc-ph"><div class="dc-ph-top">${codeTag(l)}${next ? `<button type="button" class="btn btn-o btn-sm dc-next" data-dc-next="${next.l.id}" title="${esc(next.l.name)}">ถัดไป ›</button>` : ''}</div><h3>${esc(l.name)}</h3><div class="dc-tags"><span class="dc-pill p-${ROW[st][1]}">${ROW[st][0]}</span>${l.outside ? '<span class="chip c-off">ยานอก รพ.สต.</span>' : ''}${l.active ? '' : '<span class="chip c-fix">ซ่อนจากหน้าหลัก</span>'}</div></div>`
+  $('#dcPanel').innerHTML = `<div class="dc-ph"><div class="dc-ph-top">${codeTag(l)}${next ? `<button type="button" class="btn btn-o btn-sm dc-next" data-dc-next="${next.l.id}" title="${esc(next.l.name)}">ถัดไป ›</button>` : ''}</div><h3>${esc(l.name)}</h3><div class="dc-tags"><span class="dc-pill p-${ROW[st][1]}">${ROW[st][0]}</span>${l.outside ? '<span class="chip c-off">ยานอก รพ.สต.</span>' : ''}${l.active ? '' : '<span class="chip c-fix">ซ่อนจากหน้าหลัก</span>'}</div><button type="button" class="btn btn-p btn-sm dc-towork" data-dc-work="">✎ แก้ไขละเอียดในหน้าทำงานทีละยา ›</button></div>`
     + stepBox(1, 'ยาในเว็บแอพ', sp[0], openOf(1), sp[0] ? '' : SN[j.str.s], step1Body(l, j))
     + stepBox(2, 'แหล่งข้อมูล', sp[1], openOf(2), `ผูก ${okSrc}/${nSrc.length}${j.mims.s === 'ok' ? ' + MIMS' : ''}`, SRC.map((k) => secHtml(l, j, k)).join(''))
     + stepBox(3, 'ขนาดยา', sp[2], openOf(3), j.dose.s === 'na' ? 'ไม่ใช้คำนวณ' : SN[j.dose.s], doseHtml(l, j))
-    + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-grid="${l.id}">แก้ในตารางแก้ไขยา ›</button></div>`;
+    + `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-work="drug">✎ แก้ไขในหน้าทำงานทีละยา ›</button></div>`;
   if (focusK) { const el = $(`#dcSec-${focusK}`) || $(`[data-dc-step="${focusK === 'str' ? 1 : focusK === 'dose' ? 3 : 2}"]`); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
 }
 
@@ -387,7 +387,7 @@ function doseHtml(l, j) {
   return (d ? `<p class="small muted">ข้อมูลคำนวณ: ${esc((x.t || '').replace(/^DOSE-\S+\s/, ''))}</p>${sharedNote(d, l)}` : '<p class="small muted">ยังไม่มีข้อมูลคำนวณ · ติ๊กข้อบ่งใช้จากแหล่งข้อมูลด้านล่าง หรือเพิ่มเอง</p>')
     + (rows.length ? `<ul class="dt-rows">${rows.map(rowHtml).join('')}</ul>` : '<p class="empty small">ยังไม่มีข้อบ่งใช้จากแหล่งข้อมูล · ผูก MIMS ในขั้นที่ 2 หรือเพิ่มเอง</p>')
     + (dt.editing === -1 ? `<div class="dt-ed" id="dtEd">${indBox({ per: 'dose' }, true)}<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dt-apply>เพิ่มข้อนี้</button><button type="button" class="btn btn-o btn-sm" data-dt-cancel>ยกเลิก</button></div></div>`
-      : `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dt-add>+ เพิ่มข้อบ่งใช้เอง</button><button type="button" class="btn btn-o btn-sm" data-dc-full="dose">ให้ AI ร่างจากฉลากยาสหรัฐฯ (ฟอร์มเต็ม)</button></div>`)
+      : `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dt-add>+ เพิ่มข้อบ่งใช้เอง</button><button type="button" class="btn btn-o btn-sm" data-dc-work="dose">ให้ AI ร่าง / แก้ละเอียด (หน้าทำงานทีละยา) ›</button></div>`)
     + check
     + `<div class="dc-ed-foot dt-act"><button type="button" class="btn btn-p btn-sm" data-dt-save="${live ? 'save' : 'approve'}"${ok ? '' : ' disabled'}>${live && l.active ? 'บันทึกการแก้ไข' : 'อนุมัติใช้คำนวณ'}</button>`
     + (live ? '' : `<button type="button" class="btn btn-o btn-sm" data-dt-save="draft"${on.length ? '' : ' disabled'}>บันทึกไว้ก่อน (ยังไม่ใช้คำนวณ)</button>`)
@@ -450,10 +450,10 @@ export function showDrugTab(page) {
   if (page === 'help') setDrawer(false);
   curPage = page;
 }
-let curPage = 'work';
+let curPage = 'center';
 /** หน้าที่อยู่ด้านหลังแผงเครื่องมือ (ปิดแผงแล้วกลับมาที่หน้านี้) */
 export const drugPage = () => curPage;
-export const pageHash = (p) => (p === 'work' ? '#/admin/drugs' : `#/admin/drugs/${p}`);
+export const pageHash = (p) => (p === 'center' ? '#/admin/drugs' : `#/admin/drugs/${p}`);
 
 /* ---------- ใช้ร่วมกับตารางแก้ไขยา (drug-grid.js) · สถานะ/คู่ที่ระบบเสนอชุดเดียวกับศูนย์ข้อมูลยา ---------- */
 export const DC = { K, SRC, KN, KS, SYM, SN, ROW, PER, UNITS, cellS, idv, isCombo };
@@ -492,10 +492,10 @@ export function openTools(sec) {
   const el = sec && document.querySelector(`[data-adr-sec="${sec}"]`);
   if (el) el.open = true;
 }
-function openDrawer(sec) {
-  setDrawer(true, 'center');
-  const el = sec && document.querySelector(`[data-adr-sec="${sec}"]`);
-  if (el) el.open = true;
+/** เปิดยานี้ในหน้าทำงานทีละยา (part = drug | rpst | mims | fda | nlem | ddi | dose → เปิดส่วนนั้นให้) */
+export function toWork(id, part = '') {
+  try { sessionStorage.setItem('pcps_work_focus', part ? `${id}:${part}` : String(id)); } catch { /* ไม่เป็นไร */ }
+  location.hash = '#/admin/drugs/work';
 }
 function closeDrawer() {
   const wasRoute = drawerFrom === 'route';
@@ -524,11 +524,7 @@ function pick(id, k) {
   else if (k) $(`#dcSec-${k}`)?.scrollIntoView({ block: 'nearest' });
 }
 function openEdit(l, k) {
-  if (k === 'test') {   // ผลทดสอบมาจากข้อมูลคำนวณ → แก้ที่ฟอร์มขนาดยา
-    const did = l.dose_id || judge(l, 'dose').dose?.id;
-    if (did) { openDrawer('dose'); openDoseEdit(did); } else toast('ยังไม่มีข้อมูลคำนวณ · สร้างที่ส่วน "ขนาดยา" ก่อน', 'err');
-    return;
-  }
+  if (k === 'test') { toWork(l.id, 'dose'); return; }   // ผลทดสอบมาจากข้อมูลคำนวณ → แก้ที่การ์ดขนาดยา (หน้าทำงานทีละยา)
   edit = edit?.k === k ? null : { k, refs: [...(l.mono_refs || [])], ddi: [...(l.ddi_ids || [])], q: '' };
   focusK = null; renderPanel();
   if (edit) { $(`#dcSec-${k}`)?.scrollIntoView({ block: 'nearest' }); $(`#dcSec-${k} input, #dcSec-${k} select`)?.focus({ preventScroll: true }); }
@@ -536,11 +532,12 @@ function openEdit(l, k) {
 function bind() {
   bound = true;
   $('#dcDrClose').addEventListener('click', closeDrawer);
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-dw-new]')) { try { sessionStorage.setItem('pcps_work_focus', 'new'); } catch { /* ไม่เป็นไร */ } } }, true);   // + เพิ่มยา → หน้าทำงานทีละยา ช่องชื่อยาใหม่
   $('#dcDrBack').addEventListener('click', closeDrawer);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#dcDrawer').hidden) closeDrawer(); });
   // รายการ "เพิ่มยา" ในแผงเครื่องมือ → เปิดยานั้นในศูนย์ข้อมูลยา
   $('#dcDrawer').addEventListener('click', (e) => { const b = e.target.closest('[data-dc-open]'); if (!b) return;
-    if (curPage === 'work') { try { sessionStorage.setItem('pcps_work_focus', b.dataset.dcOpen); } catch { /* ไม่เป็นไร */ } setDrawer(false); if (location.hash !== '#/admin/drugs') location.hash = '#/admin/drugs'; else window.dispatchEvent(new CustomEvent('pcps:workback', { detail: 'pick' })); return; }   // หน้าทำงานทีละยา → เปิดยานั้น
+    if (curPage === 'work') { try { sessionStorage.setItem('pcps_work_focus', b.dataset.dcOpen); } catch { /* ไม่เป็นไร */ } setDrawer(false); if (location.hash !== '#/admin/drugs/work') location.hash = '#/admin/drugs/work'; else window.dispatchEvent(new CustomEvent('pcps:workback', { detail: 'pick' })); return; }   // หน้าทำงานทีละยา → เปิดยานั้น
     closeDrawer(); filt = 'all'; $('#dcQ').value = ''; renderTop(); pick(+b.dataset.dcOpen); });
   // บันทึกฟอร์มเต็มที่เปิดจากแผงยา → ปิดแผงเครื่องมือ กลับมาที่ยาเดิม (สถานะในตารางเปลี่ยนทันที)
   const back = async (k) => {
@@ -598,23 +595,10 @@ async function onPanel(e) {
   if (B('[data-dc-unddi]')) { const i = B('[data-dc-unddi]').dataset.dcUnddi; edit.ddi = edit.ddi.filter((x) => x !== i); renderPanel(); return; }
   if (B('[data-dc-addddi]')) return addDdi();
   if (B('[data-dc-next]')) return pick(+B('[data-dc-next]').dataset.dcNext);
-  if (B('[data-dc-grid]')) {   // แก้ข้อมูลยา = ตารางแก้ไขยา (เจ้าของเว็บ 21 ต.ค.) · เลื่อนไปแถวยานี้
-    try { sessionStorage.setItem('pcps_grid_focus', String(l.id)); } catch { /* ไม่เป็นไร */ }
-    location.hash = '#/admin/drugs/grid'; return;
-  }
-  if (B('[data-dc-tool]')) { openDrawer(B('[data-dc-tool]').dataset.dcTool); return; }
-  if (B('[data-dc-newdose]')) { openDrawer('dose'); await openDoseNew(l.name, l.id); return; }
-  if (B('[data-dc-full]')) {   // ฟอร์มเต็มในแผงเครื่องมือ (ตารางยังอยู่ด้านหลัง) · บันทึกแล้วปิดเอง
-    const k = B('[data-dc-full]').dataset.dcFull, did = (k === 'dose' && +$('#dcDose')?.value) || l.dose_id || r.j.dose.dose?.id;
-    if (k === 'dose') {   // ขนาดยา → ฟอร์มคำนวณขนาดยาเสมอ (ไม่ใช่ฟอร์มยา รพ.สต.) · ยังไม่มีข้อมูลคำนวณ = ฟอร์มสร้างใหม่ของยานี้
-      openDrawer('dose');
-      if (did) openDoseEdit(did); else await openDoseNew(l.name, l.id);
-      return;
-    }
-    openDrawer(l.outside ? 'outside' : 'local'); editLocalForm(l);
-    document.querySelector('#ldForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    return;
-  }
+  if (B('[data-dc-work]')) { toWork(l.id, B('[data-dc-work]').dataset.dcWork); return; }   // แก้ละเอียด = หน้าทำงานทีละยา (เจ้าของเว็บ 21 ต.ค. · ภาพรวมผูกเร็ว / หน้าทำงานแก้ละเอียด)
+  if (B('[data-dc-tool]')) { toWork(l.id, B('[data-dc-tool]').dataset.dcTool); return; }
+  if (B('[data-dc-newdose]')) { toWork(l.id, 'dose'); return; }
+  if (B('[data-dc-full]')) { toWork(l.id, B('[data-dc-full]').dataset.dcFull === 'dose' ? 'dose' : 'drug'); return; }
   if (B('[data-dc-na]')) {
     const k = B('[data-dc-na]').dataset.dcNa, cur = l.link_na || [];
     const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];

@@ -1303,5 +1303,29 @@ check("staff cannot restore from trash (RLS → 0 rows)", "s2", "update local_dr
 check("admin restores drug from trash", "admin", "update local_drugs set trashed_at=null where code='1050042' returning code", eq("1050042"))
 check("restored drug visible to anon again", "anon", "select count(*) from local_drugs where code='1050042'", eq(1))
 
+# ---------- 89: นำเข้าไฟล์ยาหลายรายการด้วย AI ----------
+IMPT = "รหัสยา\tชื่อยา\tหมวด\n1999001\tIMPTEST AMOXICILLIN 250 MG\tยาเม็ด/แคปซูล\n1999002\tIMPTEST CPM 2 MG/5 ML\tยาน้ำรับประทาน"
+check("staff cannot start AI import", "s2", f"select ai_drug_import_start('x.csv', $t${IMPT}$t$)", "deny")
+check("anon cannot start AI import", "anon", f"select ai_drug_import_start('x.csv', $t${IMPT}$t$)", "deny")
+check("MIMS text refused (never sent to AI)", "admin", "select ai_drug_import_start('m.txt', 'Amitriptyline https://www.mims.com/thailand/drug/info/amitriptyline Indications and Dosage')", "deny")
+check("too short text refused", "admin", "select ai_drug_import_start('x.txt', 'abc')", "deny")
+i1 = check("admin starts AI import", "admin", f"select ai_drug_import_start('list.csv', $t${IMPT}$t$)", lambda o: o.strip().isdigit()).strip()
+check("Gemini gets file text (key only in header)", None, f"select (convert_from(q.body,'utf8') like '%IMPTEST AMOXICILLIN%' and q.headers->>'x-goog-api-key'='test-key-123' and convert_from(q.body,'utf8') not like '%test-key%')::text from net.http_request_queue q where q.id=(select request_id from ai_drug_imports where id={i1})", eq("true"))
+check("web cannot read imports except admin", "s2", "select count(*) from ai_drug_imports", eq(0))
+check("admin cannot insert imports directly", "admin", "insert into ai_drug_imports(src) values ('xxxxxxxxxxxx')", "deny")
+check("import pending while AI has not answered", "admin", f"select ai_drug_import_poll({i1})->>'status'", eq("pending"))
+def imp_answer(iid, ans):
+    run(f"""insert into net._http_response(id,status_code,content) select request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${ans}$q$))))))::text from ai_drug_imports where id={iid}""")
+imp_answer(i1, '{"target":"rpst","why":"เป็นบัญชียาที่มีรหัส","rows":[{"code":"1999001","name":"IMPTEST AMOXICILLIN 250 MG","category":"ยาเม็ด/แคปซูล","secret":"x"},{"code":"1999002","name":"IMPTEST CPM 2 MG/5 ML","category":"ยาน้ำรับประทาน"},{"code":"1999003","name":"IMPTEST INVENTED 10 MG","category":"ยาเม็ด/แคปซูล"}],"unmapped":[]}')
+check("AI import result: target + rows found in file only (invented row dropped)", "admin", f"select (r->'result'->>'target') || ':' || jsonb_array_length(r->'result'->'rows') || ':' || (r->'result'->>'dropped') from (select ai_drug_import_poll({i1}) r) t", eq("rpst:2:1"))
+check("AI import keeps allowed fields only", "admin", f"select (result->'rows'->0 ? 'secret')::text from ai_drug_imports where id={i1}", eq("false"))
+i2 = check("second AI import", "admin", f"select ai_drug_import_start('list.csv', $t${IMPT}$t$)", lambda o: o.strip().isdigit()).strip()
+imp_answer(i2, 'not json at all')
+check("unreadable AI answer → note, no rows", "admin", f"select ai_drug_import_poll({i2})->>'note' like 'อ่านคำตอบ%'", eq("t"))
+i3 = check("third AI import", "admin", f"select ai_drug_import_start('list.csv', $t${IMPT}$t$)", lambda o: o.strip().isdigit()).strip()
+imp_answer(i3, '{"target":"weird","rows":[{"name":"IMPTEST AMOXICILLIN 250 MG"}]}')
+check("unknown target → other (nothing to import)", "admin", f"select (r->'result'->>'target') || ':' || jsonb_array_length(r->'result'->'rows') from (select ai_drug_import_poll({i3}) r) t", eq("other:0"))
+run("delete from ai_drug_imports")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
