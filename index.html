@@ -848,20 +848,31 @@
               <div id="rlPreview" aria-live="polite"></div>
               <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="rlImport" disabled>นำเข้า</button></div>
             </details>
+            <details class="vs-pfold" id="rlNewFold">
+              <summary><span class="lbl-t">+ เพิ่มรายการในบัญชี</span></summary>
             <form id="rlForm" class="form-grid" novalidate>
-              <h3 class="full" id="rlFormTitle">เพิ่มรายการในบัญชี</h3>
               <div class="field"><label for="rlCode">รหัสยา <span class="req">*</span></label><input id="rlCode" class="input" maxlength="30" placeholder="เช่น 1010042"></div>
               <div class="field"><label for="rlName">ชื่อยา <span class="req">*</span></label><input id="rlName" class="input" maxlength="200" placeholder="เช่น ALBENDAZOLE 200 MG TAB"></div>
               <div class="field"><label for="rlCat">หมวด</label><input id="rlCat" class="input" maxlength="100" list="ldCats" placeholder="เช่น ยาเม็ด/แคปซูล"></div>
               <div class="field"><label for="rlPack">ขนาดบรรจุ</label><input id="rlPack" class="input" maxlength="40"></div>
               <div class="field"><label for="rlUnit">หน่วย</label><input id="rlUnit" class="input" maxlength="40" placeholder="เช่น TAB"></div>
-              <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="rlSave">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="rlCancel" hidden>ยกเลิก</button></div>
+              <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="rlSave">บันทึก</button></div>
             </form>
+            </details>
           </div>
           <div class="panel">
             <h2>รายการในบัญชีที่บันทึกแล้ว <span class="num muted" id="rlCount"></span></h2>
             <div class="field"><label for="rlQ">ค้นหา</label><input id="rlQ" class="input" type="search" placeholder="รหัสหรือชื่อยา"></div>
             <div id="rlList"></div>
+            <form id="rlEditForm" class="form-grid dm-form" novalidate hidden>
+              <h3 class="full" id="rlEditTitle">แก้ไข</h3>
+              <div class="field"><label for="rlECode">รหัสยา <span class="req">*</span></label><input id="rlECode" class="input" maxlength="30"></div>
+              <div class="field"><label for="rlEName">ชื่อยา <span class="req">*</span></label><input id="rlEName" class="input" maxlength="200"></div>
+              <div class="field"><label for="rlECat">หมวด</label><input id="rlECat" class="input" maxlength="100" list="ldCats"></div>
+              <div class="field"><label for="rlEPack">ขนาดบรรจุ</label><input id="rlEPack" class="input" maxlength="40"></div>
+              <div class="field"><label for="rlEUnit">หน่วย</label><input id="rlEUnit" class="input" maxlength="40"></div>
+              <div class="full row-btns"><button class="btn btn-p btn-sm" type="submit" id="rlESave">บันทึก</button><button class="btn btn-o btn-sm" type="button" id="rlECancel">ยกเลิก</button></div>
+            </form>
           </div>
         </details>
         <details class="adr-sec" data-adr-sec="local" data-db-part="local">

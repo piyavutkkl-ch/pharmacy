@@ -3,9 +3,10 @@
 //   ปุ่ม "เพิ่มยาในบัญชีที่ยังไม่มีในเว็บแอพ" = ดึงทุกรายการที่ยังไม่มีมาเป็นยาในเว็บแอพครั้งเดียว (เริ่มจากบัญชี รพ.สต. · ยานอก รพ.สต. เพิ่มทีหลังได้)
 //   นำเข้าไฟล์บัญชี (Excel/CSV จากระบบโรงพยาบาล · อ่านในเครื่อง): เพิ่มรายการใหม่ · อัปเดตชื่อ/หน่วย · รายการที่ไม่อยู่ในไฟล์ = in_list false (ไม่ลบ)
 //     ติ๊ก "เพิ่มยาใหม่เป็นยาในเว็บแอพด้วย" = นำเข้า + ดึงในขั้นตอนเดียว
+//   เพิ่มรายการ = กล่องย่อด้านบน (#rlNewFold) · แก้ไข = กล่องขยายใต้รายการที่กด (#rlEditForm · showForm/keepForm เหมือนฐานข้อมูลอื่น · กดซ้ำ = ย่อ)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
-import { drugData, reloadDrugData, codeTag } from './admin-drugs.js?v=4.4';
+import { drugData, reloadDrugData, codeTag, showForm, closeForm, keepForm, parkForm, isOpenAt } from './admin-drugs.js?v=4.4';
 import { readTable } from './delivery-report.js?v=4.4';
 
 let bound = false, editId = null, pending = null, shown = 40;
@@ -53,34 +54,54 @@ async function render() {
   $('#rlPull').textContent = `เพิ่มยาในบัญชีที่ยังไม่มีในเว็บแอพ (${miss.length})`;
   $('#rlPullNote').textContent = miss.length ? '' : 'ทุกรายการในบัญชีมีในเว็บแอพแล้ว';
   const rows = D.rpst.filter((it) => !q || `${it.code} ${it.name}`.toLowerCase().includes(q));
+  parkForm($('#rlEditForm'));   // กล่องแก้ไขต้องย้ายออกก่อนล้างรายการ
   $('#rlList').innerHTML = rows.length ? rows.slice(0, shown).map((it) => { const l = byCode.get(it.code);
     return `<div class="li" data-rl-row="${it.id}"><div class="l"><b>${esc(it.code)} · ${esc(it.name)}</b><span class="small muted">${esc([it.category, it.pack_size && `บรรจุ ${it.pack_size}`, it.unit].filter(Boolean).join(' · '))}</span>`
       + `<span class="small">${l ? `ยาในเว็บแอพ: ${codeTag(l)}${esc(l.name)}` : '<span class="chip c-fix">ยังไม่มีในเว็บแอพ</span>'}${it.in_list === false ? ' <span class="chip c-off">ไม่อยู่ในไฟล์บัญชีล่าสุด</span>' : ''}</span></div>`
       + `<div class="actions"><button type="button" class="btn btn-o btn-sm" data-rl-edit="${it.id}">แก้ไข</button><button type="button" class="btn btn-no btn-sm" data-rl-del="${it.id}">ลบ</button></div></div>`; }).join('')
     + (rows.length > shown ? `<button type="button" class="btn btn-o btn-sm di-more" data-rl-more>แสดงเพิ่ม (${rows.length - shown})</button>` : '')
     : `<p class="empty">${D.rpst.length ? 'ไม่พบตามคำค้น' : 'ยังไม่มีรายการในบัญชี · เพิ่มหรือนำเข้าไฟล์ด้านบน'}</p>`;
+  keepForm($('#rlEditForm'), $('#rlList'), editId != null ? `[data-rl-row="${editId}"]` : null);
 }
-function fillForm(it) {
-  editId = it?.id ?? null;
-  $('#rlFormTitle').textContent = it ? `แก้ไข ${it.code}` : 'เพิ่มรายการในบัญชี';
-  $('#rlCode').value = it?.code || ''; $('#rlName').value = it?.name || ''; $('#rlCat').value = it?.category || ''; $('#rlPack').value = it?.pack_size || ''; $('#rlUnit').value = it?.unit || '';
-  $('#rlCancel').hidden = !it;
-}
-async function saveItem(e) {
+const rowOf = (D, id) => D.rpst.find((x) => String(x.id) === String(id));
+const vals = (p) => ({ code: S($(`#${p}Code`).value, 30), name: S($(`#${p}Name`).value, 200), category: S($(`#${p}Cat`).value, 100) || 'อื่น ๆ', pack_size: S($(`#${p}Pack`).value, 40), unit: S($(`#${p}Unit`).value, 40) });
+const dupMsg = (error) => (/duplicate|23505/.test(errText(error) + error.code) ? 'รหัสยานี้มีในบัญชีแล้ว' : errText(error));
+/** เพิ่มรายการใหม่ (กล่องด้านบน) */
+async function addItem(e) {
   e.preventDefault();
-  const row = { code: S($('#rlCode').value, 30), name: S($('#rlName').value, 200), category: S($('#rlCat').value, 100) || 'อื่น ๆ', pack_size: S($('#rlPack').value, 40), unit: S($('#rlUnit').value, 40) };
+  const row = vals('rl');
   if (!row.code || !row.name) { toast('กรอกรหัสยาและชื่อยา', 'err'); return; }
   const btn = $('#rlSave'); busy(btn, true, 'กำลังบันทึก…');
-  const { error } = editId ? await sb.from('rpst_list').update(row).eq('id', editId) : await sb.from('rpst_list').insert({ ...row, in_list: true });
+  const { error } = await sb.from('rpst_list').insert({ ...row, in_list: true });
   busy(btn, false);
-  if (error) { toast(/duplicate|23505/.test(errText(error) + error.code) ? 'รหัสยานี้มีในบัญชีแล้ว' : errText(error), 'err'); return; }
-  toast('บันทึกแล้ว'); fillForm(null); await reloadDrugData();
+  if (error) { toast(dupMsg(error), 'err'); return; }
+  toast('เพิ่มในบัญชีแล้ว'); $('#rlForm').reset(); await reloadDrugData();
+}
+/** แก้ไข: กล่องขยายใต้รายการที่กด */
+function openEdit(it) {
+  const f = $('#rlEditForm'), sel = `[data-rl-row="${it.id}"]`;
+  if (isOpenAt(f, $('#rlList'), sel)) { closeEdit(); return; }   // กดซ้ำ = ย่อ
+  editId = it.id;
+  $('#rlEditTitle').textContent = `แก้ไข ${it.code}`;
+  $('#rlECode').value = it.code || ''; $('#rlEName').value = it.name || ''; $('#rlECat').value = it.category || ''; $('#rlEPack').value = it.pack_size || ''; $('#rlEUnit').value = it.unit || '';
+  showForm(f, $('#rlList'), sel, $('#rlEName'));
+}
+function closeEdit() { editId = null; closeForm($('#rlEditForm')); }
+async function saveEdit(e) {
+  e.preventDefault();
+  const row = vals('rlE');
+  if (!row.code || !row.name) { toast('กรอกรหัสยาและชื่อยา', 'err'); return; }
+  const btn = $('#rlESave'); busy(btn, true, 'กำลังบันทึก…');
+  const { error } = await sb.from('rpst_list').update(row).eq('id', editId);
+  busy(btn, false);
+  if (error) { toast(dupMsg(error), 'err'); return; }
+  toast('บันทึกแล้ว'); closeEdit(); await reloadDrugData();
 }
 async function onList(e) {
   const b = e.target.closest('button'); if (!b) return;
   const D = await drugData();
   if (b.dataset.rlMore != null) { shown += 40; render(); return; }
-  if (b.dataset.rlEdit) { fillForm(D.rpst.find((x) => String(x.id) === b.dataset.rlEdit)); $('#rlForm').scrollIntoView({ block: 'nearest' }); return; }
+  if (b.dataset.rlEdit) { const it = rowOf(D, b.dataset.rlEdit); if (it) openEdit(it); return; }
   if (b.dataset.rlDel) {
     const it = D.rpst.find((x) => String(x.id) === b.dataset.rlDel), used = it && D.locals.find((l) => l.code === it.code);
     if (!it || !confirm(`ลบ ${it.code} · ${it.name} ออกจากบัญชียา รพ.สต.?${used ? `\nยาในเว็บแอพ "${used.name}" จะขึ้นว่ารหัสไม่อยู่ในบัญชี (ยาไม่ถูกลบ)` : ''}`)) return;
@@ -134,8 +155,9 @@ export function initRpstAdmin() {
   if (!bound) {
     bound = true;
     $('#rlPull').addEventListener('click', (e) => pull(e.currentTarget));
-    $('#rlForm').addEventListener('submit', saveItem);
-    $('#rlCancel').addEventListener('click', () => fillForm(null));
+    $('#rlForm').addEventListener('submit', addItem);
+    $('#rlEditForm').addEventListener('submit', saveEdit);
+    $('#rlECancel').addEventListener('click', closeEdit);
     $('#rlQ').addEventListener('input', () => { shown = 40; render(); });
     $('#rlList').addEventListener('click', onList);
     $('#rlFile').addEventListener('change', onFile);

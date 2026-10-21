@@ -1514,6 +1514,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       { // บัญชียา รพ.สต. เป็นฐานข้อมูล: เพิ่มรายการ → ปุ่มดึงยาที่ยังไม่มีในเว็บแอพ · นำเข้าไฟล์บัญชี (CSV) + เพิ่มเป็นยาในเว็บแอพในขั้นตอนเดียว
         await go(p, '#/admin/drugs/rpst'); await p.waitForTimeout(600);
         check('บัญชียา รพ.สต.: อยู่ในเครื่องมือฐานข้อมูล · รายการเดิมครบ (รหัสเดียวกับยาในเว็บแอพ)', await p.isVisible('#dcDrawer') && await p.$eval('[data-adr-sec="rpst"]', (d) => d.open) && await count(p, '#rlList [data-rl-row]') > 10 && /ยาในเว็บแอพ/.test(await text(p, '#rlList')));
+        check('บัญชียา รพ.สต.: กล่องเพิ่มรายการย่อไว้เป็นปกติ', !(await p.$eval('#rlNewFold', (d) => d.open)));
+        { const rid = await p.$eval('#rlList [data-rl-row]:nth-child(2)', (r) => r.dataset.rlRow);
+          await p.click(`#rlList [data-rl-row="${rid}"] [data-rl-edit]`); await p.waitForTimeout(400);
+          check('บัญชียา รพ.สต.: กดแก้ไข → กล่องแก้ไขขยายใต้รายการนั้น (ไม่เด้งไปด้านบน · กล่องเพิ่มยังย่ออยู่)', await p.isVisible('#rlEditForm') && await p.$eval('#rlEditForm', (f, id) => f.previousElementSibling?.dataset.rlRow === id, rid) && !(await p.$eval('#rlNewFold', (d) => d.open)));
+          await p.fill('#rlEPack', '999'); await p.click('#rlESave'); await p.waitForTimeout(600);
+          const up = (await calls(p, (c) => c.table === 'rpst_list' && c.op === 'update')).pop()?.payload || {};
+          check('บัญชียา รพ.สต.: บันทึกการแก้ไข → อัปเดตรายการ + ย่อกล่องแก้ไข', up.pack_size === '999' && !(await p.isVisible('#rlEditForm')), JSON.stringify(up));
+          await p.click(`#rlList [data-rl-row="${rid}"] [data-rl-edit]`); await p.waitForTimeout(350); await p.click(`#rlList [data-rl-row="${rid}"] [data-rl-edit]`); await p.waitForTimeout(400);
+          check('บัญชียา รพ.สต.: กดแก้ไขแถวเดิมซ้ำ = ย่อกล่อง', !(await p.isVisible('#rlEditForm'))); }
+        await p.click('#rlNewFold > summary'); await p.waitForTimeout(150);
         await p.fill('#rlCode', 'T-001'); await p.fill('#rlName', 'TESTDRUG A 10 MG'); await p.fill('#rlUnit', 'TAB'); await p.click('#rlSave'); await p.waitForTimeout(500);
         await p.fill('#rlQ', 'T-001'); await p.waitForTimeout(150);
         check('บัญชียา รพ.สต.: เพิ่มรายการ → ขึ้น "ยังไม่มีในเว็บแอพ" + ปุ่มดึง (1)', /ยังไม่มีในเว็บแอพ/.test(await text(p, '#rlList')) && (await text(p, '#rlPull')).includes('(1)'), await text(p, '#rlPull'));
