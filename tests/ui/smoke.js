@@ -1387,6 +1387,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('⋯ เครื่องมือฐานข้อมูล → ฐานข้อมูลทุกส่วนครบในแผง', await p.isVisible('#dcDrawer') && await count(p, '#dcDrawer .adr-sec') === 9);
       await p.keyboard.press('Escape'); await p.waitForTimeout(500);
       check('กด Esc ปิดแผงได้', !(await p.isVisible('#dcDrawer')));
+      check('thread 1657d597: ⋯ เครื่องมือฐานข้อมูล ย่อเป็นลิงก์เล็กมุมขวาของแถบแท็บ (ไม่ใช่ปุ่มในหน้า)', await p.$eval('#dcToolsBtn', (e) => e.parentElement.id === 'dcTabs' && !e.classList.contains('btn')) && !(await p.$('.dc-actions #dcToolsBtn')));
       { // ร่าง AI → "ตรวจร่าง AI และอนุมัติ" เปิดฟอร์มตรวจในแผง → บันทึก → แผงปิดเอง กลับมาที่ยาเดิม
         const lid = await p.evaluate(() => window.__db.local_drugs.find((x) => /Loratadine/.test(x.name))?.id);
         await p.fill('#dcQ', 'Loratadine'); await p.waitForTimeout(150);
@@ -2125,6 +2126,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ทีละฐาน: เหลือฐานเดียว + รายละเอียด/เหตุผล/คู่ที่ระบบเสนอ', await count(q, '#dgDbs [data-dg-db][aria-pressed="true"]') === 1 && h.includes('② บัญชียา รพ.สต.') && h.includes('คู่ที่ระบบเสนอ') && h.includes('เหตุผล') && h.includes('ในไฟล์ล่าสุด') && !h.includes('ฉลากยาสหรัฐฯ') && !h.includes('② ฉลากยาสหรัฐฯ'), JSON.stringify(h));
       await q.click('#dgDbs [data-dg-db="fda"]'); await q.waitForTimeout(300); h = await heads();
       check('ทีละฐาน: กดฐานอื่น = สลับไปแสดงฐานนั้นแทน', h.includes('② ฉลากยาสหรัฐฯ') && h.includes('ชื่อสามัญ') && h.includes('ช่องทาง') && !h.includes('② บัญชียา รพ.สต.') && await count(q, '#dgDbs [data-dg-db][aria-pressed="true"]') === 1, JSON.stringify(h));
+      check('ตารางแก้ไขยา: มีปุ่ม + เพิ่มยา และลิงก์เครื่องมือฐานข้อมูลที่มุมแถบแท็บ', await visible(q, '#dgAddBtn') && await visible(q, '#dcToolsBtn'));
       check('จำวิธีแสดงไว้ในเครื่องนี้', (await q.evaluate(() => localStorage.getItem('pcps_drug_grid'))) === '{"mode":"one","dbs":["fda"],"str":true}');
       await q.click('#dgDbs [data-dg-str]'); await q.waitForTimeout(300); h = await heads();
       check('ปุ่ม "① รายการยาบนเว็บ" ซ่อน/แสดงช่องรหัส · รูปแบบ · ความแรง · คิดเป็น (ชื่อยายังอยู่)', !h.includes('รูปแบบ') && !h.includes('ความแรง') && h.includes('ยา (ในเว็บแอพ)') && h.includes('② ฉลากยาสหรัฐฯ'));
