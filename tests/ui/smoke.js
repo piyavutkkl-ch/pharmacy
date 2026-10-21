@@ -1181,6 +1181,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-report-390.png') });
       await p.setViewportSize({ width: 1280, height: 900 }); }
     await go(p, '#/admin/drugs/dose');
+    check('คำนวณขนาดยา: กล่อง "+ เพิ่มรายการยา" ย่อไว้เป็นปกติ', !(await p.$eval('#dfNewFold', (d) => d.open)) && !(await p.isVisible('#dfName')));
+    await p.click('#dfNewFold > summary'); await p.waitForTimeout(150);
     await p.fill('#dfName', 'ยาทดสอบ'); await p.fill('#dfInds .i-name', 'ลดไข้'); await p.fill('#dfInds .i-min', '10'); await p.fill('#dfInds .i-max', '5'); await p.click('#dfSubmit'); await p.waitForTimeout(150);
     check('ผู้ดูแล: ขนาดยาผิดถูกเตือน', (await text(p, '#dfMsg')).length > 0);
     await p.fill('#dfInds .i-max', '15');
@@ -1211,10 +1213,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.close(); }
     await p.fill('#dfQ', 'ยาทดสอบ'); await p.waitForTimeout(150);
     check('รายการยา: ค้นหาชื่อได้', await count(p, '#dfList .li') === 1);
+    await p.$eval('#dfNewFold', (d) => { d.open = false; });
     await p.click('#dfList [data-edit]'); await p.waitForTimeout(400);
+    check('รายการยาคำนวณขนาดยา: กดแก้ไข → กล่องเพิ่มยาด้านบนยังย่ออยู่ + หัวข้อ "แก้ไข: ชื่อยา" ในกล่องใต้ยานั้น', !(await p.$eval('#dfNewFold', (d) => d.open)) && (await text(p, '#dfTitle')) === 'แก้ไข: ยาทดสอบ');
     check('รายการยาคำนวณขนาดยา: กดแก้ไข → ฟอร์มขยายใต้ยานั้น', await p.$eval('#dfForm', (f) => f.parentElement.id === 'dfList' && !!f.previousElementSibling?.querySelector('[data-edit]')) && (await p.inputValue('#dfName')) === 'ยาทดสอบ');
     await p.click('#dfList [data-edit]'); await p.waitForTimeout(450);
-    check('รายการยาคำนวณขนาดยา: กดแก้ไขซ้ำ = ย่อ (ฟอร์มกลับเป็นเพิ่มยาด้านบน)', await p.$eval('#dfForm', (f) => f.parentElement.id !== 'dfList') && (await p.inputValue('#dfName')) === '' && (await text(p, '#dfSubmit')).includes('เพิ่มยา'));
+    check('รายการยาคำนวณขนาดยา: กดแก้ไขซ้ำ = ย่อ (ฟอร์มกลับเป็นเพิ่มยาในกล่องด้านบน ซึ่งยังย่ออยู่)', await p.$eval('#dfForm', (f) => f.parentElement.id === 'dfNewFold') && (await p.inputValue('#dfName')) === '' && (await p.$eval('#dfSubmit', (b) => b.textContent)).includes('เพิ่มยา') && !(await p.$eval('#dfNewFold', (d) => d.open)));
+    await p.$eval('#dfNewFold', (d) => { d.open = true; });
     await p.fill('#dfQ', ''); await p.selectOption('#dfSortBy', 'desc'); await p.waitForTimeout(150);
     const dn = await p.$$eval('#dfList .li b', (b) => b.map((x) => [...x.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()).textContent.trim()));   // ข้ามป้ายรหัสยา
     check('รายการยา: เรียงตามตัวอักษรย้อนกลับได้', dn.join('|') === [...dn].sort((a, b) => b.localeCompare(a, 'th')).join('|') && dn.length > 1);
@@ -1848,7 +1853,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ยา รพ.สต.: บันทึกสารสำคัญรายตัว + ข้อมูลคำนวณของ Trimethoprim (ทวนสอบแล้ว = ไม่มีป้ายระบบใส่ให้)', up.ingredients?.length === 2 && up.ingredients[1].dose_id === await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id) && !up.ingredients[0].dose_id && !JSON.stringify(up.ingredients).includes('auto') && up.dose_id === null, JSON.stringify(up.ingredients));
       check('ยา รพ.สต.: แก้ยาใน DDInter → บันทึกเป็นรหัส', up.ddi_ids?.length === 1 && /^DDInter\d+$/.test(up.ddi_ids[0]), JSON.stringify(up.ddi_ids)); }
     await go(p, '#/admin/settings/dose'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: เมนูข้อมูลยาแยกจากตั้งค่า (ลิงก์เดิมพาไปเมนูใหม่)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/dose' && await p.$eval('[data-adr-sec="dose"]', (d) => d.open) && await visible(p, '#dfForm') && await count(p, '#asTabs [data-sub="dose"]') === 0 && await count(p, '.sidenav [data-admin-tab="drugs"]') === 1);
+    check('ผู้ดูแล: เมนูข้อมูลยาแยกจากตั้งค่า (ลิงก์เดิมพาไปเมนูใหม่)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/dose' && await p.$eval('[data-adr-sec="dose"]', (d) => d.open) && await visible(p, '#dfNewFold') && await count(p, '#asTabs [data-sub="dose"]') === 0 && await count(p, '.sidenav [data-admin-tab="drugs"]') === 1);
     await go(p, '#/admin/settings/delivery'); await p.waitForTimeout(400);
     check('ผู้ดูแล: จัดส่งยาถึงบ้านย้ายไปรวมกับ Health Rider', (await p.evaluate(() => location.hash)) === '#/admin/rider/delivery' && await visible(p, '[data-rider-sub="delivery"]') && !(await visible(p, '[data-rider-sub="rider"]')) && await count(p, '#arTabs [data-sub]') === 2);
     // ยา รพ.สต. ที่ยังไม่มีข้อมูลคำนวณ → ให้ AI ร่างขนาดยาจากฉลาก openFDA (ใช้ชื่อสามัญสหรัฐฯ) → ร่างซ่อนจนตรวจ

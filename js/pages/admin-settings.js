@@ -456,7 +456,7 @@ function resetDrugForm() {
   $('#dfConcs').innerHTML = concRow();
   $('#dfInds').innerHTML = indBox(); syncIndBoxes();
   $('#dfSort').value = nextSort();
-  $('#dfTitle').textContent = 'เพิ่มรายการยา';
+  $('#dfTitle').textContent = ''; $('#dfTitle').hidden = true; $('#dfNewNote').hidden = true;   // ฟอร์มกลับไปอยู่ในกล่องเพิ่มยาด้านบน (ย่อ/ขยายตามเดิม)
   $('#dfSubmit').textContent = 'เพิ่มยา';
   $('#dfCancel').hidden = true;
   $('#dfHelpOut').innerHTML = ''; help = null; $('#dfTestOut').innerHTML = '';
@@ -468,7 +468,7 @@ function resetDrugForm() {
 /** ศูนย์ข้อมูลยา: สร้างข้อมูลคำนวณใหม่ให้ยาตัวนี้ (ชื่อ + ผูกยานั้นไว้ก่อน) */
 export async function openDoseNew(name, localId) {
   const sec = document.querySelector('[data-adr-sec="dose"]'); if (sec) sec.open = true;
-  resetDrugForm(); $('#dfName').value = name;
+  resetDrugForm(); $('#dfNewFold').open = true; $('#dfName').value = name;
   await dlFill(null); dlPreset([localId]);
   $('#dfForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); $('#dfName').focus({ preventScroll: true });
 }
@@ -487,7 +487,7 @@ function startEditDrug(d) {
   $('#dfInds').innerHTML = inds.map((i) => indBox(i, inds.length <= 3)).join(''); syncIndBoxes();
   $('#dfSort').value = d.sort; $('#dfActive').checked = d.active;
   $('#dfConcs').innerHTML = (d.concs || []).map(concRow).join('') || concRow();
-  $('#dfTitle').textContent = 'แก้ไข: ' + d.name;
+  $('#dfTitle').textContent = 'แก้ไข: ' + d.name; $('#dfTitle').hidden = false; $('#dfNewNote').hidden = false;   // กล่องเพิ่มยาด้านบนไม่ย่อ/ขยายตาม
   $('#dfSubmit').textContent = d.ai_draft ? 'ตรวจแล้ว · บันทึก (อนุมัติ)' : 'บันทึกการแก้ไข';
   $('#dfCancel').hidden = false; $('#dfTestOut').innerHTML = '';
   say($('#dfMsg'), '');

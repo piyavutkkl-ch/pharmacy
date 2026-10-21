@@ -803,11 +803,13 @@
         <details class="adr-sec" data-adr-sec="dose">
           <summary class="adr-sum"><span class="adr-t">คำนวณขนาดยา</span><span class="small muted adr-n" data-adr-n="dose"></span></summary>
 
-          <div class="panel">
-            <h2 id="dfTitle">เพิ่มรายการยา</h2>
+          <details class="panel vs-pfold ld-newfold" id="dfNewFold">
+            <summary><h2>+ เพิ่มรายการยา (ข้อมูลคำนวณ)</h2></summary>
+            <p class="small muted" id="dfNewNote" hidden>กำลังแก้ไขยาในรายการด้านล่าง · กล่องแก้ไขอยู่ใต้ยานั้น</p>
             <p class="small muted">รายการนี้ใช้ในหน้าข้อมูลยา / คำนวณขนาดยาที่หน้าหลักทันที · ตรวจสอบตัวเลขกับเอกสารอ้างอิงก่อนบันทึก</p>
             <datalist id="dfIngList"><option value="Sulfamethoxazole"></option><option value="Trimethoprim"></option></datalist>
             <form id="dfForm" class="form-grid" novalidate>
+              <h3 class="full" id="dfTitle" hidden></h3>
               <div class="field"><label for="dfName">ชื่อยา <span class="req">*</span></label><input id="dfName" class="input" maxlength="120" placeholder="เช่น พาราเซตามอล (Paracetamol)"></div>
               <div class="field"><label for="dfForm2">รูปแบบยา</label><select id="dfForm2" class="input"><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
               <div class="field full dh"><div class="row-btns dh-bar"><button type="button" class="btn btn-o btn-sm" id="dfHelpBtn">ช่วยกรอกจากฐานข้อมูลยา</button><span class="small muted">ใช้ชื่อภาษาอังกฤษในวงเล็บของชื่อยา · ความแรงจาก RxNorm + ขนาดยาที่ AI ร่างจากฉลากยา openFDA · ตรวจก่อนบันทึก</span></div><div id="dfHelpOut" aria-live="polite"></div></div>
@@ -828,7 +830,7 @@
               <div class="field full dt-box"><div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dfTestBtn">ทดสอบสูตรก่อนบันทึก</button><span class="small muted">คิดด้วยน้ำหนักตัวอย่าง × ความแรงของยาที่ใช้ข้อมูลนี้ · ไม่ผ่าน = เปิดใช้ในเครื่องคำนวณไม่ได้</span></div><div id="dfTestOut" aria-live="polite"></div></div>
               <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="dfSubmit">เพิ่มยา</button><button class="btn btn-o btn-sm" type="button" id="dfCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="dfMsg" aria-live="polite"></span></div>
             </form>
-          </div>
+          </details>
           <div class="panel"><h2>รายการยาในเครื่องคำนวณ <span class="num muted" id="dfCount"></span></h2>
             <div class="doc-tools"><div class="field doc-q"><label for="dfQ">ค้นหาชื่อยา</label><input id="dfQ" class="input" type="search" maxlength="80" placeholder="พิมพ์ชื่อยาหรือข้อบ่งใช้"></div>
             <div class="field"><label for="dfFForm">รูปแบบยา</label><select id="dfFForm" class="input"><option value="all">ทุกรูปแบบ</option><option>ยาน้ำ</option><option>ยาเม็ด</option><option>ครีม</option><option>อื่น ๆ</option></select></div>
