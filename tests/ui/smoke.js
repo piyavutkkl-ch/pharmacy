@@ -2127,7 +2127,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ทีละฐาน: กดฐานอื่น = สลับไปแสดงฐานนั้นแทน', h.includes('② ฉลากยาสหรัฐฯ') && h.includes('ชื่อสามัญ') && h.includes('ช่องทาง') && !h.includes('② บัญชียา รพ.สต.') && await count(q, '#dgDbs [data-dg-db][aria-pressed="true"]') === 1, JSON.stringify(h));
       check('จำวิธีแสดงไว้ในเครื่องนี้', (await q.evaluate(() => localStorage.getItem('pcps_drug_grid'))) === '{"mode":"one","dbs":["fda"],"str":true}');
       await q.click('#dgDbs [data-dg-str]'); await q.waitForTimeout(300); h = await heads();
-      check('ปุ่ม "① ข้อมูลยา" ซ่อน/แสดงช่องรหัส · รูปแบบ · ความแรง · คิดเป็น (ชื่อยายังอยู่)', !h.includes('รูปแบบ') && !h.includes('ความแรง') && h.includes('ยา (ในเว็บแอพ)') && h.includes('② ฉลากยาสหรัฐฯ'));
+      check('ปุ่ม "① รายการยาบนเว็บ" ซ่อน/แสดงช่องรหัส · รูปแบบ · ความแรง · คิดเป็น (ชื่อยายังอยู่)', !h.includes('รูปแบบ') && !h.includes('ความแรง') && h.includes('ยา (ในเว็บแอพ)') && h.includes('② ฉลากยาสหรัฐฯ'));
       await q.click('#dgDbs [data-dg-str]'); await q.waitForTimeout(300);
       await q.click('[data-dg-mode="multi"]'); await q.click('#dgDbs [data-dg-all]'); await q.waitForTimeout(300);
       check('หลายฐาน: ปุ่ม "ทั้งหมด" แสดงครบทุกฐาน', await count(q, '#dgDbs [data-dg-db][aria-pressed="true"]') === 6 && (await heads()).includes('MIMS'));

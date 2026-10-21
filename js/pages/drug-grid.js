@@ -135,7 +135,7 @@ function columns() {
       cellClick: (e, cell) => openPanel(cell.getRow().getData().id) },
     { title: 'ยา (ในเว็บแอพ)', field: 'name', frozen: true, minWidth: 150, maxWidth: 260, cssClass: 'dg-name dg-ed dg-wrap', editor: 'input', editorParams: { elementAttributes: { maxlength: '200' } },
       formatter: (cell) => { const d = cell.getRow().getData(); return `<b>${esc(d.name)}</b>${d.l.outside ? '<span class="dg-tag">ยานอก</span>' : ''}${d.l.active ? '' : '<span class="dg-tag">ซ่อน</span>'}`; } },
-    ...(st.str ? [{ title: '① ยาในเว็บแอพ', columns: [
+    ...(st.str ? [{ title: '① รายการยาบนเว็บ', columns: [
       { title: 'รหัส', field: 'code', width: 110, formatter: (cell) => mut(cell.getValue() || '—') },
       { title: 'รูปแบบ', field: 'category', minWidth: 150, maxWidth: 200, cssClass: 'dg-ed dg-wrap', editor: 'list',
         editorParams: () => ({ values: [...new Set(D.locals.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')) }), formatter: (cell) => esc(cell.getValue() || '—') },
@@ -245,7 +245,7 @@ function count() {
 }
 function renderBar() {
   $$('[data-dg-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dgMode === st.mode)));
-  $('#dgDbs').innerHTML = `<button type="button" class="dg-chip dg-chip-str" data-dg-str aria-pressed="${st.str}" title="รหัส · รูปแบบ · ความแรง · คิดเป็น">① ข้อมูลยา</button>` + (st.mode === 'multi' ? `<button type="button" class="dg-chip" data-dg-all aria-pressed="${st.dbs.length === DBS.length}">ทั้งหมด</button>` : '')
+  $('#dgDbs').innerHTML = `<button type="button" class="dg-chip dg-chip-str" data-dg-str aria-pressed="${st.str}" title="รหัส · รูปแบบ · ความแรง · คิดเป็น">① รายการยาบนเว็บ</button>` + (st.mode === 'multi' ? `<button type="button" class="dg-chip" data-dg-all aria-pressed="${st.dbs.length === DBS.length}">ทั้งหมด</button>` : '')
     + DBS.map((k) => `<button type="button" class="dg-chip" data-dg-db="${k}" aria-pressed="${st.dbs.includes(k)}">${DBN[k]}</button>`).join('');
 }
 function applyCols() {
