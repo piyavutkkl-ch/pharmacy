@@ -1410,3 +1410,29 @@ td.dt-warn{color:var(--warning)}td.dt-fail{color:var(--error);font-weight:600}
 .dt-check > summary{font-weight:600}
 .dt-check.dt-pass > summary{color:var(--success)}.dt-check.dt-warn > summary{color:var(--warning)}.dt-check.dt-fail > summary{color:var(--error)}
 .dt-act{flex-wrap:wrap}
+
+/* ปุ่มเลือกไฟล์: เป็นปุ่มทรงเดียวกับปุ่มอื่น (ข้อความตามภาษาของเครื่อง · เครื่องภาษาไทยขึ้น "เลือกไฟล์") */
+input[type=file]{font:inherit;font-size:13px;color:var(--muted);max-width:100%}
+input[type=file]::file-selector-button{font:inherit;font-size:13px;font-weight:600;padding:8px 16px;margin-right:10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--primary);cursor:pointer}
+input[type=file]::file-selector-button:hover{border-color:var(--primary)}
+
+/* มือถือ/จอสัมผัส: ปุ่ม ช่องติ๊ก ลิงก์ กดง่าย อย่างน้อย 44px (ตรวจความใช้ง่าย 21 ต.ค.) */
+@media (pointer:coarse), (max-width:600px){
+  .btn,.btn-sm,.input,.cta,.tab-link,.unit-tabs button{min-height:44px}
+  .btn-sm{padding:8px 16px}
+  input[type=checkbox],input[type=radio]{width:22px;height:22px;flex:none}
+  label:has(> input[type=checkbox]),label:has(> input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
+  input[type=file]::file-selector-button{min-height:44px}
+  .ci-folder{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  .nt-x{width:44px;height:44px}
+  .arrow{width:44px;height:44px}
+  .footer-link{display:inline-flex;align-items:center;min-height:44px}
+  .me-name{min-height:44px;display:inline-flex;align-items:center}
+  .mark,#logoutLink{min-height:44px}
+  #logoutLink{display:inline-flex;align-items:center}
+  .dots button{position:relative}
+  .dots button::after{content:"";position:absolute;inset:-18px -4px}
+  .dc-cell,.dc-nm{min-height:44px}
+  .dc-tabs .dc-tools-link .dc-tl-x{display:none}
+  .dc-tabs .dc-tools-link{min-width:44px;justify-content:center;font-size:20px;border:1px solid var(--line);border-radius:999px}
+}

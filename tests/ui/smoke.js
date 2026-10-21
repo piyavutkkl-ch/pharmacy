@@ -2104,6 +2104,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.screenshot({ path: path.join(SHOTS, 'citizen-chat-image-390.png') });
     await p.close();
 
+    { // ตรวจความใช้ง่าย 21 ต.ค.: มือถือ 390px ปุ่ม/ลิงก์/ช่องกรอกที่กดได้สูง ≥ 44px (ยกเว้นลิงก์ในประโยค · ช่องติ๊กที่อยู่ใน label สูง 44 · จุดสไลด์มีพื้นที่กดเพิ่ม)
+      for (const [role, hash] of [[null, '#/'], ['staff', '#/staff/criteria'], ['staff', '#/staff/news'], ['admin', '#/admin/drugs'], ['admin', '#/admin/news']]) {
+        const q = await open(role, hash, 390, 844); await q.waitForTimeout(900);
+        const bad = await q.evaluate(() => [...document.querySelectorAll('button,a,input,select,summary')].filter((e) => {
+          const r = e.getBoundingClientRect();
+          if (!e.offsetParent || r.width === 0 || r.height >= 44 || e.closest('.dots,.sr-only') || e.classList.contains('sr-only') || e.classList.contains('linklike')) return false;
+          if (e.tagName === 'A' && e.closest('p,.small,li')) return false;   // ลิงก์ในประโยค
+          if (/checkbox|radio/.test(e.type) && e.closest('label')?.getBoundingClientRect().height >= 44) return false;
+          return true;
+        }).map((e) => `${e.tagName}${e.id ? '#' + e.id : ''}.${e.className} ${Math.round(e.getBoundingClientRect().height)}px`).slice(0, 6));
+        check(`มือถือ 390px ${role || 'ผู้เยี่ยมชม'} ${hash}: ปุ่ม/ลิงก์/ช่องกรอกสูง ≥ 44px`, bad.length === 0, bad.join(' | '));
+        await q.close();
+      }
+    }
     { // ตารางแก้ไขยา (Tabulator · เจ้าของเว็บ 21 ต.ค.): เลือกฐานที่แสดง หลายฐาน/ทีละฐาน · คลิกช่องแก้ → บันทึก local_drugs ทันที · ช่องขนาดยา → แผงยาขั้นที่ 3
       const q = await open('admin', '#/admin'); await q.waitForTimeout(500);
       const amx = await q.evaluate(() => { const l = window.__db.local_drugs.find((x) => x.name === 'AMOXICILLIN 500 MG'); Object.assign(l, { mono_refs: [], ddi_ids: [], fda_key: null, strength: null }); return l.id; });
