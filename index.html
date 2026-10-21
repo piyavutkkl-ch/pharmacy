@@ -714,12 +714,13 @@
 <symbol id="dwi-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
 <symbol id="dwi-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/></symbol>
 <symbol id="dwi-swap" viewBox="0 0 24 24"><path d="M4 7h14l-3-3M20 17H6l3 3"/></symbol>
+<symbol id="dwi-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></symbol>
 <symbol id="dwi-doc" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></symbol>
           </defs></svg>
           <aside class="card dw-rail" aria-label="รายการยา">
             <div class="dw-add-new"><svg class="ic" aria-hidden="true"><use href="#dwi-spark"/></svg><input id="dwNew" class="input" maxlength="200" placeholder="ชื่อยาใหม่ → AI เตรียมให้" aria-label="ชื่อยาใหม่"><button type="button" class="btn btn-p btn-sm" id="dwNewGo">เพิ่ม</button></div>
             <input id="dwQ" class="input" type="search" maxlength="80" placeholder="ค้นชื่อยา สารสำคัญ หรือรหัส" aria-label="ค้นหายา">
-            <div class="dw-filt" role="group" aria-label="กรองรายการยา"><button type="button" data-dw-filt="todo" aria-pressed="true">ยังไม่เสร็จ <b></b></button><button type="button" data-dw-filt="ready" aria-pressed="false">พร้อมใช้ <b></b></button><button type="button" data-dw-filt="all" aria-pressed="false">ทั้งหมด <b></b></button></div>
+            <div class="dw-filt" role="group" aria-label="กรองรายการยา"><button type="button" data-dw-filt="all" aria-pressed="false">ทั้งหมด <b></b></button><button type="button" data-dw-filt="ready" aria-pressed="false">เสร็จสิ้น <b></b></button><button type="button" data-dw-filt="todo" aria-pressed="true">รอตรวจสอบ <b></b></button></div>
             <div class="dw-list" id="dwList"><div class="skeleton"></div></div>
           </aside>
           <div class="dw-main" id="dwMain"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
@@ -756,6 +757,11 @@
           </div>
           <p class="small muted" id="dgHint">คลิกช่องเพื่อแก้ · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป · ช่องขนาดยา: กดแล้วไปการ์ดขนาดยาในหน้าทำงานทีละยา (ทดสอบสูตรก่อนอนุมัติ)</p>
           <p class="small muted" id="dgCount" aria-live="polite"></p>
+          <div class="dg-ing card" id="dgIng" hidden role="group" aria-labelledby="dgIngTitle">
+            <div class="dg-ing-h"><b>สารสำคัญ · <span id="dgIngTitle"></span></b><span class="small muted">1 สาร = ยาเดี่ยว · 2 สารขึ้นไป = ยาสูตรผสม (ทุกสารหน่วยเดียวกัน)</span></div>
+            <div id="dgIngRows"></div>
+            <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dgIngAdd">+ เพิ่มสารสำคัญ</button><span class="sp"></span><button type="button" class="btn btn-o btn-sm" id="dgIngCancel">ยกเลิก</button><button type="button" class="btn btn-p btn-sm" id="dgIngSave">บันทึก</button></div>
+          </div>
           <div id="dgTable" class="dg-table"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
         </div>
         <div id="dcHelp" class="dc-help" hidden>
@@ -840,6 +846,11 @@
             </ul>
           </div>
         </div>
+        <!-- ถังยาที่ลบ (drug-trash.js · 88): ลบยา = ย้ายมาที่นี่ 7 วัน เรียกคืนได้ แล้วลบถาวรเอง -->
+        <details class="panel dc-trash" id="dcTrash" open>
+          <summary><b>ถังยาที่ลบ</b><span class="num muted" id="dcTrashN"></span><span class="small muted">เก็บ 7 วัน · เรียกคืนได้ แล้วลบถาวรอัตโนมัติ</span></summary>
+          <div class="list" id="dcTrashList"></div>
+        </details>
         <div class="dc-dr-back" id="dcDrBack" hidden></div>
         <aside class="dc-drawer" id="dcDrawer" hidden aria-labelledby="dcDrTitle">
           <div class="dc-dr-head"><h2 id="dcDrTitle">เครื่องมือฐานข้อมูล</h2><button type="button" class="dc-pen" id="dcDrClose" aria-label="ปิด กลับศูนย์ข้อมูลยา">×</button></div>

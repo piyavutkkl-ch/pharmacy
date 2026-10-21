@@ -398,7 +398,8 @@ async function loadInfo() {
       monos = all;
     }
     if (!locals) {
-      const { data, error } = await sb.from('local_drugs').select('*').eq('active', true).order('sort').order('id');
+      const { data: all, error } = await sb.from('local_drugs').select('*').eq('active', true).order('sort').order('id');
+      const data = (all || []).filter((x) => !x.trashed_at);   // ยาในถัง (88) ไม่แสดง · ผู้ดูแลอ่านได้ทุกแถว
       if (error) throw error;
       locals = data;
     }

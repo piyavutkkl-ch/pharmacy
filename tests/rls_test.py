@@ -1294,5 +1294,14 @@ check("cleanup AI fix test drugs", "admin", "delete from local_drugs where name 
 check("fixes removed with drug (cascade)", None, "select count(*) from ai_dose_fixes", eq(0))
 run("delete from drug_fda_labels where key='fixtest|ORAL'")
 
+# ---------- 88: ถังยาที่ลบ (trashed_at) ----------
+check("admin moves drug to trash (not deleted)", "admin", "update local_drugs set trashed_at=now() where code='1050042' returning code", eq("1050042"))
+check("anon cannot see trashed drug", "anon", "select count(*) from local_drugs where code='1050042'", eq(0))
+check("staff cannot see trashed drug", "s2", "select count(*) from local_drugs where code='1050042'", eq(0))
+check("admin still sees trashed drug (to restore)", "admin", "select count(*) from local_drugs where code='1050042' and trashed_at is not null", eq(1))
+check("staff cannot restore from trash (RLS → 0 rows)", "s2", "update local_drugs set trashed_at=null where code='1050042' returning id", rows(0))
+check("admin restores drug from trash", "admin", "update local_drugs set trashed_at=null where code='1050042' returning code", eq("1050042"))
+check("restored drug visible to anon again", "anon", "select count(*) from local_drugs where code='1050042'", eq(1))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

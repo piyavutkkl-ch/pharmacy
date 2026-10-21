@@ -17,6 +17,7 @@ import { initMimsAdmin } from './admin-mims.js?v=4.4';
 import { initRpstAdmin } from './admin-rpst.js?v=4.4';
 import { initDrugCenter, showDrugTab, setDrawer, drugPage } from './drug-center.js?v=4.4';
 import { initDrugWork } from './drug-work.js?v=4.4';
+import { initDrugTrash } from './drug-trash.js?v=4.4';
 import { initDrugGrid } from './drug-grid.js?v=4.4';
 import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
@@ -69,7 +70,7 @@ export async function showAdmin(tab, sub) {
     const first = page === 'work' ? initDrugWork() : page === 'grid' ? initDrugGrid() : null;   // หน้าที่เปิดอยู่รับ "แก้ไขข้อมูลนี้" (pcps_drug_edit) ก่อน
     const run = Promise.all([initDrugsAdmin(), initDoseAdmin(), first]);
     initMimsAdmin(); initRpstAdmin();
-    initDrugCenter();
+    initDrugCenter(); initDrugTrash();
     return run;
   }
   if (tab === 'docs') return initAdminDocs();

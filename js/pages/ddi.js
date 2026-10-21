@@ -28,7 +28,7 @@ async function load() {
     if (err) { loaded = null; throw err; }
     drugs = new Map(d.data.map((x) => [x.id, x]));
     pairs = p.data;
-    locals = l.data.filter((x) => (x.ddi_ids || []).some((i) => drugs.has(i))).sort((a, b) => !!a.outside - !!b.outside);   // ยานอก รพ.สต. (81) อยู่ท้าย
+    locals = l.data.filter((x) => !x.trashed_at && (x.ddi_ids || []).some((i) => drugs.has(i))).sort((a, b) => !!a.outside - !!b.outside);   // ยานอก รพ.สต. (81) อยู่ท้าย
     return true;
   })();
   return loaded;

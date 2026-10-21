@@ -446,7 +446,7 @@ function renderAll() { compute(); renderTop(); renderTable(); renderPanel(); }
 
 /** แท็บข้อมูลยา: center = ศูนย์ข้อมูลยา · grid = ตารางแก้ไขยา (drug-grid.js) · help = วิธีใช้ */
 export function showDrugTab(page) {
-  $('#dcCenter').hidden = page !== 'center'; $('#dcHelp').hidden = page !== 'help'; $('#dcGrid').hidden = page !== 'grid'; $('#dcWork').hidden = page !== 'work';
+  $('#dcCenter').hidden = page !== 'center'; $('#dcHelp').hidden = page !== 'help'; $('#dcGrid').hidden = page !== 'grid'; $('#dcWork').hidden = page !== 'work'; $('#dcTrash').hidden = page === 'help';
   if (page === 'help') setDrawer(false);
   curPage = page;
 }

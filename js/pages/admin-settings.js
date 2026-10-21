@@ -590,9 +590,9 @@ async function renderReview() {
   $('#dfReview').innerHTML = list.length ? list.map((d, k) => rvCard(d, k < RV_OPEN)).join('') : `<p class="empty">${pickDose ? 'ยานี้ไม่มีร่างรอตรวจ' : 'ไม่มีร่างรอตรวจ'}</p>`;
   $('#dfReview').querySelectorAll('.r-inds').forEach((b) => syncIndBoxes(b));
   // ความคืบหน้าของระบบ: ยารับประทานของ รพ.สต. ที่ยังไม่มีข้อมูลคำนวณ
-  const { data, error } = await sb.from('local_drugs').select('name,category,dose_id,dose_ai_status,dose_ai_note').eq('active', true);
+  const { data, error } = await sb.from('local_drugs').select('name,category,dose_id,dose_ai_status,dose_ai_note,trashed_at').eq('active', true);
   if (error) { $('#dfRvStatus').textContent = ''; return; }
-  const left = data.filter((l) => !l.dose_id && ORAL.test(l.category));
+  const left = data.filter((l) => !l.trashed_at && !l.dose_id && ORAL.test(l.category));
   const n = (st) => left.filter((l) => (l.dose_ai_status || 'wait') === st).length;
   const none = left.filter((l) => l.dose_ai_status === 'none');
   $('#dfRvStatus').innerHTML = !left.length ? 'ยารับประทานของ รพ.สต. มีข้อมูลคำนวณครบทุกตัวแล้ว'

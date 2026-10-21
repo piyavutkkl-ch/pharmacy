@@ -13,9 +13,10 @@
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { resetDrugInfo, strengthOf, comboName, keysOf, latinOf, sameDrug } from './dose.js?v=4.4';
+import { trashDrug } from './drug-trash.js?v=4.4';
 
 let doseOpts = '<option value="">ข้อมูลคำนวณ: อัตโนมัติ (จับคู่ตามชื่อยา)</option>';
-let locals = [], monos = [], fdas = [], doses = [], ddDrugs = [], mims = [], rpst = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30, pick = null, ready = null, newOutside = false;
+let locals = [], trashed = [], monos = [], fdas = [], doses = [], ddDrugs = [], mims = [], rpst = [], ddPairs = [], ddShown = 30, editDd = null, ddStop = false, thStop = false, bound = false, editLocal = null, editMono = null, editFda = null, links = [], dmShown = 30, pick = null, ready = null, newOutside = false;
 
 export async function initDrugsAdmin() {
   if (!bound) bind();
@@ -40,7 +41,7 @@ export function openDrugSection(v) {
 /** ข้อมูลยาทุกฐาน (ศูนย์ข้อมูลยา · drug-center.js) · รอโหลดเสร็จก่อน */
 export async function drugData() {
   if (!ready) await initDrugsAdmin(); else await ready;
-  return { locals, monos, fdas, doses, ddDrugs, mims, rpst };
+  return { locals, monos, fdas, doses, ddDrugs, mims, rpst, trashed };
 }
 /** โหลดยา รพ.สต. ใหม่หลังศูนย์ข้อมูลยาบันทึก (รายการในส่วนฐานข้อมูลอัปเดตตาม) */
 export async function reloadDrugData(fda = false) { changed(); await Promise.all([loadDoses(), loadMims(), loadRpst(), fda ? loadFdas() : null]); await loadLocals(); }
@@ -132,7 +133,7 @@ async function loadMims() {
 async function loadLocals() {
   const { data, error } = await sb.from('local_drugs').select('*').order('sort').order('id');
   if (error) { toast(errText(error), 'err'); $('#ldList').innerHTML = '<p class="empty">โหลดรายการยาไม่สำเร็จ</p>'; return; }
-  locals = data;
+  locals = data.filter((x) => !x.trashed_at); trashed = data.filter((x) => x.trashed_at);   // ถังยาที่ลบ (88 · drug-trash.js)
   $('#ldCats').innerHTML = [...new Set(locals.map((l) => l.category))].map((c) => `<option value="${esc(c)}">`).join('');
   $('#adrNames').innerHTML = locals.map((l) => `<option value="${esc(l.name)}"></option>`).join('');
   if (pick) pick = locals.find((l) => l.id === pick.id) || null;   // ข้อมูลล่าสุดหลังบันทึก
@@ -396,12 +397,9 @@ async function onLocalList(e) {
   if (ed) { const l = locals.find((x) => x.id === +ed.dataset.ldEdit); if (l) editLocalForm(l); return; }
   if (!del) return;
   const l = locals.find((x) => x.id === +del.dataset.ldDel);
-  if (!l || !confirm(`ลบ "${l.name}" ออกจากรายการยา${l.outside ? 'นอก ' : ' '}รพ.สต.?\n(ข้อมูลยาในบัญชียาหลักไม่ถูกลบ)`)) return;
-  const { error } = await sb.from('local_drugs').delete().eq('id', l.id);
-  if (error) { toast(errText(error), 'err'); return; }
-  toast('ลบยาแล้ว'); changed();
+  if (!l || !(await trashDrug(l, del))) return;   // ย้ายลงถัง 7 วัน (เรียกคืนได้)
+  changed();
   if (editLocal?.id === l.id) resetLocal();
-  loadLocals();
 }
 
 /* ======================= กล่อง "ผูกฐานข้อมูล" ในฟอร์มคำนวณขนาดยา (admin-settings.js) ======================= */

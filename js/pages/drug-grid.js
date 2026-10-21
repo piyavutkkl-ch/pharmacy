@@ -9,6 +9,7 @@ import { $, $$, esc, toast, errText } from '../util.js?v=4.4';
 import { strengthOf, comboName } from './dose.js?v=4.4';
 import { reloadDrugData, drugData } from './admin-drugs.js?v=4.4';
 import { DC, centerRows, suggest, applyRow, basesOf, rejectPair } from './drug-center.js?v=4.4';
+import { trashDrug } from './drug-trash.js?v=4.4';
 
 const TAB = 'https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist';
 const TAB_JS = `${TAB}/js/tabulator_esm.min.mjs`, TAB_CSS = `${TAB}/css/tabulator.min.css`;
@@ -57,7 +58,7 @@ function cellHtml(d, k) {
     + (k === 'dose' && x.s !== 'na' ? '<span class="dg-go">เปิดตารางขนาดยา ›</span>' : '');
 }
 function amtHtml(d) {
-  if (combo(d.l)) { const ings = (d.l.ingredients || []).filter((x) => +x.mg > 0); return mut(ings.length ? `สูตรผสม: ${ings.map((x) => `${x.name} ${num(x.mg)}`).join(' + ')} (แก้ในแผงยา)` : 'สูตรผสม · กรอกสารสำคัญในแผงยา'); }
+  if (combo(d.l)) { const ings = (d.l.ingredients || []).filter((x) => +x.mg > 0); return mut(ings.length ? `สูตรผสม: ${ings.map((x) => `${x.name} ${num(x.amt ?? x.mg)}`).join(' + ')} · ดูช่องสารสำคัญ` : 'สูตรผสม · กรอกที่ช่องสารสำคัญ'); }
   if (d.amt != null && d.amt !== '') return esc(String(num(d.amt)));
   const s = strengthOf(d.l);
   return s ? mut(`${num(s.mg)} (อ่านจากชื่อยา)`) : mut('—');
@@ -139,8 +140,10 @@ function columns() {
       { title: 'รหัส', field: 'code', width: 110, formatter: (cell) => mut(cell.getValue() || '—') },
       { title: 'รูปแบบ', field: 'category', minWidth: 150, maxWidth: 200, cssClass: 'dg-ed dg-wrap', editor: 'list',
         editorParams: () => ({ values: [...new Set(D.locals.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')) }), formatter: (cell) => esc(cell.getValue() || '—') },
+      { title: 'สารสำคัญ', field: '_ings', minWidth: 170, maxWidth: 280, headerSort: false, cssClass: 'dg-ed dg-wrap', formatter: (cell) => ingsHtml(cell.getRow().getData().l),   // เพิ่ม/ลดสารสำคัญ + ความแรงรายสาร (thread 534c846e)
+        cellClick: (e, cell) => openIngs(cell.getRow().getData().l) },
       { title: 'ความแรง', field: 'amt', width: 130, cssClass: 'dg-ed dg-wrap', editor: 'number', editorParams: { min: 0, step: 0.001, selectContents: true }, editable: ed((d) => !combo(d.l)), formatter: (cell) => amtHtml(cell.getRow().getData()), sorter: 'number',
-        cellClick: (e, cell) => { const d = cell.getRow().getData(); if (combo(d.l)) openPanel(d.id); } },
+        cellClick: (e, cell) => { const d = cell.getRow().getData(); if (combo(d.l)) openIngs(d.l); } },
       { title: 'หน่วย', field: 'unit', width: 110, headerSort: false, cssClass: 'dg-ed', editor: 'list', editorParams: { values: DC.UNITS.map(([value, label]) => ({ value, label })) }, editable: ed((d) => !combo(d.l)), formatter: (cell) => unitHtml(cell.getRow().getData()) },
       { title: 'คิดเป็น (สาร)', field: 'asName', width: 140, headerSort: false, cssClass: 'dg-ed dg-wrap', editor: 'list', editable: ed((d) => !combo(d.l)),
         editorParams: (cell) => { const d = cell.getRow().getData(); return listParams([{ label: '— ไม่มี —', value: '' }, ...[...new Set([...basesOf(d.l), ...(d.asName ? [d.asName] : [])])].map((n) => ({ label: n, value: n }))], { freetext: true }); },
@@ -167,7 +170,10 @@ function columns() {
   });
   const tail = { title: 'สถานะ', field: 'status', minWidth: 96, formatter: (cell) => { const [t, c] = DC.ROW[cell.getValue()]; return `<span class="dc-pill p-${c}">${t}</span>`; },
     sorter: (a, b) => ['err', 'miss', 'wait', 'ready'].indexOf(a) - ['err', 'miss', 'wait', 'ready'].indexOf(b) };
-  return [...base, ...(st.mode === 'multi' && groups.length ? [{ title: '② แหล่งข้อมูล · ③ ขนาดยา', columns: groups }] : groups), tail];
+  const del = { title: 'ลบ', field: '_del', width: 110, headerSort: false, hozAlign: 'center', cssClass: 'dg-delcell',   // ลบรายการยานี้ = ย้ายลงถัง 7 วัน (drug-trash.js)
+    formatter: (cell) => `<button type="button" class="dg-del" data-dg-del aria-label="ลบรายการยา ${esc(cell.getRow().getData().name)}">ลบรายการยานี้</button>`,
+    cellClick: async (e, cell) => { if (!e.target.closest('[data-dg-del]') || saving) return; if (await trashDrug(cell.getRow().getData().l)) await refresh(true); } };
+  return [...base, ...(st.mode === 'multi' && groups.length ? [{ title: '② แหล่งข้อมูล · ③ ขนาดยา', columns: groups }] : groups), tail, del];
 }
 
 /* ---------- บันทึก ---------- */
@@ -225,6 +231,57 @@ async function onSug(e, cell, k) {
   if (b.matches('[data-dg-ok]')) { await save(d.l, applyRow(d.l, k, sg.target), `ผูก ${DBN[k]} แล้ว`); return; }
   try { await rejectPair(d.l, k, sg.target); toast('จำไว้แล้วว่าไม่ใช่คู่นี้'); await refresh(false); } catch (err) { toast(errText(err), 'err'); }
 }
+/* ---------- สารสำคัญ (เพิ่ม/ลด · ความแรงรายสาร) · กล่อง #dgIng ---------- */
+const ING_UNITS = DC.UNITS;   // มก./เม็ด · มก./5 มล. · มก./มล. · mcg/เม็ด · mcg/มล.
+let ingFor = null;
+function ingsHtml(l) {
+  const ings = l.ingredients || [];
+  if (ings.length > 1) return `${ings.map((x) => `${esc(x.name)} ${esc(String(num(x.amt ?? x.mg)))}`).join(' + ')} ${esc(ING_UNITS.find(([v]) => v === `${ings[0].u || 'mg'}|${ings[0].per || 'tab'}`)?.[1] || '')}`;
+  return mut(comboName(l.name) ? 'สูตรผสม · กดเพื่อกรอกสารสำคัญ' : 'ยาเดี่ยว · กดเพื่อเพิ่มสาร');
+}
+const ingRow = (x = {}) => `<div class="dg-ing-row"><input class="input i-n" maxlength="60" placeholder="ชื่อสารสำคัญ เช่น Trimethoprim" aria-label="ชื่อสารสำคัญ" value="${esc(x.name || '')}">`
+  + `<input class="input i-a" type="number" inputmode="decimal" min="0" step="0.001" placeholder="ความแรง" aria-label="ความแรง" value="${esc(x.amt ?? '')}">`
+  + `<select class="input i-u" aria-label="หน่วย">${ING_UNITS.map(([v, t]) => `<option value="${v}"${v === `${x.u || 'mg'}|${x.per || 'tab'}` ? ' selected' : ''}>${t}</option>`).join('')}</select>`
+  + '<button type="button" class="btn btn-no btn-sm" data-ing-rm aria-label="ลบสารนี้">×</button></div>';
+function openIngs(l) {
+  ingFor = l;
+  const ings = l.ingredients || [], s = l.strength;
+  const rows = ings.length ? ings.map((x) => ({ name: x.name, amt: x.amt ?? x.mg, u: x.u || 'mg', per: x.per || 'tab' }))
+    : [{ name: '', amt: s ? (s.u === 'mcg' ? s.amt : s.mg) : '', u: s?.u || 'mg', per: s?.per || 'tab' }];
+  $('#dgIngTitle').textContent = l.name;
+  $('#dgIngRows').innerHTML = rows.map(ingRow).join('');
+  $('#dgIng').hidden = false;
+  $('#dgIng').scrollIntoView({ block: 'nearest' });
+  $('#dgIngRows .i-n')?.focus({ preventScroll: true });
+}
+function closeIngs() { ingFor = null; $('#dgIng').hidden = true; }
+/** แถวสารสำคัญ → แถว local_drugs (1 สาร = ยาเดี่ยว: strength · ≥ 2 สาร = ingredients[] · คง dose_id รายสารตามชื่อเดิม) */
+export function ingsRow(l, rows) {
+  rows = rows.filter((x) => x.name || x.amt);
+  const mgOf = (x) => (x.u === 'mcg' ? +(x.amt / 1000).toFixed(6) : x.amt);
+  if (rows.length <= 1) {
+    const r = rows[0], as = (l.ingredients || []).length > 1 ? null : l.strength?.as;
+    if (r && !(r.amt > 0)) throw new Error('กรอกความแรงของสารสำคัญ');
+    const old = (l.ingredients || []).find((x) => r && x.name && x.name.toLowerCase() === String(r.name).toLowerCase());
+    return { strength: r ? { mg: mgOf(r), per: r.per, ...(r.u === 'mcg' ? { u: 'mcg', amt: r.amt } : {}), ...(as ? { as } : {}) } : null, ingredients: null, ...(old?.dose_id && !l.dose_id ? { dose_id: old.dose_id } : {}) };
+  }
+  if (rows.some((x) => !x.name || !(x.amt > 0))) throw new Error('ยาสูตรผสม: กรอกชื่อและความแรงของสารสำคัญให้ครบทุกแถว');
+  if (new Set(rows.map((x) => x.name.toLowerCase())).size < rows.length) throw new Error('ชื่อสารสำคัญซ้ำกัน');
+  if (new Set(rows.map((x) => x.per)).size > 1) throw new Error('ยาสูตรผสม: ทุกสารต้องเป็นต่อเม็ด หรือต่อ มล. เหมือนกัน');
+  const doseOf = (n) => (l.ingredients || []).find((x) => x.name.toLowerCase() === n.toLowerCase())?.dose_id;
+  return { strength: null, dose_id: null, ingredients: rows.map((x) => ({ name: x.name, mg: mgOf(x), per: x.per, ...(x.u === 'mcg' ? { u: 'mcg', amt: x.amt } : {}), ...(doseOf(x.name) ? { dose_id: doseOf(x.name) } : {}) })) };
+}
+async function saveIngs(btn) {
+  const l = ingFor; if (!l) return;
+  const rows = [...document.querySelectorAll('#dgIngRows .dg-ing-row')].map((r) => { const [u, per] = r.querySelector('.i-u').value.split('|'), a = +r.querySelector('.i-a').value; return { name: r.querySelector('.i-n').value.trim().replace(/\s+/g, ' '), amt: a > 0 ? a : null, u, per }; });
+  let row;
+  try { row = ingsRow(l, rows); } catch (err) { toast(err.message, 'err'); return; }
+  btn.disabled = true;
+  const ok = await save(l, row, row.ingredients ? `บันทึกสารสำคัญ ${row.ingredients.length} ตัวแล้ว` : 'บันทึกความแรงแล้ว');
+  btn.disabled = false;
+  if (ok) closeIngs();
+}
+
 /** เปิดยานี้ในหน้าทำงานทีละยา (#/admin/drugs) · ขนาดยาแก้ที่การ์ดขนาดยาในหน้านั้น */
 function openPanel(id) { try { sessionStorage.setItem('pcps_work_focus', String(id)); } catch { /* ไม่เป็นไร */ } location.hash = '#/admin/drugs'; }
 
@@ -256,6 +313,7 @@ function applyCols() {
   table.refreshFilter(); count();
 }
 function bind() {
+  window.addEventListener('pcps:drugtrash', () => { if (table && !$('#dcGrid').hidden) refresh(true); });   // เรียกคืนจากถังยาที่ลบ
   bound = true;
   $$('[data-dg-mode]').forEach((b) => b.addEventListener('click', () => {
     if (st.mode === b.dataset.dgMode) return;
@@ -273,6 +331,10 @@ function bind() {
   });
   const re = () => { if (table) { table.refreshFilter(); count(); } };
   $('#dgQ').addEventListener('input', re); $('#dgScope').addEventListener('change', re); $('#dgGap').addEventListener('change', re);
+  $('#dgIngAdd').addEventListener('click', () => { $('#dgIngRows').insertAdjacentHTML('beforeend', ingRow({ u: $('#dgIngRows .i-u')?.value.split('|')[0], per: $('#dgIngRows .i-u')?.value.split('|')[1] })); $('#dgIngRows .dg-ing-row:last-child .i-n').focus(); });
+  $('#dgIngRows').addEventListener('click', (e) => { const b = e.target.closest('[data-ing-rm]'); if (!b) return; if ($$('#dgIngRows .dg-ing-row').length > 1) b.closest('.dg-ing-row').remove(); else b.closest('.dg-ing-row').querySelectorAll('input').forEach((x) => { x.value = ''; }); });
+  $('#dgIngSave').addEventListener('click', (e) => saveIngs(e.currentTarget));
+  $('#dgIngCancel').addEventListener('click', closeIngs);
   $('#dgGroup').addEventListener('change', () => table?.setGroupBy($('#dgGroup').checked ? 'category' : false));
 }
 async function loadLib() {
@@ -284,12 +346,13 @@ async function loadLib() {
 }
 /** มาจากแผงยา (✎ แก้ข้อมูลยา) → ล้างตัวกรอง แสดงช่องข้อมูลยา เลื่อนไปแถวยานั้น + ไฮไลต์ */
 async function focusPending() {
-  let id = null;
-  try { id = sessionStorage.getItem('pcps_grid_focus'); sessionStorage.removeItem('pcps_grid_focus'); } catch { /* ไม่เป็นไร */ }
+  let id = null, k = null;   // 'id' หรือ 'id:ฐาน' (มาจากหน้าทำงานทีละยา · แก้ไขรายละเอียด → แสดงทีละฐานที่ฐานนั้น)
+  try { [id, k] = String(sessionStorage.getItem('pcps_grid_focus') || '').split(':'); sessionStorage.removeItem('pcps_grid_focus'); } catch { /* ไม่เป็นไร */ }
   const row = id && table.getRow(DC.idv(id));
   if (!row) return;
   $('#dgQ').value = ''; $('#dgGap').checked = false; $('#dgScope').value = 'all';
-  if (!st.str) { st.str = true; applyCols(); } else { table.refreshFilter(); count(); }
+  if (DBS.includes(k)) { st = { ...st, mode: 'one', dbs: [k], str: true }; applyCols(); }
+  else if (!st.str) { st.str = true; applyCols(); } else { table.refreshFilter(); count(); }
   const r = table.getRow(DC.idv(id));
   await r.scrollTo('center', false).catch(() => {});
   const el = r.getElement(); el.classList.add('dg-flash'); el.scrollIntoView({ block: 'center' });

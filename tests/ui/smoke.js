@@ -2237,6 +2237,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         && await count(q, '.dw-card [data-dw-age]') === 3 && await count(q, '.dw-card [data-dw-set1]') === 6, await text(q, '.dw-card'));
       check('ผลคำนวณสด: แสดงจำนวนเม็ดต่อครั้งตามน้ำหนักตัวอย่าง (สูตรเดียวกับหน้าคำนวณ)', /เม็ด\/ครั้ง/.test(await text(q, '#dwLive [data-dw-big]')) && await count(q, '#dwLive [data-dw-w]') > 1, await text(q, '#dwLive'));
       check('ต้นฉบับข้างกัน: แท็บ OpenFDA+DailyMed แสดงหัวข้อขนาดยาของฉลากที่ผูก', (await text(q, '[data-dw-tab="fda"]')) === 'OpenFDA+DailyMed' && (await text(q, '#dwSrcBody')).includes('ขนาดยาและวิธีใช้'));
+      await q.click('[data-dw-srcedit="fda"]'); await q.waitForTimeout(500);
+      check('ต้นฉบับ: กด "แก้ไขข้อมูลฉลากนี้" → เปิดฟอร์มแก้ฉลากนั้นในเครื่องมือฐานข้อมูล (หน้าทำงานยังอยู่ด้านหลัง)', await q.isVisible('#dcDrawer') && await q.isVisible('#faForm') && (await q.evaluate(() => location.hash)) === '#/admin/drugs');
+      await q.keyboard.press('Escape'); await q.waitForTimeout(400);
+      await q.click('[data-dw-src="mims"]'); await q.waitForTimeout(200);
+      check('แหล่งข้อมูลที่ยังไม่ผูก (MIMS): มีปุ่ม "แก้ไขรายละเอียด" ไปตารางแก้ไขยา', (await text(q, '#dwPop .dw-pop-h [data-dw-grid="mims"]')).includes('แก้ไขรายละเอียด') && !(await q.isVisible('#dcDrawer')));
+      await q.click('#dwPop .dw-x'); await q.waitForTimeout(150);
       await q.click('[data-dw-age="kid"][data-k="0"]'); await q.waitForTimeout(150);
       check('ปุ่มกลุ่มอายุ "เด็ก 2–12 ปี" → age_min 2 / age_max 12 (ยังไม่บันทึก)', (await q.getAttribute('[data-dw-age="kid"][data-k="0"]', 'aria-pressed')) === 'true' && (await text(q, '#dwBar')).includes('ยังไม่บันทึก'));
       await q.click('[data-dw-age="kid"][data-k="0"]'); await q.waitForTimeout(150);
@@ -2291,6 +2297,24 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ชื่อยาใหม่ → เพิ่มยา (ซ่อนจนอนุมัติ) + เปิดยานั้น + AI ร่างขนาดยาเป็นการ์ดรอตรวจ', ins.name === 'NEWDRUGTEST 50 MG TAB' && ins.active === false && (await text(q, '#dwHead h3')).includes('NEWDRUGTEST')
           && (await calls(q, (c) => c.rpc === 'ai_dose_start')).pop()?.args?.p_name === 'newdrugtest' && await count(q, '.dw-card .dw-tag.t-ai') > 0, JSON.stringify({ ins, cards: await text(q, '#dwDose') })); }
       await q.unroute('https://api.fda.gov/**');
+      await q.click('[data-dw-src="rpst"]'); await q.waitForTimeout(200);
+      await q.fill('#dwRpCode', 'TST-0001'); await q.fill('#dwRpUnit', 'เม็ด'); await q.click('[data-dw-rpadd]'); await q.waitForTimeout(900);
+      { const it = await q.evaluate(() => window.__db.rpst_list.find((x) => x.code === 'TST-0001')), l = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'NEWDRUGTEST 50 MG TAB'));
+        check('แหล่งข้อมูล › บัญชี รพ.สต.: เพิ่มรายการใหม่ในบัญชีจากแผงนี้ได้เลย → rpst_list + ผูกรหัสกับยานี้ (ไม่เป็นยานอกแล้ว)', it && it.name === 'NEWDRUGTEST 50 MG TAB' && it.unit === 'เม็ด' && l.code === 'TST-0001' && l.outside === false && (await text(q, '#dwSrc-rpst')).includes('TST-0001'), JSON.stringify({ it, code: l.code, out: l.outside })); }
+      await q.click('[data-dw-src="rpst"]'); await q.waitForTimeout(200);
+      check('แหล่งข้อมูลที่ผูกแล้ว: มีปุ่ม "แก้ไขรายละเอียด" + กดชื่อที่ผูกไว้ได้', (await text(q, '#dwPop .dw-pop-h [data-dw-grid="rpst"]')).includes('แก้ไขรายละเอียด') && (await text(q, '#dwPop .dw-cur .dw-chipgo')).includes('TST-0001'));
+      await q.click('#dwPop .dw-cur .dw-chipgo'); await q.waitForTimeout(1800);
+      check('แก้ไขรายละเอียด → ตารางแก้ไขยา แสดงทีละฐาน (บัญชียา รพ.สต.) + ไฮไลต์แถวยานั้น', (await q.evaluate(() => location.hash)) === '#/admin/drugs/grid' && (await q.getAttribute('[data-dg-mode="one"]', 'aria-pressed')) === 'true'
+        && (await q.getAttribute('#dgDbs [data-dg-db="rpst"]', 'aria-pressed')) === 'true' && (await count(q, '#dgTable .tabulator-row.dg-flash')) === 1 && (await text(q, '#dgTable .tabulator-row.dg-flash')).includes('NEWDRUGTEST'));
+      await go(q, '#/admin/drugs'); await q.waitForTimeout(900);
+      { const nid = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'NEWDRUGTEST 50 MG TAB')?.id);
+        await q.click('[data-dw-deldrug]'); await q.waitForTimeout(900);
+        const l = await q.evaluate((id) => window.__db.local_drugs.find((x) => x.id === id), nid);
+        check('ลบยานี้ (หัวยา) → ย้ายลงถัง (ยังไม่ลบจริง) + เปิดยาตัวถัดไป + กล่องถังยาที่ลบแสดงยานั้น', l && !!l.trashed_at && await q.evaluate((id) => window.__db.local_drugs.some((x) => x.id === id), nid)
+          && !(await text(q, '#dwHead h3')).includes('NEWDRUGTEST') && !(await text(q, '#dwList')).includes('NEWDRUGTEST') && await visible(q, '#dcTrash') && (await q.evaluate(() => document.querySelector('#dcTrashList').textContent)).includes('NEWDRUGTEST'), JSON.stringify({ t: l?.trashed_at, h: await text(q, '#dwHead h3') }));
+        await q.click(`[data-tr-restore="${nid}"]`); await q.waitForTimeout(700);
+        check('ถังยาที่ลบ: กดเรียกคืน → ยากลับมาในรายการ', !(await q.evaluate((id) => window.__db.local_drugs.find((x) => x.id === id).trashed_at, nid)) && (await text(q, '#dwList')).includes('NEWDRUGTEST') && !(await text(q, '#dcTrashList')).includes('NEWDRUGTEST')); }
+      check('ตัวกรองรายการยา เรียง ทั้งหมด · เสร็จสิ้น · รอตรวจสอบ', (await q.$$eval('.dw-filt button', (x) => x.map((b) => b.dataset.dwFilt).join()))  === 'all,ready,todo' && /^ทั้งหมด/.test(await text(q, '[data-dw-filt="all"]')) && /^เสร็จสิ้น/.test(await text(q, '[data-dw-filt="ready"]')) && /^รอตรวจสอบ/.test(await text(q, '[data-dw-filt="todo"]')));
       for (const w of [1280, 768, 390]) {
         await q.setViewportSize({ width: w, height: 900 }); await q.waitForTimeout(300);
         check(`ทำงานทีละยา (${w}px): ไม่มี scroll แนวนอน`, (await overflow(q)) <= 0, String(await overflow(q)));
@@ -2298,6 +2322,41 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       }
       await q.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await q.setViewportSize({ width: 1280, height: 900 }); await q.waitForTimeout(300);
       await q.screenshot({ path: path.join(SHOTS, 'drug-work-dark-1280.png') });
+      await q.close();
+    }
+    { // ตารางแก้ไขยา: สารสำคัญเพิ่ม/ลด (thread 534c846e) · คอลัมน์ "ลบรายการยานี้" (d68e2fd5) · ถังยาที่ลบครบ 7 วัน = ลบถาวร (d262c34c)
+      const q = await open('admin', '#/admin/news'); await q.waitForTimeout(700);
+      const old = await q.evaluate(() => { const l = window.__db.local_drugs.find((x) => x.name === 'CPM 4 MG'); l.trashed_at = new Date(Date.now() - 8 * 864e5).toISOString(); return l.id; });
+      const fresh = await q.evaluate(() => { const l = window.__db.local_drugs.find((x) => x.name === 'CYPROHEPTADINE 4 MG'); l.trashed_at = new Date(Date.now() - 2 * 864e5).toISOString(); return l.id; });
+      await go(q, '#/admin/drugs/grid'); await q.waitForTimeout(1800);
+      check('ถังยาที่ลบ: ครบ 7 วัน → ลบถาวรเอง · ยังไม่ครบ = อยู่ในถัง (ลบถาวรใน 5 วัน) ไม่อยู่ในตาราง', !(await q.evaluate((id) => window.__db.local_drugs.some((x) => x.id === id), old)) && await q.evaluate((id) => window.__db.local_drugs.some((x) => x.id === id), fresh)
+        && (await q.evaluate(() => document.querySelector('#dcTrashList').textContent)).includes('CYPROHEPTADINE') && (await q.evaluate(() => document.querySelector('#dcTrashList').textContent)).includes('5 วัน') && !(await text(q, '#dgTable')).includes('CYPROHEPTADINE'));
+      const rowSel = (n) => `#dgTable .tabulator-row:has(.tabulator-cell[tabulator-field="name"] b:text-is("${n}"))`;
+      await q.fill('#dgQ', 'COTRIMOXAZOLE TAB'); await q.waitForTimeout(300);
+      await q.click(`${rowSel('COTRIMOXAZOLE TAB')} .tabulator-cell[tabulator-field="_ings"]`); await q.waitForTimeout(200);
+      check('สารสำคัญ: กดช่อง → กล่องแก้สารสำคัญของยานั้น (แถวละสาร พร้อมความแรงเดิม)', await visible(q, '#dgIng') && (await text(q, '#dgIngTitle')) === 'COTRIMOXAZOLE TAB' && await count(q, '#dgIngRows .dg-ing-row') === 2 && (await q.inputValue('#dgIngRows .dg-ing-row:nth-child(2) .i-a')) === '80');
+      await q.click('#dgIngAdd'); await q.fill('#dgIngRows .dg-ing-row:nth-child(3) .i-n', 'Folic acid'); await q.fill('#dgIngRows .dg-ing-row:nth-child(3) .i-a', '5');
+      await q.click('#dgIngAdd'); await q.fill('#dgIngRows .dg-ing-row:nth-child(4) .i-n', 'ลบทิ้ง'); await q.click('#dgIngRows .dg-ing-row:nth-child(4) [data-ing-rm]');
+      await q.fill('#dgIngRows .dg-ing-row:nth-child(2) .i-a', '160');
+      await q.click('#dgIngSave'); await q.waitForTimeout(900);
+      { const l = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'COTRIMOXAZOLE TAB'));
+        check('สารสำคัญ: เพิ่มสาร + แก้ความแรงรายสาร + ลบแถว → บันทึก 3 สาร', JSON.stringify((l.ingredients || []).map((x) => [x.name, x.mg, x.per])) === '[["Sulfamethoxazole",400,"tab"],["Trimethoprim",160,"tab"],["Folic acid",5,"tab"]]' && l.strength == null && !(await visible(q, '#dgIng'))
+          && (await text(q, `${rowSel('COTRIMOXAZOLE TAB')} .tabulator-cell[tabulator-field="_ings"]`)).includes('Folic acid 5'), JSON.stringify(l.ingredients)); }
+      await q.click(`${rowSel('COTRIMOXAZOLE TAB')} .tabulator-cell[tabulator-field="_ings"]`); await q.waitForTimeout(200);
+      await q.click('#dgIngRows .dg-ing-row:nth-child(3) [data-ing-rm]');
+      await q.click('#dgIngRows .dg-ing-row:nth-child(2) [data-ing-rm]'); await q.fill('#dgIngRows .dg-ing-row:nth-child(1) .i-a', ''); await q.click('#dgIngSave'); await q.waitForTimeout(400);
+      check('สารสำคัญ: ไม่กรอกความแรง → ไม่บันทึก กล่องยังเปิด', await visible(q, '#dgIng') && (await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'COTRIMOXAZOLE TAB').ingredients.length)) === 3);
+      await q.fill('#dgIngRows .dg-ing-row:nth-child(1) .i-a', '480'); await q.click('#dgIngSave'); await q.waitForTimeout(900);
+      { const l = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'COTRIMOXAZOLE TAB'));
+        check('สารสำคัญ: ลดเหลือ 1 สาร → เป็นยาเดี่ยว (ความแรงในช่องความแรง)', !(l.ingredients || []).length && l.strength?.mg === 480 && l.strength?.per === 'tab', JSON.stringify({ i: l.ingredients, s: l.strength })); }
+      await q.fill('#dgQ', 'DIMENHYDRINATE'); await q.waitForTimeout(300);
+      check('คอลัมน์ท้ายสุด = ลบรายการยานี้', (await q.$$eval('#dgTable .tabulator-col[tabulator-field]', (x) => x.map((e) => e.getAttribute('tabulator-field')).filter((f) => f).pop())) === '_del');
+      await q.click(`${rowSel('DIMENHYDRINATE 50 MG')} [data-dg-del]`); await q.waitForTimeout(900);
+      check('ตาราง: ลบรายการยานี้ → ย้ายลงถัง (หายจากตาราง · อยู่ในถังยาที่ลบ)', !!(await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'DIMENHYDRINATE 50 MG').trashed_at)) && !(await text(q, '#dgTable')).includes('DIMENHYDRINATE') && (await q.evaluate(() => document.querySelector('#dcTrashList').textContent)).includes('DIMENHYDRINATE'));
+      await q.setViewportSize({ width: 390, height: 844 }); await q.fill('#dgQ', 'COTRIMOXAZOLE TAB'); await q.waitForTimeout(300);
+      await q.click(`${rowSel('COTRIMOXAZOLE TAB')} .tabulator-cell[tabulator-field="_ings"]`).catch(() => {}); await q.waitForTimeout(300);
+      check('สารสำคัญ (390px): ไม่มี scroll แนวนอน', (await overflow(q)) <= 0, String(await overflow(q)));
+      await q.screenshot({ path: path.join(SHOTS, 'drug-grid-ings-390.png') });
       await q.close();
     }
     { // แผงเครื่องมือ › ฐานข้อมูล MIMS: วางข้อความ (ข้อความสมมติ) → แยกหัวข้อ → บันทึก (ไม่ผูกยา)
