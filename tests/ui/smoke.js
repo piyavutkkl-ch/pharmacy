@@ -2501,7 +2501,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         const wc = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'AMLODIPINE 5 MG').web_code);
         await q.setInputFiles('#dgImport', { name: 'drugs.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify([{ web_code: wc, pack_size: '999', note: '' }, { web_code: 'NOPE-1', name: 'IMPORT NEW DRUG 1 MG', category: 'หมวดไม่มีจริง' }])) });
         await q.waitForTimeout(800);
-        check('นำเข้าไฟล์ของเว็บ: แสดงสิ่งที่จะเปลี่ยนก่อน (ช่องว่าง = ไม่เปลี่ยน · หมวดใหม่ = ข้าม)', /แก้ 1 ยา/.test(await text(q, '#dgImpBox')) && /หมวดใหม่/.test(await text(q, '#dgImpBox')) && (await text(q, '#dgImpBox')).includes('999'), await text(q, '#dgImpBox'));
+        check('นำเข้าไฟล์ของเว็บ: แสดงสิ่งที่จะเปลี่ยนก่อน (ช่องว่าง = ไม่เปลี่ยน · หมวดใหม่ = ข้าม) · สรุปได้/ไม่ได้ + เหตุผล + ปุ่มข้ามแถวที่ไม่ได้', /แก้ 1 /.test(await text(q, '#dgImpBox')) && /หมวดใหม่/.test(await text(q, '#dgImpBox')) && (await text(q, '#dgImpBox')).includes('999')
+          && /นำเข้าได้ 1 ยา/.test(await text(q, '#dgImpBox [data-dg-sum]')) && /นำเข้าไม่ได้ 1 แถว/.test(await text(q, '#dgImpBox [data-dg-sum]')) && /แถว 3 \(IMPORT NEW DRUG 1 MG\)/.test(await text(q, '#dgImpBox [data-dg-badlist]')) && /ข้าม 1 แถวที่ไม่ได้ · บันทึก 1 ยาที่ได้/.test(await text(q, '#dgImpBox [data-dg-impok]')), await text(q, '#dgImpBox'));
         await q.click('[data-dg-impok]'); await q.waitForTimeout(900);
         check('นำเข้าไฟล์ของเว็บ: บันทึกแล้ว', (await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'AMLODIPINE 5 MG').pack_size)) === '999' && !(await q.evaluate(() => window.__db.local_drugs.some((x) => x.name === 'IMPORT NEW DRUG 1 MG'))));
         await q.setInputFiles('#dgImport', { name: 'hosp-list.csv', mimeType: 'text/csv', buffer: Buffer.from('รหัสยา,ชื่อยา,หมวด\nAI-0001,AITEST DRUG 5 MG,ยาเม็ด/แคปซูล\nAI-0002,AITEST NEWCAT 1 MG,หมวดทดสอบใหม่\n') });
@@ -2511,6 +2512,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('กด "+ เพิ่มหมวดนี้" (เจ้าของเพิ่มเอง) → แถวนั้นนำเข้าได้', /เพิ่มใหม่ 2/.test(await text(q, '#dgImpBox')) && JSON.parse((await q.evaluate(() => window.__db.site_texts.find((x) => x.key === 'drug_categories')?.body)) || '[]').includes('หมวดทดสอบใหม่'));
         await q.click('[data-dg-impok]'); await q.waitForTimeout(900);
         check('AI นำเข้า: บันทึกลงบัญชียา รพ.สต. หลังผู้ดูแลกดยืนยัน', (await q.evaluate(() => window.__db.rpst_list.filter((x) => /^AI-000/.test(x.code)).length)) === 2);
+        { // นำเข้าไม่สำเร็จ: บอกขั้นที่ error · บันทึกได้บางแถว = บอกแถวที่ได้/ไม่ได้ + เหตุผล · ลองใหม่เฉพาะที่ไม่ได้ / ข้ามที่ไม่ได้
+          await q.setInputFiles('#dgImport', { name: 'empty.csv', mimeType: 'text/csv', buffer: Buffer.from(' \n') }); await q.waitForTimeout(800);
+          check('ไฟล์ที่นำเข้าไม่ได้ → บอกขั้นที่ error (อ่านไฟล์) + เหตุผล + ยังไม่มีข้อมูลใดถูกบันทึก', /ขั้นอ่านไฟล์/.test(await text(q, '#dgImpBox [data-dg-imperr]')) && /ไม่พบข้อความ/.test(await text(q, '#dgImpBox')) && /ยังไม่มีข้อมูลใดถูกบันทึก/.test(await text(q, '#dgImpBox')), await text(q, '#dgImpBox'));
+          await q.click('#dgImpBox [data-dg-impno]');
+          const code = await q.evaluate(() => window.__db.rpst_list.find((r) => !window.__db.local_drugs.some((l) => l.code === r.code)).code);
+          await q.setInputFiles('#dgImport', { name: 'two-new.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify([{ name: 'IMPORT OK DRUG 2 MG' }, { name: 'IMPORT DUPCODE 3 MG', rpst_code: code }])) }); await q.waitForTimeout(800);
+          await q.evaluate((code) => { window.__db.local_drugs.find((l) => l.name === 'AMLODIPINE 5 MG').code = code; }, code);   // ระหว่างตรวจ มีคนผูกรหัสนี้กับยาอื่นไปแล้ว → แถวนั้นบันทึกไม่ได้
+          await q.click('#dgImpBox [data-dg-impok]'); await q.waitForTimeout(1000);
+          check('บันทึกได้บางแถว → แถวอื่นยังบันทึก · บอกแถวที่ไม่ได้ + เหตุผล + ปุ่มลองใหม่/ข้าม', await q.evaluate(() => window.__db.local_drugs.some((l) => l.name === 'IMPORT OK DRUG 2 MG') && !window.__db.local_drugs.some((l) => l.name === 'IMPORT DUPCODE 3 MG'))
+            && /บันทึกได้ 1/.test(await text(q, '#dgImpBox [data-dg-result]')) && /บันทึกไม่ได้ 1/.test(await text(q, '#dgImpBox [data-dg-result]')) && /IMPORT DUPCODE 3 MG.*duplicate/s.test(await text(q, '#dgImpBox [data-dg-faillist]')) && await count(q, '#dgImpBox [data-dg-retry]') === 1, await text(q, '#dgImpBox'));
+          await q.evaluate(() => { window.__db.local_drugs.find((l) => l.name === 'AMLODIPINE 5 MG').code = null; });
+          await q.click('#dgImpBox [data-dg-retry]'); await q.waitForTimeout(1000);
+          check('ลองบันทึกเฉพาะที่ไม่ได้อีกครั้ง → บันทึกแถวที่เหลือ (ไม่เพิ่มแถวที่ได้แล้วซ้ำ)', await q.evaluate(() => window.__db.local_drugs.filter((l) => /^IMPORT (OK|DUPCODE)/.test(l.name)).length) === 2 && /บันทึกได้ 2/.test(await text(q, '#dgImpBox [data-dg-result]')) && !(await count(q, '#dgImpBox [data-dg-retry]')), await text(q, '#dgImpBox'));
+          await q.click('#dgImpBox [data-dg-impno]'); await q.waitForTimeout(150); }
         { // ไฟล์หน้า MIMS (PDF ที่พิมพ์หน้าเว็บ · ข้อความสมมติแบบคอลัมน์แคบ) → แยกหัวข้อในเครื่อง ไม่ส่งให้ AI · เลือกหลายไฟล์ได้ · เลือกยาที่ผูก → บันทึกฐานข้อมูล MIMS
           const mk = (n) => ['Testamolol' + n, 'Generic Medicine Info', 'Indications and Dosage', 'Oral', 'Fever and mild pain (ข้อความ', 'สมมติ)', 'Adult: 500 mg every 6 hours as', 'needed. Max: 4 g daily.', 'Child: 10 mg/kg every 6 hours.',
             'What are the brands available for', 'Testamolol in Thailand?', 'Other Known Brands', 'Contraindications', 'Hypersensitivity (ข้อความ', 'สมมติ).', 'Drug Interactions', 'May increase the e!ect of', 'warfarin (ข้อความสมมติ).',
@@ -2530,6 +2545,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
               joined: /every 6 hours as needed/.test(m?.sections[0]?.body || ''), lig: /the effect of/.test(m?.sections.find((x) => x.title === 'Drug Interactions')?.body || ''), inds: m?.indications.length }; }, lid);
           check('บันทึก MIMS: 2 ไฟล์ → ฐานข้อมูล MIMS + ผูกยาที่เลือก · ต่อบรรทัดที่ตัดเป็นประโยค · ชื่อการค้าแยกเป็นหัวข้อ · แก้ตัวอักษรเพี้ยน (e!ect → effect)',
             st.n === m0 + 2 && st.heads === 'Indications and Dosage|Contraindications|Drug Interactions|Action|Brands' && st.brands === 'Testabrand, Fakemol Plus' && st.link && st.joined && st.lig && st.inds === 2, JSON.stringify(st)); }
+          const mx = ['Testamolol3', 'Indications and Dosage', 'Oral', 'Fever (ข้อความสมมติ)', 'Adult: 500 mg every 6 hours.', 'Special Precautions', 'Liver impairment (ข้อความสมมติ).'].join('\n');
+          await q.setInputFiles('#dgImport', [{ name: 'Testamolol3_MIMS.txt', mimeType: 'text/plain', buffer: Buffer.from(mx) }, { name: 'other.txt', mimeType: 'text/plain', buffer: Buffer.from('รายการทั่วไป ไม่ใช่หน้า MIMS') }]); await q.waitForTimeout(1000);
+          check('หลายไฟล์ปน (MIMS + ไฟล์อื่น) → บอกไฟล์ที่ข้าม + เหตุผล · ใช้ได้ 1 ข้าม 1 · ปุ่มข้ามไฟล์ที่ไม่ได้แล้วบันทึกที่เหลือ', await count(q, '#dgImpBox [data-dg-mims-err]') === 1 && /other\.txt/.test(await text(q, '#dgImpBox .dg-mims.bad')) && /ใช้ได้ 1 ไฟล์/.test(await text(q, '#dgImpBox [data-dg-sum]')) && /ข้าม 1 ไฟล์/.test(await text(q, '#dgImpBox [data-dg-sum]')) && /ข้ามไฟล์ที่ไม่ได้/.test(await text(q, '#dgImpBox [data-dg-mimssave]')), await text(q, '#dgImpBox'));
+          await q.click('#dgImpBox [data-dg-mimssave]'); await q.waitForTimeout(1200);
+          check('ข้ามไฟล์ที่ไม่ได้ → บันทึกไฟล์ MIMS ที่ใช้ได้ + สรุปผล', await q.evaluate(() => window.__db.drug_mims.some((x) => x.name === 'Testamolol3')) && /บันทึกได้ 1/.test(await text(q, '#dgImpBox [data-dg-result]')), await text(q, '#dgImpBox'));
+          await q.click('#dgImpBox [data-dg-impno]'); await q.waitForTimeout(150);
         await q.setInputFiles('#dgImport', [{ name: 'a.csv', mimeType: 'text/csv', buffer: Buffer.from('ชื่อยา\nX 1 MG\n') }, { name: 'b.csv', mimeType: 'text/csv', buffer: Buffer.from('ชื่อยา\nY 1 MG\n') }]); await q.waitForTimeout(800);
         check('หลายไฟล์ที่ไม่ใช่ MIMS → ให้นำเข้าทีละไฟล์', /ทีละไฟล์/.test(await text(q, '#dgImpBox')), await text(q, '#dgImpBox'));
         await q.click('#dgImpBox [data-dg-impno]'); await q.waitForTimeout(150);

@@ -10,7 +10,7 @@ import { strengthOf, comboName } from './dose.js?v=4.4';
 import { reloadDrugData, drugData } from './admin-drugs.js?v=4.4';
 import { DC, centerRows, suggest, applyRow, basesOf, rejectPair } from './drug-center.js?v=4.4';
 import { trashDrug } from './drug-trash.js?v=4.4';
-import { exportDrugs, readDrugFile, planDrugImport, planHtml, applyDrugImport, fileText, isOwnFormat, aiAnalyze, planFromAi, aiPlanHtml, applyAiPlan, knownCats, addCats, looksMims } from './drug-io.js?v=4.4';
+import { exportDrugs, readDrugFile, planDrugImport, planHtml, applyDrugImport, fileText, isOwnFormat, aiAnalyze, planFromAi, aiPlanHtml, applyAiPlan, knownCats, addCats, looksMims, resultHtml, retryPlan } from './drug-io.js?v=4.4';
 import { parseMimsText, headTh } from './mims-text.js?v=4.4';
 import { saveMimsText } from './admin-mims.js?v=4.4';
 
@@ -336,7 +336,7 @@ function bind() {
   $('#dgQ').addEventListener('input', re); $('#dgScope').addEventListener('change', re); $('#dgGap').addEventListener('change', re);
   // นำเข้า/ส่งออก (drug-io.js)
   $$('[data-dg-export]').forEach((b) => b.addEventListener('click', async () => { if (!table) return; try { await exportDrugs(table.getData('active'), b.dataset.dgExport); } catch (err) { toast(errText(err), 'err'); } }));
-  let plan = null, aiRes = null, aiFile = '', mimsList = null;   // mimsList = ไฟล์ MIMS ที่แยกหัวข้อในเครื่องแล้ว [{ file, p }]
+  let plan = null, aiRes = null, aiFile = '', mimsList = null, lastRes = null, stage = '';   // mimsList = ไฟล์ MIMS ที่แยกหัวข้อแล้ว [{ file, p, err }] · lastRes = ผลบันทึกล่าสุด (ลองใหม่เฉพาะที่ไม่ได้) · stage = ขั้นที่กำลังทำ (บอกว่า error ตรงไหน)
   const box = () => $('#dgImpBox');
   const stepHtml = (on, msg) => `<div class="dg-steps">${[['📄', 'อ่านไฟล์'], ['✦', 'AI วิเคราะห์ว่าเป็นข้อมูลฐานไหน'], ['✓', 'ตรวจแล้วกดบันทึก']].map(([i, t], k) => `<span class="dg-step${k < on ? ' ok' : k === on ? ' now' : ''}"><b aria-hidden="true">${i}</b>${t}</span>`).join('')}</div>${msg ? `<p class="small muted">${esc(msg)}</p>` : '<div class="skeleton"></div>'}`;
   // ไฟล์ MIMS (PDF ที่พิมพ์หน้าเว็บ · หลายไฟล์ได้) → แยกหัวข้อในเครื่อง (ไม่ใช้ AI) → เลือกยาที่ผูก → บันทึกฐานข้อมูล MIMS
@@ -346,12 +346,13 @@ function bind() {
   const showMims = () => {
     const locals = [...(D?.locals || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
     box().innerHTML = mimsStep(2) + `<p class="small muted">ไฟล์ข้อมูล MIMS ไม่ส่งให้ AI · ระบบแยกหัวข้อจากข้อความในไฟล์เอง · การ์ดข้อบ่งใช้รอเภสัชกรกรอกตัวเลขในหน้าทำงานทีละยา (ไม่เดาตัวเลข)</p>`
-      + mimsList.map(({ file, p, sel }, k) => `<div class="dg-mims" data-dg-mims="${k}"><p class="small"><b>${esc(file)}</b></p>`
-        + (p.sections.length ? `<p><b>${esc(p.name || '(ไม่พบชื่อยา)')}</b> · แยกได้ ${p.sections.length} หัวข้อ · การ์ดข้อบ่งใช้ ${p.inds.length} ข้อ${p.brands.length ? ` · ชื่อการค้า ${p.brands.length}` : ''}</p>`
+      + `<div class="dg-sum" data-dg-sum><span class="dc-ok">✓ ใช้ได้ ${mimsList.filter((x) => x.p?.sections.length).length} ไฟล์</span>${mimsList.some((x) => !x.p?.sections.length) ? `<span class="dc-err">✗ ข้าม ${mimsList.filter((x) => !x.p?.sections.length).length} ไฟล์</span>` : ''}</div>`
+      + mimsList.map(({ file, p, sel, err }, k) => `<div class="dg-mims${err || !p.sections.length ? ' bad' : ''}" data-dg-mims="${k}"><p class="small"><b>${esc(file)}</b></p>`
+        + (err ? `<p class="small dc-err" data-dg-mims-err>ข้ามไฟล์นี้: ${esc(err)}</p>` : p.sections.length ? `<p><b>${esc(p.name || '(ไม่พบชื่อยา)')}</b> · แยกได้ ${p.sections.length} หัวข้อ · การ์ดข้อบ่งใช้ ${p.inds.length} ข้อ${p.brands.length ? ` · ชื่อการค้า ${p.brands.length}` : ''}</p>`
           + `<div class="mm-heads">${p.sections.map((x) => `<details class="dg-mh"><summary class="chip">${esc(headTh(x.title))}</summary><p class="small">${esc(x.body.slice(0, 600))}${x.body.length > 600 ? '…' : ''}</p></details>`).join('')}</div>`
           + `<label class="dw-f"><span>ผูกกับยาในเว็บแอพ</span><select class="input" data-dg-mimsl="${k}"><option value="">— ไม่ผูก (เก็บในฐานข้อมูล MIMS อย่างเดียว) —</option>${locals.map((l) => `<option value="${esc(l.id)}"${String(l.id) === String(sel ?? '') ? ' selected' : ''}>${esc(l.name)}${l.mims_id ? ' (ผูก MIMS อยู่แล้ว)' : ''}</option>`).join('')}</select></label>`
           : '<p class="small dc-err" data-dg-mims-empty>ไม่พบหัวข้อของหน้า MIMS ในไฟล์นี้ (เช่น "Indications and Dosage") · ไฟล์นี้จะไม่ถูกบันทึก</p>') + '</div>').join('')
-      + `<div class="row-btns"><button type="button" class="btn btn-p btn-sm" data-dg-mimssave${mimsList.some((x) => x.p.sections.length) ? '' : ' disabled'}>บันทึกลงฐานข้อมูล MIMS (${mimsList.filter((x) => x.p.sections.length).length} ไฟล์)</button><button type="button" class="btn btn-o btn-sm" data-dg-impno>ยกเลิก</button></div>`;
+      + `<div class="row-btns"><button type="button" class="btn btn-p btn-sm" data-dg-mimssave${mimsList.some((x) => x.p?.sections.length) ? '' : ' disabled'}>${mimsList.some((x) => !x.p?.sections.length) ? 'ข้ามไฟล์ที่ไม่ได้ · ' : ''}บันทึกลงฐานข้อมูล MIMS (${mimsList.filter((x) => x.p?.sections.length).length} ไฟล์)</button><button type="button" class="btn btn-o btn-sm" data-dg-impno>ยกเลิก</button></div>`;
   };
   const showAi = async () => { plan = await planFromAi(aiRes); plan.ai = true; box().innerHTML = stepHtml(2, '') .replace('<div class="skeleton"></div>', '') + aiPlanHtml(plan, aiFile); };
   $('#dgImport').addEventListener('change', async (e) => {
@@ -360,44 +361,67 @@ function bind() {
     plan = null; aiRes = null; aiFile = f.name; mimsList = null;
     try {
       if (files.length > 1 || /\.pdf$/i.test(f.name) || /\.(txt|md)$/i.test(f.name)) {   // MIMS: หลายไฟล์ได้ · แยกหัวข้อในเครื่อง ไม่ใช้ AI
-        const texts = await Promise.all(files.slice(0, 20).map(async (x) => ({ file: x.name, text: await fileText(x) })));
-        if (texts.some((x) => looksMims(x.text, x.file))) {
-          if (!texts.every((x) => looksMims(x.text, x.file))) throw new Error('เลือกหลายไฟล์ได้เฉพาะไฟล์หน้า MIMS · ไฟล์อื่นนำเข้าทีละไฟล์');
+        stage = 'อ่านไฟล์';
+        const texts = await Promise.all(files.slice(0, 20).map(async (x) => { try { return { file: x.name, text: await fileText(x) }; } catch (err) { return { file: x.name, err: `อ่านไฟล์ไม่ได้: ${errText(err)}` }; } }));
+        if (texts.some((x) => x.text && looksMims(x.text, x.file))) {   // มีไฟล์ MIMS = แยกหัวข้อไฟล์ MIMS · ไฟล์อื่น/อ่านไม่ได้ = แสดงว่าข้าม พร้อมเหตุผล
+          stage = 'แยกหัวข้อ MIMS';
           await reloadDrugData(); D = await drugData();
-          mimsList = texts.map(({ file, text }) => { const p = parseMimsText(text, file.replace(/\.[^.]+$/, '').split(/[_]/)[0]); return { file, p, sel: guessLocal(p)?.id ?? null }; });
+          mimsList = texts.map(({ file, text, err }) => {
+            if (err) return { file, err };
+            if (!looksMims(text, file)) return { file, err: 'ไม่ใช่ไฟล์หน้า MIMS (ไฟล์ชนิดอื่นนำเข้าทีละไฟล์)' };
+            try { const p = parseMimsText(text, file.replace(/\.[^.]+$/, '').split(/[_]/)[0]); return { file, p, sel: guessLocal(p)?.id ?? null }; } catch (e2) { return { file, err: `แยกหัวข้อไม่ได้: ${errText(e2)}` }; }
+          });
           showMims(); return;
         }
         if (files.length > 1) throw new Error('นำเข้าทีละไฟล์ (เลือกหลายไฟล์ได้เฉพาะไฟล์หน้า MIMS)');
+        if (texts[0].err) throw new Error(texts[0].err);
       }
-      if (await isOwnFormat(f)) { plan = await planDrugImport(await readDrugFile(f)); box().innerHTML = planHtml(plan, f.name); return; }   // ไฟล์ที่ส่งออกจากเว็บนี้ = นำเข้าตรง ไม่ใช้ AI
+      stage = 'อ่านไฟล์';
+      if (await isOwnFormat(f)) { stage = 'ตรวจข้อมูลในไฟล์'; plan = await planDrugImport(await readDrugFile(f)); box().innerHTML = planHtml(plan, f.name); return; }   // ไฟล์ที่ส่งออกจากเว็บนี้ = นำเข้าตรง ไม่ใช้ AI
       const text = await fileText(f);
       if (text.replace(/\s/g, '').length < 10) throw new Error('ไม่พบข้อความในไฟล์ (PDF ที่เป็นภาพสแกนอ่านไม่ได้)');
+      stage = 'AI วิเคราะห์ไฟล์';
       box().innerHTML = stepHtml(1, 'AI กำลังวิเคราะห์ไฟล์… (ไม่ส่งข้อมูล MIMS · ห้ามใช้ไฟล์ที่มีข้อมูลผู้ป่วย)');
       aiRes = await aiAnalyze(f.name, text);
+      stage = 'จับคู่ข้อมูลกับฐานข้อมูล';
       await showAi();
-    } catch (err) { plan = null; box().innerHTML = `<p class="small dc-err">นำเข้าไม่สำเร็จ: ${esc(errText(err))}</p><div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dg-impno>ปิด</button></div>`; }
+    } catch (err) { plan = null; box().innerHTML = `<p class="small dc-err" data-dg-imperr>นำเข้า "${esc(f.name)}" ไม่สำเร็จ · ขั้น<b>${esc(stage || 'อ่านไฟล์')}</b>: ${esc(errText(err))}</p><p class="small muted">ยังไม่มีข้อมูลใดถูกบันทึก</p><div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dg-impno>ปิด</button></div>`; }
   });
   box().addEventListener('click', async (e) => {
     if (e.target.closest('[data-dg-impno]')) { plan = null; aiRes = null; mimsList = null; box().hidden = true; return; }
     const ms = e.target.closest('[data-dg-mimssave]');
     if (ms && mimsList) {
       ms.disabled = true; ms.textContent = 'กำลังบันทึก…';
-      let ok = 0, cards = 0; const bad = [];
+      let cards = 0; const results = [];
       for (const [k, x] of mimsList.entries()) {
-        if (!x.p.sections.length) continue;
-        const v = box().querySelector(`[data-dg-mimsl="${k}"]`)?.value || '';
-        try { const r = await saveMimsText(x.p, v ? DC.idv(v) : null); ok++; cards += r.added; } catch (err) { bad.push(`${x.file}: ${errText(err)}`); }
+        if (!x.p?.sections.length) continue;
+        const v = box().querySelector(`[data-dg-mimsl="${k}"]`)?.value || ''; x.sel = v || null;
+        try { const r = await saveMimsText(x.p, v ? DC.idv(v) : null); cards += r.added; results.push({ name: `${x.file} → ${x.p.name}`, ok: true, item: x, kind: 'mims' }); }
+        catch (err) { results.push({ name: x.file, ok: false, why: errText(err), item: x, kind: 'mims' }); }
       }
-      mimsList = null; box().hidden = true;
-      toast(`บันทึก MIMS แล้ว ${ok} ไฟล์ · การ์ดข้อบ่งใช้ใหม่ ${cards} ข้อ (รอกรอกตัวเลขในหน้าทำงานทีละยา)${bad.length ? ` · ไม่สำเร็จ: ${bad.join(' · ')}` : ''}`, bad.length ? 'err' : undefined);
+      lastRes = { kind: 'mims', results };
+      box().innerHTML = resultHtml(`บันทึกไฟล์ MIMS · การ์ดข้อบ่งใช้ใหม่ ${cards} ข้อ (รอกรอกตัวเลขในหน้าทำงานทีละยา)`, results);
+      if (results.every((x) => x.ok)) toast(`บันทึก MIMS แล้ว ${results.length} ไฟล์`);
+      mimsList = null; await refresh(true); return;
+    }
+    if (e.target.closest('[data-dg-retry]') && lastRes) {   // ลองใหม่เฉพาะที่ไม่ได้
+      const rb = e.target.closest('[data-dg-retry]');
+      if (lastRes.kind === 'mims') { mimsList = lastRes.results.filter((x) => !x.ok).map((x) => x.item); lastRes = null; showMims(); return; }
+      const p2 = retryPlan(lastRes.plan, lastRes.results);
+      const r = lastRes.plan.ai ? await applyAiPlan({ ...p2, ai: true }, rb) : await applyDrugImport(p2, rb);
+      const merged = [...lastRes.results.filter((x) => x.ok), ...r.results];
+      lastRes = { kind: 'plan', plan: lastRes.plan, results: merged };
+      box().innerHTML = resultHtml(`ลองใหม่แล้ว · ได้เพิ่ม ${r.ok} · ยังไม่ได้ ${r.bad}`, merged);
       await refresh(true); return;
     }
     const c = e.target.closest('[data-dg-addcat]');
     if (c) { try { await addCats([c.dataset.dgAddcat]); toast(`เพิ่มหมวด "${c.dataset.dgAddcat}" แล้ว`); renderCats(); await showAi(); } catch (err) { toast(errText(err), 'err'); } return; }
     const b = e.target.closest('[data-dg-impok]'); if (!b || !plan) return;
-    const r = plan.ai ? await applyAiPlan(plan, b) : await applyDrugImport(plan, b); plan = null; aiRes = null;
-    toast(`นำเข้าแล้ว ${r.ok} รายการ${r.bad ? ` · ไม่สำเร็จ ${r.bad}` : ''}`, r.bad ? 'err' : undefined);
-    box().hidden = true; await refresh(true); renderCats();
+    const skipped = plan.bad.length, r = plan.ai ? await applyAiPlan(plan, b) : await applyDrugImport(plan, b);
+    lastRes = { kind: 'plan', plan, results: r.results }; plan = null; aiRes = null;
+    if (r.bad) box().innerHTML = resultHtml(`บันทึกแล้วบางส่วน${skipped ? ` (ข้ามแถวที่ข้อมูลไม่ถูกต้อง ${skipped} แถว)` : ''}`, r.results);   // ไม่ได้บางรายการ = แสดงรายการ + ลองใหม่/ข้าม
+    else { toast(`นำเข้าแล้ว ${r.ok} รายการ${skipped ? ` · ข้าม ${skipped} แถวที่ไม่ได้` : ''}`); box().hidden = true; }
+    await refresh(true); renderCats();
   });
   // หมวดยา: เจ้าของเว็บเพิ่มเอง (นำเข้าไฟล์ที่มีหมวดใหม่ต้องเพิ่มหมวดก่อน)
   const renderCats = async () => { const cs = await knownCats(); $('#dgCatN').textContent = `(${cs.length})`; $('#dgCatList').innerHTML = cs.map((x) => `<span class="chip c-role">${esc(x)}</span>`).join(''); };

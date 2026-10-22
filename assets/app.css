@@ -1724,3 +1724,9 @@ body:has(section[data-view="admin"]:not([hidden]) [data-admin-view="drugs"]:not(
 .dg-mh[open]{flex-basis:100%}
 .dg-mh p{white-space:pre-line;margin:4px 0 0}
 .dg-mims select{max-width:100%;min-height:44px}
+
+/* นำเข้าไฟล์: สรุปได้/ไม่ได้ + รายการที่ไม่ได้พร้อมเหตุผล */
+.dg-sum{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.dg-sum span{border-radius:999px;padding:4px 12px;font-weight:600;font-size:13px;border:1px solid var(--line)}
+.dg-bad ul,.dg-ok ul{margin:4px 0;padding-left:20px;overflow-wrap:anywhere}
+.dg-mims.bad{border-color:var(--error);background:var(--error-soft)}

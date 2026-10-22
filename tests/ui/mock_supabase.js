@@ -115,6 +115,7 @@ function beforeInsert(table, row) {
       Object.assign(row, { user_id: ME.id, email: ME.email, status: 'pending', review_note: null }); break;
     case 'news_likes': row.user_id = ME.id; if (rows.some((l) => l.news_id === row.news_id && l.user_id === ME.id)) return 'duplicate key value violates unique constraint'; break;
     case 'documents': row.created_by = ME.id; row.version ??= 1; break;
+    case 'local_drugs': if (row.code != null && rows.some((r) => r.code === row.code)) return 'duplicate key value violates unique constraint "local_drugs_code_key"'; break;   // แทน unique (58)
     case 'patients': row.created_by = ME.id; break;
     case 'visits': row.unit_id = db.patients.find((p) => p.id === row.patient_id)?.unit_id; row.fiscal_year = fiscalYear(row.visit_date); row.created_by = ME.id; break;
     case 'dose_drugs': row.active ??= true; row.concs ??= []; row.sort ??= 0; row.ai_draft ??= false;   // แทน trigger dose_drugs_approve (90): แสดง = อนุมัติโดยผู้บันทึก

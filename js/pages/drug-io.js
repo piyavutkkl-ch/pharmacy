@@ -125,24 +125,43 @@ export async function planDrugImport(items) {
 const show = (v) => (v == null || v === '' ? '–' : Array.isArray(v) ? `${v.length} รายการ` : typeof v === 'object' ? (v.mg ? `${v.u === 'mcg' ? v.amt : v.mg} ${unitLabel(UNIT_OF(v))}${v.as ? ` คิดเป็น ${v.as.name} ${v.as.mg}` : ''}` : JSON.stringify(v)) : v === true ? 'ใช่' : v === false ? 'ไม่' : String(v));
 export function planHtml(p, file) {
   const n = p.upd.length + p.add.length;
-  return `<b>นำเข้า "${esc(file)}"</b><p class="small">แก้ ${p.upd.length} ยา · เพิ่มใหม่ ${p.add.length} ยา (ซ่อนไว้ก่อน) · ไม่เปลี่ยน ${p.same} ยา${p.bad.length ? ` · <span class="dc-err">ข้ามเพราะข้อมูลไม่ถูกต้อง ${p.bad.length} แถว</span>` : ''}</p>`
-    + (p.bad.length ? `<details class="small dg-bad"${p.bad.length <= 10 ? ' open' : ''}><summary>แถวที่ข้าม (${p.bad.length})</summary><ul>${p.bad.slice(0, 50).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '')
+  return `<b>นำเข้า "${esc(file)}"</b><div class="dg-sum" data-dg-sum><span class="dc-ok">✓ นำเข้าได้ ${n} ยา (แก้ ${p.upd.length} · เพิ่มใหม่ ${p.add.length} ซ่อนไว้ก่อน)</span>${p.same ? `<span class="muted">ไม่เปลี่ยน ${p.same}</span>` : ''}${p.bad.length ? `<span class="dc-err">✗ นำเข้าไม่ได้ ${p.bad.length} แถว</span>` : ''}</div>`
+    + (p.bad.length ? `<details class="small dg-bad" data-dg-badlist${p.bad.length <= 10 ? ' open' : ''}><summary>แถวที่นำเข้าไม่ได้ + เหตุผล (${p.bad.length})</summary><ul>${p.bad.slice(0, 100).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${p.bad.length > 100 ? `<p class="muted">และอีก ${p.bad.length - 100} แถว</p>` : ''}</details>` : '')
     + (n ? `<div class="chg"><table><thead><tr><th>ยา</th><th>ช่อง</th><th>เดิม</th><th>ใหม่</th></tr></thead><tbody>${[...p.upd.map((x) => [x.l.name, x.diff]), ...p.add.map((x) => [`${x.row.name} (ใหม่)`, x.diff])].slice(0, 80)
       .map(([nm, diff]) => diff.map(([f, a, b2], i) => `<tr>${i ? '<td></td>' : `<td><b>${esc(nm)}</b></td>`}<td>${esc(f)}</td><td class="muted">${esc(show(a))}</td><td>${esc(show(b2))}</td></tr>`).join('')).join('')}</tbody></table></div>` : '<p class="small muted">ไม่มีอะไรต้องเปลี่ยน</p>')
-    + `<div class="row-btns">${n ? `<button type="button" class="btn btn-p btn-sm" data-dg-impok>บันทึก ${n} ยา</button>` : ''}<button type="button" class="btn btn-o btn-sm" data-dg-impno>${n ? 'ยกเลิก' : 'ปิด'}</button></div>`;
+    + `<div class="row-btns">${n ? `<button type="button" class="btn btn-p btn-sm" data-dg-impok>${p.bad.length ? `ข้าม ${p.bad.length} แถวที่ไม่ได้ · บันทึก ${n} ยาที่ได้` : `บันทึก ${n} ยา`}</button>` : ''}<button type="button" class="btn btn-o btn-sm" data-dg-impno>${n ? 'ยกเลิก' : 'ปิด'}</button></div>`;
 }
-/** บันทึกตามแผน · คืนจำนวนที่สำเร็จ/ไม่สำเร็จ */
+/** ผลบันทึก: ได้/ไม่ได้ทีละรายการ + ปุ่มลองใหม่เฉพาะที่ไม่ได้ / ข้ามที่ไม่ได้ (results = [{ name, ok, why }]) */
+export function resultHtml(title, results) {
+  const good = results.filter((x) => x.ok), bad = results.filter((x) => !x.ok);
+  return `<b>${esc(title)}</b><div class="dg-sum" data-dg-result><span class="dc-ok">✓ บันทึกได้ ${good.length}</span>${bad.length ? `<span class="dc-err">✗ บันทึกไม่ได้ ${bad.length}</span>` : ''}</div>`
+    + (bad.length ? `<details class="small dg-bad" open data-dg-faillist><summary>รายการที่บันทึกไม่ได้ + เหตุผล</summary><ul>${bad.slice(0, 100).map((x) => `<li><b>${esc(x.name)}</b>: ${esc(x.why || 'ไม่ทราบสาเหตุ')}</li>`).join('')}</ul></details>` : '')
+    + (good.length ? `<details class="small dg-ok"><summary>รายการที่บันทึกได้ (${good.length})</summary><ul>${good.slice(0, 100).map((x) => `<li>${esc(x.name)}</li>`).join('')}</ul></details>` : '')
+    + `<div class="row-btns">${bad.length ? `<button type="button" class="btn btn-p btn-sm" data-dg-retry>ลองบันทึกเฉพาะที่ไม่ได้อีกครั้ง (${bad.length})</button><button type="button" class="btn btn-o btn-sm" data-dg-impno>ข้ามที่ไม่ได้ · ปิด</button>` : '<button type="button" class="btn btn-o btn-sm" data-dg-impno>ปิด</button>'}</div>`;
+}
+/** เพิ่มหลายแถว: ลองทีเดียวก่อน ไม่ได้ = เพิ่มทีละแถว เพื่อรู้ว่าแถวไหนผิด (แถวอื่นยังบันทึกได้) */
+async function insertEach(tb, items, rowOf, nameOf) {
+  if (!items.length) return [];
+  const { error } = await sb.from(tb).insert(items.map(rowOf));
+  if (!error) return items.map((x) => ({ name: nameOf(x), ok: true, item: x, kind: 'add' }));
+  const out = [];
+  for (const x of items) { const { error: e } = await sb.from(tb).insert(rowOf(x)); out.push({ name: nameOf(x), ok: !e, why: e ? errText(e) : '', item: x, kind: 'add' }); }
+  return out;
+}
+/** บันทึกตามแผน · คืน { ok, bad, results: [{ name, ok, why, item, kind }] } (รายการที่ไม่ได้ ลองใหม่ได้ด้วย retryPlan) */
 export async function applyDrugImport(p, btn) {
   busy(btn, true, 'กำลังบันทึก…');
-  let ok = 0, bad = 0;
+  const results = [];
   try {
     const now = new Date().toISOString();
-    for (const x of p.upd) { const { error } = await sb.from('local_drugs').update({ ...x.row, updated_at: now }).eq('id', x.l.id); if (error) { bad++; toast(`${x.l.name}: ${errText(error)}`, 'err'); } else ok++; }
-    if (p.add.length) { const { error } = await sb.from('local_drugs').insert(p.add.map((x) => x.row)); if (error) { bad += p.add.length; toast(errText(error), 'err'); } else ok += p.add.length; }
+    for (const x of p.upd) { const { error } = await sb.from('local_drugs').update({ ...x.row, updated_at: now }).eq('id', x.l.id); results.push({ name: x.l.name, ok: !error, why: error ? errText(error) : '', item: x, kind: 'upd' }); }
+    results.push(...await insertEach('local_drugs', p.add, (x) => x.row, (x) => `${x.row.name} (ใหม่)`));
     await reloadDrugData();
   } finally { busy(btn, false); }
-  return { ok, bad };
+  return { ok: results.filter((x) => x.ok).length, bad: results.filter((x) => !x.ok).length, results };
 }
+/** แผนใหม่จากรายการที่บันทึกไม่ได้ (ลองใหม่เฉพาะที่ไม่ได้) */
+export const retryPlan = (p, results) => ({ ...p, upd: results.filter((x) => !x.ok && x.kind === 'upd').map((x) => x.item), add: results.filter((x) => !x.ok && x.kind === 'add').map((x) => x.item), bad: [], same: 0 });
 
 /* ======================= นำเข้าด้วย AI (89_ai_drug_import.sql) =======================
    ไฟล์ที่ไม่ใช่รูปแบบส่งออกของเว็บ (Excel/CSV จากระบบอื่น · PDF · ข้อความ) → อ่านข้อความในเบราว์เซอร์ → AI บอกว่าเป็นฐานไหน + จับลงช่อง
@@ -250,15 +269,13 @@ export function aiPlanHtml(p, file) {
 export async function applyAiPlan(p, btn) {
   if (p.target === 'drugs') return applyDrugImport(p, btn);
   busy(btn, true, 'กำลังบันทึก…');
-  let ok = 0, bad = 0;
+  const results = [];
   try {
-    const tb = p.target === 'rpst' ? 'rpst_list' : 'drug_monographs';
-    for (const x of p.upd) { const { error } = await sb.from(tb).update(x.row).eq('id', x.l.id); if (error) { bad++; toast(errText(error), 'err'); } else ok++; }
-    if (p.add.length) {
-      const rows = p.target === 'nlem' ? p.add.map((x, i) => ({ ...x.row, group_no: 0, sub_code: '0', no: 0, ref: `custom:${Date.now()}-${i}`, sort: 100000 + i })) : p.add.map((x) => x.row);
-      const { error } = await sb.from(tb).insert(rows); if (error) { bad += rows.length; toast(errText(error), 'err'); } else ok += rows.length;
-    }
+    const tb = p.target === 'rpst' ? 'rpst_list' : 'drug_monographs', t0 = Date.now();
+    for (const x of p.upd) { const { error } = await sb.from(tb).update(x.row).eq('id', x.l.id); results.push({ name: x.l.name, ok: !error, why: error ? errText(error) : '', item: x, kind: 'upd' }); }
+    const rowOf = p.target === 'nlem' ? (x) => ({ ...x.row, group_no: 0, sub_code: '0', no: 0, ref: `custom:${t0}-${p.add.indexOf(x)}`, sort: 100000 + p.add.indexOf(x) }) : (x) => x.row;
+    results.push(...await insertEach(tb, p.add, rowOf, (x) => (p.target === 'rpst' ? `${x.row.code} · ${x.row.name || ''}` : x.row.name)));
     await reloadDrugData();
   } finally { busy(btn, false); }
-  return { ok, bad };
+  return { ok: results.filter((x) => x.ok).length, bad: results.filter((x) => !x.ok).length, results };
 }
