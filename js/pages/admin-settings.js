@@ -622,6 +622,8 @@ async function saveReview(card) {
   if (!name) { say(m, 'กรุณาใส่ชื่อยา'); card.querySelector('.r-name').focus(); return; }
   let inds, concs;
   try { inds = readInds(card.querySelector('.r-inds')); concs = readConcs(card.querySelector('.r-concs')); } catch (err) { say(m, err.message); return; }
+  const t = testDose({ id: +card.dataset.rv, indications: inds, concs }, []);   // กฎความปลอดภัย + ทดสอบสูตร ก่อนใช้คำนวณ (90)
+  if (t.status === 'fail') { say(m, `ยังใช้คำนวณไม่ได้: ${t.issues.find((x) => x.sev === 'fail').text}`); return; }
   const f = inds[0], btn = card.querySelector('[type=submit]');
   busy(btn, true, 'กำลังบันทึก…');
   const { error } = await sb.from('dose_drugs').update({

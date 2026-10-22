@@ -1706,6 +1706,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ร่างจาก AI: บอกความคืบหน้า + ยาที่ฉลากไม่มีขนาดยาตามน้ำหนัก', (await text(p, '#dfRvStatus')).includes('ระบบกำลังร่างให้') && (await text(p, '#dfRvStatus')).includes('ฉลากยาไม่มีขนาดยาตามน้ำหนักตัว 1 ยา'), await text(p, '#dfRvStatus'));
       check('ส่วนที่ย่อ/ขยายได้มีลูกศรสามเหลี่ยม (▸ ย่อ / หมุนเมื่อเปิด)', await p.$eval('.df-rv > summary', (el) => getComputedStyle(el, '::before').content.includes('▸') && getComputedStyle(el, '::before').transform !== 'none'));
       await p.fill(`${card} .i-min`, '30');
+      await p.click(`${card} [type=submit]`); await p.waitForTimeout(300);
+      check('ร่างจาก AI: ยังไม่มีช่วงอายุ/เพดานต่อวัน → ไม่ให้ใช้คำนวณ + บอกเหตุผล (กฎความปลอดภัย)', /ยังใช้คำนวณไม่ได้/.test(await text(p, `${card} .r-msg`)), await text(p, `${card} .r-msg`));
+      await p.fill(`${card} .i-agemin`, '0'); await p.fill(`${card} .i-capday`, '1500');
       await p.click(`${card} [type=submit]`); await p.waitForTimeout(500);
       const up = (await calls(p, (c) => c.table === 'dose_drugs' && c.op === 'update')).pop()?.payload || {};
       check('ร่างจาก AI: แก้ในกล่อง → ตรวจแล้ว · ใช้คำนวณ (บันทึกค่าที่แก้ + แสดงในเครื่องคำนวณ)', up.active === true && up.ai_draft === false && up.indications?.[0]?.min === 30 && up.mg_per_kg_min === 30 && up.indications?.[0]?.quote === '25 mg/kg/day in divided doses' && !(await p.$(card)), JSON.stringify(up)); }
