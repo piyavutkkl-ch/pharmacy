@@ -81,12 +81,32 @@ async function attachSaved(r) {
   const m = await loadSavedFixes(ids);
   if (!m.size || String(sel) !== String(r.l.id)) return;
   let n = 0;
-  cards.forEach((c) => {
+  cards.forEach((c, k) => {
     const f = m.get(String(c.ind.name || '').trim());
-    if (!f || c.fix || c.ok || cardTest(r.l, r.j, c).status === 'pass') return;
-    c.fix = { state: 'done', mode: f.mode || f.result?.mode, res: f.result, note: f.note, saved: true }; n++;
+    if (!f || c.fix || c.filled || c.ok || cardTest(r.l, r.j, c).status === 'pass') return;
+    if (fillCard(r.l, c, k, { mode: f.mode || f.result?.mode, res: f.result })) n++;
   });
-  if (n) { prep = `มีค่าที่ AI เสนอไว้แล้ว ${n} ข้อ (จากการตรวจครั้งก่อน) · ตรวจแล้วกดใช้ในการ์ด`; renderMain(); }
+  if (n) { prep = `AI เติมข้อมูลให้แล้ว ${n} ข้อ (จากการตรวจทุกตัว) · เปิดลิงก์ตรวจตัวเลข แล้วกด "ตรวจตัวเลขกับฉลากแล้ว" และ "อนุมัติใช้คำนวณ" · ยังไม่บันทึก/ยังไม่แสดงต่อประชาชน`; renderMain(); }
+}
+/** เติมค่าที่ AI หาได้ลงการ์ดเลย (ยังไม่บันทึก · ต้องตรวจและอนุมัติเอง) · เก็บค่าเดิมไว้ย้อนกลับได้ */
+function fillCard(l, c, k, fix) {
+  const res = fix?.res; if (!res?.ind) return false;
+  const ref = res.ind.ref || fdaRef(fdaOf(l));   // ค้นจากเว็บ = ลิงก์ที่ AI ใช้ · ตรวจกับฉลาก = ฉลาก DailyMed ของยานี้
+  c.filled = { prev: { ...c.ind }, mode: fix.mode || res.mode || 'label', res };
+  c.ind = { ...res.ind, name: c.ind.name || res.ind.name, ...(ref ? { ref } : {}) };
+  c.fix = null; c.ack = []; c.ai = true; c.fixed = true; c.skip = null; c.on = true; c.open = true;
+  changed(k);
+  return true;
+}
+/** การ์ดที่ AI เติมให้แล้ว: เปลี่ยนอะไร · ที่ยังขาด · ลิงก์ให้เปิดตรวจ · ย้อนกลับค่าเดิม */
+function filledHtml(c, k) {
+  const f = c.filled, web = f.mode === 'web', old = cleanInd(f.prev), nw = cleanInd(c.ind);
+  const diff = Object.keys(FLAB).filter((x) => x !== 'name' && x !== 'quote' && JSON.stringify(old[x] ?? null) !== JSON.stringify(nw[x] ?? null));
+  return `<div class="dw-fix" data-dw-filled data-mode="${web ? 'web' : 'label'}"><b>${ic('spark')}AI เติมให้แล้ว${web ? ' (ค้นจากเว็บ)' : ' (จากฉลาก OpenFDA)'}</b>${f.res.why ? ` <span class="small">${esc(f.res.why)}</span>` : ''}`
+    + `<ul>${diff.map((x) => `<li>${esc(FLAB[x])}: <s>${esc(fmtv(old[x]))}</s> → <b>${esc(fmtv(nw[x]))}</b></li>`).join('') || '<li>ไม่มีค่าที่เปลี่ยน</li>'}</ul>`
+    + (f.res.left ? `<p class="small dc-warn">ยังขาด: ${esc(f.res.left)}</p>` : '') + linksHtml(f.res)
+    + `<p class="small muted">${web ? '<b>ค่าจากเว็บยังไม่ได้ตรวจเทียบต้นฉบับโดยระบบ</b> · ' : ''}เปิดลิงก์ตรวจตัวเลขก่อนกด "ตรวจตัวเลขกับฉลากแล้ว" · ยังไม่บันทึกจนกด "อนุมัติใช้คำนวณ"</p>`
+    + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dw-undo="${k}">ย้อนกลับค่าเดิม</button></div></div>`;
 }
 async function refresh(rebuild = true) {
   await reloadDrugData();
@@ -444,7 +464,7 @@ function cardHtml(l, j, c, k) {
   }
   const ag = ageSel(i), times = timesOf(i), custom = c.ageCustom || !ag.aligned;
   const st = c.ok ? '<span class="dw-tag t-ok">✓ ตรวจแล้ว</span>' : c.ai ? `<span class="dw-tag t-ai">${ic('spark')}AI ${c.fixed ? 'แก้' : 'ร่าง'} · รอตรวจ</span>` : c.skip ? '<span class="dw-tag t-warn">ยังไม่ครบ</span>' : '<span class="dw-tag t-man">' + ic('user') + 'กรอกเอง</span>';
-  const fixBox = c.fix ? fixHtml(c, k) : '';
+  const fixBox = c.fix ? fixHtml(c, k) : c.filled ? filledHtml(c, k) : '';
   return `<div class="dw-card${foc ? ' foc' : ''}${c.on ? '' : ' off'}" data-card="${k}" id="dwCard-${k}">`
     + `<div class="dw-ch"><label class="dw-use" title="ใช้ข้อบ่งใช้นี้ในเครื่องคำนวณ"><input type="checkbox" data-dw-on="${k}"${c.on ? ' checked' : ''}> ใช้</label>`
     + `<input class="input dw-iname" data-k="${k}" data-f="name" maxlength="200" placeholder="ชื่อข้อบ่งใช้ เช่น ลดไข้" value="${esc(i.name || '')}" aria-label="ชื่อข้อบ่งใช้ ${k + 1}">`
@@ -524,7 +544,7 @@ function doseHtml(l, j) {
   const ts = cards.filter((c) => c.on).map((c) => (c.ok ? 'ok' : cardTest(l, j, c).status)), nF = ts.filter((x) => x === 'fail').length, nW = ts.filter((x) => x === 'warn').length;
   return `<section class="card dw-dose" id="dwDose"><div class="dw-sh">${ic('scale')}<b>ขนาดยา · ข้อบ่งใช้</b>${nAi ? `<span class="dw-tag t-ai">${ic('spark')}AI ${nAi} ข้อ รอตรวจ</span>` : ''}${x.dose ? `<span class="small muted">${esc((x.t || '').replace(/^DOSE-\S+\s/, ''))}</span>` : ''}</div>`
     + (ts.length ? `<div class="dw-chkall" data-dw-chkall><span class="small">${nF ? `<b class="dc-err">ไม่ผ่าน ${nF} ข้อ</b> · ` : ''}${nW ? `<span class="dc-warn">ควรตรวจ ${nW} ข้อ</span> · ` : ''}${!nF && !nW ? '<span class="dc-ok">ทุกข้อผ่านกฎความปลอดภัย</span> · ' : ''}ใช้ ${ts.length} ข้อ</span>`
-      + `<button type="button" class="btn ${nF ? 'btn-p' : 'btn-o'} btn-sm" data-dw-aiall>${ic('spark')}ตรวจยานี้${nF ? ` + ให้ AI ช่วย ${nF} ข้อที่ไม่ผ่าน` : 'ทั้งตัว'}</button></div>` : '')
+      + `<button type="button" class="btn ${nF ? 'btn-p' : 'btn-o'} btn-sm" data-dw-aiall>${ic('spark')}ตรวจยานี้${nF ? ` + ให้ AI เติมข้อมูล ${nF} ข้อที่ไม่ผ่าน` : 'ทั้งตัว'}</button></div>` : '')
     + (cards.length ? cards.map((c, k) => cardHtml(l, j, c, k)).join('') : '<p class="empty small">ยังไม่มีข้อบ่งใช้ · เพิ่มเอง หรือให้ AI ร่างจากฉลาก</p>')
     + `<div class="dw-add"><button type="button" class="btn btn-o btn-sm" data-dw-addind>${ic('plus')}เพิ่มข้อบ่งใช้</button><button type="button" class="btn btn-o btn-sm" data-dw-ai>${ic('spark')}ให้ AI ร่างจากฉลาก</button>`
     + sibs.slice(0, 3).map((r) => `<button type="button" class="btn btn-o btn-sm" data-dw-copy="${esc(r.l.id)}">${ic('swap')}คัดลอกจาก ${esc(r.l.name)}</button>`).join('')
@@ -701,21 +721,22 @@ async function aiAllCards(btn) {
   const r = cur(); if (!r) return;
   const bad = cards.map((c, k) => ({ c, k })).filter(({ c }) => c.on && !c.ok && cardTest(r.l, r.j, c).status === 'fail');
   if (!bad.length) { prep = cards.some((c) => c.on) ? 'ตรวจแล้ว: ทุกข้อที่ใช้ผ่านกฎความปลอดภัย · ข้อที่มีข้อควรตรวจ ติ๊กรับทราบแล้วกดตรวจตัวเลขกับฉลากแล้ว' : 'ยังไม่มีข้อบ่งใช้ · เพิ่มเอง หรือให้ AI ร่างจากฉลาก'; renderMain(); return; }
-  busy(btn, true, 'AI กำลังช่วย…');
+  busy(btn, true, 'AI กำลังเติมข้อมูล…');
+  let filled = 0;
   try {
     const f = fdaOf(r.l);
     for (const [n, { c, k }] of bad.entries()) {
       if (cur() !== r || cards[k] !== c) break;
       prep = `AI กำลังหาค่า ข้อ ${k + 1} (${n + 1}/${bad.length})…`;
-      const prev = c.fix?.res?.ind ? c.fix : null;
       if (f && !(await startFix(k, null, 'label'))) break;
       if (!(c.fix?.res?.ind && !c.fix.res.left)) {   // ฉลากไม่มี/ไม่พอ → ค้นจากเว็บ
-        const lab = c.fix?.res?.ind ? c.fix : prev;
+        const lab = c.fix?.res?.ind ? c.fix : null;
         if (!(await startFix(k, null, 'web'))) break;
-        if (!c.fix?.res?.ind && lab) c.fix = lab;   // เว็บไม่พบ = เก็บค่าจากฉลากไว้
+        if (!c.fix?.res?.ind && lab) c.fix = lab;   // เว็บไม่พบ = ใช้ค่าจากฉลาก
       }
+      if (fillCard(r.l, c, k, c.fix)) filled++;   // เติมลงการ์ดเลย (ยังไม่บันทึก) · ไม่พบ = กล่องบอกเหตุผลค้างไว้
     }
-    prep = `AI ช่วยครบ ${bad.length} ข้อที่ไม่ผ่านแล้ว · ตรวจค่าที่เสนอในแต่ละการ์ด (เปิดลิงก์ตรวจ) แล้วกดใช้เอง`;
+    prep = `AI เติมข้อมูลให้แล้ว ${filled} จาก ${bad.length} ข้อที่ไม่ผ่าน · เปิดลิงก์ตรวจตัวเลขในแต่ละการ์ด แล้วกด "ตรวจตัวเลขกับฉลากแล้ว" และ "อนุมัติใช้คำนวณ" (ยังไม่บันทึก)`;
   } finally { busy(btn, false); renderMain(); }
 }
 /** ให้ AI ร่างขนาดยาจากฉลาก openFDA (50 ai_dose_start) → การ์ด "AI ร่าง" รอตรวจ (ยังไม่บันทึก) */
@@ -912,11 +933,10 @@ async function onMain(e) {
     return;
   }
   if ((b = B('[data-dw-fixuse]'))) {
-    const k = +b.dataset.dwFixuse, c = cards[k], res = c.fix?.res?.ind; if (!res) return;
-    const ref = res.ref || fdaRef(fdaOf(l));   // ค้นจากเว็บ = ลิงก์ที่ AI ใช้ · ตรวจกับฉลาก = ฉลาก DailyMed ของยานี้
-    c.ind = { ...res, name: c.ind.name || res.name, ...(ref ? { ref } : {}) };
-    c.fix = null; c.ack = []; c.ai = true; c.fixed = true; c.skip = null; c.on = true; changed(k); renderMain(); return;
+    const k = +b.dataset.dwFixuse, c = cards[k]; if (!c?.fix?.res?.ind) return;
+    fillCard(l, c, k, c.fix); renderMain(); return;
   }
+  if ((b = B('[data-dw-undo]'))) { const k = +b.dataset.dwUndo, c = cards[k]; if (!c?.filled) return; c.ind = c.filled.prev; c.filled = null; changed(k); renderMain(); return; }
   if ((b = B('[data-dw-fixno]'))) { cards[+b.dataset.dwFixno].fix = null; renderMain(); return; }
   if (B('[data-dw-addind]')) { cards.push({ ind: { name: '', per: 'dose' }, on: true, skip: null, ok: false, ai: false, fix: null, open: true }); focus = cards.length - 1; dirty = true; renderMain(); $(`#dwCard-${focus} .dw-iname`)?.focus(); return; }
   if ((b = B('[data-dw-ai]'))) { await aiDraft(l, b); return; }

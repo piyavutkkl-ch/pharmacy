@@ -727,7 +727,7 @@
         </div>
         <!-- ศูนย์ข้อมูลยา (drug-center.js): สรุป → วงกลมรายส่วน → ตารางสถานะยา → แผงรายละเอียด/แก้ไขทีละส่วน + คู่ที่ระบบเสนอ -->
         <div id="dcCenter" class="dc">
-          <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/work" id="dcAddBtn" data-dw-new>+ เพิ่มยา</a><button type="button" class="btn btn-o btn-sm" id="dcCheckBtn">✓ ตรวจข้อมูลขนาดยาทุกตัว</button><span class="small muted">ดูว่ายาไหนขาดอะไร · ผูกจากฐานข้อมูลที่มีได้เลยในแผงด้านขวา · แก้ละเอียดกด "แก้ไขในหน้าทำงานทีละยา"</span></div>
+          <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/work" id="dcAddBtn" data-dw-new>+ เพิ่มยา</a><button type="button" class="btn btn-o btn-sm" id="dcCheckBtn">✓ ตรวจขนาดยาทุกตัว + ให้ AI เติมข้อมูลที่ขาด</button><span class="small muted">ดูว่ายาไหนขาดอะไร · ผูกจากฐานข้อมูลที่มีได้เลยในแผงด้านขวา · แก้ละเอียดกด "แก้ไขในหน้าทำงานทีละยา"</span></div>
           <section class="card dc-check" id="dcCheck" hidden aria-live="polite"></section>
           <div class="dc-cards" id="dcCards" role="group" aria-label="กรองตามสถานะ"></div>
           <div class="dc-stack" id="dcStack" aria-hidden="true"></div>

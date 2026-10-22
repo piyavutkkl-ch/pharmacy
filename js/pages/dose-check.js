@@ -1,7 +1,9 @@
 // ตรวจข้อมูลขนาดยาทุกตัวในครั้งเดียว (ศูนย์ข้อมูลยา › ภาพรวม · ปุ่ม #dcCheckBtn · เจ้าของเว็บ 22 ต.ค.)
 //   ① ตรวจทันที (ไม่ใช้ AI): testDose + กฎความปลอดภัย dose-rules.js ของข้อมูลคำนวณทุกชุด → ไม่ผ่าน / ควรตรวจ / รออนุมัติ / ครบแล้ว
-//   ② "ให้ AI หาค่าทุกข้อที่ไม่ผ่าน": ทีละข้อ · ยาที่ผูกฉลาก OpenFDA = ตรวจกับฉลากก่อน (87/90) · ไม่มีฉลาก/ฉลากไม่พอ = ค้นจากเว็บพร้อมลิงก์ (90 ai_dose_web_start)
-//      ผลเก็บในฐานข้อมูล (ai_dose_fixes) → เปิดยาในหน้าทำงานทีละยา = เห็นค่าที่ AI เสนอในการ์ดนั้นเลย (loadSavedFixes) · ระบบไม่บันทึกค่าเอง ผู้ดูแลตรวจ/กดใช้/อนุมัติเอง
+//   ปุ่มเดียว "ตรวจ + ให้ AI เติมข้อมูลที่ขาด": ตรวจเสร็จ → ถามยืนยัน → AI หาค่าทุกข้อที่ไม่ผ่านต่อเลย (ยกเลิก = ดูผลตรวจอย่างเดียว · กดเติมทีหลังได้)
+//   ② AI เติมข้อมูล: ทีละข้อ · ยาที่ผูกฉลาก OpenFDA = ตรวจกับฉลากก่อน (87/90) · ไม่มีฉลาก/ฉลากไม่พอ = ค้นจากเว็บพร้อมลิงก์ (90 ai_dose_web_start)
+//      ผลเก็บในฐานข้อมูล (ai_dose_fixes) → เปิดยาในหน้าทำงานทีละยา = ค่าถูกเติมลงการ์ดให้เลย (loadSavedFixes · ยังไม่บันทึก) · ผู้ดูแลเปิดลิงก์ตรวจ แล้วกดตรวจ/อนุมัติเอง
+//      ไม่บันทึกลงข้อมูลคำนวณเอง เพราะการแก้ข้อบ่งใช้ของยาที่แสดงอยู่ = อนุมัติ (90) → ต้องเป็นเภสัชกรกดเท่านั้น
 //   ไม่ส่งข้อความ MIMS ให้ AI · จำกัด 60 ครั้ง/วัน/ผู้ดูแล (ฐานข้อมูลกำหนด) → ครบแล้วหยุดพร้อมบอกเหตุผล
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
@@ -68,7 +70,7 @@ function rowHtml(it) {
   const [cls, word] = TAG[it.status], l = it.main;
   const done = Object.values(it.ai).filter((r) => r?.result?.ind).length, tried = Object.keys(it.ai).length;
   const aiTxt = it.ai.busy ? '<span class="dw-tag t-ai" data-ck-busy>AI กำลังหาค่า…</span>'
-    : tried ? `<span class="dw-tag t-ai" data-ck-ai="${it.d.id}">AI เสนอแล้ว ${done}/${it.bad.length} ข้อ · เปิดตรวจในหน้าทำงานทีละยา</span>` : '';
+    : tried ? `<span class="dw-tag t-ai" data-ck-ai="${it.d.id}">AI เติมแล้ว ${done}/${it.bad.length} ข้อ · เปิดตรวจและอนุมัติ</span>` : '';
   const iss = [...it.fails, ...(it.status === 'warn' ? it.warns : [])].slice(0, 3);
   return `<li class="ck-row" data-ck-row="${it.d.id}"><div class="ck-h"><span class="${cls} ck-tag">${word}</span><b>${esc(it.d.web_code ? `${it.d.web_code} ` : '')}${esc(it.d.name)}</b>`
     + `<span class="small muted">${esc(it.ls.map((x) => x.name).slice(0, 2).join(', '))}${it.ls.length > 2 ? ' …' : ''}${it.wait ? ` · ${esc(it.wait)}` : ''}</span>${aiTxt}</div>`
@@ -83,21 +85,23 @@ function render() {
     + '<button type="button" class="btn btn-o btn-sm" data-ck-close>ปิด</button></div>'
     + `<div class="ck-sum"><span class="dc-err">ไม่ผ่าน ${s.fail}</span><span class="dc-warn">ควรตรวจ ${s.warn}</span><span class="dc-warn">รออนุมัติ ${s.wait}</span><span class="dc-ok">ครบแล้ว ${s.ok}</span></div>`
     + (s.bad ? `<div class="row-btns">${running ? `<button type="button" class="btn btn-o btn-sm" data-ck-stop>หยุด</button><span class="small" data-ck-prog aria-live="polite">${esc(report.prog || '')}</span>`
-      : `<button type="button" class="btn btn-p btn-sm" data-ck-ai-all>ให้ AI หาค่าทุกข้อที่ไม่ผ่าน (${s.bad} ข้อ)</button>`}<span class="small muted">ใช้ฉลาก OpenFDA ก่อน ไม่พอ = ค้นจากเว็บพร้อมลิงก์ · ไม่บันทึกเอง ผู้ดูแลตรวจและกดใช้ในหน้าทำงานทีละยา</span></div>` : '')
+      : `<button type="button" class="btn btn-p btn-sm" data-ck-ai-all>ให้ AI เติมข้อมูลทุกข้อที่ไม่ผ่าน (${s.bad} ข้อ)</button>`}<span class="small muted">ใช้ฉลาก OpenFDA ก่อน ไม่พอ = ค้นจากเว็บพร้อมลิงก์ · เปิดยาแต่ละตัว = ค่าถูกเติมในการ์ดแล้ว ตรวจตามลิงก์แล้วกดอนุมัติ</span></div>` : '')
     + (report.msg ? `<p class="small dc-warn" data-ck-msg>${esc(report.msg)}</p>` : '')
     + (todo.length ? `<ul class="ck-list">${todo.map(rowHtml).join('')}</ul>` : '<p class="empty" data-ck-allok>ข้อมูลขนาดยาทุกชุดครบตามเงื่อนไขและอนุมัติแล้ว</p>');
 }
-/** ปุ่ม "ตรวจข้อมูลขนาดยาทุกตัว" (rows = แถวของศูนย์ข้อมูลยา) */
-export function runCheck(rows) {
+/** ปุ่ม "ตรวจ + ให้ AI เติมข้อมูลที่ขาด" (rows = แถวของศูนย์ข้อมูลยา) · fill = ถามแล้วให้ AI เติมต่อเลย */
+export function runCheck(rows, { fill = true } = {}) {
+  if (running) return;
   report = { list: checkAll(rows), at: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }), msg: '' };
   render();
   $('#dcCheck')?.scrollIntoView({ block: 'nearest' });
+  if (fill && report.list.some((x) => x.bad.length)) aiAll($('#dcCheck [data-ck-ai-all]'));
 }
 async function aiAll(btn) {
   if (running || !report) return;
   const jobs = report.list.flatMap((it) => it.bad.map((b) => ({ it, b })));
   if (!jobs.length) return;
-  if (!confirm(`ให้ AI หาค่าของ ${jobs.length} ข้อบ่งใช้ที่ไม่ผ่าน? (ทีละข้อ ใช้เวลาข้อละประมาณครึ่งนาที · AI ใช้ได้ 60 ครั้งต่อวัน)`)) return;
+  if (!confirm(`ตรวจแล้ว: ไม่ผ่าน ${jobs.length} ข้อบ่งใช้ · ให้ AI เติมข้อมูลที่ขาดเลยไหม?\n(ทีละข้อ ข้อละประมาณครึ่งนาที · AI ใช้ได้ 60 ครั้งต่อวัน · ยังไม่บันทึก/ไม่แสดงต่อประชาชนจนกว่าจะตรวจและอนุมัติ)`)) return;
   running = true; stop = false; report.msg = ''; busy(btn, true, 'กำลังเริ่ม…'); render();
   let n = 0;
   try {
@@ -108,8 +112,8 @@ async function aiAll(btn) {
       catch (err) { delete it.ai.busy; report.msg = `หยุดที่ ${it.d.name}: ${errText(err)}`; render(); break; }
       delete it.ai.busy; render();
     }
-    if (!report.msg) report.msg = `AI ทำครบ ${n} ข้อแล้ว · เปิดยาแต่ละตัวในหน้าทำงานทีละยาเพื่อตรวจค่าที่เสนอ (เปิดลิงก์ตรวจ) แล้วกดใช้/อนุมัติเอง`;
-    toast('AI หาค่าเสร็จแล้ว · ตรวจในหน้าทำงานทีละยา');
+    if (!report.msg) report.msg = `AI ทำครบ ${n} ข้อแล้ว · กด "แก้ในหน้าทำงานทีละยา" = ค่าถูกเติมในการ์ดแล้ว เปิดลิงก์ตรวจตัวเลข แล้วกดตรวจและอนุมัติ`;
+    toast('AI เติมข้อมูลเสร็จแล้ว · เปิดยาแต่ละตัวเพื่อตรวจและอนุมัติ');
   } finally { running = false; report.prog = ''; render(); }
 }
 let bound = false;
