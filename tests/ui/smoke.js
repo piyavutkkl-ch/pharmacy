@@ -270,6 +270,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           check('ข้อมูลขนาดยาที่ยังไม่มีผู้อนุมัติ → ไม่อยู่ในรายการยาของประชาชน', !(await p.$$eval('#doseDrug option', (o) => o.some((x) => /Levothyroxine/.test(x.textContent)))));
           await p.evaluate(async () => { const d = window.__db.dose_drugs.find((x) => x.id === 9902); d.approved_at = new Date().toISOString();
             const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }); }
+        { // 91: AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก → หยุดแสดงข้อนั้น (แบบ ข) · สงสัย → ยังแสดง ไม่เตือนประชาชน (แบบ ก)
+          const setFlag = (level) => p.evaluate(async (level) => { const d = window.__db.dose_drugs.find((x) => x.id === 9902);
+            d.indications = [{ name: 'เด็ก 2–6 ปี', per: 'dose', min: 1, max: 2, cap: 50, age_min: 2, age_max: 6 }];
+            d.audit_flags = level ? [{ name: 'เด็ก 2–6 ปี', level, why: 'ฉลากให้ 0.5–1 มก./กก. (ข้อมูลจำลอง)' }] : [];
+            const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }, level);
+          await setFlag('wrong'); await p.selectOption('#doseDrug', v); await p.fill('#doseWeight', '18'); await p.fill('#doseAge', '4'); await p.waitForTimeout(250);
+          check('AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก → หน้าคำนวณหยุดแสดงตัวเลขข้อนั้น + บอกให้รอเภสัชกร (ไม่โชว์เหตุผลภายในให้ประชาชน)', !!(await p.$('#doseResult [data-audit-block]')) && !(await p.$('#doseResult .ind-result .fig')) && !(await text(p, '#doseResult')).includes('ข้อมูลจำลอง'), await text(p, '#doseResult'));
+          await setFlag('doubt'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(250);
+          check('AI แค่สงสัย → ยังแสดงขนาดยาตามเดิม · ประชาชนไม่เห็นคำเตือน (เฉพาะผู้ดูแล)', !!(await p.$('#doseResult .ind-result .fig')) && !(await p.$('#doseResult [data-audit-doubt]')));
+          await setFlag(null); await p.fill('#doseAge', ''); }
         await p.selectOption('#doseSex', sex0); }
       { // audit F-10: ไตเสื่อม → ตัวเลขขนาดยาระบุว่าเป็นขนาดปกติที่ยังไม่ปรับตามไต
         await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [{ name: 'ทดสอบไต', per: 'dose', min: 10, max: 10, cap: 1000, age_min: 0, renal: 'CrCl < 30: ลดขนาดลงครึ่งหนึ่ง (ข้อความทดสอบ)' }];
@@ -1528,7 +1538,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.keyboard.press('Escape'); await p.fill('#dcQ', ''); await p.waitForTimeout(150); }
       { // แผงยา 3 ขั้น: ขนาดยาคิดจากธาตุเหล็ก → ขั้นที่ 1 บอกให้กรอก "คิดเป็น" → ตารางข้อบ่งใช้จาก MIMS ติ๊ก/แก้ → ตรวจซ้ำ → อนุมัติ (ข้อมูลสมมติ ไม่ใช่ขนาดยาจริง)
         const fid = await p.evaluate(() => { const L = window.__db.local_drugs.find((x) => x.name === 'FERROUS FUMARATE 200 MG'); Object.assign(L, { dose_id: null, mims_id: null, link_na: [], strength: null }); return L.id; });
-        const sample = [{ drug: 'FERROUS FUMARATE 200 MG', indications: [{ name: 'ทดสอบ เหล็ก เด็ก', per: 'day', times: '2-3', min: 3, max: 6, cap_day: 200, age_min: 0, age_max: 12, note: 'elemental Fe' }, { name: 'ทดสอบ ป้องกัน', per: 'day', times: 'ไม่พบ', fixed_mg: { min: 30, max: 30 }, note: 'elemental Fe' }], ref: { label: 'MIMS Thailand', url: 'https://www.mims.com/thailand/drug/info/ferrous-fumarate' } }];
+        const sample = [{ drug: 'FERROUS FUMARATE 200 MG', indications: [{ name: 'ทดสอบ เหล็ก เด็ก', per: 'day', times: '2-3', min: 3, max: 6, cap_day: 200, age_min: 0, age_max: 12, note: 'elemental Fe' }, { name: 'ทดสอบ ป้องกัน', per: 'day', times: 'ไม่พบ', fixed_mg: { min: 30, max: 30 }, age_min: 0, note: 'elemental Fe' }], ref: { label: 'MIMS Thailand', url: 'https://www.mims.com/thailand/drug/info/ferrous-fumarate' } }];
         await bulk(p);
         await p.setInputFiles('#mmFile', { name: 'mims_doses.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(sample)) }); await p.waitForTimeout(300);
         await p.click('#mmImport'); await p.waitForTimeout(1200);
@@ -2270,6 +2280,23 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.click('[data-dw-aiall]'); await q.waitForSelector('[data-dw-filled]', { timeout: 40000 }).catch(() => {}); await q.waitForTimeout(300);
       check('ตรวจยานี้ + ให้ AI เติมข้อมูลทุกข้อที่ไม่ผ่าน → เติมลงการ์ดเลย (ฉลากก่อน ไม่พอ = เว็บ) → ผ่านกฎ + บอกว่าเสร็จ', (await calls(q, (c) => /^ai_dose_(fix|web)_start$/.test(c.rpc || ''))).length === n0 + 2 && await count(q, '[data-dw-filled]') === 1
         && (await text(q, '#dwHead')).includes('AI เติมข้อมูลให้แล้ว 1 จาก 1') && !(await text(q, '[data-dw-chkall]')).includes('ไม่ผ่าน') && !(await text(q, '[data-dw-cst="0"]')).includes('ยังไม่ผ่าน'), await text(q, '#dwHead'));
+      { // 91: AI ตรวจย้อนหลัง → ธงในภาพรวม/เมนู/การ์ด · ล้างธงเมื่อตรวจแล้วถูกต้อง · สั่งตรวจตอนนี้
+        await q.evaluate(async (lid) => { const db = window.__db, l = db.local_drugs.find((x) => x.id === lid), d = db.dose_drugs.find((x) => x.id === l.dose_id);
+          d.indications = [{ name: 'AUDITWRONG ไข้', per: 'dose', min: 20, max: 30, cap: 400, age_min: 0, age_max: 12 }]; d.active = true; d.ai_draft = false; d.approved_at = new Date().toISOString();
+          d.audit_flags = [{ name: 'AUDITWRONG ไข้', level: 'wrong', why: 'ฉลากให้ 10–15 มก./กก. (ข้อมูลจำลอง)', quote: '10 to 15 mg/kg every 6 hours' }];
+          await (await import('./js/pages/admin-drugs.js?v=4.4')).reloadDrugData(true); await (await import('./js/pages/admin.js?v=4.4')).refreshAdminBadges(); }, lid);
+        q.removeAllListeners('dialog'); q.on('dialog', (d) => d.accept());
+        await go(q, '#/admin/drugs'); await q.waitForTimeout(1000);
+        check('ภาพรวม: กล่อง "AI ตรวจย้อนหลังพบ" ขัดกับฉลาก (หยุดแสดงแล้ว) + ตัวเลขแจ้งเตือนบนเมนูข้อมูลยา', await visible(q, '#dcAudit') && (await text(q, '#dcAudit')).includes('ขัดกับฉลาก 1 ข้อ') && (await text(q, '#admDrugsBadge')).trim() === '1', await text(q, '#dcAudit'));
+        await q.click(`#dcAudit [data-ck-open="${lid}"]`); await q.waitForTimeout(1500);
+        check('เปิดจากกล่องแจ้งเตือน → การ์ดแสดงธง AI ตรวจย้อนหลัง (เหตุผล + ข้อความฉลาก) + ปุ่มล้างธง', await count(q, '[data-dw-audit="0"]') === 1 && (await text(q, '[data-dw-audit="0"]')).includes('ขัดกับฉลาก') && (await text(q, '[data-dw-audit="0"]')).includes('10 to 15 mg/kg'), await text(q, '#dwDose'));
+        await q.click('[data-dw-auditok="0"]'); await q.waitForTimeout(900);
+        check('ตรวจแล้ว ข้อมูลเดิมถูกต้อง → ล้างธง (dose_audit_resolve)', (await calls(q, (c) => c.rpc === 'dose_audit_resolve')).pop()?.args?.p_name === 'AUDITWRONG ไข้' && await count(q, '[data-dw-audit="0"]') === 0);
+        await q.evaluate((lid) => { const db = window.__db, l = db.local_drugs.find((x) => x.id === lid); l.fda_key = l.fda_key || (db.drug_fda_labels[0] || {}).key; }, lid);
+        if (await count(q, '[data-dw-auditnow]')) {
+          await q.click('[data-dw-auditnow]'); await q.waitForSelector('[data-dw-audit="0"]', { timeout: 20000 }).catch(() => {});
+          check('ให้ AI ตรวจย้อนหลังยานี้ตอนนี้ → พบขัดกับฉลาก → ธงกลับมาในการ์ด + บอกผล', (await calls(q, (c) => c.rpc === 'dose_audit_now')).length === 1 && await count(q, '[data-dw-audit="0"]') === 1 && (await text(q, '#dwHead')).includes('AI ตรวจย้อนหลังพบ 1 ข้อ'), await text(q, '#dwHead'));
+        } else check('ปุ่มให้ AI ตรวจย้อนหลังยานี้ตอนนี้ (ยาที่อนุมัติแล้ว + มีฉลาก)', false, await text(q, '#dwDose')); }
       await q.setViewportSize({ width: 390, height: 900 }); await go(q, '#/admin/drugs'); await q.waitForTimeout(900); await q.click('#dcCheckBtn'); await q.waitForTimeout(300);
       check('ผลตรวจทุกตัว 390px: ไม่มี scroll แนวนอน', (await overflow(q)) <= 0, String(await overflow(q)));
       await (await q.$('#dcCheck')).screenshot({ path: path.join(SHOTS, 'dose-check-390.png') });

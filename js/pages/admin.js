@@ -89,11 +89,14 @@ function subTabs(sel, sub) {
 
 /** ตัวเลขงานค้างบนเมนู */
 export async function refreshAdminBadges() {
-  const [n, r, q] = await Promise.all([
+  const [n, r, q, dz] = await Promise.all([
     sb.from('news').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     sb.from('item_status').select('id', { count: 'exact', head: true }).eq('status', 'submitted'),
     sb.from('staff_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    sb.from('dose_drugs').select('id,audit_flags').eq('active', true),   // AI ตรวจย้อนหลังพบ (91)
   ]);
+  const nAudit = (dz.data || []).reduce((a, x) => a + (Array.isArray(x.audit_flags) ? x.audit_flags.length : 0), 0);
+  if ($('#admDrugsBadge')) $('#admDrugsBadge').textContent = nAudit ? String(nAudit) : '';
   $('#admNewsBadge').textContent = n.count ? String(n.count) : '';
   $('#admReviewBadge').textContent = r.count ? String(r.count) : '';
   $('#admSetBadge').textContent = $('#admReqBadge').textContent = q.count ? String(q.count) : '';   // คำร้องขอสิทธิ์เจ้าหน้าที่

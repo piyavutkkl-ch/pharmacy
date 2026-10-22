@@ -213,6 +213,9 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
   ค่าลับ GitHub Secrets: GEMINI_API_KEY (เจ้าของเว็บสร้างเองที่ aistudio.google.com — ฟรี ไม่ใส่บัตร) + SUPABASE_SECRET_KEY · Gemini free tier อาจใช้ข้อมูลที่ส่งไปพัฒนาโมเดล → ส่งได้แค่บทความสาธารณะ ห้ามส่งข้อมูลผู้ป่วย
 - ขนาดยา (90_dose_rules.sql): ประชาชน/เจ้าหน้าที่เห็น dose_drugs เฉพาะ active + approved_at · trigger ตรวจ dose_inds_problem + dose_rules_problem ตอนแสดง/แก้ข้อบ่งใช้ แล้วใส่ผู้อนุมัติเอง · ซ่อน = ล้างการอนุมัติ
   ยาเดิมที่แสดงอยู่แต่ไม่มีผู้อนุมัติ → ผู้ดูแลตรวจในหน้าทำงานทีละยาแล้วกดอนุมัติ (approve_dose · ตรวจกฎซ้ำ) · ทุกทางที่บันทึกแบบแสดง (saveDose · ฟอร์มขนาดยาเดิม) เรียก approve_dose
+- AI ตรวจย้อนหลังขนาดยา (91_dose_audit.sql): ai_auto_tick → dose_audit_tick ช่วง 00–05 น. ไทย ทีละ 1 ยา (อนุมัติแล้ว + มีฉลาก OpenFDA · ยังไม่เคยตรวจ/อนุมัติใหม่/เกิน 30 วัน) → dose_drugs.audit_flags [{name, level, why, quote}]
+  wrong (ตัวเลขขัดกับฉลาก + quote อยู่ในฉลากจริง) = หน้าคำนวณหยุดแสดงข้อนั้น [data-audit-block] · doubt = ยังแสดง เตือนผู้ดูแล [data-audit-doubt] · ธงระบบใส่เท่านั้น (GUC pcps.audit) · อนุมัติใหม่ล้างธง
+  ผู้ดูแล: กล่อง #dcAudit (ภาพรวม) + ตัวเลข #admDrugsBadge + ธงในการ์ด [data-dw-audit] ล้างด้วย dose_audit_resolve [data-dw-auditok] · สั่งตรวจตอนนี้ dose_audit_now/poll [data-dw-auditnow] (30 ครั้ง/วัน) · ผลตอบที่ข้อมูลเปลี่ยนไปแล้ว = ไม่ใช้
 - ข่าว: สถานะ pending/fix/rejected/published/unpublished/deleted · ถังข่าว (unpublished/deleted/rejected) มี trashed_at — หน้าผู้ดูแลลบถาวรเมื่อครบ 30 วัน
 
 ## แนวทางเขียนโค้ด

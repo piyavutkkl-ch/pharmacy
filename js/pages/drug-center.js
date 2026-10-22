@@ -17,7 +17,7 @@ import { strengthOf, comboName, keysOf, sameDrug, doseText, sameBasis } from './
 import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel } from './admin-drugs.js?v=4.4';
 import { indsProblem, indsOf, doseQuery, draftWord, indBox, readInds, syncIndBoxes, asMg, ageText } from './admin-settings.js?v=4.4';
 import { testDose, testHtml } from './dose-test.js?v=4.4';
-import { runCheck, bindCheck } from './dose-check.js?v=4.4';
+import { runCheck, bindCheck, renderAudit } from './dose-check.js?v=4.4';
 
 const K = ['str', 'rpst', 'mims', 'fda', 'nlem', 'ddi', 'dose'];   // ตามลำดับขั้น: ① str ② rpst/mims/fda/nlem/ddi ③ dose (รวมผลทดสอบสูตร)
 const SRC = ['rpst', 'mims', 'fda', 'nlem', 'ddi'];   // ขั้นที่ 2 แหล่งข้อมูล
@@ -74,8 +74,11 @@ function judge(l, k) {
     if (p) return { s: 'err', t: name, why: p, dose: d };
     const t = testDose(d, [l]);   // ตรวจซ้ำด้วยทดสอบสูตร (สูตรเดียวกับหน้าคำนวณ)
     if (t.status === 'fail') return { s: 'err', t: name, why: `ผลทดสอบสูตรไม่ผ่าน: ${t.issues.find((x) => x.sev === 'fail').text}`, dose: d, test: t };
+    const flags = Array.isArray(d.audit_flags) ? d.audit_flags : [], fw = flags.filter((f) => f.level === 'wrong'), fq = flags.filter((f) => f.level === 'doubt');
+    if (fw.length) return { s: 'err', t: name, why: `AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก ${fw.length} ข้อ (หยุดแสดงข้อนั้นแล้ว): ${fw.map((f) => `${f.name} — ${f.why}`).join(' · ')}`, dose: d, test: t, audit: flags };
     if (!own.length) return { s: 'wait', t: `${name} · จับคู่ตามชื่อ ยังไม่ได้ยืนยัน`, dose: d, auto: d, test: t };
     if (!d.active) return { s: 'wait', t: `${name} · ซ่อนจากเครื่องคำนวณ`, dose: d, test: t };
+    if (fq.length) return { s: 'wait', t: `${name} · AI สงสัย ${fq.length} ข้อ`, why: `AI ตรวจย้อนหลังสงสัย: ${fq.map((f) => `${f.name} — ${f.why}`).join(' · ')}`, dose: d, test: t, audit: flags };
     if (!d.approved_at) return { s: 'wait', t: `${name} · รอเภสัชกรอนุมัติ`, why: 'ยังไม่มีผู้อนุมัติ (ข้อมูลเดิมก่อนมีระบบอนุมัติ) · ประชาชน/เจ้าหน้าที่ยังไม่เห็นยานี้ในเครื่องคำนวณ · ตรวจแล้วกด "อนุมัติใช้คำนวณ" ในหน้าทำงานทีละยา', dose: d, test: t };
     return { s: 'ok', t: `${name} · อนุมัติแล้ว`, dose: d, test: t };
   }
@@ -219,6 +222,7 @@ function compute() {
 }
 function inScope(r) { return scope === 'all' || (scope === 'outside' ? !!r.l.outside : !r.l.outside); }
 function renderTop() {
+  renderAudit(rowsCache);   // แจ้งเตือน AI ตรวจย้อนหลัง (dose-check.js)
   const rs = rowsCache.filter(inScope), n = { all: rs.length, ready: 0, wait: 0, miss: 0, err: 0 };
   rs.forEach((r) => n[r.st]++);
   const cards = [['all', 'ยาทั้งหมด', ''], ['ready', 'พร้อมใช้', 'ok'], ['miss', 'ข้อมูลยังไม่ครบ', 'miss'], ['wait', 'รอเภสัชกรตรวจ', 'wait'], ['err', 'ผิดพลาด', 'err']];

@@ -118,7 +118,7 @@ function beforeInsert(table, row) {
     case 'patients': row.created_by = ME.id; break;
     case 'visits': row.unit_id = db.patients.find((p) => p.id === row.patient_id)?.unit_id; row.fiscal_year = fiscalYear(row.visit_date); row.created_by = ME.id; break;
     case 'dose_drugs': row.active ??= true; row.concs ??= []; row.sort ??= 0; row.ai_draft ??= false;   // แทน trigger dose_drugs_approve (90): แสดง = อนุมัติโดยผู้บันทึก
-      Object.assign(row, row.active && !row.ai_draft ? { approved_at: now(), approved_by: ME?.id } : { approved_at: null, approved_by: null }); break;
+      Object.assign(row, row.active && !row.ai_draft ? { approved_at: now(), approved_by: ME?.id } : { approved_at: null, approved_by: null }, { audit_flags: [] }); break;
     case 'visit_summaries': row.author_id = ME.id; row.gallery ??= []; row.created_at ??= now(); row.summary_date ??= now().slice(0, 10); summaryPeople(row); break;
     case 'staff_roster':
       row.email = String(row.email).trim().toLowerCase(); row.active ??= true;
@@ -158,10 +158,10 @@ function beforeUpdate(table, row, patch) {
     return 'ไม่สามารถลบ ปิดใช้งาน หรือลดสิทธิ์บัญชีของตัวเองได้ — ให้ผู้ดูแลคนอื่นทำแทน';
   if (table === 'item_status' && isStaff()) delete patch.review_files;   // ไฟล์ของผู้ดูแล เจ้าหน้าที่แก้ไม่ได้
   const prev = row.status, was = table === 'dose_drugs' ? { active: row.active, ai_draft: row.ai_draft, inds: JSON.stringify(row.indications) } : null;
-  if (was) { delete patch.approved_at; delete patch.approved_by; }   // ผู้อนุมัติ: ระบบใส่เท่านั้น
+  if (was) { delete patch.approved_at; delete patch.approved_by; delete patch.audit_flags; }   // ผู้อนุมัติ/ธง AI ตรวจย้อนหลัง: ระบบใส่เท่านั้น
   Object.assign(row, patch, { updated_at: now() });
   if (was) {   // แทน trigger dose_drugs_approve (90): แสดงใหม่/แก้ข้อบ่งใช้ของยาที่แสดง = อนุมัติ · ซ่อน = ล้างการอนุมัติ
-    if (row.active && !row.ai_draft && (!was.active || was.ai_draft || was.inds !== JSON.stringify(row.indications))) Object.assign(row, { approved_at: now(), approved_by: ME?.id });
+    if (row.active && !row.ai_draft && (!was.active || was.ai_draft || was.inds !== JSON.stringify(row.indications))) Object.assign(row, { approved_at: now(), approved_by: ME?.id, audit_flags: [] });
     if (!row.active) Object.assign(row, { approved_at: null, approved_by: null });
   }
   if (table === 'news' && isStaff()) row.status = 'pending';
@@ -541,11 +541,35 @@ function rpc(name, a = {}) {
     }
     /* แทน ai_dose_fix_start / poll (87_drug_work.sql): AI ช่วยแก้ข้อบ่งใช้ที่ทดสอบสูตรไม่ผ่าน · ตอบ "รอ" 1 รอบ
        ต้องผูกฉลาก OpenFDA (ไม่ส่ง MIMS) · ต่อวันไม่มีจำนวนครั้ง → เติมวันละ 3 ครั้ง · ไม่มีตัวเลข → 10–15 · ชื่อข้อมีคำว่า AIBAD = คำตอบตรวจกับฉลากไม่ผ่าน */
+    /* แทน dose_audit_now / poll / resolve (91): AI ตรวจย้อนหลัง · ตอบ "รอ" 1 รอบ · ข้อบ่งใช้ที่ชื่อมีคำว่า AUDITWRONG = ขัดกับฉลาก · ไม่มี = ตรงกับฉลาก */
+    case 'dose_audit_now': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const d = (db.dose_drugs || []).find((x) => String(x.id) === String(a.p_dose)); if (!d) return err('ไม่พบข้อมูลขนาดยานี้', 'P0001');
+      const l = (db.local_drugs || []).find((x) => x.fda_key && (x.dose_id === d.id || (x.ingredients || []).some((g) => g.dose_id === d.id)));
+      if (!l) return err('ยานี้ยังไม่ได้ผูกฉลาก OpenFDA+DailyMed จึงให้ AI ตรวจย้อนหลังไม่ได้ (ไม่ส่งข้อความ MIMS)', 'P0001');
+      const row = { id: newId('dose_audits'), dose_id: d.id, status: 'pending', polls: 0, created_at: now() };
+      (db.dose_audits ||= []).push(row); return { data: row.id, error: null };
+    }
+    case 'dose_audit_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const r = (db.dose_audits || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบรายการนี้', 'P0001');
+      const d = db.dose_drugs.find((x) => x.id === r.dose_id);
+      if (r.status === 'pending' && ++r.polls >= 2) {
+        const flags = (d.indications || []).filter((i) => /AUDITWRONG/.test(i.name || '')).map((i) => ({ name: i.name, level: 'wrong', why: 'ฉลากให้ 10–15 มก./กก. (ข้อมูลจำลอง)', quote: '10 to 15 mg/kg every 6 hours', at: now() }));
+        Object.assign(r, { status: 'done', result: { flags } }); d.audit_flags = flags;
+      }
+      return { data: { id: r.id, status: r.status, result: r.result || null, note: null, flags: d.audit_flags || [] }, error: null };
+    }
+    case 'dose_audit_resolve': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const d = (db.dose_drugs || []).find((x) => String(x.id) === String(a.p_dose)); if (!d) return err('ไม่พบข้อมูลขนาดยานี้', 'P0001');
+      d.audit_flags = (d.audit_flags || []).filter((f) => f.name !== a.p_name); return { data: d.audit_flags, error: null };
+    }
     case 'approve_dose': {   // แทน approve_dose (90)
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
       const d = (db.dose_drugs || []).find((x) => String(x.id) === String(a.p_id)); if (!d) return err('ไม่พบข้อมูลขนาดยานี้', 'P0001');
       if ((d.indications || []).some((i) => i.age_min == null)) return err('ข้อมูลขนาดยายังไม่ครบหรือไม่ผ่านกฎความปลอดภัย จึงยังแสดงในเครื่องคำนวณไม่ได้ · ยังไม่ระบุช่วงอายุ', '23514');
-      Object.assign(d, { active: true, ai_draft: false, approved_at: now(), approved_by: ME.id }); return { data: d.approved_at, error: null };
+      Object.assign(d, { active: true, ai_draft: false, approved_at: now(), approved_by: ME.id, audit_flags: [] }); return { data: d.approved_at, error: null };
     }
     /* แทน ai_dose_web_start (90): AI ค้นจากเว็บพร้อมลิงก์ · ไม่ต้องผูกฉลาก · ตอบ "รอ" 1 รอบ · ชื่อข้อมีคำว่า AINONE = หาไม่พบ */
     case 'ai_dose_web_start': {

@@ -28,6 +28,13 @@ export function checkAll(rows) {
       if (!per.has(k)) per.set(k, { fails: [], warns: [] });
       per.get(k)[x.sev === 'fail' ? 'fails' : 'warns'].push(txt);
     }
+    for (const f of Array.isArray(d.audit_flags) ? d.audit_flags : []) {   // AI ตรวจย้อนหลัง (91): ขัดกับฉลาก = ไม่ผ่าน · สงสัย = ควรตรวจ
+      const k = inds.findIndex((i) => i.name === f.name), txt = `AI ตรวจย้อนหลัง${f.level === 'wrong' ? 'พบตัวเลขขัดกับฉลาก' : 'สงสัย'}: ${f.why}`;
+      if (!per.has(k)) per.set(k, { fails: [], warns: [] });
+      per.get(k)[f.level === 'wrong' ? 'fails' : 'warns'].push(txt);
+      t.issues.push({ sev: f.level === 'wrong' ? 'fail' : 'warn', text: `${f.name}: ${txt}` });
+    }
+    if (t.issues.some((x) => x.sev === 'fail')) t.status = 'fail'; else if (t.issues.length && t.status === 'pass') t.status = 'warn';
     const bad = inds.map((ind, k) => ({ k, ind, ...(per.get(k) || { fails: [], warns: [] }) })).filter((x) => x.fails.length);
     const wait = d.ai_draft ? 'ร่าง รอตรวจ' : !d.active ? 'ซ่อนอยู่' : !d.approved_at ? 'รอเภสัชกรอนุมัติ' : '';
     const status = t.status === 'fail' ? 'fail' : t.status === 'warn' ? 'warn' : wait ? 'wait' : 'ok';
@@ -116,10 +123,31 @@ async function aiAll(btn) {
     toast('AI เติมข้อมูลเสร็จแล้ว · เปิดยาแต่ละตัวเพื่อตรวจและอนุมัติ');
   } finally { running = false; report.prog = ''; render(); }
 }
+/** กล่องแจ้งเตือน "AI ตรวจย้อนหลังพบ" ในภาพรวม (#dcAudit) — ขัดกับฉลาก (หยุดแสดงแล้ว) / สงสัย (ยังแสดง) */
+export function renderAudit(rows) {
+  const box = $('#dcAudit'); if (!box) return;
+  const seen = new Set(), list = [];
+  for (const r of rows || []) {
+    const d = r.j?.dose?.dose, fl = Array.isArray(d?.audit_flags) ? d.audit_flags : [];
+    if (!d || !fl.length || seen.has(d.id)) continue;
+    seen.add(d.id); list.push({ d, l: r.l, fl });
+  }
+  box.hidden = !list.length;
+  if (!list.length) { box.innerHTML = ''; return; }
+  const nw = list.reduce((a, x) => a + x.fl.filter((f) => f.level === 'wrong').length, 0), nd = list.reduce((a, x) => a + x.fl.filter((f) => f.level !== 'wrong').length, 0);
+  box.innerHTML = `<div class="ck-top"><b>AI ตรวจย้อนหลังพบข้อมูลขนาดยาที่ควรตรวจ</b><span class="small muted">ตรวจยาที่อนุมัติแล้วกับฉลากทุกคืน</span></div>`
+    + `<div class="ck-sum">${nw ? `<span class="dc-err">ขัดกับฉลาก ${nw} ข้อ · หยุดแสดงตัวเลขแล้ว</span>` : ''}${nd ? `<span class="dc-warn">สงสัย ${nd} ข้อ · ยังแสดงอยู่</span>` : ''}</div>`
+    + `<ul class="ck-list">${list.map(({ d, l, fl }) => `<li class="ck-row" data-audit-row="${d.id}"><div class="ck-h"><b>${esc(d.web_code ? `${d.web_code} ` : '')}${esc(d.name)}</b></div>`
+      + `<ul class="small">${fl.map((f) => `<li><span class="${f.level === 'wrong' ? 'dc-err' : 'dc-warn'}">${f.level === 'wrong' ? 'ขัดกับฉลาก' : 'สงสัย'}</span> ${esc(f.name)}: ${esc(f.why || '')}</li>`).join('')}</ul>`
+      + `<button type="button" class="btn btn-o btn-sm" data-ck-open="${esc(l.id)}">ตรวจในหน้าทำงานทีละยา ›</button></li>`).join('')}</ul>`;
+}
 let bound = false;
 /** ผูกปุ่มในกล่องผลตรวจ (เรียกครั้งเดียว) */
 export function bindCheck() {
   if (bound || !$('#dcCheck')) return; bound = true;
+  $('#dcAudit')?.addEventListener('click', (e) => { const b = e.target.closest('[data-ck-open]'); if (!b) return;
+    try { sessionStorage.setItem('pcps_work_focus', `${b.dataset.ckOpen}:dose`); } catch { /* ไม่เป็นไร */ }
+    location.hash = '#/admin/drugs/work'; });
   $('#dcCheck').addEventListener('click', (e) => {
     const B = (s) => e.target.closest(s); let b;
     if (B('[data-ck-close]')) { if (running) stop = true; $('#dcCheck').hidden = true; return; }

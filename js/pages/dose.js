@@ -297,8 +297,16 @@ function render() {
         + `<div class="small">รอเภสัชกรตรวจและแก้ไขข้อมูล · ระหว่างนี้ใช้เอกสารกำกับยาและปรึกษาเภสัชกร</div>`
         + (isAdmin() ? `<ul class="small">${why.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><a class="btn btn-o btn-sm" href="#/admin/drugs/work" data-dose-fixlink="${esc(curLocalId() ?? '')}">แก้ในหน้าทำงานทีละยา</a>` : '') + '</div></div>' + tail;
     }
+    if (st === 'audit') {
+      const f = flagOf(i);
+      return `<div class="alert" data-audit-block>${warnIcon}<div><b>ระบบตรวจย้อนหลังพบตัวเลขข้อนี้ไม่ตรงกับฉลากยา จึงหยุดแสดงตัวเลขชั่วคราว</b>`
+        + `<div class="small">รอเภสัชกรตรวจและแก้ไข · ระหว่างนี้ใช้เอกสารกำกับยาและปรึกษาเภสัชกร</div>`
+        + (isAdmin() ? `<div class="small">AI: ${esc(f.why || '')}${f.quote ? ` · ฉลาก: <span lang="en">“${esc(f.quote)}”</span>` : ''}</div><a class="btn btn-o btn-sm" href="#/admin/drugs/work" data-dose-fixlink="${esc(curLocalId() ?? '')}">ตรวจในหน้าทำงานทีละยา</a>` : '') + '</div></div>' + tail;
+    }
     if (st === 'need') return `<div class="alert" data-age-need>${warnIcon}<div><b>ข้อบ่งใช้นี้ใช้กับ${aTxt}</b><div class="small">กรอกอายุผู้ป่วยก่อน จึงจะแสดงขนาดยา (ใช้ตรวจว่าตรงช่วงอายุ)</div></div></div>` + tail;
-    const agePre = aTxt ? `<p class="small muted">ใช้กับ${aTxt}</p>` : '';
+    const fd = isAdmin() && flagOf(i)?.level === 'doubt' ? flagOf(i) : null;   // สงสัย = ยังแสดง · เตือนเฉพาะผู้ดูแล
+    const agePre = (aTxt ? `<p class="small muted">ใช้กับ${aTxt}</p>` : '')
+      + (fd ? `<p class="small fx-warn" data-audit-doubt>AI ตรวจย้อนหลังสงสัยข้อนี้ (ผู้ดูแลเห็นเท่านั้น): ${esc(fd.why || '')} · ตรวจในหน้าทำงานทีละยา</p>` : '');
     if (i.per === 'day' && ts.length > 1) return agePre + ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + tail;
     return agePre + doseCore(i) + tail;
   };
@@ -332,6 +340,7 @@ function render() {
   };
   const inds = indsOf(d);
   const blocked = blockedInds(inds);   // ข้อที่ไม่ผ่านกฎความปลอดภัยข้อมูล → ไม่แสดงตัวเลข
+  const flagOf = (i) => (Array.isArray(d.audit_flags) ? d.audit_flags : []).find((f) => f?.name === i.name);   // AI ตรวจย้อนหลัง (91)
 
   const h = +$('#doseHeight').value, ag = ageOf(), age = ag ? ag.years : 0;
   /** สถานะข้อบ่งใช้กับผู้ป่วยรายนี้: ok = แสดงขนาดยา · need = ต้องกรอกอายุ · block = ข้อมูลไม่ผ่านกฎ · out = นอกช่วงอายุ */
@@ -339,6 +348,7 @@ function render() {
     const aMin = i.age_min != null ? +i.age_min : null, aMax = i.age_max != null ? +i.age_max : null;
     if (age > 0 && ((aMin != null && age < aMin) || (aMax != null && age >= aMax))) return 'out';   // ช่วง "ตั้งแต่ … ถึงต่ำกว่า …"
     if (blocked.has(k)) return 'block';
+    if (flagOf(i)?.level === 'wrong') return 'audit';   // AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก → หยุดแสดงจนเภสัชกรตรวจ
     if (!(age > 0) && ((aMin != null && aMin > 0) || aMax != null)) return 'need';
     return 'ok';
   };
@@ -373,7 +383,7 @@ function render() {
 
   const title = (i, k) => `ข้อบ่งใช้${inds.length > 1 ? ' ' + (k + 1) : ''}: ${esc(i.name || '-')}`;
   // ข้อที่ตรงกับผู้ป่วยขึ้นก่อน → ต้องกรอกอายุ → ข้อมูลไม่ผ่านกฎ · ข้อของช่วงอายุอื่นย่อรวมไว้ท้ายสุด (ไม่ใช้ขนาดยาของช่วงอายุอื่นแทน · audit C1/C7)
-  const RANK = { ok: 0, need: 1, block: 2, out: 3 };
+  const RANK = { ok: 0, need: 1, block: 2, audit: 2, out: 3 };
   const list = inds.map((i, k) => ({ i, k, st: stOf(i, k) })).sort((x, y) => RANK[x.st] - RANK[y.st] || x.k - y.k);
   const main = list.filter((x) => x.st !== 'out'), others = list.filter((x) => x.st === 'out');
   const none = age > 0 && !main.length;

@@ -98,6 +98,16 @@ function fillCard(l, c, k, fix) {
   changed(k);
   return true;
 }
+/** ธง AI ตรวจย้อนหลัง (91) ของข้อนี้: ขัดกับฉลาก (หยุดแสดงแล้ว) / สงสัย · ล้างธงได้เมื่อตรวจแล้วถูกต้อง · แก้แล้วอนุมัติใหม่ = ล้างเอง */
+function auditHtml(j, c, k) {
+  const f = (Array.isArray(j.dose.dose?.audit_flags) ? j.dose.dose.audit_flags : []).find((x) => x.name === c.ind.name);
+  if (!f) return '';
+  const w = f.level === 'wrong';
+  return `<div class="dw-fix${w ? ' bad' : ''}" data-dw-audit="${k}"><b>${ic('spark')}AI ตรวจย้อนหลัง: ${w ? 'ตัวเลขขัดกับฉลาก · หน้าคำนวณหยุดแสดงข้อนี้แล้ว' : 'สงสัย · ยังแสดงอยู่'}</b>`
+    + `<span class="small">${esc(f.why || '')}</span>${f.quote ? `<span class="small">ฉลาก: <span lang="en">“${esc(f.quote)}”</span></span>` : ''}`
+    + `<span class="small muted">แก้ค่าแล้วกดอนุมัติใหม่ = ล้างธงเอง · ถ้าตรวจแล้วข้อมูลเดิมถูกต้อง กดปุ่มด้านล่าง</span>`
+    + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dw-auditok="${k}">ตรวจแล้ว ข้อมูลเดิมถูกต้อง (ล้างธง)</button></div></div>`;
+}
 /** การ์ดที่ AI เติมให้แล้ว: เปลี่ยนอะไร · ที่ยังขาด · ลิงก์ให้เปิดตรวจ · ย้อนกลับค่าเดิม */
 function filledHtml(c, k) {
   const f = c.filled, web = f.mode === 'web', old = cleanInd(f.prev), nw = cleanInd(c.ind);
@@ -464,7 +474,7 @@ function cardHtml(l, j, c, k) {
   }
   const ag = ageSel(i), times = timesOf(i), custom = c.ageCustom || !ag.aligned;
   const st = c.ok ? '<span class="dw-tag t-ok">✓ ตรวจแล้ว</span>' : c.ai ? `<span class="dw-tag t-ai">${ic('spark')}AI ${c.fixed ? 'แก้' : 'ร่าง'} · รอตรวจ</span>` : c.skip ? '<span class="dw-tag t-warn">ยังไม่ครบ</span>' : '<span class="dw-tag t-man">' + ic('user') + 'กรอกเอง</span>';
-  const fixBox = c.fix ? fixHtml(c, k) : c.filled ? filledHtml(c, k) : '';
+  const fixBox = auditHtml(j, c, k) + (c.fix ? fixHtml(c, k) : c.filled ? filledHtml(c, k) : '');
   return `<div class="dw-card${foc ? ' foc' : ''}${c.on ? '' : ' off'}" data-card="${k}" id="dwCard-${k}">`
     + `<div class="dw-ch"><label class="dw-use" title="ใช้ข้อบ่งใช้นี้ในเครื่องคำนวณ"><input type="checkbox" data-dw-on="${k}"${c.on ? ' checked' : ''}> ใช้</label>`
     + `<input class="input dw-iname" data-k="${k}" data-f="name" maxlength="200" placeholder="ชื่อข้อบ่งใช้ เช่น ลดไข้" value="${esc(i.name || '')}" aria-label="ชื่อข้อบ่งใช้ ${k + 1}">`
@@ -543,6 +553,7 @@ function doseHtml(l, j) {
   const nAi = cards.filter((c) => c.on && c.ai && !c.ok).length;
   const ts = cards.filter((c) => c.on).map((c) => (c.ok ? 'ok' : cardTest(l, j, c).status)), nF = ts.filter((x) => x === 'fail').length, nW = ts.filter((x) => x === 'warn').length;
   return `<section class="card dw-dose" id="dwDose"><div class="dw-sh">${ic('scale')}<b>ขนาดยา · ข้อบ่งใช้</b>${nAi ? `<span class="dw-tag t-ai">${ic('spark')}AI ${nAi} ข้อ รอตรวจ</span>` : ''}${x.dose ? `<span class="small muted">${esc((x.t || '').replace(/^DOSE-\S+\s/, ''))}</span>` : ''}</div>`
+    + (x.dose?.approved_at && x.dose.active && fdaOf(l) ? `<div class="dw-chkall"><span class="small muted">AI ตรวจย้อนหลังยาที่อนุมัติแล้วกับฉลากทุกคืน</span><button type="button" class="btn btn-o btn-sm" data-dw-auditnow>${ic('spark')}ให้ AI ตรวจย้อนหลังยานี้ตอนนี้</button></div>` : '')
     + (ts.length ? `<div class="dw-chkall" data-dw-chkall><span class="small">${nF ? `<b class="dc-err">ไม่ผ่าน ${nF} ข้อ</b> · ` : ''}${nW ? `<span class="dc-warn">ควรตรวจ ${nW} ข้อ</span> · ` : ''}${!nF && !nW ? '<span class="dc-ok">ทุกข้อผ่านกฎความปลอดภัย</span> · ' : ''}ใช้ ${ts.length} ข้อ</span>`
       + `<button type="button" class="btn ${nF ? 'btn-p' : 'btn-o'} btn-sm" data-dw-aiall>${ic('spark')}ตรวจยานี้${nF ? ` + ให้ AI เติมข้อมูล ${nF} ข้อที่ไม่ผ่าน` : 'ทั้งตัว'}</button></div>` : '')
     + (cards.length ? cards.map((c, k) => cardHtml(l, j, c, k)).join('') : '<p class="empty small">ยังไม่มีข้อบ่งใช้ · เพิ่มเอง หรือให้ AI ร่างจากฉลาก</p>')
@@ -715,6 +726,23 @@ async function startFix(k, btn, mode = 'label') {
     c.fix = { state: 'done', err: 'หมดเวลารอ AI · ลองใหม่ หรือแก้เองจากต้นฉบับ' }; renderMain();
     return true;
   } catch (err) { toast(errText(err), 'err'); if (c.fix?.state === 'wait') { c.fix = null; renderMain(); } return false; } finally { busy(btn, false); }
+}
+/** ให้ AI ตรวจย้อนหลังยาที่อนุมัติแล้วตอนนี้ (91 dose_audit_now/poll) → ธงในการ์ด */
+async function auditNow(l, j, btn) {
+  const d = j.dose.dose; if (!d) return;
+  busy(btn, true, 'AI กำลังตรวจกับฉลาก…');
+  try {
+    const { data: id, error } = await sb.rpc('dose_audit_now', { p_dose: d.id }); if (error) throw error;
+    for (let n = 0; n < 70; n++) {
+      await new Promise((ok) => setTimeout(ok, n ? 3000 : 1500));
+      const { data, error: e2 } = await sb.rpc('dose_audit_poll', { p_id: id }); if (e2) throw e2;
+      if (data.status === 'pending') continue;
+      const fl = data.flags || [];
+      prep = data.status !== 'done' ? `AI ตรวจย้อนหลังไม่สำเร็จ: ${data.note || ''}` : fl.length ? `AI ตรวจย้อนหลังพบ ${fl.length} ข้อ (ดูในการ์ด)` : 'AI ตรวจย้อนหลังแล้ว: ตรงกับฉลากทุกข้อ';
+      await refresh(false); renderMain(); return;
+    }
+    prep = 'หมดเวลารอ AI · ระบบจะตรวจให้เองตอนกลางคืน'; renderMain();
+  } catch (err) { toast(errText(err), 'err'); } finally { busy(btn, false); }
 }
 /** ตรวจยานี้ทั้งตัว + ให้ AI ช่วยทุกข้อที่ไม่ผ่าน (ทีละข้อ · ฉลาก OpenFDA ก่อน ไม่พอ = ค้นจากเว็บพร้อมลิงก์) */
 async function aiAllCards(btn) {
@@ -926,6 +954,15 @@ async function onMain(e) {
   if ((b = B('[data-dw-fix]'))) { await startFix(+b.dataset.dwFix, b, 'label'); return; }
   if ((b = B('[data-dw-web]'))) { await startFix(+b.dataset.dwWeb, b, 'web'); return; }
   if ((b = B('[data-dw-aiall]'))) { await aiAllCards(b); return; }
+  if ((b = B('[data-dw-auditok]'))) {
+    const c = cards[+b.dataset.dwAuditok], d = j.dose.dose; if (!c || !d) return;
+    if (!confirm(`ยืนยันว่าตรวจกับฉลากแล้ว ข้อมูล "${c.ind.name}" ถูกต้อง? (ล้างธง · บันทึกในประวัติแก้ไข)`)) return;
+    busy(b, true, 'กำลังบันทึก…');
+    try { const { error } = await sb.rpc('dose_audit_resolve', { p_dose: d.id, p_name: c.ind.name }); if (error) throw error; toast('ล้างธงแล้ว'); await refresh(false); renderMain(); }
+    catch (err) { toast(errText(err), 'err'); } finally { busy(b, false); }
+    return;
+  }
+  if ((b = B('[data-dw-auditnow]'))) { await auditNow(l, j, b); return; }
   if ((b = B('[data-dw-hide]'))) {
     if (dirty && !confirm('มีการแก้ไขขนาดยาที่ยังไม่บันทึก · ดำเนินการต่อ? (การแก้ไขยังค้างอยู่)')) return;
     busy(b, true, 'กำลังบันทึก…');
