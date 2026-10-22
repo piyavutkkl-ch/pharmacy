@@ -85,3 +85,20 @@ test('blockedInds: คืนเฉพาะข้อที่ไม่ผ่า�
   assert.equal(m.has(0), false);
   assert.equal(m.has(1), true);
 });
+
+test('อายุใส่ค่าเดียวได้: "ตั้งแต่ 11 ปี" + ช่องถึงว่าง (หรือ ≥ 100) = ไม่จำกัด · ชื่อ "6 ปีขึ้นไป" อ่านได้', () => {
+  const fx = { per: 'dose', fixed: true, min: 25, max: 50, cap: 50, quote: 'Child 11 years and older: 25 to 50 mg at bedtime' };
+  assert.deepEqual(fails(indRules({ ...fx, name: 'ปัสสาวะรดที่นอน (เด็ก ≥11 ปี)', age_min: 11, age_max: null })), []);
+  assert.deepEqual(fails(indRules({ ...fx, name: 'ปัสสาวะรดที่นอน (เด็ก ≥11 ปี)', age_min: 11, age_max: 120 })), []);
+  assert.deepEqual(nameAge('ปัสสาวะรดที่นอน (เด็ก 6 ปีขึ้นไป)'), { min: 6, max: null, step: 1 });
+  assert.deepEqual(nameAge('enuresis (6+ ปี)'), { min: 6, max: null, step: 1 });
+});
+
+test('ช่องอายุไม่ตรงชื่อ → บอกทั้งสองค่า + ค่าที่แก้ให้ (fix) · ช่วงอายุขาดตอน → เสนอต่อช่วงข้อก่อนหน้า', () => {
+  const fx = { per: 'dose', fixed: true, min: 25, max: 50, cap: 50 };
+  const r = indRules({ ...fx, name: 'ปัสสาวะรดที่นอน (เด็ก ≥11 ปี)', age_min: 6, age_max: null }).find((x) => x.code === 'age_name');
+  assert.ok(r && /11 ปีขึ้นไป/.test(r.text) && /6 ปีขึ้นไป/.test(r.text), r?.text);
+  assert.deepEqual(r.fix, { age_min: 11, age_max: null });
+  const g = drugRules([{ ...fx, name: 'ก', age_min: 6, age_max: 10 }, { ...fx, name: 'ข', age_min: 11 }]).find((x) => x.code === 'age_gap');
+  assert.equal(g.k, 1); assert.equal(g.fix.k, 0); assert.equal(g.fix.age_max, 11);
+});

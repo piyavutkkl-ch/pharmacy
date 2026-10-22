@@ -15,7 +15,7 @@ import { strengthOf, concOf, comboName, doseNumbers, sameBasis } from './dose.js
 import { drugData, reloadDrugData, genericKey, codeTag, fetchFdaLabel, fetchFdaBySetId, sectionsText, parseSections, formsText, parseForms } from './admin-drugs.js?v=4.4';
 import { indsProblem, refOfLabel, doseQuery, timesOf } from './admin-settings.js?v=4.4';
 import { testDose, testWeights } from './dose-test.js?v=4.4';
-import { drugRules } from './dose-rules.js?v=4.4';
+import { drugRules, indRules, OPEN_AGE } from './dose-rules.js?v=4.4';
 import { loadSavedFixes } from './dose-check.js?v=4.4';
 import { DC, centerRows, suggest, applyRow, basesOf, rejectPair, saveDose, doseRows, openTools } from './drug-center.js?v=4.4';
 import { ingsRow } from './drug-grid.js?v=4.4';
@@ -458,7 +458,12 @@ function cardTest(l, j, c) {
   const all = [...t.issues.map((x) => ({ sev: x.sev, text: strip(x.text) })), ...cross.map((x) => ({ sev: x.sev, text: x.text }))];
   const status = all.some((x) => x.sev === 'fail') ? 'fail' : all.length ? 'warn' : 'pass';
   const top = all.find((x) => x.sev === 'fail') || all[0];
-  return { status, text: top ? top.text : 'ผ่านทุกน้ำหนักตัวอย่าง', issues: all.map((x) => x.text), fails: all.filter((x) => x.sev === 'fail').map((x) => x.text), warns: all.filter((x) => x.sev === 'warn').map((x) => x.text) };
+  // แก้ช่วงอายุได้ในคลิกเดียว: ช่องอายุไม่ตรงชื่อ → ใช้อายุตามชื่อ · ช่วงอายุขาดตอน → ต่อช่วงของข้อก่อนหน้า
+  const ageW = (a, b) => (b == null || b >= OPEN_AGE ? `${a} ปีขึ้นไป` : `${a}–${b} ปี`);
+  const fixes = [...indRules(i).filter((x) => x.fix).map((x) => ({ k: cards.indexOf(c), set: x.fix, label: `ใช้ช่วงอายุตามชื่อ (${ageW(x.fix.age_min, x.fix.age_max)})` })),
+    ...cross.filter((x) => x.fix && on[x.fix.k]).map((x) => ({ k: cards.indexOf(on[x.fix.k]), set: { age_max: x.fix.age_max }, label: x.fix.label }))];
+  c.ageFixes = fixes;
+  return { status, text: top ? top.text : 'ผ่านทุกน้ำหนักตัวอย่าง', issues: all.map((x) => x.text), fails: all.filter((x) => x.sev === 'fail').map((x) => x.text), warns: all.filter((x) => x.sev === 'warn').map((x) => x.text), fixes };
 }
 const unitTh = (i) => `${i.unit === 'mcg' ? 'mcg' : 'มก.'}${i.fixed ? '' : '/กก.'}${i.per === 'day' ? '/วัน' : '/ครั้ง'}`;
 function ageSel(i) {
@@ -482,7 +487,7 @@ function cardHtml(l, j, c, k) {
     + (c.skip ? `<p class="small dc-warn">${esc(c.skip)}</p>` : '')
     + `<div class="dw-row"><span class="dw-lbl">ใคร</span>${AGES.map(([a, t1, t2, , , icn]) => `<button type="button" class="dw-opt2${ag.on.includes(a) && !custom ? ' on' : ''}" data-dw-age="${a}" data-k="${k}" aria-pressed="${ag.on.includes(a) && !custom}">${ic(icn, 'lg')}<span>${t1}</span><small>${t2}</small></button>`).join('')}`
     + `<button type="button" class="dw-link" data-dw-agec="${k}">${custom ? 'ใช้ปุ่มกลุ่มอายุ' : 'ระบุอายุเอง'}</button></div>`
-    + (custom ? `<div class="dw-row"><span class="dw-lbl"></span><label class="dw-f s"><span>อายุตั้งแต่ (ปี)</span><input class="input" type="number" min="0" max="120" step="0.1" data-k="${k}" data-f="age_min" value="${esc(i.age_min ?? '')}" placeholder="ไม่จำกัด"></label><label class="dw-f s"><span>ถึง (ปี)</span><input class="input" type="number" min="0" max="120" step="0.1" data-k="${k}" data-f="age_max" value="${esc(i.age_max ?? '')}" placeholder="ไม่จำกัด"></label></div>` : '')
+    + (custom ? `<div class="dw-row"><span class="dw-lbl"></span><label class="dw-f s"><span>อายุตั้งแต่ (ปี)</span><input class="input" type="number" min="0" max="120" step="0.1" data-k="${k}" data-f="age_min" value="${esc(i.age_min ?? '')}" placeholder="ไม่จำกัด"></label><label class="dw-f s"><span>ถึงก่อน (ปี) · ว่าง = ไม่จำกัด</span><input class="input" type="number" min="0" max="120" step="0.1" data-k="${k}" data-f="age_max" value="${esc(i.age_max ?? '')}" placeholder="ไม่จำกัด"></label></div>` : '')
     + `<div class="dw-row"><span class="dw-lbl">คิดแบบ</span><span class="dw-seg"><button type="button" class="dw-opt3${i.fixed ? '' : ' on'}" data-dw-set1="fixed:0" data-k="${k}">${ic('scale')}ตามน้ำหนัก</button><button type="button" class="dw-opt3${i.fixed ? ' on' : ''}" data-dw-set1="fixed:1" data-k="${k}">${ic('ruler')}ขนาดคงที่</button></span>`
     + `<span class="dw-seg"><button type="button" class="dw-opt3${i.per === 'day' ? '' : ' on'}" data-dw-set1="per:dose" data-k="${k}">${ic('one')}ต่อครั้ง</button><button type="button" class="dw-opt3${i.per === 'day' ? ' on' : ''}" data-dw-set1="per:day" data-k="${k}">${ic('cal')}ต่อวัน (แบ่งให้)</button></span>`
     + `<span class="dw-seg"><button type="button" class="dw-opt3${i.unit === 'mcg' ? '' : ' on'}" data-dw-set1="unit:mg" data-k="${k}">มก.</button><button type="button" class="dw-opt3${i.unit === 'mcg' ? ' on' : ''}" data-dw-set1="unit:mcg" data-k="${k}">mcg</button></span></div>`
@@ -508,6 +513,7 @@ const statusLine = (t) => (t.status === 'pass' ? `${ic('check')}ผ่านก�
 function issuesHtml(t, c, k) {
   if (t.status === 'pass' || c.ok) return '';
   return `<ul class="dw-iss" data-dw-iss="${k}">${t.fails.map((x) => `<li class="t-fail">${esc(x)}</li>`).join('')}`
+    + (t.fixes || []).map((f, n) => `<li class="dw-agefix"><button type="button" class="btn btn-o btn-sm" data-dw-agefix="${k}" data-n="${n}">${ic('tick')}${esc(f.label)}</button></li>`).join('')
     + t.warns.map((x) => `<li class="t-warn"><label><input type="checkbox" data-dw-ack="${k}" value="${esc(x)}"${(c.ack || []).includes(x) ? ' checked' : ''}> รับทราบ: ${esc(x)}</label></li>`).join('') + '</ul>';
 }
 /** สถานะตรวจ + รายการปัญหา (วาดใหม่ระหว่างพิมพ์ได้) */
@@ -926,6 +932,10 @@ async function onMain(e) {
   if ((b = B('[data-card]')) && !B('button, input, textarea, select, summary, a, label')) { const k = +b.dataset.card; if (k !== focus) { focus = k; renderMain(); } return; }
   if ((b = B('[data-dw-open]'))) { const k = +b.dataset.dwOpen; cards[k].open = true; focus = k; renderMain(); return; }
   if ((b = B('[data-dw-age]'))) { const k = +b.dataset.k; setAge(cards[k], b.dataset.dwAge); changed(k); focus = k; renderMain(); return; }
+  if ((b = B('[data-dw-agefix]'))) {   // แก้ช่วงอายุคลิกเดียว (ตามชื่อ / ต่อช่วงที่ขาด)
+    const f = cards[+b.dataset.dwAgefix]?.ageFixes?.[+b.dataset.n], c = f && cards[f.k]; if (!c) return;
+    Object.assign(c.ind, f.set); c.ageCustom = !ageSel(c.ind).aligned; changed(f.k); focus = +b.dataset.dwAgefix; renderMain(); return;
+  }
   if ((b = B('[data-dw-agec]'))) { const k = +b.dataset.dwAgec, c = cards[k]; c.ageCustom = !(c.ageCustom || !ageSel(c.ind).aligned); if (!c.ageCustom) { c.ind.age_min = null; c.ind.age_max = null; changed(k); } focus = k; renderMain(); return; }
   if ((b = B('[data-dw-set1]'))) {
     const k = +b.dataset.k, c = cards[k], [f, v] = b.dataset.dwSet1.split(':');

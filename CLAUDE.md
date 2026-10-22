@@ -98,6 +98,7 @@ js/pages/admin-settings.js ผู้ดูแล › ข้อมูลยา �
 js/pages/dose-rules.js     กฎความปลอดภัยข้อมูลขนาดยา (ผลตรวจ audit 22 ต.ค. 2569 · ฟังก์ชันล้วน · ทดสอบใน tests/clinical/rules.test.mjs): indRules/drugRules/blockedInds
                            fail: ทุกข้อต้องมี age_min (ทุกอายุ = 0) · ชื่อบอกอายุ = ช่องอายุต้องตรง · ตามน้ำหนักต่อครั้งต้องมี cap · ต่อวันต้องมี cap_day · cap ≤ cap_day
                                  ฉลาก (quote) mg/kg/day ↔ per · divided/every N h ↔ times · เพดานต่อวันในฉลากต้องอยู่ cap_day · ช่วงอายุขาดตอน ≤ 1 ปี · เด็ก (ตามน้ำหนัก) ห้ามเกินขนาดผู้ใหญ่ (age_min ≥ 12)
+                           อายุใส่ค่าเดียวได้: age_max ว่าง หรือ ≥ OPEN_AGE (100) = ไม่จำกัด · ชื่อ "≥11 ปี"/"6 ปีขึ้นไป"/"6+ ปี" อ่านเป็นไม่จำกัด · age_name/age_gap มี fix → หน้าทำงานทีละยาแสดงปุ่มแก้คลิกเดียว [data-dw-agefix] (ใช้อายุตามชื่อ / ต่อช่วงข้อก่อนหน้า)
                            warn (ต้องติ๊กรับทราบทีละข้อ): ไม่มี quote · ช่วงขนาดกว้าง > 4 เท่า · ช่วงอายุว่าง > 1 ปี · SQL dose_rules_problem (90) = กฎโครงสร้างชุดเดียวกัน (ไม่อ่าน quote)
 js/pages/dose-check.js     ตรวจข้อมูลขนาดยาทุกตัวครั้งเดียว (ภาพรวม ปุ่ม #dcCheckBtn → กล่อง #dcCheck · checkAll = testDose + กฎ ต่อข้อมูลคำนวณ 1 ชุด · ไม่ใช้ AI)
                            ปุ่มเดียว = ตรวจเสร็จ → ถามยืนยัน → AI เติมข้อมูลทุกข้อที่ไม่ผ่าน [data-ck-ai-all] ทีละข้อ: ฉลาก OpenFDA ก่อน ไม่พอ (none/left) = ค้นจากเว็บ · ผลอยู่ใน ai_dose_fixes → เปิดยาในหน้าทำงานทีละยา = เติมลงการ์ดให้เลย (fillCard · [data-dw-filled] · ย้อนกลับได้ [data-dw-undo] · ยังไม่บันทึก · loadSavedFixes ชื่อข้อบ่งใช้ตรงกัน 14 วัน)

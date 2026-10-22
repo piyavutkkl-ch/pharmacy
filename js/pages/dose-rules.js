@@ -10,6 +10,9 @@ const nf = (x) => (Number.isFinite(x) ? (+x.toFixed(3)).toLocaleString('en-US') 
 const U = (i) => (i.unit === 'mcg' ? 'mcg' : 'มก.');
 const num = (s) => +String(s).replace(/,/g, '');
 const yr = (x) => `${+(+x).toFixed(2)}`;
+/** อายุสิ้นสุดตั้งแต่ 100 ปี = ไม่จำกัด (เว้นว่างได้เช่นกัน) */
+export const OPEN_AGE = 100;
+const ageTxt = (a, b) => (b == null || +b >= OPEN_AGE ? `${yr(a)} ปีขึ้นไป (ไม่จำกัด)` : `${yr(a)}–${yr(b)} ปี`);
 
 /* ---------- อ่านข้อความฉลาก (quote) ---------- */
 const UNIT_RE = '(mg|mcg|µg|micrograms?|milligrams?|g|grams?)';
@@ -77,6 +80,8 @@ export function nameAge(name) {
   // วัน/สัปดาห์ในชื่อมักเป็นระยะเวลาให้ยา (เช่น "ให้ 5–14 วัน") → นับเป็นอายุเฉพาะเมื่อมีคำว่าอายุ/ทารกนำหน้า
   if (m && /^(วัน|days?|สัปดาห์|weeks?)$/i.test(m[3]) && !/(อายุ|ทารก|age|newborn|neonat)\S*\s*$/i.test(s.slice(Math.max(0, m.index - 14), m.index))) m = null;
   if (m) { const f = uOf(m[3]); return { min: +m[1] * f, max: +m[2] * f, step: f }; }
+  m = /(\d+(?:\.\d+)?)\s*(?:\+\s*)?(ปี|years?|เดือน|months?)\s*(?:ขึ้นไป|and\s+(?:over|older)|or\s+older)/i.exec(s) || /(\d+(?:\.\d+)?)\s*\+\s*(ปี|years?|เดือน|months?)/i.exec(s);   // "6 ปีขึ้นไป" · "6+ ปี"
+  if (m) return { min: +m[1] * uOf(m[2]), max: null, step: uOf(m[2]) };
   m = /(?:≥|>=|อายุ\s*ตั้งแต่|ตั้งแต่|อายุ)\s*(\d+(?:\.\d+)?)\s*(ปี|years?|เดือน|months?)\s*(?:ขึ้นไป|and\s+(?:over|older)|or\s+older)?/i.exec(s);
   if (m && (/≥|>=|ตั้งแต่/.test(m[0]) || /ขึ้นไป|over|older/i.test(m[0]))) return { min: +m[1] * uOf(m[2]), max: null, step: uOf(m[2]) };
   m = /(?:<|ต่ำกว่า|น้อยกว่า|under|younger\s+than|less\s+than)\s*(\d+(?:\.\d+)?)\s*(ปี|years?|เดือน|months?)/i.exec(s);
@@ -110,7 +115,7 @@ const isAdult = (i) => i.age_min != null && +i.age_min >= ADULT_AGE;
 /* ---------- กฎรายข้อบ่งใช้ ---------- */
 /** ปัญหาของข้อบ่งใช้ i (ไม่ดูข้ออื่น) → [{ sev, code, text }] */
 export function indRules(i) {
-  const out = [], add = (sev, code, text) => out.push({ sev, code, text });
+  const out = [], add = (sev, code, text, fix) => out.push({ sev, code, text, ...(fix ? { fix } : {}) });
   if (!i || typeof i !== 'object') return out;
   const q = String(i.quote || ''), hasNum = typeof i.min === 'number' && typeof i.max === 'number';
   // ① ช่วงอายุ: ทุกข้อต้องระบุ (ทุกอายุ = ตั้งแต่ 0 ปี) · ชื่อบอกอายุ = ช่องอายุต้องตรงกัน
@@ -120,8 +125,9 @@ export function indRules(i) {
       : 'ยังไม่ระบุช่วงอายุ · ต้องบอกว่าใช้กับอายุเท่าไร (ใช้ได้ทุกอายุ = ตั้งแต่ 0 ปี · ผู้ใหญ่ เช่น ตั้งแต่ 12 ปี)');
   } else if (na) {
     const okMin = same(+i.age_min, na.min) || Math.abs(+i.age_min - na.min) < 0.01;
-    const okMax = na.max == null ? i.age_max == null : i.age_max != null && (Math.abs(+i.age_max - na.max) < 0.01 || Math.abs(+i.age_max - (na.max + na.step)) < 0.01);
-    if (!okMin || !okMax) add('fail', 'age_name', `ชื่อข้อบ่งใช้ระบุอายุไม่ตรงกับช่วงอายุที่ใช้กรอง (ช่องอายุ ${yr(i.age_min)}${i.age_max != null ? `–${yr(i.age_max)}` : '+'} ปี) · ตรวจว่าใช้กับอายุเท่าไร`);
+    const okMax = na.max == null ? i.age_max == null || +i.age_max >= OPEN_AGE : i.age_max != null && (Math.abs(+i.age_max - na.max) < 0.01 || Math.abs(+i.age_max - (na.max + na.step)) < 0.01);
+    if (!okMin || !okMax) add('fail', 'age_name', `ชื่อข้อบ่งใช้บอกอายุ ${ageTxt(na.min, na.max)} แต่ช่องอายุเป็น ${ageTxt(+i.age_min, i.age_max)} · แก้ช่องอายุให้ตรงชื่อ (กดปุ่มด้านล่าง) หรือแก้ชื่อข้อบ่งใช้`,
+      { age_min: +(+na.min).toFixed(2), age_max: na.max == null ? null : +(+na.max).toFixed(2) });
   }
   if (!hasNum) return out;
   // ② เพดาน: คิดตามน้ำหนักต้องมีเพดานชนิดเดียวกับขนาดยา · ครั้งละต้องไม่มากกว่าวันละ
@@ -171,14 +177,15 @@ export function drugRules(inds) {
   list.forEach((i, k) => indRules(i).forEach((x) => out.push({ k, ...x })));
   // ⑤ ช่วงอายุขาดตอน (เช่น 2–5 แล้ว 6–12 → อายุ 5.5 ปี ไม่มีขนาดยา) · ช่วง = ตั้งแต่ age_min ถึงก่อน age_max
   const bands = list.map((i, k) => ({ k, a: i?.age_min, b: i?.age_max })).filter((x) => x.a != null).map((x) => ({ k: x.k, a: +x.a, b: x.b == null ? Infinity : +x.b })).sort((x, y) => x.a - y.a || x.b - y.b);
-  let end = null;
+  let end = null, endK = null;
   for (const x of bands) {
     if (end != null && Number.isFinite(end) && x.a > end + EPS) {
       const gap = x.a - end;
-      if (gap <= 1 + EPS) out.push({ k: x.k, sev: 'fail', code: 'age_gap', cross: true, text: `ช่วงอายุขาดตอน ${yr(end)}–${yr(x.a)} ปี (เช่น อายุ ${yr(end + gap / 2)} ปี จะไม่มีขนาดยา) · ระบบใช้ช่วง "ตั้งแต่…ถึงก่อน…" เช่น 2–6 ปี แล้ว 6–12 ปี` });
+      if (gap <= 1 + EPS) out.push({ k: x.k, sev: 'fail', code: 'age_gap', cross: true, text: `ช่วงอายุขาดตอน ${yr(end)}–${yr(x.a)} ปี (เช่น อายุ ${yr(end + gap / 2)} ปี จะไม่มีขนาดยา) · ระบบใช้ช่วง "ตั้งแต่…ถึงก่อน…" เช่น 2–6 ปี แล้ว 6–12 ปี`,
+        fix: { k: endK, age_max: +(+x.a).toFixed(2), label: `ต่อช่วงอายุข้อก่อนหน้าเป็น "ถึงก่อน ${yr(x.a)} ปี"` } });
       else out.push({ k: x.k, sev: 'warn', code: 'age_gap_wide', cross: true, text: `ไม่มีขนาดยาสำหรับอายุ ${yr(end)}–${yr(x.a)} ปี (หน้าคำนวณจะแจ้งว่าไม่มีข้อมูลสำหรับอายุนี้) · ตรวจว่าตั้งใจหรือไม่` });
     }
-    end = end == null ? x.b : Math.max(end, x.b);
+    if (end == null || x.b > end) { end = x.b; endK = x.k; }
   }
   // ⑥ เด็กห้ามได้ยามากกว่าผู้ใหญ่: ขนาดตามน้ำหนักของข้อเด็ก (ที่น้ำหนักสูงสุดของช่วงอายุ) ≤ ขนาดสูงสุดของข้อผู้ใหญ่
   const adults = list.filter((i) => i && isAdult(i));
