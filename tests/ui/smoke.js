@@ -2301,8 +2301,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         q.removeAllListeners('dialog'); q.on('dialog', (d) => d.accept());
         await go(q, '#/admin/drugs'); await q.waitForTimeout(1000);
         check('ภาพรวม: กล่อง "AI ตรวจย้อนหลังพบ" ขัดกับฉลาก (หยุดแสดงแล้ว) + ตัวเลขแจ้งเตือนบนเมนูข้อมูลยา', await visible(q, '#dcAudit') && (await text(q, '#dcAudit')).includes('ขัดกับฉลาก 1 ข้อ') && (await text(q, '#admDrugsBadge')).trim() === '1', await text(q, '#dcAudit'));
-        await q.click(`#dcAudit [data-ck-open="${lid}"]`); await q.waitForTimeout(1500);
-        check('เปิดจากกล่องแจ้งเตือน → การ์ดแสดงธง AI ตรวจย้อนหลัง (เหตุผล + ข้อความฉลาก) + ปุ่มล้างธง', /PARACETAMOL 500 MG/.test(await text(q, '#dwHead h3')) && await count(q, '[data-dw-audit]') === 1 && (await text(q, '[data-dw-audit]')).includes('ขัดกับฉลาก') && (await text(q, '[data-dw-audit]')).includes('10 to 15 mg/kg'), `${await text(q, '#dwHead h3')} | ${(await text(q, '#dwDose')).replace(/\s+/g, ' ').slice(0, 600)}`);
+        await q.click('#dcAudit [data-ck-open]'); await q.waitForTimeout(1500);   // ยาที่ใช้ข้อมูลคำนวณชุดนี้ (อาจเป็นยาน้ำ/ยาเม็ดตัวใดก็ได้)
+        check('เปิดจากกล่องแจ้งเตือน → การ์ดแสดงธง AI ตรวจย้อนหลัง (เหตุผล + ข้อความฉลาก) + ปุ่มล้างธง', /PARACETAMOL/.test(await text(q, '#dwHead h3')) && await count(q, '[data-dw-audit]') === 1 && (await text(q, '[data-dw-audit]')).includes('ขัดกับฉลาก') && (await text(q, '[data-dw-audit]')).includes('10 to 15 mg/kg'), `${await text(q, '#dwHead h3')} | ${(await text(q, '#dwDose')).replace(/\s+/g, ' ').slice(0, 600)}`);
         if (await count(q, '[data-dw-auditok]')) { await q.click('[data-dw-auditok]'); await q.waitForTimeout(900); }
         check('ตรวจแล้ว ข้อมูลเดิมถูกต้อง → ล้างธง (dose_audit_resolve)', (await calls(q, (c) => c.rpc === 'dose_audit_resolve')).pop()?.args?.p_name === 'AUDITWRONG ไข้' && await count(q, '[data-dw-audit]') === 0);
         await q.evaluate((lid) => { const db = window.__db, l = db.local_drugs.find((x) => x.id === lid); l.fda_key = l.fda_key || (db.drug_fda_labels[0] || {}).key; }, lid);
