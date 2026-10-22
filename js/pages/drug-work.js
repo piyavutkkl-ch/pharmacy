@@ -15,7 +15,7 @@ import { strengthOf, concOf, comboName, doseNumbers, sameBasis } from './dose.js
 import { drugData, reloadDrugData, genericKey, codeTag, fetchFdaLabel, fetchFdaBySetId, sectionsText, parseSections, formsText, parseForms } from './admin-drugs.js?v=4.4';
 import { indsProblem, refOfLabel, doseQuery, timesOf } from './admin-settings.js?v=4.4';
 import { testDose, testWeights } from './dose-test.js?v=4.4';
-import { drugRules, indRules, OPEN_AGE } from './dose-rules.js?v=4.4';
+import { drugRules, indRules, autoCaps, OPEN_AGE } from './dose-rules.js?v=4.4';
 import { loadSavedFixes } from './dose-check.js?v=4.4';
 import { DC, centerRows, suggest, applyRow, basesOf, rejectPair, saveDose, doseRows, openTools } from './drug-center.js?v=4.4';
 import { ingsRow } from './drug-grid.js?v=4.4';
@@ -460,8 +460,12 @@ function cardTest(l, j, c) {
   const top = all.find((x) => x.sev === 'fail') || all[0];
   // แก้ช่วงอายุได้ในคลิกเดียว: ช่องอายุไม่ตรงชื่อ → ใช้อายุตามชื่อ · ช่วงอายุขาดตอน → ต่อช่วงของข้อก่อนหน้า
   const ageW = (a, b) => (b == null || b >= OPEN_AGE ? `${a} ปีขึ้นไป` : `${a}–${b} ปี`);
-  const fixes = [...indRules(i).filter((x) => x.fix).map((x) => ({ k: cards.indexOf(c), set: x.fix, label: `ใช้ช่วงอายุตามชื่อ (${ageW(x.fix.age_min, x.fix.age_max)})` })),
-    ...cross.filter((x) => x.fix && on[x.fix.k]).map((x) => ({ k: cards.indexOf(on[x.fix.k]), set: { age_max: x.fix.age_max }, label: x.fix.label }))];
+  // แก้คลิกเดียวจากกฎ: อายุตามชื่อ · ต่อช่วงอายุที่ขาด · เพดานที่คิดจากขนาดคงที่ · เพดานจากขนาดผู้ใหญ่
+  const rs = at < 0 ? indRules(i) : drugRules(on.map((x) => cleanInd(x.ind))).filter((x) => x.k === at);
+  const fixes = rs.filter((x) => x.fix).map((x) => {
+    const { k: fk, label, ...set } = x.fix, tc = fk != null ? on[fk] : c;
+    return tc && { k: cards.indexOf(tc), set, label: label || `ใช้ช่วงอายุตามชื่อ (${ageW(set.age_min, set.age_max)})` };
+  }).filter(Boolean);
   c.ageFixes = fixes;
   return { status, text: top ? top.text : 'ผ่านทุกน้ำหนักตัวอย่าง', issues: all.map((x) => x.text), fails: all.filter((x) => x.sev === 'fail').map((x) => x.text), warns: all.filter((x) => x.sev === 'warn').map((x) => x.text), fixes };
 }
@@ -477,7 +481,7 @@ function cardHtml(l, j, c, k) {
   if (c.ok && !c.open) {   // ตรวจแล้ว = ย่อเหลือบรรทัดเดียว (กด "แก้" เพื่อเปิด)
     return `<div class="dw-card sm${c.on ? '' : ' off'}${foc ? ' foc' : ''}" data-card="${k}"><span class="dw-tag t-ok">${ic('tick')}ตรวจแล้ว</span><span class="dw-sum"><b>${esc(i.name || 'ข้อบ่งใช้')}</b> · ${esc(sumText(i))}</span><button type="button" class="btn btn-o btn-sm" data-dw-open="${k}">แก้</button></div>`;
   }
-  const ag = ageSel(i), times = timesOf(i), custom = c.ageCustom || !ag.aligned;
+  const ag = ageSel(i), times = timesOf(i), custom = c.ageCustom || !ag.aligned, ac = autoCaps(cleanInd(i));
   const st = c.ok ? '<span class="dw-tag t-ok">✓ ตรวจแล้ว</span>' : c.ai ? `<span class="dw-tag t-ai">${ic('spark')}AI ${c.fixed ? 'แก้' : 'ร่าง'} · รอตรวจ</span>` : c.skip ? '<span class="dw-tag t-warn">ยังไม่ครบ</span>' : '<span class="dw-tag t-man">' + ic('user') + 'กรอกเอง</span>';
   const fixBox = auditHtml(j, c, k) + (c.fix ? fixHtml(c, k) : c.filled ? filledHtml(c, k) : '');
   return `<div class="dw-card${foc ? ' foc' : ''}${c.on ? '' : ' off'}" data-card="${k}" id="dwCard-${k}">`
@@ -495,8 +499,9 @@ function cardHtml(l, j, c, k) {
     + `<label class="dw-num"><small>Max</small><input class="input" type="number" inputmode="decimal" min="0" step="0.01" data-k="${k}" data-f="max" value="${esc(i.max ?? '')}" aria-label="ขนาดสูงสุด (Max)"></label><span class="dw-unit" data-dw-unit="${k}">${esc(unitTh(i))}</span></div>`
     + (i.per === 'day' ? `<div class="dw-row"><span class="dw-lbl">แบ่งให้</span>${TIMES.map((n) => `<button type="button" class="dw-opt3${times.includes(n) ? ' on' : ''}" data-dw-times="${n}" data-k="${k}" aria-pressed="${times.includes(n)}">${ic('clock')}${n}×</button>`).join('')}<span class="small muted">แตะหลายอัน = ให้ได้หลายแบบ</span></div>`
       : `<div class="dw-row"><span class="dw-lbl">ความถี่</span><input class="input dw-grow" maxlength="120" data-k="${k}" data-f="freq" value="${esc(i.freq || '')}" placeholder="เช่น ทุก 4–6 ชั่วโมง เมื่อมีอาการ"></div>`)
-    + `<div class="dw-row"><span class="dw-lbl">เพดาน</span><label class="dw-cap">${ic('shield')}<span>ครั้งละ ≤</span><input class="input" type="number" inputmode="decimal" min="0" step="0.1" data-k="${k}" data-f="cap" value="${esc(i.cap ?? '')}" aria-label="ขนาดสูงสุดต่อครั้ง"><span>${i.unit === 'mcg' ? 'mcg' : 'มก.'}</span></label>`
-    + `<label class="dw-cap">${ic('shield')}<span>วันละ ≤</span><input class="input" type="number" inputmode="decimal" min="0" step="0.1" data-k="${k}" data-f="cap_day" value="${esc(i.cap_day ?? '')}" aria-label="ขนาดสูงสุดต่อวัน"><span>${i.unit === 'mcg' ? 'mcg' : 'มก.'}</span></label></div>`
+    + `<div class="dw-row"><span class="dw-lbl">เพดาน</span><label class="dw-cap">${ic('shield')}<span>ครั้งละ ≤</span><input class="input" type="number" inputmode="decimal" min="0" step="0.1" data-k="${k}" data-f="cap" value="${esc(i.cap ?? '')}" placeholder="${ac?.cap != null ? `= ${ac.cap}` : ''}" aria-label="ขนาดสูงสุดต่อครั้ง"><span>${i.unit === 'mcg' ? 'mcg' : 'มก.'}</span></label>`
+    + `<label class="dw-cap">${ic('shield')}<span>วันละ ≤</span><input class="input" type="number" inputmode="decimal" min="0" step="0.1" data-k="${k}" data-f="cap_day" value="${esc(i.cap_day ?? '')}" placeholder="${ac?.cap_day != null ? `= ${ac.cap_day}` : ''}" aria-label="ขนาดสูงสุดต่อวัน"><span>${i.unit === 'mcg' ? 'mcg' : 'มก.'}</span></label></div>`
+    + (ac ? `<p class="small muted dw-autocap" data-dw-autocap="${k}">ขนาดคงที่: เพดานคิดจากขนาดที่กรอกให้เอง (${[ac.cap != null ? `ครั้งละ ≤ ${ac.cap}` : '', ac.cap_day != null ? `วันละ ≤ ${ac.cap_day}` : 'วันละ = ใส่ตามฉลาก ถ้ามี (ขึ้นกับความถี่)'].filter(Boolean).join(' · ')}) · เว้นว่างได้</p>` : '')
     + (i.basis || comboName(l.name) || (l.ingredients || []).length > 1 || basesOf(l).length ? `<div class="dw-row"><span class="dw-lbl">คิดจากสาร</span><input class="input dw-grow" maxlength="60" data-k="${k}" data-f="basis" list="dwBasesC" value="${esc(i.basis || '')}" placeholder="ยาเดี่ยวเว้นว่าง · เช่น Trimethoprim, Elemental iron"><datalist id="dwBasesC">${[...new Set([...basesOf(l), ...(l.ingredients || []).map((x) => x.name)])].map((b) => `<option value="${esc(b)}">`).join('')}</datalist></div>` : '')
     + `<details class="dw-more"${c.open ? ' open' : ''}><summary>⋯ ละเอียดเพิ่ม ${['freq', 'renal', 'note', 'quote'].map((f2) => `<span class="dw-d${i[f2] ? ' y' : ''}" title="${{ freq: 'ความถี่', renal: 'ไต', note: 'หมายเหตุ', quote: 'ที่มา' }[f2]}"></span>`).join('')} <span class="small muted">ความถี่ · ไต · หมายเหตุ · ที่มา</span></summary>`
     + (i.per === 'day' ? `<label class="dw-f"><span>ความถี่ (ข้อความ)</span><input class="input" maxlength="120" data-k="${k}" data-f="freq" value="${esc(i.freq || '')}" placeholder="เช่น ทุก 8 ชั่วโมง"></label>` : '')

@@ -112,6 +112,16 @@ export function topMg(i, w) {
 const childWeights = (i) => { const b = i.age_max != null ? +i.age_max : ADULT_AGE; return b <= 1 ? [3, 10] : b <= 2 ? [5, 15] : b <= 6 ? [10, 25] : b <= 12 ? [15, 45] : [20, 60]; };
 const isAdult = (i) => i.age_min != null && +i.age_min >= ADULT_AGE;
 
+/** เพดานที่คิดได้จากขนาดที่กรอกเอง (เฉพาะขนาดคงที่ · ขนาดสูงสุดคือเพดานอยู่แล้ว)
+ *  ต่อวัน (แบ่งให้): วันละ ≤ max · ครั้งละ ≤ max ÷ จำนวนครั้งน้อยสุดที่เลือก (เช่น 50–150 มก./วัน แบ่ง 2 ครั้ง → ครั้งละ ≤ 75)
+ *  ต่อครั้ง: ครั้งละ ≤ max · วันละ = คิดไม่ได้ (ขึ้นกับความถี่ เช่น ทุก 4–6 ชม. ต้องใช้เพดานต่อวันจากฉลาก)
+ *  คิดตามน้ำหนัก (มก./กก.) = คิดไม่ได้ → null (ต้องใช้เพดานจากฉลาก หรือขนาดผู้ใหญ่) */
+export function autoCaps(i) {
+  if (!i?.fixed || !(typeof i.max === 'number' && i.max > 0)) return null;
+  if (i.per === 'day') { const ts = timesOf(i); return { cap_day: i.max, cap: ts.length ? +(i.max / Math.min(...ts)).toFixed(3) : null, times: ts.length ? Math.min(...ts) : null }; }
+  return { cap: i.max, cap_day: null, times: null };
+}
+
 /* ---------- กฎรายข้อบ่งใช้ ---------- */
 /** ปัญหาของข้อบ่งใช้ i (ไม่ดูข้ออื่น) → [{ sev, code, text }] */
 export function indRules(i) {
@@ -138,6 +148,18 @@ export function indRules(i) {
       : 'ขนาดตามน้ำหนักต่อวัน ต้องมีขนาดสูงสุดต่อวัน (วันละไม่เกิน) · กันเด็กโต/ผู้ใหญ่ได้ยาเกินขนาด');
   }
   if (+i.cap > 0 && +i.cap_day > 0 && +i.cap > +i.cap_day + EPS) add('fail', 'cap_order', `ครั้งละไม่เกิน (${nf(+i.cap)}) มากกว่าวันละไม่เกิน (${nf(+i.cap_day)}) · ตรวจว่าใส่สลับช่องหรือไม่`);
+  // ขนาดคงที่: เพดานคิดจากขนาดที่กรอกได้ → ช่องเพดานที่ไม่ตรง = ไม่มีผล (มากกว่า) หรือตัดขนาดที่กรอก (น้อยกว่า) · เสนอค่าที่คิดให้
+  const ac = autoCaps(i);
+  if (ac) {
+    const how = i.per === 'day' ? `${nf(i.max)} ÷ ${ac.times} ครั้ง` : `ขนาดสูงสุด ${nf(i.max)}`;
+    const fixCaps = { ...(ac.cap != null ? { cap: ac.cap } : {}), ...(ac.cap_day != null ? { cap_day: ac.cap_day } : {}) };
+    const lbl = `ใช้เพดานที่คิดจากขนาด (${[ac.cap != null ? `ครั้งละ ≤ ${nf(ac.cap)}` : '', ac.cap_day != null ? `วันละ ≤ ${nf(ac.cap_day)}` : ''].filter(Boolean).join(' · ')} ${U(i)})`;
+    if (ac.cap != null && +i.cap > ac.cap + EPS) add('warn', 'cap_split', `ครั้งละไม่เกิน ${nf(+i.cap)} ${U(i)} มากกว่าที่ให้ได้จริง (${how} = ${nf(ac.cap)} ${U(i)}) · ช่องนี้ไม่มีผล ใส่ค่าที่คิดให้เพื่อไม่ให้สับสน`, { ...fixCaps, label: lbl });
+    else if (ac.cap_day != null && +i.cap_day > ac.cap_day + EPS) add('warn', 'cap_split', `วันละไม่เกิน ${nf(+i.cap_day)} ${U(i)} มากกว่าขนาดสูงสุดต่อวันที่กรอก (${nf(ac.cap_day)} ${U(i)}) · ช่องนี้ไม่มีผล`, { ...fixCaps, label: lbl });
+    if ((ac.cap != null && +i.cap > 0 && +i.cap < ac.cap - EPS) || (ac.cap_day != null && +i.cap_day > 0 && +i.cap_day < ac.cap_day - EPS)) {
+      add('warn', 'cap_below', `เพดานน้อยกว่าขนาดสูงสุดที่กรอก (${how} = ${nf(ac.cap ?? ac.cap_day)} ${U(i)}) · หน้าคำนวณจะตัดที่เพดาน ตรวจว่าขนาดสูงสุดหรือเพดานถูกต้อง`);
+    }
+  }
   // ③ ข้อความฉลาก: ต่อครั้ง/ต่อวัน · เพดาน · จำนวนครั้ง ต้องตรงกัน
   if (!q.trim()) add('warn', 'quote_none', 'ยังไม่มีข้อความอ้างอิงจากฉลาก/ตำรา (ที่มา) · ใส่เพื่อให้ตรวจย้อนได้ หรือให้ AI หาพร้อมลิงก์');
   else {
@@ -191,7 +213,13 @@ export function drugRules(inds) {
   const adults = list.filter((i) => i && isAdult(i));
   const aDose = Math.max(-Infinity, ...adults.map((i) => topMg(i, 70).dose).filter((x) => x != null));
   const aDay = Math.max(-Infinity, ...adults.map((i) => topMg(i, 70).day).filter((x) => x != null));
-  if (adults.length) {
+  if (adults.length) {   // เด็กตามน้ำหนักที่ยังไม่มีเพดาน → เสนอขนาดผู้ใหญ่สูงสุดของยานี้เป็นเพดาน (ผู้ดูแลกดใช้เอง)
+    const inU = (i, v) => +(i.unit === 'mcg' ? v * 1000 : v).toFixed(3);
+    for (const x of out) {
+      const i = list[x.k]; if (!i || isAdult(i)) continue;
+      if (x.code === 'cap_req' && Number.isFinite(aDose)) x.fix = { cap: inU(i, aDose), label: `ใช้ขนาดผู้ใหญ่สูงสุดเป็นเพดาน (ครั้งละ ≤ ${nf(inU(i, aDose))} ${U(i)})` };
+      if (x.code === 'capday_req' && Number.isFinite(aDay)) x.fix = { cap_day: inU(i, aDay), label: `ใช้ขนาดผู้ใหญ่สูงสุดเป็นเพดาน (วันละ ≤ ${nf(inU(i, aDay))} ${U(i)})` };
+    }
     list.forEach((i, k) => {
       if (!i || isAdult(i) || i.fixed || typeof i.max !== 'number') return;
       for (const w of childWeights(i)) {

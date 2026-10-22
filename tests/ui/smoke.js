@@ -2394,6 +2394,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ช่องอายุ (6 ปีขึ้นไป) ไม่ตรงชื่อ (≥11 ปี) → บอกทั้งสองค่า + ปุ่ม "ใช้ช่วงอายุตามชื่อ"', /11 ปีขึ้นไป/.test(iss) && /6 ปีขึ้นไป/.test(iss) && /ใช้ช่วงอายุตามชื่อ \(11 ปีขึ้นไป\)/.test(await text(q, '[data-dw-agefix="1"]')), iss);
         await q.click('[data-dw-agefix="1"]'); await q.waitForTimeout(250);
         check('กดแก้คลิกเดียว → อายุตั้งแต่ 11 · ช่องถึงว่าง (ไม่จำกัด) · ผ่านกฎ (ไม่มีข้อที่ไม่ผ่าน)', (await q.$eval('[data-k="1"][data-f="age_min"]', (e) => e.value)) === '11' && (await q.$eval('[data-k="1"][data-f="age_max"]', (e) => e.value)) === '' && !/ยังไม่ผ่าน/.test(await text(q, '[data-dw-cst="1"]')), await text(q, '[data-card="1"]'));
+        // ขนาดคงที่ต่อวัน 50–150 มก. แบ่ง 2 ครั้ง + ครั้งละ ≤ 150 → เตือนว่าเพดานไม่มีผล + ปุ่มใช้เพดานที่คิดให้ (ครั้งละ 75 · วันละ 150)
+        await q.click('[data-dw-set1="per:day"][data-k="1"]'); await q.waitForTimeout(120);
+        await q.click('[data-dw-times="2"][data-k="1"]'); await q.waitForTimeout(120);
+        for (const [f, v] of [['min', '50'], ['max', '150'], ['cap', '150'], ['cap_day', '150']]) { await q.fill(`[data-k="1"][data-f="${f}"]`, v); await q.waitForTimeout(80); }
+        const iss2 = await text(q, '[data-dw-iss="1"]');
+        check('ขนาดคงที่ 50–150 มก./วัน แบ่ง 2 ครั้ง · ครั้งละ ≤ 150 → เตือน (150 ÷ 2 = 75) + ปุ่มใช้เพดานที่คิดจากขนาด', /150 ÷ 2 ครั้ง = 75/.test(iss2) && /ครั้งละ ≤ 75 · วันละ ≤ 150/.test(iss2), iss2);
+        const n2 = await q.$$eval('[data-dw-agefix="1"]', (bs) => bs.findIndex((b) => /ครั้งละ ≤ 75/.test(b.textContent)));
+        await q.click(`[data-dw-agefix="1"][data-n="${n2}"]`); await q.waitForTimeout(250);
+        check('กดใช้เพดานที่คิดให้ → ครั้งละ 75 · วันละ 150 · ไม่มีเตือนเรื่องเพดาน', (await q.$eval('[data-k="1"][data-f="cap"]', (e) => e.value)) === '75' && (await q.$eval('[data-k="1"][data-f="cap_day"]', (e) => e.value)) === '150' && !/150 ÷ 2/.test(await text(q, '[data-card="1"]')), await text(q, '[data-card="1"]'));
         await q.click('[data-dw-del="1"]'); await q.waitForTimeout(150); }
       // ข้อที่ AI ตอบไม่ตรงฉลาก → ไม่ใช้ · ยาที่ไม่มีฉลาก → ส่ง AI ไม่ได้ (ไม่ส่งข้อความ MIMS)
       await q.click('[data-dw-addind]'); await q.waitForTimeout(150);

@@ -102,3 +102,22 @@ test('ช่องอายุไม่ตรงชื่อ → บอกทั
   const g = drugRules([{ ...fx, name: 'ก', age_min: 6, age_max: 10 }, { ...fx, name: 'ข', age_min: 11 }]).find((x) => x.code === 'age_gap');
   assert.equal(g.k, 1); assert.equal(g.fix.k, 0); assert.equal(g.fix.age_max, 11);
 });
+
+test('เพดานคิดจากขนาดคงที่ (autoCaps): ต่อวัน 50–150 แบ่ง 2 ครั้ง → ครั้งละ ≤ 75 · วันละ ≤ 150 · ตามน้ำหนัก = คิดไม่ได้', async () => {
+  const { autoCaps } = await import('../../js/pages/dose-rules.js');
+  const d = { name: 'ทดสอบ', per: 'day', fixed: true, min: 50, max: 150, times: 2, age_min: 12 };
+  assert.deepEqual(autoCaps(d), { cap_day: 150, cap: 75, times: 2 });
+  assert.deepEqual(autoCaps({ ...d, times_alt: [1] }).cap, 150);   // ให้วันละครั้งได้ → ครั้งละได้ถึง 150
+  assert.deepEqual(autoCaps({ ...d, per: 'dose' }), { cap: 150, cap_day: null, times: null });   // ต่อครั้ง: วันละขึ้นกับความถี่ (ใช้ฉลาก)
+  assert.equal(autoCaps({ ...d, fixed: false }), null);
+  const w = indRules({ ...d, cap: 150, cap_day: 150 }).find((x) => x.code === 'cap_split');
+  assert.ok(w && w.sev === 'warn' && w.fix.cap === 75 && w.fix.cap_day === 150);
+  assert.deepEqual(codes(indRules({ ...d, cap: 75, cap_day: 150 })).filter((c) => /^cap/.test(c)), []);
+  assert.ok(codes(indRules({ ...d, cap: 50 })).includes('cap_below'));
+});
+
+test('เด็กตามน้ำหนักไม่มีเพดาน + ยานี้มีขนาดผู้ใหญ่ → เสนอใช้ขนาดผู้ใหญ่สูงสุดเป็นเพดาน', () => {
+  const r = drugRules([{ name: 'เด็ก', per: 'dose', min: 10, max: 15, age_min: 0, age_max: 12 }, { name: 'ผู้ใหญ่', per: 'dose', fixed: true, min: 500, max: 1000, age_min: 12 }]);
+  const x = r.find((y) => y.code === 'cap_req');
+  assert.equal(x.k, 0); assert.equal(x.fix.cap, 1000);
+});
