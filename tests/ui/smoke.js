@@ -2652,7 +2652,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.close();
     }
   } catch (e) {
-    check('สคริปต์ทดสอบทำงานจนจบ', false, e.message.split('\n')[0]);
+    check('สคริปต์ทดสอบทำงานจนจบ', false, e.message.split('\n')[0] + ' @ ' + String(e.stack || '').split('\n').filter((x) => /smoke\.js/.test(x)).slice(0, 2).join(' | '));
   }
   check('ไม่มี JavaScript error ระหว่างทดสอบ', errors.length === 0, errors.slice(0, 5).join(' | '));
   await browser.close();
