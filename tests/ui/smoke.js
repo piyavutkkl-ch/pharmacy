@@ -1717,7 +1717,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(600);
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1200110')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
-      check('ยา รพ.สต.: กดแก้ไข → ฟอร์มแก้ไขขยายใต้ยานั้น', await p.$eval('#ldForm', (f, i) => f.parentElement.id === 'ldList' && !!f.previousElementSibling?.querySelector(`[data-ld-edit="${i}"]`), id)); await p.selectOption('#ldIngs .r-dose', { label: 'ยาทดสอบ' }); await p.click('#ldSubmit'); await p.waitForTimeout(300);
+      check('ยา รพ.สต.: กดแก้ไข → ฟอร์มแก้ไขขยายใต้ยานั้น', await p.$eval('#ldForm', (f, i) => f.parentElement.id === 'ldList' && !!f.previousElementSibling?.querySelector(`[data-ld-edit="${i}"]`), id)); await p.selectOption('#ldIngs .r-dose', String(await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id)));   // บันทึกแบบซ่อน (ข้อมูลทดสอบไม่ผ่านกฎ) → ป้าย "(ซ่อน)" ต่อท้าย await p.click('#ldSubmit'); await p.waitForTimeout(300);
       check('ยา รพ.สต.: ผูกกับข้อมูลคำนวณขนาดยาเอง (dose_id)', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.dose_id === await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id)); }
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1050060')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
