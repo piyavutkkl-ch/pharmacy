@@ -2292,7 +2292,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ตรวจยานี้ + ให้ AI เติมข้อมูลทุกข้อที่ไม่ผ่าน → เติมลงการ์ดเลย (ฉลากก่อน ไม่พอ = เว็บ) → ผ่านกฎ + บอกว่าเสร็จ', (await calls(q, (c) => /^ai_dose_(fix|web)_start$/.test(c.rpc || ''))).length === n0 + 2 && await count(q, '[data-dw-filled]') === 1
         && (await text(q, '#dwHead')).includes('AI เติมข้อมูลให้แล้ว 1 จาก 1') && !(await text(q, '[data-dw-chkall]')).includes('ไม่ผ่าน') && !(await text(q, '[data-dw-cst="0"]')).includes('ยังไม่ผ่าน'), await text(q, '#dwHead'));
       { // 91: AI ตรวจย้อนหลัง → ธงในภาพรวม/เมนู/การ์ด · ล้างธงเมื่อตรวจแล้วถูกต้อง · สั่งตรวจตอนนี้
-        await q.evaluate(async (lid) => { const db = window.__db, l = db.local_drugs.find((x) => x.id === lid), d = db.dose_drugs.find((x) => x.id === l.dose_id);
+        // ใช้ยาอีกตัว (ยาเดิมยังมีการแก้ที่ยังไม่บันทึกค้างในหน้าทำงาน = หน้าทำงานเก็บงานค้างไว้ ไม่ทับ)
+        const lid = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)').id);
+        await q.evaluate(async (lid) => { const db = window.__db, l = db.local_drugs.find((x) => x.id === lid), d = db.dose_drugs.find((x) => /Paracetamol/.test(x.name)); l.dose_id = d.id;
           d.indications = [{ name: 'AUDITWRONG ไข้', per: 'dose', min: 20, max: 30, cap: 400, age_min: 0, age_max: 12 }]; d.active = true; d.ai_draft = false; d.approved_at = new Date().toISOString();
           d.audit_flags = [{ name: 'AUDITWRONG ไข้', level: 'wrong', why: 'ฉลากให้ 10–15 มก./กก. (ข้อมูลจำลอง)', quote: '10 to 15 mg/kg every 6 hours' }];
           await (await import('./js/pages/admin-drugs.js?v=4.4')).reloadDrugData(true); await (await import('./js/pages/admin.js?v=4.4')).refreshAdminBadges(); }, lid);
@@ -2300,7 +2302,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await go(q, '#/admin/drugs'); await q.waitForTimeout(1000);
         check('ภาพรวม: กล่อง "AI ตรวจย้อนหลังพบ" ขัดกับฉลาก (หยุดแสดงแล้ว) + ตัวเลขแจ้งเตือนบนเมนูข้อมูลยา', await visible(q, '#dcAudit') && (await text(q, '#dcAudit')).includes('ขัดกับฉลาก 1 ข้อ') && (await text(q, '#admDrugsBadge')).trim() === '1', await text(q, '#dcAudit'));
         await q.click(`#dcAudit [data-ck-open="${lid}"]`); await q.waitForTimeout(1500);
-        check('เปิดจากกล่องแจ้งเตือน → การ์ดแสดงธง AI ตรวจย้อนหลัง (เหตุผล + ข้อความฉลาก) + ปุ่มล้างธง', /IBUPROFEN/.test(await text(q, '#dwHead h3')) && await count(q, '[data-dw-audit]') === 1 && (await text(q, '[data-dw-audit]')).includes('ขัดกับฉลาก') && (await text(q, '[data-dw-audit]')).includes('10 to 15 mg/kg'), `${await text(q, '#dwHead h3')} | ${(await text(q, '#dwDose')).replace(/\s+/g, ' ').slice(0, 600)}`);
+        check('เปิดจากกล่องแจ้งเตือน → การ์ดแสดงธง AI ตรวจย้อนหลัง (เหตุผล + ข้อความฉลาก) + ปุ่มล้างธง', /PARACETAMOL 500 MG/.test(await text(q, '#dwHead h3')) && await count(q, '[data-dw-audit]') === 1 && (await text(q, '[data-dw-audit]')).includes('ขัดกับฉลาก') && (await text(q, '[data-dw-audit]')).includes('10 to 15 mg/kg'), `${await text(q, '#dwHead h3')} | ${(await text(q, '#dwDose')).replace(/\s+/g, ' ').slice(0, 600)}`);
         if (await count(q, '[data-dw-auditok]')) { await q.click('[data-dw-auditok]'); await q.waitForTimeout(900); }
         check('ตรวจแล้ว ข้อมูลเดิมถูกต้อง → ล้างธง (dose_audit_resolve)', (await calls(q, (c) => c.rpc === 'dose_audit_resolve')).pop()?.args?.p_name === 'AUDITWRONG ไข้' && await count(q, '[data-dw-audit]') === 0);
         await q.evaluate((lid) => { const db = window.__db, l = db.local_drugs.find((x) => x.id === lid); l.fda_key = l.fda_key || (db.drug_fda_labels[0] || {}).key; }, lid);
