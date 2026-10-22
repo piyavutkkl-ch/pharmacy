@@ -16,6 +16,7 @@ import { drugData, reloadDrugData, genericKey, codeTag, fetchFdaLabel, fetchFdaB
 import { indsProblem, refOfLabel, doseQuery, timesOf } from './admin-settings.js?v=4.4';
 import { testDose, testWeights } from './dose-test.js?v=4.4';
 import { drugRules } from './dose-rules.js?v=4.4';
+import { loadSavedFixes } from './dose-check.js?v=4.4';
 import { DC, centerRows, suggest, applyRow, basesOf, rejectPair, saveDose, doseRows, openTools } from './drug-center.js?v=4.4';
 import { ingsRow } from './drug-grid.js?v=4.4';
 import { parseMimsText, headTh } from './mims-text.js?v=4.4';
@@ -69,10 +70,23 @@ function select(id, keep = false) {
   if (!keep && dirty && String(id) !== String(sel) && !confirm('มีการแก้ไขขนาดยาที่ยังไม่บันทึก · ทิ้งการแก้ไขแล้วไปยาตัวอื่น?')) return false;
   sel = id; pop = null; popQ = ''; edit = null; mimsParsed = null; wSel = null; dbEd = null; ddPairs = null; dmRes = null; hist = null;
   const r = cur();
-  if (r && !keep) { cards = buildCards(r.l, r.j); dirty = false; focus = Math.max(0, cards.findIndex((c) => c.on && !c.ok)); srcTab = null; }
+  if (r && !keep) { cards = buildCards(r.l, r.j); dirty = false; focus = Math.max(0, cards.findIndex((c) => c.on && !c.ok)); srcTab = null; attachSaved(r); }
   try { sessionStorage.setItem('pcps_work_sel', String(id)); } catch { /* ไม่เป็นไร */ }
   renderList(); renderMain();
   return true;
+}
+/** ค่าที่ AI เสนอไว้แล้ว (เช่น จากปุ่มตรวจทุกตัวในภาพรวม) → ใส่ในการ์ดที่ยังไม่ผ่าน ชื่อข้อบ่งใช้ตรงกัน (ผู้ดูแลกดใช้เอง) */
+async function attachSaved(r) {
+  const did = r.j.dose.dose?.id, ids = did ? D.locals.filter((x) => x.id === r.l.id || x.dose_id === did || (x.ingredients || []).some((g) => g.dose_id === did)).map((x) => x.id) : [r.l.id];
+  const m = await loadSavedFixes(ids);
+  if (!m.size || String(sel) !== String(r.l.id)) return;
+  let n = 0;
+  cards.forEach((c) => {
+    const f = m.get(String(c.ind.name || '').trim());
+    if (!f || c.fix || c.ok || cardTest(r.l, r.j, c).status === 'pass') return;
+    c.fix = { state: 'done', mode: f.mode || f.result?.mode, res: f.result, note: f.note, saved: true }; n++;
+  });
+  if (n) { prep = `มีค่าที่ AI เสนอไว้แล้ว ${n} ข้อ (จากการตรวจครั้งก่อน) · ตรวจแล้วกดใช้ในการ์ด`; renderMain(); }
 }
 async function refresh(rebuild = true) {
   await reloadDrugData();
@@ -406,7 +420,7 @@ async function dmImport(l, setid, btn) {
  *  → { status, text, issues: [ข้อความ], warns: [ข้อความเตือนที่ต้องรับทราบ] } */
 function cardTest(l, j, c) {
   const i = cleanInd(c.ind), p = indsProblem([i]);
-  if (p) return { status: 'fail', text: p.replace(/^ข้อบ่งใช้ 1: /, ''), issues: [p], warns: [] };
+  if (p) return { status: 'fail', text: p.replace(/^ข้อบ่งใช้ 1: /, ''), issues: [p], fails: [p.replace(/^ข้อบ่งใช้ 1: /, '')], warns: [] };
   const t = testDose({ ...(j.dose.dose || {}), indications: [i] }, [l]);
   const strip = (s) => s.replace(/^ข้อบ่งใช้ 1(?: \([^)]*\))?(?: · [^:]*)?: /, '');
   const on = cards.filter((x) => x.on || x === c), at = on.indexOf(c);
@@ -507,7 +521,10 @@ function doseHtml(l, j) {
   const x = j.dose, sibs = D.locals.filter((y) => y.id !== l.id && genericKey(y.name) === genericKey(l.name)).map((y) => rows.find((r) => r.l.id === y.id)).filter((r) => r?.j.dose.dose && (r.j.dose.dose.indications || []).length);
   if (x.s === 'na' && !cards.length) return `<section class="card dw-dose" id="dwDose"><div class="dw-sh">${ic('scale')}<b>ขนาดยา</b></div><p class="small muted">${esc(x.t || 'ยานี้ไม่ใช้คำนวณขนาดยา')}</p><div class="row-btns"><button type="button" class="dc-na-t" data-dw-na="dose">${(l.link_na || []).includes('dose') ? 'ต้องคำนวณขนาดยา (ยกเลิก "ไม่ใช้")' : 'ต้องคำนวณขนาดยา'}</button></div></section>`;
   const nAi = cards.filter((c) => c.on && c.ai && !c.ok).length;
+  const ts = cards.filter((c) => c.on).map((c) => (c.ok ? 'ok' : cardTest(l, j, c).status)), nF = ts.filter((x) => x === 'fail').length, nW = ts.filter((x) => x === 'warn').length;
   return `<section class="card dw-dose" id="dwDose"><div class="dw-sh">${ic('scale')}<b>ขนาดยา · ข้อบ่งใช้</b>${nAi ? `<span class="dw-tag t-ai">${ic('spark')}AI ${nAi} ข้อ รอตรวจ</span>` : ''}${x.dose ? `<span class="small muted">${esc((x.t || '').replace(/^DOSE-\S+\s/, ''))}</span>` : ''}</div>`
+    + (ts.length ? `<div class="dw-chkall" data-dw-chkall><span class="small">${nF ? `<b class="dc-err">ไม่ผ่าน ${nF} ข้อ</b> · ` : ''}${nW ? `<span class="dc-warn">ควรตรวจ ${nW} ข้อ</span> · ` : ''}${!nF && !nW ? '<span class="dc-ok">ทุกข้อผ่านกฎความปลอดภัย</span> · ' : ''}ใช้ ${ts.length} ข้อ</span>`
+      + `<button type="button" class="btn ${nF ? 'btn-p' : 'btn-o'} btn-sm" data-dw-aiall>${ic('spark')}ตรวจยานี้${nF ? ` + ให้ AI ช่วย ${nF} ข้อที่ไม่ผ่าน` : 'ทั้งตัว'}</button></div>` : '')
     + (cards.length ? cards.map((c, k) => cardHtml(l, j, c, k)).join('') : '<p class="empty small">ยังไม่มีข้อบ่งใช้ · เพิ่มเอง หรือให้ AI ร่างจากฉลาก</p>')
     + `<div class="dw-add"><button type="button" class="btn btn-o btn-sm" data-dw-addind>${ic('plus')}เพิ่มข้อบ่งใช้</button><button type="button" class="btn btn-o btn-sm" data-dw-ai>${ic('spark')}ให้ AI ร่างจากฉลาก</button>`
     + sibs.slice(0, 3).map((r) => `<button type="button" class="btn btn-o btn-sm" data-dw-copy="${esc(r.l.id)}">${ic('swap')}คัดลอกจาก ${esc(r.l.name)}</button>`).join('')
@@ -662,7 +679,7 @@ async function saveDrug() {
 }
 /** ส่งข้อที่ทดสอบสูตรไม่ผ่านให้ AI ตรวจกับฉลาก OpenFDA (87) → แสดงค่าที่เสนอให้ผู้ดูแลกดใช้ */
 async function startFix(k, btn, mode = 'label') {
-  const r = cur(), c = cards[k]; if (!r || !c) return;
+  const r = cur(), c = cards[k]; if (!r || !c) return false;
   const t = cardTest(r.l, r.j, c);
   busy(btn, true, 'กำลังส่ง…');
   try {
@@ -673,10 +690,33 @@ async function startFix(k, btn, mode = 'label') {
       await new Promise((ok) => setTimeout(ok, n ? 3000 : 1200));
       const { data, error: e2 } = await sb.rpc('ai_dose_fix_poll', { p_id: id });
       if (e2) throw e2;
-      if (data.status !== 'pending') { if (cards[k] === c) { c.fix = { state: 'done', mode, res: data.result, note: data.note }; if (!data.result && data.note) c.fix.err = data.note; renderMain(); } return; }
+      if (data.status !== 'pending') { if (cards[k] === c) { c.fix = { state: 'done', mode, res: data.result, note: data.note }; if (!data.result && data.note) c.fix.err = data.note; renderMain(); } return true; }
     }
     c.fix = { state: 'done', err: 'หมดเวลารอ AI · ลองใหม่ หรือแก้เองจากต้นฉบับ' }; renderMain();
-  } catch (err) { toast(errText(err), 'err'); if (c.fix?.state === 'wait') { c.fix = null; renderMain(); } } finally { busy(btn, false); }
+    return true;
+  } catch (err) { toast(errText(err), 'err'); if (c.fix?.state === 'wait') { c.fix = null; renderMain(); } return false; } finally { busy(btn, false); }
+}
+/** ตรวจยานี้ทั้งตัว + ให้ AI ช่วยทุกข้อที่ไม่ผ่าน (ทีละข้อ · ฉลาก OpenFDA ก่อน ไม่พอ = ค้นจากเว็บพร้อมลิงก์) */
+async function aiAllCards(btn) {
+  const r = cur(); if (!r) return;
+  const bad = cards.map((c, k) => ({ c, k })).filter(({ c }) => c.on && !c.ok && cardTest(r.l, r.j, c).status === 'fail');
+  if (!bad.length) { prep = cards.some((c) => c.on) ? 'ตรวจแล้ว: ทุกข้อที่ใช้ผ่านกฎความปลอดภัย · ข้อที่มีข้อควรตรวจ ติ๊กรับทราบแล้วกดตรวจตัวเลขกับฉลากแล้ว' : 'ยังไม่มีข้อบ่งใช้ · เพิ่มเอง หรือให้ AI ร่างจากฉลาก'; renderMain(); return; }
+  busy(btn, true, 'AI กำลังช่วย…');
+  try {
+    const f = fdaOf(r.l);
+    for (const [n, { c, k }] of bad.entries()) {
+      if (cur() !== r || cards[k] !== c) break;
+      prep = `AI กำลังหาค่า ข้อ ${k + 1} (${n + 1}/${bad.length})…`;
+      const prev = c.fix?.res?.ind ? c.fix : null;
+      if (f && !(await startFix(k, null, 'label'))) break;
+      if (!(c.fix?.res?.ind && !c.fix.res.left)) {   // ฉลากไม่มี/ไม่พอ → ค้นจากเว็บ
+        const lab = c.fix?.res?.ind ? c.fix : prev;
+        if (!(await startFix(k, null, 'web'))) break;
+        if (!c.fix?.res?.ind && lab) c.fix = lab;   // เว็บไม่พบ = เก็บค่าจากฉลากไว้
+      }
+    }
+    prep = `AI ช่วยครบ ${bad.length} ข้อที่ไม่ผ่านแล้ว · ตรวจค่าที่เสนอในแต่ละการ์ด (เปิดลิงก์ตรวจ) แล้วกดใช้เอง`;
+  } finally { busy(btn, false); renderMain(); }
 }
 /** ให้ AI ร่างขนาดยาจากฉลาก openFDA (50 ai_dose_start) → การ์ด "AI ร่าง" รอตรวจ (ยังไม่บันทึก) */
 async function aiDraft(l, btn) {
@@ -864,6 +904,7 @@ async function onMain(e) {
   if ((b = B('[data-dw-del]'))) { const k = +b.dataset.dwDel; if (!confirm(`ลบข้อบ่งใช้ "${cards[k].ind.name || k + 1}" ออกจากยานี้?`)) return; cards.splice(k, 1); dirty = true; focus = Math.max(0, Math.min(focus, cards.length - 1)); renderMain(); return; }
   if ((b = B('[data-dw-fix]'))) { await startFix(+b.dataset.dwFix, b, 'label'); return; }
   if ((b = B('[data-dw-web]'))) { await startFix(+b.dataset.dwWeb, b, 'web'); return; }
+  if ((b = B('[data-dw-aiall]'))) { await aiAllCards(b); return; }
   if ((b = B('[data-dw-hide]'))) {
     if (dirty && !confirm('มีการแก้ไขขนาดยาที่ยังไม่บันทึก · ดำเนินการต่อ? (การแก้ไขยังค้างอยู่)')) return;
     busy(b, true, 'กำลังบันทึก…');

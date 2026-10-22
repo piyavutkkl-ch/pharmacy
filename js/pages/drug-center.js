@@ -17,6 +17,7 @@ import { strengthOf, comboName, keysOf, sameDrug, doseText, sameBasis } from './
 import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel } from './admin-drugs.js?v=4.4';
 import { indsProblem, indsOf, doseQuery, draftWord, indBox, readInds, syncIndBoxes, asMg, ageText } from './admin-settings.js?v=4.4';
 import { testDose, testHtml } from './dose-test.js?v=4.4';
+import { runCheck, bindCheck } from './dose-check.js?v=4.4';
 
 const K = ['str', 'rpst', 'mims', 'fda', 'nlem', 'ddi', 'dose'];   // ตามลำดับขั้น: ① str ② rpst/mims/fda/nlem/ddi ③ dose (รวมผลทดสอบสูตร)
 const SRC = ['rpst', 'mims', 'fda', 'nlem', 'ddi'];   // ขั้นที่ 2 แหล่งข้อมูล
@@ -560,6 +561,8 @@ function bind() {
   $('#dcScope').addEventListener('change', () => { scope = $('#dcScope').value; renderTop(); renderTable(); });
   $('#dcTable').addEventListener('click', (e) => { const b = e.target.closest('[data-dc-row]'); if (b) pick(+b.dataset.dcRow, b.dataset.dcK); });
   $('#dcBulk').addEventListener('click', bulk);
+  $('#dcCheckBtn').addEventListener('click', () => { compute(); runCheck(rowsCache); });   // ตรวจข้อมูลขนาดยาทุกตัวในครั้งเดียว (dose-check.js)
+  bindCheck();
   $('#dcPanel').addEventListener('input', (e) => { if (e.target.id === 'dcMonoQ') { edit.q = e.target.value; $('#dcMonoOut').innerHTML = monoPick(edit.q); } if (e.target.closest('#dtEd')) syncIndBoxes($('#dtEd')); });
   $('#dcPanel').addEventListener('change', (e) => { if (e.target.closest('#dtEd')) syncIndBoxes($('#dtEd')); });
   $('#dcPanel').addEventListener('toggle', (e) => { const st = e.target.closest?.('[data-dc-step]'); if (st && e.target === st) stepOpen[st.dataset.dcStep] = st.open; }, true);   // ขั้นที่ผู้ดูแลเปิด/ย่อเอง จำไว้ระหว่างแก้

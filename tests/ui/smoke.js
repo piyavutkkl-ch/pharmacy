@@ -1288,6 +1288,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('เพิ่มหลายรายการ: วางรายชื่อ → คิว 3 ตัว (ตัดเลขข้อ/ซ้ำ · ยาที่มีแล้วข้าม) + เปิดตัวแรกในฟอร์มพร้อมช่วยกรอก', await count(p, '#dfBulkList .li') === 3 && (await text(p, '#dfBulkList')).includes('มีในรายการยาแล้ว') && (await p.inputValue('#dfName')) === 'ไดเฟนไฮดรามีน (Diphenhydramine)' && (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args?.p_name === 'diphenhydramine' && (await text(p, '#dfBulkN')).includes('รอเพิ่ม 2'), JSON.stringify({ n: await count(p, '#dfBulkList .li'), list: await text(p, '#dfBulkList'), name: await p.inputValue('#dfName'), rpc: (await calls(p, (c) => c.rpc === 'ai_dose_start')).pop()?.args, nn: await text(p, '#dfBulkN') }));
     check('เพิ่มหลายรายการ: ยังไม่บันทึกยาเอง', (await calls(p, (c) => c.table === 'dose_drugs' && c.op !== 'select')).length === saves0);
     await p.fill('#dfInds .i-name', 'ลดไข้'); await p.fill('#dfInds .i-min', '5'); await p.fill('#dfInds .i-max', '10');
+    await p.fill('#dfInds .i-agemin', '0'); await p.fill('#dfInds .i-cap', '400');   // กฎความปลอดภัย: ช่วงอายุ + เพดานต่อครั้ง
     await p.click('#dfSubmit'); await p.waitForTimeout(3800);
     check('เพิ่มหลายรายการ: บันทึกแล้ว → ตัวนั้นเพิ่มแล้ว + เปิดยาตัวถัดไปเอง', (await text(p, '#dfBulkList')).includes('✓ เพิ่มแล้ว') && (await p.inputValue('#dfName')) === 'เซทิริซีน (Cetirizine)' && (await text(p, '#dfBulkN')).includes('เพิ่มแล้ว 1'));
     await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(300);
@@ -2238,6 +2239,36 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.close();
     }
 
+    { // ตรวจข้อมูลขนาดยาทุกตัวในครั้งเดียว (ภาพรวม · dose-check.js · เจ้าของเว็บ 22 ต.ค.) + ให้ AI หาค่าทุกข้อที่ไม่ผ่าน + ตรวจยานี้ทั้งตัว (หน้าทำงานทีละยา)
+      const q = await open('admin', '#/admin/drugs'); await q.waitForTimeout(1200);
+      await q.click('#dcCheckBtn'); await q.waitForTimeout(400);
+      check('ภาพรวม: ปุ่ม "ตรวจข้อมูลขนาดยาทุกตัว" → สรุป ไม่ผ่าน/ควรตรวจ/รออนุมัติ/ครบแล้ว + รายการยาที่ต้องแก้ (ไม่ใช้ AI)', await visible(q, '#dcCheck') && /ไม่ผ่าน \d+/.test(await text(q, '#dcCheck .ck-sum')) && /ครบแล้ว \d+/.test(await text(q, '#dcCheck .ck-sum'))
+        && await count(q, '#dcCheck .ck-row') >= 1 && (await calls(q, (c) => /^ai_dose_(fix|web)_start$/.test(c.rpc || ''))).length === 0, await text(q, '#dcCheck'));
+      // ยาที่ข้อมูลไม่ผ่าน (ไม่มีช่วงอายุ) → ให้ AI หาค่าทุกข้อ: ฉลากก่อน ขาดช่วงอายุ → ค้นจากเว็บพร้อมลิงก์
+      const lid = await q.evaluate(async () => {
+        const db = window.__db, l = db.local_drugs.find((x) => x.name === 'IBUPROFEN 400 MG'), d = db.dose_drugs.find((x) => /Ibuprofen/.test(x.name));
+        l.dose_id = d.id; l.fda_key = l.fda_key || (db.drug_fda_labels[0] || {}).key; d.indications = d.indications.map(({ age_min, ...x }) => x);
+        const dc = await import('./js/pages/drug-center.js?v=4.4'), ck = await import('./js/pages/dose-check.js?v=4.4');
+        await (await import('./js/pages/admin-drugs.js?v=4.4')).reloadDrugData(true);
+        ck.runCheck((await dc.centerRows(true)).filter((r) => r.l.id === l.id)); return l.id; });
+      await q.waitForTimeout(300);
+      check('ตรวจทุกตัว: ยาที่ไม่มีช่วงอายุ → ไม่ผ่าน + บอกเหตุผล + ปุ่มให้ AI หาค่าทุกข้อ', (await text(q, '#dcCheck .ck-list')).includes('ยังไม่ระบุช่วงอายุ') && await count(q, '[data-ck-ai-all]') === 1, await text(q, '#dcCheck'));
+      await q.click('[data-ck-ai-all]'); await q.waitForSelector('[data-ck-ai]', { timeout: 40000 }).catch(() => {});
+      { const cs = await calls(q, (c) => /^ai_dose_(fix|web)_start$/.test(c.rpc || ''));
+        check('ให้ AI หาค่าทุกข้อ: ฉลาก OpenFDA ก่อน → ยังขาดช่วงอายุ → ค้นจากเว็บพร้อมลิงก์ · บอกว่าเสนอแล้วกี่ข้อ (ไม่บันทึกเอง)', cs.map((c) => c.rpc).join() === 'ai_dose_fix_start,ai_dose_web_start' && /AI เสนอแล้ว 1\/1/.test(await text(q, '#dcCheck')) && (await calls(q, (c) => c.table === 'dose_drugs' && c.op === 'update')).length === 0, JSON.stringify(cs.map((c) => c.rpc))); }
+      await q.click(`[data-ck-open="${lid}"]`); await q.waitForTimeout(1500);
+      check('เปิดยาจากผลตรวจ → หน้าทำงานทีละยา การ์ดแสดงค่าที่ AI เสนอไว้แล้ว (จากเว็บ + ลิงก์) ให้กดใช้', (await q.evaluate(() => location.hash)) === '#/admin/drugs/work' && /IBUPROFEN/.test(await text(q, '#dwHead h3')) && await count(q, '[data-dw-fixok][data-mode="web"] [data-dw-links] a') >= 1 && (await text(q, '#dwHead')).includes('AI เสนอไว้แล้ว'), await text(q, '#dwDose'));
+      check('หน้าทำงานทีละยา: สรุป "ไม่ผ่าน n ข้อ" + ปุ่มตรวจยานี้ + ให้ AI ช่วย', (await text(q, '[data-dw-chkall]')).includes('ไม่ผ่าน 1 ข้อ') && (await text(q, '[data-dw-aiall]')).includes('ให้ AI ช่วย 1 ข้อ'));
+      await q.click('[data-dw-fixno="0"]'); await q.waitForTimeout(150);
+      const n0 = (await calls(q, (c) => /^ai_dose_(fix|web)_start$/.test(c.rpc || ''))).length;
+      await q.click('[data-dw-aiall]'); await q.waitForSelector('[data-dw-fixok]', { timeout: 40000 }).catch(() => {}); await q.waitForTimeout(300);
+      check('ตรวจยานี้ + ให้ AI ช่วยทุกข้อที่ไม่ผ่าน → การ์ดได้ค่าที่ AI เสนอ (ฉลากก่อน ไม่พอ = เว็บ) + บอกว่าเสร็จ', (await calls(q, (c) => /^ai_dose_(fix|web)_start$/.test(c.rpc || ''))).length === n0 + 2 && await count(q, '[data-dw-fixok]') === 1 && (await text(q, '#dwHead')).includes('AI ช่วยครบ'), await text(q, '#dwHead'));
+      await q.click('[data-dw-fixuse="0"]'); await q.waitForTimeout(200);
+      check('กดใช้ค่าที่ AI เสนอ → ข้อนั้นผ่านกฎ (มีช่วงอายุแล้ว) → สรุปไม่มีข้อไม่ผ่าน', !(await text(q, '[data-dw-chkall]')).includes('ไม่ผ่าน') && !(await text(q, '[data-dw-cst="0"]')).includes('ยังไม่ผ่าน'), await text(q, '[data-card="0"]'));
+      await q.setViewportSize({ width: 390, height: 900 }); await go(q, '#/admin/drugs'); await q.waitForTimeout(900); await q.click('#dcCheckBtn'); await q.waitForTimeout(300);
+      check('ผลตรวจทุกตัว 390px: ไม่มี scroll แนวนอน', (await overflow(q)) <= 0, String(await overflow(q)));
+      await (await q.$('#dcCheck')).screenshot({ path: path.join(SHOTS, 'dose-check-390.png') });
+      await q.close(); }
     { // ทำงานทีละยา (drug-work.js · หน้าแรกของข้อมูลยา): ค้นหา → เลือกยา → จัดการจบในหน้าเดียว · การ์ดขนาดยา Min/Max · ตรวจแล้วได้เมื่อทดสอบสูตรผ่าน · ไม่ผ่าน = ส่งให้ AI แก้ (87)
       const q = await open('admin', '#/admin/drugs/work'); await q.waitForTimeout(900);
       const pid = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)').id);

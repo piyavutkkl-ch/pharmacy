@@ -1632,6 +1632,21 @@ input[type=file]::file-selector-button:hover{border-color:var(--primary)}
 .dw-links{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .dw-links .chip{white-space:normal;overflow-wrap:anywhere;min-height:36px;text-decoration:none}
 .dw-ref{margin:0;overflow-wrap:anywhere}
+/* ตรวจยานี้ทั้งตัว (หน้าทำงานทีละยา) + ตรวจทุกตัว (ภาพรวม · dose-check.js) */
+.dw-chkall{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.dw-chkall .btn{min-height:44px}
+.dc-check{display:grid;gap:10px}
+.ck-top{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.ck-top .btn{margin-left:auto;min-height:44px}
+.ck-sum{display:flex;flex-wrap:wrap;gap:6px}
+.ck-sum span{border-radius:999px;padding:4px 12px;font-weight:600;font-size:13px;background:var(--surface-2,var(--surface));border:1px solid var(--line)}
+.dc-check .row-btns .btn{min-height:44px}
+.ck-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ck-row{border:1px solid var(--line);border-radius:12px;padding:8px 10px;display:grid;gap:4px;overflow-wrap:anywhere}
+.ck-row ul{margin:0;padding-left:18px}
+.ck-row .btn{justify-self:start;min-height:44px}
+.ck-h{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.ck-tag{font-weight:700;font-size:12.5px}
 .dw-fix s{color:var(--muted)}
 .dw-cf{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .dw-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border:1.5px dashed var(--line);border-radius:12px;padding:10px}

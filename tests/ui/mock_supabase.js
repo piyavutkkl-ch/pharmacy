@@ -559,7 +559,7 @@ function rpc(name, a = {}) {
       if (!fx.fixed) { if (fx.per === 'day') fx.cap_day = 1500; else fx.cap = fx.cap || 500; }
       const sources = [{ title: 'nih.gov', url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/test1' }, { title: 'who.int', url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/test2' }];
       const none = /AINONE/.test(ind.name || '');
-      const row = { id: newId('ai_dose_fixes'), local_id: l.id, status: 'pending', polls: 0,
+      const row = { id: newId('ai_dose_fixes'), local_id: l.id, status: 'pending', polls: 0, ind: a.p_ind, created_at: now(),
         _fake: none ? { none: true, why: 'ไม่พบข้อมูลที่เชื่อถือได้ (ข้อมูลจำลอง)', mode: 'web', sources, refs: [] }
           : { ind: fx, why: 'พบช่วงอายุและขนาดสูงสุดต่อวันในฉลาก DailyMed (ข้อมูลจำลอง)', mode: 'web', sources, refs: [{ title: 'DailyMed', url: 'https://dailymed.nlm.nih.gov/dailymed/test' }] } };
       (db.ai_dose_fixes ||= []).push(row); return { data: row.id, error: null };
@@ -577,7 +577,7 @@ function rpc(name, a = {}) {
       if (!fx.fixed && fx.per !== 'day' && !(fx.cap > 0)) fx.cap = 500;
       const left = fx.age_min == null ? 'ยังไม่ระบุช่วงอายุ (อายุตั้งแต่ … ปี · ใช้ได้ทุกอายุ = 0)' : null;   // ฉลากไม่มีช่วงอายุ → ให้ค้นจากเว็บต่อ
       const bad = /AIBAD/.test(ind.name || '');
-      const row = { id: newId('ai_dose_fixes'), local_id: l.id, status: 'pending', polls: 0,
+      const row = { id: newId('ai_dose_fixes'), local_id: l.id, status: 'pending', polls: 0, ind: a.p_ind, created_at: now(),
         _fake: bad ? { rejected: fx, why: 'ข้อความที่ AI อ้างไม่พบในฉลากยา', mode: 'label', sources: [], refs: [] } : { ind: fx, why: 'เติมจำนวนครั้งต่อวันและขนาดสูงสุดตามฉลาก (ข้อมูลจำลอง)', left, mode: 'label', sources: [], refs: [] } };
       (db.ai_dose_fixes ||= []).push(row); return { data: row.id, error: null };
     }
