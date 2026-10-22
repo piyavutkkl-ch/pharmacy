@@ -761,7 +761,7 @@
           <div class="dg-io" role="group" aria-label="นำเข้า/ส่งออกตารางยา">
             <span class="small muted">ส่งออกแถวที่แสดง:</span>
             <button type="button" class="btn btn-o btn-sm" data-dg-export="xlsx">Excel</button><button type="button" class="btn btn-o btn-sm" data-dg-export="csv">CSV</button><button type="button" class="btn btn-o btn-sm" data-dg-export="json">JSON</button>
-            <label class="btn btn-p btn-sm dg-imp">✦ นำเข้าไฟล์ (Excel/CSV/PDF/JSON · AI ช่วยจับช่อง)<input type="file" id="dgImport" accept=".xlsx,.xls,.csv,.json,.pdf,.txt,application/json,text/csv,application/pdf,text/plain" hidden></label>
+            <label class="btn btn-p btn-sm dg-imp">✦ นำเข้าไฟล์ (Excel/CSV/PDF/JSON · AI ช่วยจับช่อง · PDF หน้า MIMS แยกหัวข้อเองไม่ใช้ AI · เลือกหลายไฟล์ได้)<input type="file" id="dgImport" multiple accept=".xlsx,.xls,.csv,.json,.pdf,.txt,application/json,text/csv,application/pdf,text/plain" hidden></label>
             <a class="dc-tools-link" href="#/admin/drugs/tools" id="dcToolsBtn" title="ฐานข้อมูลแบบเดิม: นำเข้าบัญชี/MIMS ทั้งไฟล์ · ดึง/แปลฉลากทั้งชุด · คู่ยา DDInter" aria-label="เครื่องมือฐานข้อมูล (แบบเดิม)">⋯<span class="dc-tl-x"> เครื่องมือฐานข้อมูล (แบบเดิม)</span></a>
           </div>
           <div id="dgImpBox" class="dg-impbox card" hidden aria-live="polite"></div>

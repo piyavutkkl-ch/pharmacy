@@ -166,6 +166,9 @@ export async function fileText(f) {
   const aoa = await readTable(f);
   return aoa.slice(0, 600).map((r) => r.map((c) => String(c ?? '').replace(/\s+/g, ' ').trim()).join('\t')).join('\n').slice(0, 40000);
 }
+/** ข้อความจากหน้า MIMS (PDF ที่พิมพ์หน้าเว็บ / ข้อความที่คัดลอก) → แยกหัวข้อในเครื่องด้วย mims-text.js (ไม่ส่งให้ AI · ข้อมูลสมาชิก) · ตรงกับ looks_mims (89) + หัวข้อหลักของหน้า MIMS */
+export const looksMims = (text, name = '') => /(mims\.com|MIMS Thailand|MIMS Class|What are the brands available for)/i.test(text)
+  || (/^Indications and Dosage$/m.test(text) && /^(Generic Medicine Info|Special Patient Group|Special Precautions)$/m.test(text)) || /MIMS/i.test(name);
 /** ไฟล์เป็นรูปแบบส่งออกของเว็บนี้ (หัวคอลัมน์ตรง) → นำเข้าตรงได้ ไม่ต้องใช้ AI */
 export async function isOwnFormat(f) {
   if (/\.json$/i.test(f.name)) return true;

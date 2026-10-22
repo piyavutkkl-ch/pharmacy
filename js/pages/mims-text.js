@@ -16,38 +16,51 @@ const POPS = { Adult: 'ผู้ใหญ่', Child: 'เด็ก', Elderly: '
 const POP_RE = new RegExp(`^(${Object.keys(POPS).join('|')})s?:\\s*`);
 const STOP = /^(Disclaimer:|Related Diseases|MIMS Drugs V\d|Copyright ©)/;
 const NOISE = [/^https?:\/\/\S+$/, /^\d{1,2}\/\d{1,2}\/\d{4}(\s*BE)?,?\s*\d{1,2}:\d{2}$/, /^Page \d+ of \d+$/i, /^Advertisement for Healthcare Professionals only$/i, /^>\s*Drugs\s*>?$/,
-  /^Generic Medicine Info$/i, /^This information is not country-specific/i, /^Other Known Brands$/i, /^See More\s*$/i, /^\d+\s*\/\s*\d+$/, /^[‹›]$/];
+  /^Generic Medicine Info$/i, /^This information is not country-specific/i, /^the Thailand prescribing information\.?$/i, /^Other Known Brands$/i, /^See More\s*$/i, /^\d+\s*\/\s*\d+$/, /^\d{1,3}$/, /^[‹›]$/];
 const okUrl = (u) => (typeof u === 'string' && /^https:\/\/(www\.)?mims\.com\//.test(u) && u.length <= 300 ? u : null);
 
-/** ข้อความ PDF ตัดบรรทัดกลางประโยค → ต่อบรรทัดที่ยาวและไม่จบประโยค (ยกเว้นบรรทัดถัดไปขึ้นหัวข้อย่อย เช่น "Adult:") */
+/** ข้อความ PDF ตัดบรรทัดกลางประโยค → ต่อบรรทัดที่ไม่จบประโยค (ยกเว้นบรรทัดถัดไปขึ้นหัวข้อย่อย เช่น "Adult:" / ช่องทางให้ยา)
+ *  ความกว้างคอลัมน์ไม่เท่ากันทุกไฟล์ (PDF หน้าเว็บ MIMS ≈ 45 ตัวอักษร · คัดลอกจากเว็บ ≈ 100+) → ประมาณจากบรรทัดยาวเกือบสุดของหัวข้อนั้น */
 function joinWrapped(lines) {
+  const ls = lines.map((x) => x.length).sort((a, b) => a - b), w = ls.length ? ls[Math.floor(ls.length * 0.9)] : 0, min = Math.min(70, Math.max(24, Math.round(w * 0.6)));
   const out = [];
   for (const l of lines) {
     const prev = out[out.length - 1];
-    if (prev != null && prev.length >= 70 && !/[.:;]$/.test(prev) && !POP_RE.test(l) && !ROUTES.test(l) && !/^[A-Z][A-Za-z ()/-]{2,40}:/.test(l)) out[out.length - 1] = `${prev} ${l}`;
+    const sub = POP_RE.test(l) || ROUTES.test(l) || /^[A-Z][A-Za-z ()/-]{2,40}:/.test(l);
+    if (prev != null && !/[.:;]$/.test(prev) && !ROUTES.test(prev) && !sub && (prev.length >= min || /^[a-z(0-9]/.test(l))) out[out.length - 1] = `${prev} ${l}`;
     else out.push(l);
   }
   return out;
 }
+/** ตัวอักษรรวม (ligature) ที่ PDF บางไฟล์อ่านเพี้ยน: e!ect → effect · a"nity → affinity (เครื่องหมายนี้ไม่อยู่กลางคำภาษาอังกฤษใน MIMS) */
+const fixLig = (t) => t.replace(/([a-z])!([a-z])/g, '$1ff$2').replace(/([a-z])"([a-z])/g, '$1ffi$2');
 
 /** แยกข้อความหน้า MIMS → { name, url, sections: [{title, body}], inds: [ข้อบ่งใช้รอกรอกตัวเลข], brands } */
 export function parseMimsText(text, fallbackName = '') {
-  const raw = String(text || '').replace(/\r/g, '').replace(/ﬁ/g, 'fi').replace(/ﬂ/g, 'fl').replace(/ﬀ/g, 'ff').replace(/ﬃ/g, 'ffi').replace(/ﬄ/g, 'ffl').replace(/ /g, ' ');
+  const raw = fixLig(String(text || '').replace(/\r/g, '')).replace(/ﬁ/g, 'fi').replace(/ﬂ/g, 'fl').replace(/ﬀ/g, 'ff').replace(/ﬃ/g, 'ffi').replace(/ﬄ/g, 'ffl').replace(/ /g, ' ');
   if (raw.length > 300000) throw new Error('ข้อความยาวเกินไป (เกิน 300,000 ตัวอักษร)');
   const urlM = /https:\/\/(?:www\.)?mims\.com\/[a-z]+\/drug\/info\/[a-z0-9-]+/i.exec(raw);
   const url = okUrl(urlM ? urlM[0] : null);
   const lines = raw.split('\n').map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const sections = [], brands = [];
-  let cur = null, name = '', mode = null;
+  let cur = null, name = '', mode = null, sawBrands = false;
   for (const l of lines) {
     if (STOP.test(l)) break;
     if (NOISE.some((re) => re.test(l))) continue;
-    if (/^What are the brands available for .+\?$/i.test(l)) { mode = 'brands'; cur = null; continue; }
+    if (/^What are the brands available for/i.test(l)) { mode = 'brands'; cur = null; sawBrands = true; continue; }
+    if (mode === 'brands' && /^[A-Za-z][^?]{0,60}\?$/.test(l)) continue;   // คำถามที่ตัดบรรทัด ("Amitriptyline in Thailand?")
     const head = HEADS.find((h) => l.toLowerCase() === h.toLowerCase());
     if (head) { mode = 'body'; cur = { title: head, lines: [] }; sections.push(cur); continue; }
     if (mode === 'brands') { if (l.length <= 60) brands.push(l); continue; }
     if (!cur) { if (!name && l.length <= 120 && !/[.:]$/.test(l)) name = l; continue; }
     cur.lines.push(l);
+  }
+  // PDF ที่พิมพ์หน้าเว็บ: รายชื่อการค้า (คอลัมน์ข้าง) หลุดไปอยู่ท้ายหัวข้อสุดท้าย → บรรทัดสั้นท้ายสุดที่ไม่ใช่ประโยค = ชื่อการค้า (เมื่อหน้ามีส่วนชื่อการค้า)
+  const last = sections[sections.length - 1];
+  if (sawBrands && last) {
+    const tail = [];
+    while (last.lines.length > 1 && tail.length < 80 && /^[A-Z0-9][^.:;,]{0,38}$/.test(last.lines[last.lines.length - 1])) tail.unshift(last.lines.pop());
+    if (tail.length >= 2) brands.push(...tail); else last.lines.push(...tail);
   }
   const out = sections.map((s) => ({ title: s.title, body: joinWrapped(s.lines).join('\n').slice(0, 20000) })).filter((s) => s.body);
   if (brands.length) out.push({ title: 'Brands', body: [...new Set(brands)].slice(0, 80).join(', ') });

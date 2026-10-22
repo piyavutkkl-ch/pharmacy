@@ -2511,9 +2511,27 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('กด "+ เพิ่มหมวดนี้" (เจ้าของเพิ่มเอง) → แถวนั้นนำเข้าได้', /เพิ่มใหม่ 2/.test(await text(q, '#dgImpBox')) && JSON.parse((await q.evaluate(() => window.__db.site_texts.find((x) => x.key === 'drug_categories')?.body)) || '[]').includes('หมวดทดสอบใหม่'));
         await q.click('[data-dg-impok]'); await q.waitForTimeout(900);
         check('AI นำเข้า: บันทึกลงบัญชียา รพ.สต. หลังผู้ดูแลกดยืนยัน', (await q.evaluate(() => window.__db.rpst_list.filter((x) => /^AI-000/.test(x.code)).length)) === 2);
-        await q.setInputFiles('#dgImport', { name: 'mims.txt', mimeType: 'text/plain', buffer: Buffer.from('Amitriptyline\nhttps://www.mims.com/thailand/drug/info/amitriptyline\nIndications and Dosage\nAdult: 25 mg') });
-        await q.waitForTimeout(1200);
-        check('ไฟล์ข้อมูล MIMS → ไม่ส่งให้ AI (แจ้งให้ใช้นำเข้า MIMS)', /MIMS/.test(await text(q, '#dgImpBox')) && /ไม่ส่งให้ AI/.test(await text(q, '#dgImpBox')), await text(q, '#dgImpBox'));
+        { // ไฟล์หน้า MIMS (PDF ที่พิมพ์หน้าเว็บ · ข้อความสมมติแบบคอลัมน์แคบ) → แยกหัวข้อในเครื่อง ไม่ส่งให้ AI · เลือกหลายไฟล์ได้ · เลือกยาที่ผูก → บันทึกฐานข้อมูล MIMS
+          const mk = (n) => ['Testamolol' + n, 'Generic Medicine Info', 'Indications and Dosage', 'Oral', 'Fever and mild pain (ข้อความ', 'สมมติ)', 'Adult: 500 mg every 6 hours as', 'needed. Max: 4 g daily.', 'Child: 10 mg/kg every 6 hours.',
+            'What are the brands available for', 'Testamolol in Thailand?', 'Other Known Brands', 'Contraindications', 'Hypersensitivity (ข้อความ', 'สมมติ).', 'Drug Interactions', 'May increase the e!ect of', 'warfarin (ข้อความสมมติ).',
+            'Action', 'Pharmacokinetics:', 'Absorption: Rapidly absorbed', 'from the GI tract.', 'Testabrand', 'Fakemol Plus', '1'].join('\n');
+          const ai0 = (await calls(q, (c) => c.rpc === 'ai_drug_import_start')).length;
+          await q.setInputFiles('#dgImport', [{ name: 'Testamolol_Uses_MIMS_Thailand.txt', mimeType: 'text/plain', buffer: Buffer.from(mk('')) }, { name: 'Testamolol2_MIMS.txt', mimeType: 'text/plain', buffer: Buffer.from(mk('2')) }]);
+          await q.waitForTimeout(1200);
+          const t = await text(q, '#dgImpBox');
+          check('ไฟล์หน้า MIMS 2 ไฟล์ → แยกหัวข้อในเครื่อง (ไม่ส่งให้ AI) · ชื่อยา · หัวข้อ · การ์ดข้อบ่งใช้ · ชื่อการค้า', (await calls(q, (c) => c.rpc === 'ai_drug_import_start')).length === ai0
+            && await count(q, '#dgImpBox .dg-mims') === 2 && /Testamolol2/.test(t) && /แยกได้ 4 หัวข้อ/.test(t) && /การ์ดข้อบ่งใช้ 2 ข้อ/.test(t) && /ชื่อการค้า 2/.test(t) && /ไม่ใช้ AI/.test(t), t.slice(0, 500));
+          const lid = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)').id);
+          await q.selectOption('#dgImpBox [data-dg-mimsl="0"]', String(lid));
+          const m0 = await q.evaluate(() => (window.__db.drug_mims || []).length);
+          await q.click('#dgImpBox [data-dg-mimssave]'); await q.waitForTimeout(1500);
+          const st = await q.evaluate((lid) => { const db = window.__db, m = db.drug_mims.find((x) => x.name === 'Testamolol'), l = db.local_drugs.find((x) => x.id === lid);
+            return { n: db.drug_mims.length, heads: m?.sections.map((x) => x.title).join('|'), brands: m?.sections.find((x) => x.title === 'Brands')?.body, link: String(l.mims_id) === String(m?.id),
+              joined: /every 6 hours as needed/.test(m?.sections[0]?.body || ''), lig: /the effect of/.test(m?.sections.find((x) => x.title === 'Drug Interactions')?.body || ''), inds: m?.indications.length }; }, lid);
+          check('บันทึก MIMS: 2 ไฟล์ → ฐานข้อมูล MIMS + ผูกยาที่เลือก · ต่อบรรทัดที่ตัดเป็นประโยค · ชื่อการค้าแยกเป็นหัวข้อ · แก้ตัวอักษรเพี้ยน (e!ect → effect)',
+            st.n === m0 + 2 && st.heads === 'Indications and Dosage|Contraindications|Drug Interactions|Action|Brands' && st.brands === 'Testabrand, Fakemol Plus' && st.link && st.joined && st.lig && st.inds === 2, JSON.stringify(st)); }
+        await q.setInputFiles('#dgImport', [{ name: 'a.csv', mimeType: 'text/csv', buffer: Buffer.from('ชื่อยา\nX 1 MG\n') }, { name: 'b.csv', mimeType: 'text/csv', buffer: Buffer.from('ชื่อยา\nY 1 MG\n') }]); await q.waitForTimeout(800);
+        check('หลายไฟล์ที่ไม่ใช่ MIMS → ให้นำเข้าทีละไฟล์', /ทีละไฟล์/.test(await text(q, '#dgImpBox')), await text(q, '#dgImpBox'));
         await q.click('#dgImpBox [data-dg-impno]'); await q.waitForTimeout(150);
         await q.click('#dgCats > summary'); await q.waitForTimeout(300);
         check('หมวดยา: รายการหมวด + เพิ่มหมวดเองได้', (await text(q, '#dgCatList')).includes('หมวดทดสอบใหม่') && await visible(q, '#dgCatAdd'));
