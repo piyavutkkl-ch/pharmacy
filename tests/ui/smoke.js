@@ -160,7 +160,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.evaluate(async () => {
         const db = window.__db, base = db.dose_drugs.find((x) => x.active);
         db.dose_drugs.push({ ...base, id: 9902, name: 'Levothyroxine sodium', active: true, ai_draft: false, form: 'ยาเม็ด', ai_source: null,
-          indications: [{ name: 'ภาวะพร่องไทรอยด์แต่กำเนิด', unit: 'mcg', per: 'day', min: 10, max: 15, times: 1 }], concs: [] });
+          indications: [{ name: 'ภาวะพร่องไทรอยด์แต่กำเนิด', unit: 'mcg', per: 'day', min: 10, max: 15, times: 1, cap_day: 500, age_min: 0 }], concs: [] });
         db.local_drugs.find((x) => /THYROXINE/i.test(x.name)).dose_id = 9902;
         const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose();
       });
@@ -173,7 +173,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.evaluate(async () => {
         const db = window.__db, base = db.dose_drugs.find((x) => x.active);
         db.dose_drugs.push({ ...base, id: 9903, name: 'Co-trimoxazole', active: true, ai_draft: false, form: 'ยาเม็ด', ai_source: null, concs: [],
-          indications: [{ name: 'ติดเชื้อทางเดินปัสสาวะ', basis: 'Trimethoprim', per: 'day', min: 8, max: 12, times: 2 }, { name: 'ยังไม่ระบุสารที่ใช้คิด', per: 'day', min: 8, max: 12, times: 2 }] });
+          indications: [{ name: 'ติดเชื้อทางเดินปัสสาวะ', basis: 'Trimethoprim', per: 'day', min: 8, max: 12, times: 2, cap_day: 320, age_min: 0 }, { name: 'ยังไม่ระบุสารที่ใช้คิด', per: 'day', min: 8, max: 12, times: 2, cap_day: 320, age_min: 0 }] });
         db.local_drugs.find((x) => x.code === '1010280').dose_id = 9903;
         const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose();
       });
@@ -187,7 +187,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       // ผูกข้อมูลคำนวณไว้กับสาร (ingredients[].dose_id) → คิดจากสารนั้นเลย ไม่ต้องระบุในข้อบ่งใช้
       await p.evaluate(async () => {
         const db = window.__db, l = db.local_drugs.find((x) => x.code === '1010280');
-        db.dose_drugs.push({ ...db.dose_drugs.find((x) => x.id === 9903), id: 9904, name: 'Trimethoprim (ทดสอบ)', indications: [{ name: 'ติดเชื้อ', per: 'day', min: 8, max: 12, times: 2 }] });
+        db.dose_drugs.push({ ...db.dose_drugs.find((x) => x.id === 9903), id: 9904, name: 'Trimethoprim (ทดสอบ)', indications: [{ name: 'ติดเชื้อ', per: 'day', min: 8, max: 12, times: 2, cap_day: 320, age_min: 0 }] });
         l.dose_id = null; l.ingredients = l.ingredients.map((x) => (x.name === 'Trimethoprim' ? { ...x, dose_id: 9904 } : x));
         const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose();
       });
@@ -200,7 +200,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.fill('#doseWeight', '10'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
       check('ใต้ผลคำนวณ: ขนาดยาและวิธีใช้จากฉลากยา (openFDA) ของยาที่เลือก', (await text(p, '#doseLabel')).includes('ขนาดยาและวิธีใช้') && (await text(p, '#doseLabel')).includes('openFDA'), await text(p, '#doseLabel'));
       { // audit F-02: ขนาดต่อวันที่แบ่งให้ต้องไม่เกินขนาดสูงสุดต่อครั้ง (cap) · 100 mcg/กก./วัน ÷ 2 × 10 กก. = 500 mcg/ครั้ง > cap 300
-        await p.evaluate(async () => { const d = window.__db.dose_drugs.find((x) => x.id === 9902); d.indications = [{ name: 'ทดสอบเพดาน', unit: 'mcg', per: 'day', min: 100, max: 100, times: 2, cap: 300 }];
+        await p.evaluate(async () => { const d = window.__db.dose_drugs.find((x) => x.id === 9902); d.indications = [{ name: 'ทดสอบเพดาน', unit: 'mcg', per: 'day', min: 100, max: 100, times: 2, cap: 300, cap_day: 1000, age_min: 0 }];
           const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
         await p.fill('#doseWeight', '10'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
         const t = await text(p, '#doseResult'), n = await p.$eval('#doseResult .fig .n', (e) => e.innerText).catch(() => '');
@@ -211,11 +211,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       { // audit F-06: ขนาดยาเล็กมากต้องไม่ถูกปัดเป็น 0 · ปริมาณที่ตวง/แบ่งไม่ได้ → เตือน
         const setInd = (i) => p.evaluate(async (i) => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [i];
           const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }, i);
-        await setInd({ name: 'ทดสอบขนาดเล็ก', per: 'dose', min: 0.01, max: 0.01 });
+        await setInd({ name: 'ทดสอบขนาดเล็ก', per: 'dose', min: 0.01, max: 0.01, cap: 1, age_min: 0 });
         await p.fill('#doseWeight', '3'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
         let figs = await p.$$eval('#doseResult .fig .n', (e) => e.map((x) => x.innerText.trim()));
         check('ขนาดยาเล็ก 0.01 มก./กก. × 3 กก. = 0.030 มก. (ไม่ปัดเป็น 0.0) · เม็ด 100 mcg = 0.30 เม็ด', figs[0] === '0.030 มก.' && figs[1] === '0.30 เม็ด/แคปซูล' && !(await p.$('#doseResult [data-too-small]')), figs.join(' | '));
-        await setInd({ name: 'ทดสอบขนาดเล็กมาก', per: 'dose', min: 0.0001, max: 0.0001 });
+        await setInd({ name: 'ทดสอบขนาดเล็กมาก', per: 'dose', min: 0.0001, max: 0.0001, cap: 1, age_min: 0 });
         await p.selectOption('#doseDrug', v); await p.waitForTimeout(300);
         figs = await p.$$eval('#doseResult .fig .n', (e) => e.map((x) => x.innerText.trim()));
         check('ปริมาณน้อยเกินกว่าจะแบ่งจากความแรงนี้ (0.003 เม็ด) → แสดงค่าจริง ไม่ใช่ 0.00 + เตือน', figs[0] === '0.00030 มก.' && figs[1] === '0.003 เม็ด/แคปซูล' && !!(await p.$('#doseResult [data-too-small]')), figs.join(' | ')); }
@@ -249,13 +249,30 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         const f = await p.$eval('#doseResult .ind-result .fig .n', (e) => e.innerText.trim()).catch(() => '');
         check('อายุ 5 ปี 60 กก. · 30 มก./กก./วัน = 1800 → จำกัด 1500 มก./วัน ÷ 3 = 500 มก./ครั้ง + บอกว่าถูกจำกัด', f === '500 มก.' && !!(await p.$('#doseResult [data-capped-day]')), f);
         await p.fill('#doseAge', ''); await p.waitForTimeout(200);
-        check('ข้อบ่งใช้มีช่วงอายุแต่ไม่ได้กรอกอายุ → เตือนให้กรอกอายุ (ยังแสดงขนาดยา)', !!(await p.$('#doseResult [data-age-need]')) && !!(await p.$('#doseResult .ind-result .fig')));
+        check('ข้อบ่งใช้มีช่วงอายุแต่ไม่ได้กรอกอายุ → ให้กรอกอายุก่อน ไม่แสดงขนาดยา (กันใช้ขนาดผิดช่วงอายุ · audit C1)', !!(await p.$('#doseResult [data-age-need]')) && !(await p.$('#doseResult .ind-result .fig')));
         await setInd({ name: 'ไม่มีเพดาน', per: 'dose', min: 50, max: 50 });
         await p.selectOption('#doseDrug', v); await p.waitForTimeout(250);
-        check('ข้อบ่งใช้ไม่มีขนาดสูงสุดเลย → เตือนให้ตรวจขนาดสูงสุดตามเอกสารกำกับยา', !!(await p.$('#doseResult [data-no-max]')));
+        check('ข้อบ่งใช้ไม่มีขนาดสูงสุด/ช่วงอายุ → ไม่ผ่านกฎความปลอดภัย ไม่แสดงตัวเลข + บอกให้รอเภสัชกรตรวจ (audit C8/C9)', !!(await p.$('#doseResult [data-rule-block]')) && !(await p.$('#doseResult .ind-result .fig')) && (await text(p, '#doseResult')).includes('รอเภสัชกรตรวจ'));
+        { // audit C1/C7: ข้อที่ตรงอายุขึ้นก่อน · ข้อของช่วงอายุอื่นย่อไว้ (ไม่ใช้แทน) · ช่วง "ตั้งแต่ … ถึงต่ำกว่า …" · ไม่มีข้อตรงอายุ = แจ้งชัด
+          await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [
+            { name: 'ผู้ใหญ่', fixed: true, per: 'dose', min: 50, max: 100, age_min: 12 },
+            { name: 'เด็ก 2–6 ปี', per: 'dose', min: 1, max: 2, cap: 50, age_min: 2, age_max: 6 }];
+            const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
+          await p.selectOption('#doseDrug', v); await p.fill('#doseWeight', '18'); await p.fill('#doseAge', '5.5'); await p.selectOption('#doseAgeUnit', 'y'); await p.waitForTimeout(250);
+          check('อายุ 5.5 ปี → ข้อ "เด็ก 2–6 ปี" ขึ้นก่อนพร้อมขนาดยา · ข้อผู้ใหญ่ย่อไว้ในช่วงอายุอื่น (ไม่ใช้แทน)', (await text(p, '#doseResult .ind-result h4')).includes('เด็ก 2–6 ปี') && !!(await p.$('#doseResult .ind-result .fig'))
+            && (await p.$eval('#doseResult [data-age-others]', (e) => !e.open && e.textContent.includes('ผู้ใหญ่')).catch(() => false)), await text(p, '#doseResult'));
+          await p.fill('#doseAge', '6'); await p.waitForTimeout(200);
+          check('อายุ 6 ปีพอดี → นอกช่วง "2 ถึงต่ำกว่า 6 ปี" · ไม่มีข้อตรงอายุ → แจ้งไม่มีข้อมูลสำหรับอายุนี้ ห้ามใช้ขนาดของช่วงอายุอื่นแทน', !!(await p.$('#doseResult [data-age-none]')) && !(await p.$('#doseResult .ind-result .fig')), await text(p, '#doseResult'));
+          await p.fill('#doseAge', ''); await p.waitForTimeout(150); }
+        { // 90: ข้อมูลขนาดยาที่ยังไม่มีผู้อนุมัติ → ประชาชนไม่เห็น
+          await p.evaluate(async () => { const d = window.__db.dose_drugs.find((x) => x.id === 9902); d.approved_at = null;
+            const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
+          check('ข้อมูลขนาดยาที่ยังไม่มีผู้อนุมัติ → ไม่อยู่ในรายการยาของประชาชน', !(await p.$$eval('#doseDrug option', (o) => o.some((x) => /Levothyroxine/.test(x.textContent)))));
+          await p.evaluate(async () => { const d = window.__db.dose_drugs.find((x) => x.id === 9902); d.approved_at = new Date().toISOString();
+            const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }); }
         await p.selectOption('#doseSex', sex0); }
       { // audit F-10: ไตเสื่อม → ตัวเลขขนาดยาระบุว่าเป็นขนาดปกติที่ยังไม่ปรับตามไต
-        await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [{ name: 'ทดสอบไต', per: 'dose', min: 10, max: 10, cap: 1000, renal: 'CrCl < 30: ลดขนาดลงครึ่งหนึ่ง (ข้อความทดสอบ)' }];
+        await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [{ name: 'ทดสอบไต', per: 'dose', min: 10, max: 10, cap: 1000, age_min: 0, renal: 'CrCl < 30: ลดขนาดลงครึ่งหนึ่ง (ข้อความทดสอบ)' }];
           const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
         await p.selectOption('#doseDrug', v); await p.fill('#doseWeight', '20'); await p.uncheck('#doseRenalAdjust'); await p.selectOption('#doseRenal', 'severe'); await p.waitForTimeout(250);
         const t = await text(p, '#doseResult');
@@ -264,7 +281,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ไตปกติ → ไม่มีป้ายยังไม่ปรับตามไต', !(await text(p, '#doseResult')).includes('ยังไม่ปรับตามไต')); }
       { // audit F-14/15/16/19: เด็กไม่ใช้ Cockcroft-Gault · ทารก < 1 ปีไม่ใช้ Schwartz · ข้อความไตปกติเป็นกลาง · เม็ดที่แบ่งไม่ลงตัว
         const sex0 = await p.inputValue('#doseSex'), h0 = await p.inputValue('#doseHeight');
-        await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [{ name: 'ทดสอบเศษเม็ด', per: 'dose', min: 0.0033, max: 0.0033, cap: 1 }];
+        await p.evaluate(async () => { window.__db.dose_drugs.find((x) => x.id === 9902).indications = [{ name: 'ทดสอบเศษเม็ด', per: 'dose', min: 0.0033, max: 0.0033, cap: 1, age_min: 0 }];
           const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); });
         await p.selectOption('#doseDrug', v); await p.fill('#doseWeight', '10'); await p.fill('#doseAge', ''); await p.uncheck('#doseRenalAdjust'); await p.selectOption('#doseRenal', 'normal'); await p.waitForTimeout(250);
         check('0.033 มก. จากเม็ด 100 mcg = 0.33 เม็ด → เตือนว่าแบ่งจริงได้ยาก (ไม่ลงตัว ½/¼)', !!(await p.$('#doseResult [data-tab-fraction]')), await text(p, '#doseResult'));
@@ -1210,12 +1227,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.selectOption(`${last} .i-per`, 'day'); await p.fill(`${last} .i-times`, '1, 3'); await p.waitForTimeout(80);
       check('ข้อบ่งใช้: แบ่งให้ได้หลายแบบ (เช่น วันละ 1 หรือ 3 ครั้ง) · หัวข้อสรุปบอกครบ', (await text(p, `${last} .ind-sum`)).includes('แบ่ง 1 หรือ 3 ครั้ง')); }
     await p.fill('#dfConcs .c-label', 'ยาน้ำ 10 มก./มล.'); await p.fill('#dfConcs .c-mg', '10'); await p.selectOption('#dfConcs .c-type', 'ml');
-    await p.click('#dfSubmit'); await p.waitForTimeout(500);
+    await p.check('#dfActive'); await p.click('#dfSubmit'); await p.waitForTimeout(500);
+    check('ฟอร์มขนาดยาเดิม: ข้อมูลไม่ผ่านกฎความปลอดภัย (ไม่มีช่วงอายุ/เพดาน) + ติ๊กแสดง → ไม่บันทึก + บอกเหตุผล', !(await p.evaluate(() => window.__db.dose_drugs.some((d) => d.name === 'ยาทดสอบ'))) && /ไม่ผ่าน/.test(await text(p, '#dfMsg')), await text(p, '#dfMsg'));
+    await p.uncheck('#dfActive'); await p.click('#dfSubmit'); await p.waitForTimeout(500);   // บันทึกแบบซ่อนไว้แก้ต่อได้
     const dd = await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ'));
     check('ยา: บันทึก 4 ข้อบ่งใช้ + หน่วย มก./มล.', dd?.indications?.length === 4 && dd.concs[0].mgPerMl === 10 && dd.mg_per_kg_min === 10, JSON.stringify(dd));
     check('ยา: บันทึกการแบ่งให้หลายแบบ (times = แบบที่ 1 · times_alt = แบบอื่น)', dd?.indications?.[3]?.times === 1 && JSON.stringify(dd.indications[3].times_alt) === '[3]' && !('times_alt' in dd.indications[0]), JSON.stringify(dd?.indications?.[3]));
     { const q = await open(null, '#/');
-      await q.evaluate(() => { const d = window.__db.dose_drugs.find((x) => /Amoxicillin/.test(x.name)); d.indications = [{ name: 'ติดเชื้อ', per: 'day', min: 25, max: 50, times: 1, times_alt: [3] }]; });
+      await q.evaluate(() => { const d = window.__db.dose_drugs.find((x) => /Amoxicillin/.test(x.name)); d.indications = [{ name: 'ติดเชื้อ', per: 'day', min: 25, max: 50, times: 1, times_alt: [3], cap_day: 3000, age_min: 0 }]; });
       await q.click('[data-panel-link="dose"]'); await q.waitForTimeout(400);
       await q.fill('#doseWeight', '20'); await q.selectOption('#doseDrug', { label: 'อะม็อกซีซิลลิน (Amoxicillin)' }); await q.waitForTimeout(200);
       const r = await text(q, '#doseResult');
@@ -2257,25 +2276,39 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.click('[data-dw-src="mims"]'); await q.waitForTimeout(200);
       check('แหล่งข้อมูลที่ยังไม่ผูก (MIMS): มีลิงก์ "ดูในตาราง" + วางข้อความหน้า MIMS ได้', (await text(q, '#dwPop .dw-pop-h [data-dw-grid="mims"]')).includes('ดูในตาราง') && await visible(q, '#dwMimsText') && !(await q.isVisible('#dcDrawer')));
       await q.click('#dwPop .dw-x'); await q.waitForTimeout(150);
-      await q.click('[data-dw-age="kid"][data-k="0"]'); await q.waitForTimeout(150);
-      check('ปุ่มกลุ่มอายุ "เด็ก 2–12 ปี" → age_min 2 / age_max 12 (ยังไม่บันทึก)', (await q.getAttribute('[data-dw-age="kid"][data-k="0"]', 'aria-pressed')) === 'true' && (await text(q, '#dwBar')).includes('ยังไม่บันทึก'));
-      await q.click('[data-dw-age="kid"][data-k="0"]'); await q.waitForTimeout(150);
+      await q.click('[data-dw-age="adt"][data-k="0"]'); await q.waitForTimeout(150);
+      check('ปุ่มกลุ่มอายุ: เอา "ผู้ใหญ่" ออก → ทารก+เด็ก = อายุ 0 ถึงต่ำกว่า 12 ปี (ยังไม่บันทึก)', (await q.getAttribute('[data-dw-age="adt"][data-k="0"]', 'aria-pressed')) === 'false' && (await q.getAttribute('[data-dw-age="kid"][data-k="0"]', 'aria-pressed')) === 'true' && (await text(q, '#dwBar')).includes('ยังไม่บันทึก'));
+      await q.click('[data-dw-age="adt"][data-k="0"]'); await q.waitForTimeout(150);
+      { // กฎความปลอดภัย (audit 22 ต.ค.): ไม่เลือกกลุ่มอายุเลย = ไม่ผ่าน (ต้องระบุช่วงอายุ)
+        for (const a of ['inf', 'kid', 'adt']) await q.click(`[data-dw-age="${a}"][data-k="0"]`);
+        await q.waitForTimeout(150);
+        check('กฎ: ไม่ระบุช่วงอายุ → ไม่ผ่าน + บอกเหตุผล + ไม่มีปุ่มตรวจแล้ว · มีปุ่มให้ AI ค้นจากเว็บพร้อมลิงก์', (await text(q, '[data-dw-iss="0"]')).includes('ยังไม่ระบุช่วงอายุ') && await count(q, '[data-dw-ok="0"]') === 0 && await count(q, '[data-dw-web="0"]') === 1, await text(q, '[data-card="0"]'));
+        for (const a of ['inf', 'kid', 'adt']) await q.click(`[data-dw-age="${a}"][data-k="0"]`);
+        await q.waitForTimeout(150); }
       // ต่อวันแต่ไม่บอกจำนวนครั้ง → ทดสอบสูตรไม่ผ่าน → ไม่มีปุ่ม "ตรวจแล้ว" · มีปุ่มส่งให้ AI
       await q.click('[data-dw-set1="per:day"][data-k="0"]'); await q.waitForTimeout(200);
-      check('ทดสอบสูตรไม่ผ่าน → ไม่มีปุ่ม "ตรวจแล้ว ถูกต้อง" · มีปุ่ม "ส่งให้ AI ตรวจและแก้ให้" · ปุ่มอนุมัติกดไม่ได้',
+      check('ไม่ผ่าน (ต่อวันไม่มีจำนวนครั้ง/เพดานต่อวัน) → ไม่มีปุ่ม "ตรวจตัวเลขกับฉลากแล้ว" · มีปุ่ม "ให้ AI ตรวจกับฉลาก" · ปุ่มอนุมัติกดไม่ได้',
         (await text(q, '[data-dw-cst="0"]')).includes('ไม่ผ่าน') && await count(q, '[data-dw-ok="0"]') === 0 && await count(q, '[data-dw-fix="0"]') === 1 && await q.$eval('[data-dw-save="approve"]', (b) => b.disabled), await text(q, '[data-dw-cst="0"]'));
       await q.click('[data-dw-fix="0"]'); await q.waitForSelector('[data-dw-fixok]', { timeout: 15000 }).catch(() => {});
       const fx = (await calls(q, (c) => c.rpc === 'ai_dose_fix_start')).pop()?.args || {};
       check('ส่งให้ AI: ส่งข้อบ่งใช้ + ผลทดสอบที่ไม่ผ่าน (ยาที่ผูกฉลากแล้ว) → แสดงค่าที่ AI เสนอเทียบค่าเดิม',
         String(fx.p_local) === String(pid) && fx.p_ind?.per === 'day' && (fx.p_issues || []).some((x) => /จำนวนครั้ง/.test(x)) && (await text(q, '[data-dw-fixok]')).includes('วันละ (ครั้ง)'), JSON.stringify(fx));
       await q.click('[data-dw-fixuse="0"]'); await q.waitForTimeout(200);
-      check('ใช้ค่าที่ AI เสนอ → ป้าย "AI แก้ · รอตรวจ" + ทดสอบสูตรผ่าน → มีปุ่ม "ตรวจแล้ว ถูกต้อง" (ยังไม่อนุมัติเอง)',
-        (await text(q, '[data-card="0"]')).includes('AI แก้') && !(await text(q, '[data-dw-cst="0"]')).includes('ไม่ผ่าน') && await count(q, '[data-dw-ok="0"]') === 1 && await q.$eval('[data-dw-save="approve"]', (b) => b.disabled));
+      check('ใช้ค่าที่ AI เสนอ → ป้าย "AI แก้ · รอตรวจ" + ผ่าน → มีปุ่ม "ตรวจตัวเลขกับฉลากแล้ว" (ยังไม่อนุมัติเอง)',
+        (await text(q, '[data-card="0"]')).includes('AI แก้') && !(await text(q, '[data-dw-cst="0"]')).includes('ไม่ผ่าน') && (await text(q, '[data-dw-ok="0"]')).includes('ตรวจตัวเลขกับฉลากแล้ว') && await q.$eval('[data-dw-save="approve"]', (b) => b.disabled), await text(q, '[data-card="0"]'));
+      { // มีข้อควรตรวจ (เตือน) → ต้องติ๊กรับทราบทีละข้อก่อนกดตรวจแล้ว
+        const nAck = await count(q, '[data-dw-ack="0"]');
+        if (nAck) {
+          check('มีข้อควรตรวจ → ปุ่มตรวจแล้วกดไม่ได้จนติ๊กรับทราบครบ', await q.$eval('[data-dw-ok="0"]', (b) => b.disabled));
+          for (let n = 0; n < nAck; n++) { await q.click(`[data-dw-ack="0"] >> nth=${n}`); await q.waitForTimeout(80); }
+        }
+        check('ติ๊กรับทราบครบ → ปุ่มตรวจแล้วกดได้', !(await q.$eval('[data-dw-ok="0"]', (b) => b.disabled)), String(nAck)); }
       await q.click('[data-dw-ok="0"]'); await q.waitForTimeout(200);
       check('กดตรวจแล้ว → การ์ดย่อเหลือบรรทัดเดียว + ปุ่มอนุมัติกดได้', await count(q, '.dw-card.sm') === 1 && !(await q.$eval('[data-dw-save="approve"]', (b) => b.disabled)));
       await q.click('[data-dw-save="approve"]'); await q.waitForTimeout(1000);
       { const d = await q.evaluate(() => window.__db.dose_drugs.find((x) => x.id === 1));
-        check('อนุมัติใช้คำนวณ → บันทึกข้อบ่งใช้ (วันละ 3 ครั้ง + ข้อความอ้างอิงจากฉลาก) ชุดเดียวกับแผงยาเดิม', d.indications.length === 1 && d.indications[0].times === 3 && d.indications[0].per === 'day' && /mg\/kg/.test(d.indications[0].quote) && !d.ai_draft && d.active && !('checked' in d.indications[0]), JSON.stringify(d.indications)); }
+        check('อนุมัติใช้คำนวณ → บันทึกข้อบ่งใช้ (วันละ 3 ครั้ง + เพดานต่อวัน + ข้อความอ้างอิงจากฉลาก) ชุดเดียวกับแผงยาเดิม', d.indications.length === 1 && d.indications[0].times === 3 && d.indications[0].per === 'day' && d.indications[0].cap_day > 0 && /mg\/kg/.test(d.indications[0].quote) && !d.ai_draft && d.active && !('checked' in d.indications[0]), JSON.stringify(d.indications));
+        check('อนุมัติ → บันทึกผู้อนุมัติ (approve_dose · ฐานข้อมูลตรวจกฎซ้ำ)', (await calls(q, (c) => c.rpc === 'approve_dose')).pop()?.args?.p_id === 1 && !!d.approved_at); }
       // ข้อที่ AI ตอบไม่ตรงฉลาก → ไม่ใช้ · ยาที่ไม่มีฉลาก → ส่ง AI ไม่ได้ (ไม่ส่งข้อความ MIMS)
       await q.click('[data-dw-addind]'); await q.waitForTimeout(150);
       await q.fill('[data-k="1"][data-f="name"]', 'ทดสอบ AIBAD'); await q.click('[data-dw-set1="per:day"][data-k="1"]'); await q.waitForTimeout(100);
@@ -2288,7 +2321,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.click(`[data-dw-pick="${nolab}"]`).catch(async () => { await q.fill('#dwQ', 'IBUPROFEN'); await q.click(`[data-dw-pick="${nolab}"]`); }); await q.waitForTimeout(400);
       if (await count(q, '.dw-card.sm')) await q.click('[data-dw-open="0"]');
       await q.click('[data-dw-set1="per:day"][data-k="0"]'); await q.fill('[data-k="0"][data-f="max"]', ''); await q.waitForTimeout(150);
-      check('ยาที่ยังไม่ผูกฉลาก OpenFDA+DailyMed → ปุ่มส่งให้ AI กดไม่ได้ + บอกว่าไม่ส่งข้อความ MIMS', await q.$eval('[data-dw-fix="0"]', (b) => b.disabled) && (await text(q, '[data-card="0"] .dw-cf')).includes('ไม่ส่งข้อความ MIMS'));
+      check('ยาที่ยังไม่ผูกฉลาก OpenFDA+DailyMed → "ให้ AI ตรวจกับฉลาก" กดไม่ได้ · "ให้ AI ค้นจากเว็บพร้อมลิงก์" กดได้', await q.$eval('[data-dw-fix="0"]', (b) => b.disabled) && !(await q.$eval('[data-dw-web="0"]', (b) => b.disabled)));
+      await q.fill('[data-k="0"][data-f="max"]', '10'); await q.waitForTimeout(100);
+      await q.click('[data-dw-web="0"]'); await q.waitForSelector('[data-dw-fixok][data-mode="web"]', { timeout: 15000 }).catch(() => {});
+      check('AI ค้นจากเว็บ → เสนอค่าพร้อมลิงก์ให้เปิดตรวจ (https) + บอกว่ายังไม่ได้ตรวจเทียบต้นฉบับ', await count(q, '[data-dw-fixok][data-mode="web"] [data-dw-links] a[href^="https://"]') >= 2 && (await text(q, '[data-dw-fixok]')).includes('ยังไม่ได้ตรวจเทียบต้นฉบับ')
+        && (await calls(q, (c) => c.rpc === 'ai_dose_web_start')).pop()?.args?.p_local === nolab, await text(q, '[data-card="0"]'));
+      await q.click('[data-dw-fixuse="0"]'); await q.waitForTimeout(200);
+      check('ใช้ค่าจากเว็บ → ที่มาเป็นลิงก์เปิดได้ + เตือนให้เปิดลิงก์ตรวจก่อน', await count(q, '[data-dw-ref="0"] a[href="https://dailymed.nlm.nih.gov/dailymed/test"]') === 1 && (await text(q, '[data-dw-ref="0"]')).includes('เปิดลิงก์ตรวจ'), await text(q, '[data-card="0"]'));
+      { // หัวยา: ปุ่มซ่อน/แสดงยานี้ (ไม่ต้องผ่าน AI · ไม่ลบข้อมูล)
+        q.removeAllListeners('dialog'); q.on('dialog', (d) => d.accept());
+        await q.click('[data-dw-hide]'); await q.waitForTimeout(700);
+        check('หัวยา: กด "ซ่อนยานี้" → ยาไม่แสดงต่อประชาชน (active false) ข้อมูลยังอยู่ + ปุ่มเปลี่ยนเป็น "แสดงยานี้"', (await q.evaluate((id) => window.__db.local_drugs.find((x) => x.id === id).active, nolab)) === false && (await text(q, '[data-dw-hide]')).includes('แสดงยานี้'));
+        await q.click('[data-dw-hide]'); await q.waitForTimeout(700);
+        check('หัวยา: กด "แสดงยานี้" → แสดงอีกครั้ง', (await q.evaluate((id) => window.__db.local_drugs.find((x) => x.id === id).active, nolab)) === true && (await text(q, '[data-dw-hide]')).includes('ซ่อนยานี้'));
+        check('หัวยา: ปุ่มซ่อน/ลบ สูงอย่างน้อย 44 px', await q.$$eval('.dw-acts .btn', (b) => b.length === 2 && b.every((x) => x.getBoundingClientRect().height >= 44))); }
       // วางข้อความหน้า MIMS (ข้อความสมมติ) → แยกหัวข้อเอง → บันทึก drug_mims.sections + ผูกยา + การ์ดข้อบ่งใช้รอกรอกตัวเลข
       await q.fill('#dwQ', ''); await q.click(`[data-dw-pick="${pid}"]`); await q.waitForTimeout(400);
       const MT = ['https://www.mims.com/thailand/drug/info/testamol', 'Testamol', 'Indications and Dosage', 'Oral', 'Fever (ข้อความสมมติ)', 'Adult: 500 mg every 6 hours. Max: 4 g daily.', 'Child: 10 mg/kg every 6 hours.',

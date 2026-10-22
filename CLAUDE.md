@@ -56,7 +56,9 @@ js/pages/dose.js      ข้อมูลยา / คำนวณขนาดย�
                         เม็ดที่แบ่งไม่ลงตัว ½/¼ = เตือน [data-tab-fraction] · ยา รพ.สต. ที่จับคู่ข้อมูลขนาดยาจากชื่อ = "จับคู่ตามชื่อ" + เตือน [data-auto-match] · ความแรง "100 MG/ML" อ่านได้ · ฉลาก AI เก่ากว่า 10 ปีติดธง label_old (80)
                         ตัวเลขไม่ถูกปัดจนเป็น 0: ขนาดยา < 1 แสดง 2 หลักนัยสำคัญ (drng/fx) · มล./เม็ดที่ปัดแล้วเป็น 0 = เตือน [data-too-small]
                         ขนาดต่อวันที่ไม่ระบุจำนวนครั้ง = ไม่เดาว่าวันละครั้ง → [data-dose-incomplete] ข้อมูลไม่ครบ + ขนาดรวมต่อวัน · ร่าง AI มีธง dose_drugs.draft_issue (75_dose_draft_issue.sql)
-                        ช่วงอายุ indications[].age_min/age_max (ปี) อายุนอกช่วง = ไม่แสดงขนาดยา [data-age-out] · ไม่กรอกอายุ = เตือน · cap_day ขนาดสูงสุดต่อวัน · ไม่มีเพดานเลย = เตือน [data-no-max] (76_dose_inds_age.sql)
+                        ช่วงอายุ indications[].age_min/age_max (ปี · "ตั้งแต่ age_min ถึงต่ำกว่า age_max") อายุนอกช่วง = ไม่แสดงขนาดยา [data-age-out] ย่อรวมไว้ท้าย [data-age-others] · ข้อที่ตรงอายุขึ้นก่อน
+                        มีช่วงอายุแต่ไม่กรอกอายุ = ไม่แสดงตัวเลข [data-age-need] · ไม่มีข้อตรงอายุ = [data-age-none] (ห้ามใช้ขนาดของช่วงอายุอื่นแทน) · cap_day ขนาดสูงสุดต่อวัน (76_dose_inds_age.sql)
+                        ข้อที่ไม่ผ่านกฎ dose-rules.js = ไม่แสดงตัวเลข [data-rule-block] (ผู้ดูแลเห็นเหตุผล + ลิงก์หน้าทำงานทีละยา) · ผู้ดูแลเห็นยาที่ยังไม่อนุมัติ [data-unapproved] (ประชาชน/เจ้าหน้าที่ไม่เห็น · 90)
                         เพดานต่อครั้ง indications[].cap ใช้ทั้งแบบต่อครั้งและต่อวันที่แบ่งให้ · ถูกจำกัด = ข้อความ [data-capped] บอกขนาดตามน้ำหนักเดิม + รวมต่อวันสูงสุด
                         หน่วยขนาดยา: indications[].unit = 'mcg' (ไม่มี = มก.) → คำนวณเป็น mcg แล้ว ÷1000 ก่อนเทียบความแรง · ช่องเดิม mg_per_kg_* เก็บเป็น มก. เสมอ (65_dose_mcg.sql · AI ร่างบอก unit)
                         ยาสูตรผสม (66_combo_drugs.sql · 68): local_drugs.ingredients [{name, mg, per, u/amt (mcg), dose_id รายสาร, auto = ระบบใส่ รอทวนสอบ}] · ฟอร์มยา รพ.สต. กรอกแถวละสาร (#ldIngs · ยาเดี่ยว 1 แถว = strength + dose_id) (co-trimoxazole 400/80 · 200/40 ต่อ 5 มล.) + indications[].basis = สารที่ใช้คิดขนาดยา → คิดเม็ด/มล. จากสารนั้น + บอกปริมาณสารทุกตัว · ไม่มี basis = เตือน ไม่คิดจำนวนเม็ด
@@ -93,12 +95,19 @@ js/pages/admin-settings.js ผู้ดูแล › ข้อมูลยา �
                            เพดานความสมเหตุสมผล (78_dose_plausible.sql): เกิน 10,000 มก./กก. = บันทึกไม่ได้ · เกิน dose_soft_max() (ค่าเริ่ม 500 · site_texts dose_soft_max_mg_per_kg) = AI ไม่ใช้ + ฟอร์มถามยืนยัน (SOFT_MAX) · ค้นฉลาก openFDA เฉพาะ route ORAL ใหม่สุดก่อน (77)
                            คำตอบ AI ร่างขนาดยาถูกตรวจกับข้อความฉลากจริง (74_ai_dose_verify.sql · trigger บน ai_dose_drafts: quote อยู่ในฉลาก · ต่อ กก. · ตัวเลข/หน่วยตรง quote · cap พบในฉลาก) ไม่ผ่าน → result.ai_rejected + why (ไม่สร้างร่าง · หน้าช่วยกรอกแสดง [data-ai-rejected])
                            ปุ่ม "ช่วยกรอกจากฐานข้อมูลยา" (50_ai_dose.sql · ai_dose_start/poll): ฐานข้อมูลดึง RxNorm (ความแรง) + ฉลากยา openFDA ผ่าน pg_net → Gemini ร่างขนาดยา มก./กก. พร้อมข้อความอ้างอิง → ผู้ดูแลเลือกใส่ฟอร์ม ตรวจเองก่อนบันทึก (ระบบไม่บันทึกเอง) · ชื่อไทย→ใช้ชื่ออังกฤษในวงเล็บ (paracetamol→acetaminophen ฯลฯ)
-js/pages/dose-test.js      ทดสอบสูตรขนาดยา (ศูนย์ข้อมูลยา ระยะ 3): testDose(d, locals) คิดทุกข้อบ่งใช้ × น้ำหนักตัวอย่าง (testWeights ตามช่วงอายุ) × ความแรงยา รพ.สต. ที่ผูก ด้วย dose.js doseNumbers() (สูตรเดียวกับหน้าคำนวณ)
+js/pages/dose-rules.js     กฎความปลอดภัยข้อมูลขนาดยา (ผลตรวจ audit 22 ต.ค. 2569 · ฟังก์ชันล้วน · ทดสอบใน tests/clinical/rules.test.mjs): indRules/drugRules/blockedInds
+                           fail: ทุกข้อต้องมี age_min (ทุกอายุ = 0) · ชื่อบอกอายุ = ช่องอายุต้องตรง · ตามน้ำหนักต่อครั้งต้องมี cap · ต่อวันต้องมี cap_day · cap ≤ cap_day
+                                 ฉลาก (quote) mg/kg/day ↔ per · divided/every N h ↔ times · เพดานต่อวันในฉลากต้องอยู่ cap_day · ช่วงอายุขาดตอน ≤ 1 ปี · เด็ก (ตามน้ำหนัก) ห้ามเกินขนาดผู้ใหญ่ (age_min ≥ 12)
+                           warn (ต้องติ๊กรับทราบทีละข้อ): ไม่มี quote · ช่วงขนาดกว้าง > 4 เท่า · ช่วงอายุว่าง > 1 ปี · SQL dose_rules_problem (90) = กฎโครงสร้างชุดเดียวกัน (ไม่อ่าน quote)
+js/pages/dose-test.js      ทดสอบสูตรขนาดยา (ศูนย์ข้อมูลยา ระยะ 3) + drugRules (ไม่ผ่านกฎ = fail): testDose(d, locals) คิดทุกข้อบ่งใช้ × น้ำหนักตัวอย่าง (testWeights ตามช่วงอายุ) × ความแรงยา รพ.สต. ที่ผูก ด้วย dose.js doseNumbers() (สูตรเดียวกับหน้าคำนวณ)
                            fail = คำนวณไม่ได้/ขนาดผิด/ต่อวันไม่มีจำนวนครั้ง/สูตรผสมไม่มี basis/เกิน LIMITS ตั้งแต่น้ำหนักน้อยสุด → ช่อง "ทดสอบสูตร" ในศูนย์ข้อมูลยาเป็น ! + ไม่มีปุ่มอนุมัติ · ฟอร์มขนาดยา (#dfTestBtn/#dfTestOut) บันทึกแบบแสดงไม่ได้
                            LIMITS (20 เม็ด · 100 มล. · เตือน 5 เม็ด) = ค่าตั้งต้นจับการกรอกผิด ไม่ใช่เกณฑ์ทางคลินิก · testHtml() ตารางผล
 js/pages/drug-work.js      ผู้ดูแล › ข้อมูลยา › ทำงานทีละยา (#/admin/drugs/work · แท็บที่ 2 · ที่แก้ละเอียดทุกอย่างของยา 1 ตัว · #dcWork · เจ้าของเว็บ 21 ต.ค. "จบในหน้าเดียว · ใช้รูป/สัญลักษณ์"): ซ้าย = รายการยา (#dwQ ค้นหา · กรอง ยังไม่เสร็จ/พร้อมใช้/ทั้งหมด · #dwNew ชื่อยาใหม่ → สร้างยา (active false) + ดึงฉลาก + AI ร่างการ์ด)
                            หัวยา (วงกลมครบกี่ส่วน · แก้ชื่อ/รูปแบบ/ความแรง/คิดเป็นในที่ · แถบ 5 ขั้น · ปุ่ม "ถัดไป" = todo()) → แหล่งข้อมูล 5 ชิป (ผูก/เปลี่ยนในที่ · คู่ที่ระบบเสนอ · MIMS วางข้อความ) → การ์ดขนาดยา (ปุ่มรูป อายุ/วิธีคิด/ต่อครั้ง-ต่อวัน/วันละกี่ครั้ง · ช่อง Min/Max · หน่วยตามต้นฉบับ) + ต้นฉบับข้างกัน (OpenFDA+DailyMed / MIMS · ไฮไลต์ quote · เลือกข้อความ = ที่มา) + ผลคำนวณสด (doseNumbers)
-                           ทุกการ์ดทดสอบสูตร (testDose) ทันที: ผ่าน → "ตรวจแล้ว ถูกต้อง" · ไม่ผ่าน → "ส่งให้ AI ตรวจและแก้ให้" (ai_dose_fix_start/poll · 87_drug_work.sql · ใช้เฉพาะฉลาก OpenFDA ห้ามส่งข้อความ MIMS · ตรวจ quote/ตัวเลขกับฉลากก่อนเสนอ) → ผู้ดูแลกดใช้แล้วตรวจเอง
+                           ทุกการ์ดทดสอบสูตร + กฎความปลอดภัย (testDose + drugRules ข้ามข้อ) ทันที: ผ่าน → "ตรวจตัวเลขกับฉลากแล้ว" · เตือน = ติ๊กรับทราบทีละข้อ [data-dw-ack] ก่อน · ไม่ผ่าน = ไม่มีปุ่มตรวจแล้ว
+                           ไม่ผ่าน/เตือน → "ให้ AI ตรวจกับฉลาก" (ai_dose_fix_start · 87/90 · เฉพาะฉลาก OpenFDA · ตรวจ quote/ตัวเลขกับฉลาก) หรือ "ให้ AI ค้นจากเว็บพร้อมลิงก์" (ai_dose_web_start · 90 · Gemini + Google Search ฟรี · ลิงก์ = groundingChunks จริง + ลิงก์ที่ AI ระบุเฉพาะเว็บที่ค้นเจอ · ไม่มีลิงก์ = ไม่ใช้)
+                           ห้ามส่งข้อความ MIMS ให้ AI · ผลมี left = กฎที่ยังขาด · ผู้ดูแลกดใช้แล้วเปิดลิงก์ตรวจเอง (ที่มา [data-dw-ref])
+                           หัวยา: ปุ่ม "ซ่อนยานี้/แสดงยานี้" [data-dw-hide] (local_drugs.active) + "ลบยานี้" [data-dw-deldrug] (ถัง 7 วัน) · ยาที่แสดงอยู่แต่ไม่มีผู้อนุมัติ = ปุ่ม "อนุมัติใช้คำนวณ" (saveDose → approve_dose)
                            แถบล่าง: บันทึกร่าง (การ์ดที่ตรวจแล้วเก็บ checked:true) / อนุมัติใช้คำนวณ (ตรวจครบ + ทดสอบผ่าน) → saveDose() ใน drug-center.js (ชุดเดียวกับแผงยาเดิม) · เปิดยาจากที่อื่น: sessionStorage 'pcps_work_focus' (ตาราง/แผงเครื่องมือ) หรือ 'pcps_drug_edit'
                            หัวยา: "✎" ความแรง = ตัวแก้ข้อมูลยาละเอียด (drugEditor: ชื่อ · รูปแบบ · สารสำคัญแถวละสาร (ingsRow) · คิดเป็น · บรรจุ · หน่วยนับ · หมายเหตุ · แสดง) · "ประวัติแก้ไข" (drug_data_history ยานี้ + ข้อมูลคำนวณ) · "ลบยานี้" = ย้ายลงถัง (drug-trash.js)
                            แหล่งข้อมูล: กดชื่อที่ผูก / "✎ แก้ไขรายละเอียด" = ตัวแก้ในแผง (dbEditorHtml/saveDb: rpst_list · drug_mims (หัวข้อ ## ) · drug_fda_labels (อังกฤษ/ไทย + AI แปลไทย ai_fda_th) · drug_monographs · ddi_drugs + คู่ ddi_pairs ของยานี้ (แก้/ AI แปล ai_ddi_th)) พร้อมรายการยา/รหัสที่ผูกข้อมูลนั้น (แก้แล้วมีผลทุกตัว) · "ดูในตาราง ›" = ตารางทีละฐาน (pcps_grid_focus 'id:ฐาน')
@@ -198,6 +207,8 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
   `chat-images` (≤1 MB ส่วนตัว, `<conversation id>/…`), `criteria-samples` (≤5 MB ส่วนตัว, ผู้ดูแลอัปโหลด), `visit-photos` (≤1 MB ส่วนตัว PDPA, `<unit>/<patient>/…`) รวมฟรี 1 GB
 - ช่อง AI: ข่าวจาก AI = news.ai_generated + gallery (ภาพเพิ่ม ≤6) + source_url/source_title (อ้างอิง) + source_file_url (ลิงก์ดาวน์โหลด PDF ต้นฉบับ CCPE showfile.php · ไม่เก็บสำเนา · 29_ai_news_pdf.sql) · ค่าเริ่มต้นเข้าคิวรอตรวจ · ai_news_log เขียนได้เฉพาะ secret key
   ค่าลับ GitHub Secrets: GEMINI_API_KEY (เจ้าของเว็บสร้างเองที่ aistudio.google.com — ฟรี ไม่ใส่บัตร) + SUPABASE_SECRET_KEY · Gemini free tier อาจใช้ข้อมูลที่ส่งไปพัฒนาโมเดล → ส่งได้แค่บทความสาธารณะ ห้ามส่งข้อมูลผู้ป่วย
+- ขนาดยา (90_dose_rules.sql): ประชาชน/เจ้าหน้าที่เห็น dose_drugs เฉพาะ active + approved_at · trigger ตรวจ dose_inds_problem + dose_rules_problem ตอนแสดง/แก้ข้อบ่งใช้ แล้วใส่ผู้อนุมัติเอง · ซ่อน = ล้างการอนุมัติ
+  ยาเดิมที่แสดงอยู่แต่ไม่มีผู้อนุมัติ → ผู้ดูแลตรวจในหน้าทำงานทีละยาแล้วกดอนุมัติ (approve_dose · ตรวจกฎซ้ำ) · ทุกทางที่บันทึกแบบแสดง (saveDose · ฟอร์มขนาดยาเดิม) เรียก approve_dose
 - ข่าว: สถานะ pending/fix/rejected/published/unpublished/deleted · ถังข่าว (unpublished/deleted/rejected) มี trashed_at — หน้าผู้ดูแลลบถาวรเมื่อครบ 30 วัน
 
 ## แนวทางเขียนโค้ด
@@ -218,7 +229,7 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
 - id ใน index.html ใช้ร่วมทั้งหน้า ต้องไม่ซ้ำ — ตั้งคำนำหน้าตามส่วน (ar=หน้าอ่านข่าว, an=ผู้ดูแลข่าว, rv=ตรวจประเมิน, ad=เอกสารผู้ดูแล, sd=เอกสารเจ้าหน้าที่, df=ยา, ct=ติดต่อ, rf=บัญชี, dl/da=จัดส่งยาถึงบ้าน, hr=Health Rider, vs/sm=สรุปเยี่ยมบ้าน)
 
 ## การทดสอบ
-- `bash tests/run_all.sh` = ทุกอย่าง (ต้องผ่านก่อน push) · ในเครื่องที่ไม่มี Postgres/Playwright จะข้ามขั้นนั้นพร้อมเตือน แต่บน Actions ห้ามข้าม
+- `bash tests/run_all.sh` = ทุกอย่าง (ต้องผ่านก่อน push) · รวม `node --test tests/clinical/*.test.mjs` (กฎความปลอดภัยข้อมูลขนาดยา · ข้อมูลทดสอบสมมติ ห้ามใช้ข้อมูลยาจริงทำให้ test ผ่าน) · ในเครื่องที่ไม่มี Postgres/Playwright จะข้ามขั้นนั้นพร้อมเตือน แต่บน Actions ห้ามข้าม
 - ย่อย: `python3 tests/static_checks.py` · `bash tests/db/run.sh` · `bash tests/ui/make_fixtures.sh && node tests/ui/smoke.js` · `bash tests/backup/run.sh`
 - ผู้ใช้จำลองในการทดสอบหน้าเว็บ: `?mockrole=admin|staff|staff3|citizen|citizen2` (ดูหัว mock_supabase.js)
 - ทดสอบกับ Supabase จริงไม่ได้จากเครื่อง Claude — ใช้ mock + Postgres ในเครื่อง ส่วนของจริงตรวจหลังขึ้นเว็บ

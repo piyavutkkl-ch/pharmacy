@@ -1,5 +1,7 @@
 // ข้อมูลยา / คำนวณขนาดยา — 4 ส่วน (#doseTabs): คำนวณขนาดยา · ข้อมูลยา · คำนวณสารน้ำ (fluid.js) · Drug interaction (ddi.js)
 //   คำนวณขนาดยา: อายุ/น้ำหนัก (บังคับ)/ส่วนสูง · รายชื่อยา = ยา รพ.สต. ที่มีข้อมูลคำนวณ (dose_drugs ผูกเอง local_drugs.dose_id หรือจับคู่ชื่อ) · ความแรง = ยา รพ.สต. (local_drugs.strength หรืออ่านจากชื่อ)
+//               ความปลอดภัย (audit 22 ต.ค.): ช่วงอายุ "ตั้งแต่ … ถึงต่ำกว่า …" · ข้อที่ตรงอายุขึ้นก่อน ข้อช่วงอายุอื่นย่อไว้ (ไม่ใช้แทน) · ไม่มีข้อตรงอายุ = [data-age-none]
+//               ข้อบ่งใช้ที่ไม่ผ่านกฎ dose-rules.js = ไม่แสดงตัวเลข [data-rule-block] · ข้อที่มีช่วงอายุ ต้องกรอกอายุก่อน [data-age-need] · ผู้ดูแลเห็นยาที่ยังไม่อนุมัติ [data-unapproved]
 //               ไต: CrCl Cockcroft-Gault (MDCalc · ส่วนสูง → IBW/AdjBW) หรือ eGFR CKD-EPI 2021 (เด็ก = Bedside Schwartz) · 60_drug_calc_th.sql
 //   ข้อมูลยา: ตัวกรองแหล่งข้อมูล #doseScope (ทั้งหมด / ยา รพ.สต. [ค่าเริ่ม] / ยานอก รพ.สต. (local_drugs.outside · 81) / บัญชียาหลัก) — รายการยา รพ.สต. อ.ควนกาหลง (local_drugs · 58_local_drugs.sql) · บัญชียาหลักแห่งชาติ 2569 (drug_monographs · 57)
 //            ยา รพ.สต. ผูกกับ monograph ผ่าน local_drugs.mono_refs → drug_monographs.ref · ผู้ดูแลแก้ทั้งสองฐานใน ตั้งค่า › ฐานข้อมูลยา (admin-drugs.js)
@@ -12,6 +14,7 @@ import { estimateWeight } from '../growth.js?v=4.4';
 import { renderGrowth } from './growth-chart.js?v=4.4';
 import { initFluid } from './fluid.js?v=4.4';
 import { initDdi, resetDdi } from './ddi.js?v=4.4';
+import { blockedInds } from './dose-rules.js?v=4.4';
 
 let drugs = null, bound = false;
 let monos = null, locals = null, items = null, litems = [], scope = 'local', shown = 40;   // ข้อมูลยา: โหลดเมื่อเปิดส่วนข้อมูลยา
@@ -34,6 +37,10 @@ export async function initDose() {
   bound = true;
   ['doseWeight', 'doseHeight', 'doseAge', 'doseCr'].forEach((id) => $('#' + id).addEventListener('input', render));
   ['doseConc', 'doseRenal', 'doseSex', 'doseRenalMethod', 'doseAgeUnit', 'doseCrUnit'].forEach((id) => $('#' + id).addEventListener('change', render));
+  $('#doseResult').addEventListener('click', (e) => {   // ผู้ดูแล: ข้อที่ไม่ผ่านกฎ → เปิดยานั้นในหน้าทำงานทีละยา (ส่วนขนาดยา)
+    const a = e.target.closest('[data-dose-fixlink]'); if (!a?.dataset.doseFixlink) return;
+    try { sessionStorage.setItem('pcps_work_focus', `${a.dataset.doseFixlink}:dose`); } catch { /* ไม่เป็นไร */ }
+  });
   $('#doseEst').addEventListener('click', (e) => { const b = e.target.closest('[data-use-weight]'); if (b) { $('#doseWeight').value = b.dataset.useWeight; render(); } });
   sel.addEventListener('change', () => { fillConc(); render(); });
   $('#doseRenalAdjust').addEventListener('change', () => { toggleRenal(); render(); });
@@ -107,6 +114,8 @@ function fillConc(pick) {
   $('#doseConc').innerHTML = (Array.isArray(opts) ? opts.join('') : opts) + fallback;
   if (pick != null && [...$('#doseConc').options].some((o) => o.value === `l:${pick}`)) $('#doseConc').value = `l:${pick}`;
 }
+/** ยา รพ.สต. ที่เลือกในช่องความแรง (id) */
+const curLocalId = () => { const v = $('#doseConc').value || ''; return v.startsWith('l:') ? litems[+v.slice(2)]?.loc.id ?? null : null; };
 function conc() {
   const v = $('#doseConc').value || '', d = drug();
   if (v.startsWith('l:')) {
@@ -128,7 +137,17 @@ function toggleRenal() {
 /** ข้อบ่งใช้ของยา — ยาเก่าที่ยังไม่มี indications ใช้ช่องเดิมเป็นข้อแรก */
 export const indsOf = (d) => (d.indications?.length ? d.indications
   : [{ name: d.indication, per: d.per, min: d.mg_per_kg_min, max: d.mg_per_kg_max, times: d.dose_freq_per_day, cap: d.max_mg_per_dose, freq: d.freq, renal: d.renal_note }]);
-const SHOW_OPEN = 3;   // แสดงพร้อมกันได้ 3 ข้อบ่งใช้ ที่เหลือย่อไว้ กดเพื่อขยาย
+const SHOW_OPEN = 3;
+/** อายุอ่านง่าย: ต่ำกว่า 2 ปี = เดือน */
+const ageWord = (y) => (y < 2 && Math.abs(y * 12 - Math.round(y * 12)) < 0.05 ? `${Math.round(y * 12)} เดือน` : `${+(+y).toFixed(2)} ปี`);
+/** ช่วงอายุของข้อบ่งใช้ (ตั้งแต่ age_min ถึงต่ำกว่า age_max) · ทุกอายุ = '' */
+export const ageText = (i) => {
+  const a = i?.age_min != null ? +i.age_min : null, b = i?.age_max != null ? +i.age_max : null;
+  if (a != null && b != null) return `อายุ ${a ? ageWord(a) : 'แรกเกิด'} ถึงต่ำกว่า ${ageWord(b)}`;
+  if (a) return `อายุตั้งแต่ ${ageWord(a)}`;
+  if (b != null) return `อายุต่ำกว่า ${ageWord(b)}`;
+  return '';
+};   // แสดงพร้อมกันได้ 3 ข้อบ่งใช้ ที่เหลือย่อไว้ กดเพื่อขยาย
 /** ตัวเลขไม่ถูกปัดจนเป็น 0: ค่าที่มากกว่า 0 แต่ปัดแล้วเป็น 0 → แสดง 2 หลักนัยสำคัญ (audit F-06) */
 const fx = (x, dp) => { const t = x.toFixed(dp); return x > 0 && +t === 0 ? String(+x.toPrecision(2)) : t; };
 const rng = (a, b, dp) => (fx(a, dp) === fx(b, dp) ? fx(a, dp) : `${fx(a, dp)}–${fx(b, dp)}`);
@@ -253,7 +272,7 @@ function render() {
   /** ขนาดยาของข้อบ่งใช้ i สำหรับน้ำหนัก w */
   //   หน่วย mcg (เช่น levothyroxine): คิดเป็น mcg แล้วแปลงเป็น มก. (÷1000) ก่อนเทียบกับความแรงของยา (มก./เม็ด · มก./มล.)
   //   แบ่งให้ได้หลายแบบ (times + times_alt เช่น วันละ 1 หรือ 3 ครั้ง) → แสดงผลแยกทีละแบบ
-  const doseOf = (i) => {
+  const doseOf = (i, k) => {
     const ts = [i.times, ...(i.times_alt || [])].map(Number).filter((n) => n >= 1);
     const tail = `<p class="small muted">ความถี่: ${esc(i.freq || '-')}</p>`
       + (i.note ? `<p class="small muted" data-ind-note>หมายเหตุ: ${esc(i.note)}</p>` : '')
@@ -261,24 +280,27 @@ function render() {
       + (i.renal ? `<p class="small" style="color:var(--warning)"><b>ขนาดยาในโรคไต:</b> ${esc(i.renal)}</p>` : '')
       + (renal === 'unknown' ? '<p class="small fx-warn">ขนาดยานี้ยังไม่ได้ปรับตามการทำงานของไต (ยังประเมินไตไม่ได้)</p>' : '')
       + (renal !== 'normal' && renal !== 'unknown' ? `<p class="small fx-warn" data-renal-unadjusted>ตัวเลขด้านบนเป็นขนาดปกติ ยังไม่ได้ปรับตามการทำงานของไต · ${i.renal ? 'ปรับตาม "ขนาดยาในโรคไต" ด้านบน' : 'ยังไม่มีคำแนะนำในระบบ ปรึกษาเภสัชกรก่อนใช้'}</p>` : '');
-    // ช่วงอายุของข้อบ่งใช้ (age_min/age_max ปี · audit F-09): อายุผู้ป่วยนอกช่วง = ไม่แสดงขนาดยา · ไม่ได้กรอกอายุ = เตือนให้กรอก
-    const aMin = i.age_min != null ? +i.age_min : null, aMax = i.age_max != null ? +i.age_max : null;
-    const aTxt = aMin != null && aMax != null ? `อายุ ${num(aMin)}–${num(aMax)} ปี` : aMin != null ? `อายุตั้งแต่ ${num(aMin)} ปี` : aMax != null ? `อายุไม่เกิน ${num(aMax)} ปี` : '';
-    let agePre = '';
-    if (aTxt && age > 0 && ((aMin != null && age < aMin) || (aMax != null && age > aMax))) {
-      return `<div class="alert" data-age-out>${warnIcon}<div><b>ข้อบ่งใช้นี้ใช้กับ${aTxt}</b><div class="small">ผู้ป่วยอายุ ${num(+age.toFixed(2))} ปี อยู่นอกช่วง จึงไม่แสดงขนาดยาของข้อบ่งใช้นี้</div></div></div>` + tail;
+    // ช่วงอายุ (age_min/age_max ปี · "ตั้งแต่ … ถึงต่ำกว่า …" · audit F-09/C7) · สถานะคำนวณไว้ก่อนใน stOf
+    const aTxt = ageText(i), st = stOf(i, k);
+    if (st === 'out') {
+      return `<div class="alert" data-age-out>${warnIcon}<div><b>ข้อบ่งใช้นี้ใช้กับ${aTxt}</b><div class="small">ผู้ป่วยอายุ ${ageWord(age)} อยู่นอกช่วง จึงไม่แสดงขนาดยาของข้อบ่งใช้นี้</div></div></div>` + tail;
     }
-    if (aTxt && !(age > 0)) agePre = `<p class="small fx-warn" data-age-need>ข้อบ่งใช้นี้ใช้กับ${aTxt} · กรุณากรอกอายุเพื่อตรวจว่าตรงช่วงอายุ</p>`;
-    else if (aTxt) agePre = `<p class="small muted">ใช้กับ${aTxt}</p>`;
     if (i.per === 'day' && !ts.length) {   // ขนาดต่อวันแต่ไม่บอกจำนวนครั้ง → ไม่เดาว่าวันละครั้ง (audit F-07)
       const U = i.unit === 'mcg' ? 'mcg' : 'มก.';
       return `<div class="alert" data-dose-incomplete>${warnIcon}<div><b>ข้อมูลขนาดยาไม่ครบ</b>`
         + `<div class="small">เป็นขนาดต่อวัน แต่ไม่ได้ระบุว่าแบ่งให้วันละกี่ครั้ง จึงยังคำนวณขนาดต่อครั้งและจำนวนเม็ด/มล. ไม่ได้</div>`
         + `<div class="small">ขนาดรวม${i.fixed ? '' : 'ตามน้ำหนัก'} ${drng((i.fixed ? 1 : w) * i.min, (i.fixed ? 1 : w) * i.max)} ${U}/วัน (ยังไม่ทราบว่าให้ครั้งเดียวหรือแบ่งให้) · แจ้งผู้ดูแลให้เพิ่มจำนวนครั้งในข้อมูลคำนวณขนาดยา</div></div></div>` + tail;
     }
-    const noMax = !i.fixed && !(+i.cap > 0) && !(+i.cap_day > 0) ? '<p class="small fx-warn" data-no-max>ข้อบ่งใช้นี้ยังไม่มีขนาดสูงสุดในข้อมูล · ตรวจสอบไม่ให้เกินขนาดสูงสุดตามเอกสารกำกับยา (โดยเฉพาะผู้ใหญ่/เด็กโต)</p>' : '';
-    if (i.per === 'day' && ts.length > 1) return agePre + ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + noMax + tail;
-    return agePre + doseCore(i) + noMax + tail;
+    if (st === 'block') {   // ไม่ผ่านกฎความปลอดภัยข้อมูล (dose-rules.js · audit 22 ต.ค.) → ไม่แสดงตัวเลข
+      const why = blocked.get(k) || [];
+      return `<div class="alert" data-rule-block>${warnIcon}<div><b>ข้อมูลขนาดยาข้อนี้ยังไม่ผ่านเกณฑ์ความปลอดภัยของระบบ จึงไม่แสดงตัวเลข</b>`
+        + `<div class="small">รอเภสัชกรตรวจและแก้ไขข้อมูล · ระหว่างนี้ใช้เอกสารกำกับยาและปรึกษาเภสัชกร</div>`
+        + (isAdmin() ? `<ul class="small">${why.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><a class="btn btn-o btn-sm" href="#/admin/drugs/work" data-dose-fixlink="${esc(curLocalId() ?? '')}">แก้ในหน้าทำงานทีละยา</a>` : '') + '</div></div>' + tail;
+    }
+    if (st === 'need') return `<div class="alert" data-age-need>${warnIcon}<div><b>ข้อบ่งใช้นี้ใช้กับ${aTxt}</b><div class="small">กรอกอายุผู้ป่วยก่อน จึงจะแสดงขนาดยา (ใช้ตรวจว่าตรงช่วงอายุ)</div></div></div>` + tail;
+    const agePre = aTxt ? `<p class="small muted">ใช้กับ${aTxt}</p>` : '';
+    if (i.per === 'day' && ts.length > 1) return agePre + ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + tail;
+    return agePre + doseCore(i) + tail;
   };
   const doseCore = (i) => {
     const mcg = i.unit === 'mcg', U = mcg ? 'mcg' : 'มก.';
@@ -309,8 +331,17 @@ function render() {
     return fig(`${drng(lo, hi)} ${U}`, `ขนาดยา${i.fixed ? 'คงที่ (ไม่คิดตามน้ำหนัก)' : ''}${esc(basisName)} ${label}${mcg ? ` (= ${drng(minMg, maxMg)} มก.)` : ''}${unadj}`) + capNote + dayCapNote + vol + combo;
   };
   const inds = indsOf(d);
+  const blocked = blockedInds(inds);   // ข้อที่ไม่ผ่านกฎความปลอดภัยข้อมูล → ไม่แสดงตัวเลข
 
   const h = +$('#doseHeight').value, ag = ageOf(), age = ag ? ag.years : 0;
+  /** สถานะข้อบ่งใช้กับผู้ป่วยรายนี้: ok = แสดงขนาดยา · need = ต้องกรอกอายุ · block = ข้อมูลไม่ผ่านกฎ · out = นอกช่วงอายุ */
+  const stOf = (i, k) => {
+    const aMin = i.age_min != null ? +i.age_min : null, aMax = i.age_max != null ? +i.age_max : null;
+    if (age > 0 && ((aMin != null && age < aMin) || (aMax != null && age >= aMax))) return 'out';   // ช่วง "ตั้งแต่ … ถึงต่ำกว่า …"
+    if (blocked.has(k)) return 'block';
+    if (!(age > 0) && ((aMin != null && aMin > 0) || aMax != null)) return 'need';
+    return 'ok';
+  };
   const bmi = h > 0 ? fig((w / Math.pow(h / 100, 2)).toFixed(1), `BMI (น้ำหนัก ${w} กก. ส่วนสูง ${h.toFixed(0)} ซม.)`) : '';
 
   // สถานะไต: normal | mild | moderate | severe | unknown (เปิดคำนวณไตแต่คำนวณไม่ได้ — ห้ามถือว่าไตปกติ · audit F-01)
@@ -341,14 +372,22 @@ function render() {
   } else if (crclNote) alert = /≈/.test(crclNote) ? `<p class="small muted" data-renal-ok>${method === 'egfr' ? 'eGFR' : 'CrCl'} ≥ 60 — ยาส่วนใหญ่ไม่ต้องปรับขนาด แต่บางยามีเกณฑ์ของตัวเอง ตรวจ "ขนาดยาในโรคไต" ของยาที่เลือก${method === 'egfr' ? ' · eGFR เป็นค่าต่อ 1.73 ตร.ม. ฉลากยาส่วนใหญ่อิง CrCl' : ''}</p>${crclNote}` : crclNote;   // audit F-16
 
   const title = (i, k) => `ข้อบ่งใช้${inds.length > 1 ? ' ' + (k + 1) : ''}: ${esc(i.name || '-')}`;
+  // ข้อที่ตรงกับผู้ป่วยขึ้นก่อน → ต้องกรอกอายุ → ข้อมูลไม่ผ่านกฎ · ข้อของช่วงอายุอื่นย่อรวมไว้ท้ายสุด (ไม่ใช้ขนาดยาของช่วงอายุอื่นแทน · audit C1/C7)
+  const RANK = { ok: 0, need: 1, block: 2, out: 3 };
+  const list = inds.map((i, k) => ({ i, k, st: stOf(i, k) })).sort((x, y) => RANK[x.st] - RANK[y.st] || x.k - y.k);
+  const main = list.filter((x) => x.st !== 'out'), others = list.filter((x) => x.st === 'out');
+  const none = age > 0 && !main.length;
   out.innerHTML = (age > 0 ? `<p class="small muted">ผู้ป่วยอายุ ${$('#doseAgeUnit').value === 'm' ? `${num(ag.months)} เดือน` : `${num(age)} ปี`} · น้ำหนัก ${num(w)} กก.${h > 0 ? ` · ส่วนสูง ${num(h)} ซม.` : ''}</p>` : '') + alert
-    + (inds.length > SHOW_OPEN ? `<p class="small muted">ยานี้มี ${inds.length} ข้อบ่งใช้ · แสดง ${SHOW_OPEN} ข้อแรก ที่เหลือกดเพื่อดูขนาดยา</p>` : '')
+    + (isAdmin() && !d.approved_at ? '<div class="alert" data-unapproved>' + warnIcon + '<div><b>ข้อมูลขนาดยานี้ยังไม่ได้รับอนุมัติจากเภสัชกร</b><div class="small">ประชาชนและเจ้าหน้าที่ยังไม่เห็นยานี้ในเครื่องคำนวณ · ตรวจแล้วกด "อนุมัติใช้คำนวณ" ในหน้าทำงานทีละยา</div></div></div>' : '')
+    + (none ? `<div class="alert" data-age-none>${warnIcon}<div><b>ไม่มีข้อมูลขนาดยาของยานี้สำหรับผู้ป่วยอายุ ${ageWord(age)}</b><div class="small">ห้ามใช้ขนาดยาของช่วงอายุอื่นแทน · ตรวจเอกสารกำกับยาและปรึกษาเภสัชกร</div></div></div>` : '')
+    + (main.length > SHOW_OPEN ? `<p class="small muted">ยานี้มี ${main.length} ข้อบ่งใช้ที่ตรงกับผู้ป่วย · แสดง ${SHOW_OPEN} ข้อแรก ที่เหลือกดเพื่อดูขนาดยา</p>` : '')
     + (c?.auto ? '<p class="small fx-warn" data-auto-match>ยา รพ.สต. ที่เลือกจับคู่กับข้อมูลขนาดยาจากชื่ออัตโนมัติ ผู้ดูแลยังไม่ได้ยืนยันว่าตรงรูปแบบ/ข้อบ่งใช้ · ตรวจก่อนใช้</p>' : '')
-    + '<div class="ind-results">' + inds.map((i, k) => (k < SHOW_OPEN
-      ? `<section class="ind-result"><h4>${title(i, k)}</h4>${doseOf(i)}</section>`
-      : `<details class="ind-result"><summary>${title(i, k)}</summary>${doseOf(i)}</details>`)).join('') + '</div>'
+    + '<div class="ind-results">' + main.map(({ i, k }, n) => (n < SHOW_OPEN
+      ? `<section class="ind-result"><h4>${title(i, k)}</h4>${doseOf(i, k)}</section>`
+      : `<details class="ind-result"><summary>${title(i, k)}</summary>${doseOf(i, k)}</details>`)).join('')
+    + (others.length ? `<details class="ind-result" data-age-others><summary>ข้อบ่งใช้ของช่วงอายุอื่น (${others.length}) · ไม่ใช้กับผู้ป่วยรายนี้</summary>${others.map(({ i, k }) => `<h4>${title(i, k)}</h4>${doseOf(i, k)}`).join('')}</details>` : '') + '</div>'
     + bmi
-    + (d.ai_source ? `<p class="small muted">ที่มาขนาดยา: ${esc(d.ai_source.replace(' · ยังไม่ผ่านการตรวจ', '').replace(/ · https?:\/\/\S+/, ''))} · ผู้ดูแลตรวจแล้ว</p>` : '')
+    + (d.ai_source ? `<p class="small muted">ที่มาขนาดยา: ${esc(d.ai_source.replace(' · ยังไม่ผ่านการตรวจ', '').replace(/ · https?:\/\/\S+/, ''))}${d.approved_at ? ' · เภสัชกรอนุมัติแล้ว' : ''}</p>` : '')
     + '<p class="small muted">ตัวเลขนี้เป็นการประมาณตามช่วงขนาดยาทั่วไป โปรดตรวจสอบกับเอกสารกำกับยา/แนวทางการรักษาและดุลยพินิจทางคลินิกก่อนใช้จริงเสมอ</p>';
 }
 

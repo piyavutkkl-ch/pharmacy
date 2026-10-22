@@ -515,6 +515,10 @@ async function saveDrug(e) {
   const btn = $('#dfSubmit'); busy(btn, true, 'กำลังบันทึก…');
   const { data, error } = editDrug ? await sb.from('dose_drugs').update(row).eq('id', editDrug.id).select() : await sb.from('dose_drugs').insert(row).select();
   if (error) { busy(btn, false); say(m, errText(error)); return; }
+  if (row.active) {   // บันทึกแบบแสดง = ผู้ดูแลตรวจแล้ว → บันทึกผู้อนุมัติ (90 · ฐานข้อมูลตรวจกฎซ้ำ)
+    const { error: e2 } = await sb.rpc('approve_dose', { p_id: editDrug?.id || data?.[0]?.id });
+    if (e2) { busy(btn, false); say(m, `บันทึกแล้ว แต่ยังอนุมัติไม่ได้: ${errText(e2)}`); return; }
+  }
   let linked = 0;   // กล่อง "ผูกฐานข้อมูล" → ยา รพ.สต. ที่ใช้ข้อมูลนี้ + บัญชียาหลัก/ฉลาก/DDInter
   try { linked = await dlSave(editDrug?.id || data?.[0]?.id); } catch (err) { busy(btn, false); say(m, `บันทึกข้อมูลคำนวณแล้ว แต่ผูกฐานข้อมูลไม่สำเร็จ: ${errText(err)}`); return; }
   busy(btn, false);
@@ -625,8 +629,9 @@ async function saveReview(card) {
     dose_freq_per_day: f.times ?? null, max_mg_per_dose: asMg(f, f.cap ?? null), freq: f.freq ?? null, renal_note: f.renal ?? null,
     concs, active: true, ai_draft: false,   // ผู้ดูแลตรวจแล้ว → ใช้ในเครื่องคำนวณ
   }).eq('id', +card.dataset.rv);
+  const { error: e2 } = error ? {} : await sb.rpc('approve_dose', { p_id: +card.dataset.rv });   // บันทึกผู้อนุมัติ (90)
   busy(btn, false);
-  if (error) { say(m, errText(error)); return; }
+  if (error || e2) { say(m, errText(error || e2)); return; }
   toast(`ตรวจแล้ว · ${name} ใช้ในหน้าคำนวณขนาดยาแล้ว`);
   resetDose(); await reloadDrugs();
 }

@@ -176,7 +176,8 @@ check("staff feedback tagged with unit", "s2", "insert into feedback(body) value
 check("anon cannot send feedback (Google login required)", "anon", "insert into feedback(body) values ('x')", "deny")
 check("citizen reads only own feedback", "c1", "select count(*) from feedback", eq(1))
 check("admin reads all feedback", "admin", "select count(*) from feedback", eq(2))
-check("anon reads dose drugs", "anon", "select count(*) from dose_drugs", eq(5))
+check("anon cannot read legacy dose drugs without approver (90)", "anon", "select count(*) from dose_drugs", eq(0))
+check("admin reads all dose drugs", "admin", "select count(*) from dose_drugs", eq(5))
 check("staff cannot edit dose drugs", "s2", "update dose_drugs set mg_per_kg_max=99 returning id", rows(0))
 check("admin edits dose drugs", "admin", "update dose_drugs set freq=freq where id=1 returning id", rows(1))
 check("audit log recorded patient/visit writes", None, "select count(*)>=3 from audit_log where table_name in ('patients','visits')", eq("t"))
@@ -363,8 +364,8 @@ check("staff cannot write counts directly", "s2", f"update document_stats set do
 check("anon sees no counts of staff-only documents", "anon", "select count(*) from document_stats", eq(0))
 
 print("== step 19: dose indications ==")
-check("existing drugs got their dose as first indication", "anon", "select bool_and(jsonb_array_length(indications) = 1 and (indications->0->>'min')::numeric = mg_per_kg_min) from dose_drugs", eq("t"))
-check("admin saves a drug with 2 indications", "admin", """update dose_drugs set indications='[{"name":"ลดไข้","per":"dose","min":10,"max":15},{"name":"ปวด","per":"dose","min":15,"max":20}]' where id=1 returning jsonb_array_length(indications)""", eq(2))
+check("existing drugs got their dose as first indication", None, "select bool_and(jsonb_array_length(indications) = 1 and (indications->0->>'min')::numeric = mg_per_kg_min) from dose_drugs", eq("t"))
+check("admin saves a drug with 2 indications", "admin", """update dose_drugs set indications='[{"name":"ลดไข้","per":"dose","min":10,"max":15,"cap":1000,"age_min":0},{"name":"ปวด","per":"dose","min":15,"max":20,"cap":1000,"age_min":0}]' where id=1 returning jsonb_array_length(indications)""", eq(2))
 check("anon reads indications (public calculator)", "anon", "select jsonb_array_length(indications) from dose_drugs where id=1", eq(2))
 check("existing drugs got a dosage form", "anon", "select count(*) from dose_drugs where form in ('ยาน้ำ','ยาเม็ด','ครีม','อื่น ๆ')", lambda o: int(o.splitlines()[-1]) >= 1)
 check("unknown dosage form rejected", "admin", "update dose_drugs set form='ผง' where id=1", "deny")
@@ -903,7 +904,7 @@ check("tambon name with long digits rejected (no IDs)", "admin", "insert into ri
 check("negative numbers rejected", "admin", "insert into rider_tambon_stats(fiscal_year,tambon,delivered) values (2569,'อุใดเจริญ',-1)", "deny")
 
 print("== step 53: AI dose drafts (hidden until reviewed) ==")
-DRAFT = """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active,ai_draft,ai_source) values ('ร่าง AI (Cetirizine)','แพ้',0.25,0.25,'dose','[{"name":"แพ้","per":"dose","min":0.25,"max":0.25}]','[]',false,true,'ฉลากยา openFDA · AI ร่าง') returning id"""
+DRAFT = """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active,ai_draft,ai_source) values ('ร่าง AI (Cetirizine)','แพ้',0.25,0.25,'dose','[{"name":"แพ้","per":"dose","min":0.25,"max":0.25,"cap":10,"age_min":2}]','[]',false,true,'ฉลากยา openFDA · AI ร่าง') returning id"""
 dd = check("admin saves AI draft (hidden)", "admin", DRAFT, lambda o: o.strip().isdigit()).strip()
 check("AI draft cannot be shown before review", "admin", f"update dose_drugs set active=true where id={dd}", "deny")
 check("anon cannot see AI draft", "anon", f"select count(*) from dose_drugs where id={dd}", eq(0))
@@ -923,10 +924,10 @@ check("negative / zero / bad cap explained", None, """select concat_ws('|', publ
       lambda o: o.count('|') == 3 and 'ติดลบ' in o and 'มากกว่า 0' in o and 'อย่างน้อย 1 ข้อ' in o)
 check("valid indications pass", None, """select public.dose_inds_problem('[{"name":"x","per":"day","min":1,"max":2,"times":3,"times_alt":[1],"cap":500,"unit":"mcg"}]') is null""", eq("t"))
 check("admin fixes draft then approves → shown + approver recorded", "admin",
-      f"""update dose_drugs set indications='[{{"name":"x","per":"day","min":10,"max":20,"times":2}}]', active=true, ai_draft=false where id={bd} returning (approved_by = '{U['admin']}' and approved_at is not null)::text""", eq("true"))
+      f"""update dose_drugs set indications='[{{"name":"x","per":"day","min":10,"max":20,"times":2,"cap_day":1000,"age_min":0}}]', active=true, ai_draft=false where id={bd} returning (approved_by = '{U['admin']}' and approved_at is not null)::text""", eq("true"))
 check("approver cannot be set by hand", "admin", f"update dose_drugs set approved_by='{U['c1']}', approved_at='2000-01-01' where id={bd} returning (approved_by = '{U['admin']}' and approved_at > '2001-01-01')::text", eq("true"))
 check("new shown drug with incomplete dose rejected", "admin", """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('ยาไม่ครบ','x',1,2,'day','[{"name":"x","per":"day","min":1,"max":2}]','[]',true)""", "deny")
-check("admin adds complete drug → approver = admin", "admin", f"""insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('ยาครบ','x',1,2,'dose','[{{"name":"x","per":"dose","min":1,"max":2}}]','[]',true) returning (approved_by = '{U['admin']}')::text""", eq("true"))
+check("admin adds complete drug → approver = admin", "admin", f"""insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('ยาครบ','x',1,2,'dose','[{{"name":"x","per":"dose","min":1,"max":2,"cap":100,"age_min":0}}]','[]',true) returning (approved_by = '{U['admin']}')::text""", eq("true"))
 check("shown drug edited to incomplete → rejected", "admin", f"""update dose_drugs set indications='[{{"name":"x","per":"day","min":1,"max":2}}]' where id={bd}""", "deny")
 check("hiding a drug is never blocked", "admin", f"update dose_drugs set active=false where id={bd} returning active", eq("f"))
 check("staff still cannot approve", "s2", f"update dose_drugs set active=true where id={bd} returning id", rows(0))
@@ -1081,7 +1082,7 @@ check("web cannot write AI results directly", "admin", "update ai_dose_drafts se
 
 print("== step 75: AI drafts flagged when incomplete (audit F-07) ==")
 check("draft per day without times flagged", None, """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active,ai_draft) values ('ธงร่าง75','x',20,20,'day','[{"name":"x","per":"day","min":20,"max":20}]','[]',false,true) returning draft_issue""", lambda o: 'จำนวนครั้ง' in o)
-check("admin fills times → flag cleared (still a draft)", "admin", """update dose_drugs set indications='[{"name":"x","per":"day","min":20,"max":20,"times":2}]' where name='ธงร่าง75' returning coalesce(draft_issue,'none')""", eq("none"))
+check("admin fills times → flag cleared (still a draft)", "admin", """update dose_drugs set indications='[{"name":"x","per":"day","min":20,"max":20,"times":2,"cap_day":500,"age_min":0}]' where name='ธงร่าง75' returning coalesce(draft_issue,'none')""", eq("none"))
 check("flag cannot be forged by hand", "admin", "update dose_drugs set draft_issue='x' where name='ธงร่าง75' returning coalesce(draft_issue,'none')", eq("none"))
 check("approved drug has no draft flag", "admin", "update dose_drugs set active=true, ai_draft=false where name='ธงร่าง75' returning coalesce(draft_issue,'none')", eq("none"))
 check("system-made draft (AI convert) with missing times is flagged", None, """insert into ai_dose_drafts(query, status, stage, auto_name, result) values ('t75','done','ai','TESTFLAG75','{"rx":[],"label":{"dosage":"Children: 20 mg/kg/day.","generic":"t75"},"ai":[{"name":"x","per":"day","min":20,"max":20,"quote":"20 mg/kg/day"}]}'); select ai_dose_convert(id) from ai_dose_drafts where auto_name='TESTFLAG75'; select draft_issue from dose_drugs where name='TESTFLAG75'""", lambda o: 'จำนวนครั้ง' in o)
@@ -1104,7 +1105,7 @@ check("AI answer above review ceiling (default 500 mg/kg) not used", None, """se
 check("review ceiling configurable by setting", None, """insert into site_texts(key, body) values ('dose_soft_max_mg_per_kg','6000') on conflict (key) do update set body=excluded.body; select coalesce(public.dose_ai_item_problem('{"per":"dose","min":5000,"max":5000,"quote":"5000 mg/kg per dose"}', '{"dosage":"Children: 5000 mg/kg per dose."}'),'ok'); delete from site_texts where key='dose_soft_max_mg_per_kg'""", lambda o: 'ok' in o.splitlines())
 
 print("== step 79: drug data history (audit F-13) ==")
-check("admin edits shown drug → history row (who/what/old/new)", "admin", """update dose_drugs set indications='[{"name":"ลดไข้","per":"dose","min":10,"max":15,"cap":1000}]' where id=1 returning id""", rows(1))
+check("admin edits shown drug → history row (who/what/old/new)", "admin", """update dose_drugs set indications='[{"name":"ลดไข้","per":"dose","min":10,"max":15,"cap":1000,"age_min":0}]' where id=1 returning id""", rows(1))
 check("history has editor, changed field, old + new values", None, f"select (changed_by = '{U['admin']}' and 'indications' = any(fields) and old_values ? 'indications' and new_values ? 'indications')::text from drug_data_history where table_name='dose_drugs' and row_id=1 order by id desc limit 1", eq("true"))
 check("system-only change (no dose field) not logged", None, "select count(*) from drug_data_history where row_id=1; update dose_drugs set updated_at=now() where id=1; select count(*) from drug_data_history where row_id=1", lambda o: len(set(o.split())) == 1)
 check("local drug strength change logged", "admin", """update local_drugs set strength='{"mg":500,"per":"tab"}' where code='1050042' returning id""", rows(1))
@@ -1219,7 +1220,7 @@ check("achievement work_date defaults to today (Bangkok)", None, "select column_
 check("achievement work_date out of range rejected", None, "update achievements set work_date='1990-01-01' where id=(select id from achievements limit 1)", "deny")
 
 # ---- 85 ฐานข้อมูล MIMS (ผู้ดูแลเท่านั้น) + ขนาดยาแบบคงที่ ----
-MIMS_IND = """'[{"name":"ทดสอบ","per":"dose","fixed":true,"min":10,"max":20,"note":"ทดสอบ","ref":{"label":"MIMS Thailand","url":"https://www.mims.com/thailand/drug/info/x"}}]'"""
+MIMS_IND = """'[{"name":"ทดสอบ","per":"dose","fixed":true,"min":10,"max":20,"age_min":12,"note":"ทดสอบ","ref":{"label":"MIMS Thailand","url":"https://www.mims.com/thailand/drug/info/x"}}]'"""
 check("admin adds MIMS entry → MIMS code", "admin", f"insert into drug_mims(name,url,indications) values ('Xylometazoline test','https://www.mims.com/thailand/drug/info/xylometazoline-test',{MIMS_IND}) returning web_code ~ '^MIMS-X-[0-9]{{2}}$'", eq("t"))
 check("MIMS url must be mims.com", "admin", "insert into drug_mims(name,url) values ('x','https://evil.example/x')", "deny")
 check("duplicate MIMS url refused", "admin", "insert into drug_mims(name,url) values ('y','https://www.mims.com/thailand/drug/info/xylometazoline-test')", "deny")
@@ -1326,6 +1327,64 @@ i3 = check("third AI import", "admin", f"select ai_drug_import_start('list.csv',
 imp_answer(i3, '{"target":"weird","rows":[{"name":"IMPTEST AMOXICILLIN 250 MG"}]}')
 check("unknown target → other (nothing to import)", "admin", f"select (r->'result'->>'target') || ':' || jsonb_array_length(r->'result'->'rows') from (select ai_drug_import_poll({i3}) r) t", eq("other:0"))
 run("delete from ai_drug_imports")
+
+# ---------- 90: กฎความปลอดภัยข้อมูลขนาดยา + อนุมัติ + AI ค้นจากเว็บ ----------
+OKIND = """[{"name":"ไข้","per":"dose","min":10,"max":15,"cap":500,"age_min":0,"age_max":12}]"""
+check("rules: complete indication passes", None, f"select public.dose_rules_problem('{OKIND}') is null", eq("t"))
+check("rules: missing age_min fails", None, """select public.dose_rules_problem('[{"name":"x","per":"dose","fixed":true,"min":1,"max":2}]') like '%ช่วงอายุ%'""", eq("t"))
+check("rules: weight-based per dose without cap fails", None, """select public.dose_rules_problem('[{"name":"x","per":"dose","min":1,"max":2,"age_min":0}]') like '%ครั้งละไม่เกิน%'""", eq("t"))
+check("rules: weight-based per day needs cap_day (cap alone not enough · C3/C4)", None, """select public.dose_rules_problem('[{"name":"x","per":"day","times":2,"min":10,"max":65,"cap":3000,"age_min":0}]') like '%วันละไม่เกิน%'""", eq("t"))
+check("rules: cap > cap_day fails", None, """select public.dose_rules_problem('[{"name":"x","per":"day","times":2,"min":10,"max":20,"cap":600,"cap_day":500,"age_min":0}]') is not null""", eq("t"))
+check("rules: age gap 5–6 fails (C7)", None, """select public.dose_rules_problem('[{"name":"a","per":"dose","fixed":true,"min":1,"max":2,"age_min":2,"age_max":5},{"name":"b","per":"dose","fixed":true,"min":1,"max":2,"age_min":6,"age_max":12},{"name":"c","per":"dose","fixed":true,"min":2,"max":4,"age_min":12}]') like '%ขาดตอน%'""", eq("t"))
+check("rules: contiguous 2–6, 6–12, 12+ passes", None, """select public.dose_rules_problem('[{"name":"a","per":"dose","fixed":true,"min":1,"max":2,"age_min":2,"age_max":6},{"name":"b","per":"dose","fixed":true,"min":1,"max":2,"age_min":6,"age_max":12},{"name":"c","per":"dose","fixed":true,"min":2,"max":4,"age_min":12}]') is null""", eq("t"))
+check("rules: adult-only + infant band (gap > 1 y) allowed", None, """select public.dose_rules_problem('[{"name":"a","per":"dose","fixed":true,"min":1,"max":2,"age_min":0,"age_max":2},{"name":"c","per":"dose","fixed":true,"min":2,"max":4,"age_min":12}]') is null""", eq("t"))
+check("showing a drug that breaks the rules is refused", "admin", """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('กฎ90ไม่ผ่าน','x',1,2,'dose','[{"name":"x","per":"dose","min":1,"max":2,"age_min":0}]','[]',true)""", "deny")
+r90 = check("admin adds drug that passes → approved", "admin", f"""insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('กฎ90ผ่าน','x',10,15,'dose','{OKIND}','[]',true) returning id""", lambda o: o.strip().isdigit()).strip()
+check("approved drug visible to public", "anon", f"select count(*) from dose_drugs where id={r90} and approved_at is not null", eq(1))
+check("hiding clears approval", "admin", f"update dose_drugs set active=false where id={r90} returning (approved_at is null)::text", eq("true"))
+check("hidden drug not visible to public", "anon", f"select count(*) from dose_drugs where id={r90}", eq(0))
+check("showing again re-checks + re-approves", "admin", f"update dose_drugs set active=true where id={r90} returning (approved_at is not null and approved_by = '{U['admin']}')::text", eq("true"))
+# จำลองข้อมูลเดิมก่อนมีขั้นอนุมัติ (trigger ไม่ให้ล้างการอนุมัติเอง → ปิด trigger ชั่วคราวด้วย replica · เฉพาะในการทดสอบ)
+run(f"set local session_replication_role = replica; update dose_drugs set approved_at=null, approved_by=null where id={r90}")
+check("legacy shown-but-unapproved drug hidden from public", "anon", f"select count(*) from dose_drugs where id={r90}", eq(0))
+check("legacy unapproved drug hidden from staff", "s2", f"select count(*) from dose_drugs where id={r90}", eq(0))
+check("admin still sees legacy unapproved drug", "admin", f"select count(*) from dose_drugs where id={r90} and active and approved_at is null", eq(1))
+check("staff cannot approve", "s2", f"select approve_dose({r90})", "deny")
+check("anon cannot approve", "anon", f"select approve_dose({r90})", "deny")
+check("admin approves after review (rules re-checked)", "admin", f"select approve_dose({r90}) is not null", eq("t"))
+check("approval recorded with approver", None, f"select (approved_by = '{U['admin']}' and approved_at is not null)::text from dose_drugs where id={r90}", eq("true"))
+run(f"""set local session_replication_role = replica; update dose_drugs set approved_at=null, approved_by=null, indications='[{{"name":"x","per":"dose","min":1,"max":2}}]' where id={r90}""")
+check("approving legacy data that breaks the rules is refused", "admin", f"select approve_dose({r90})", "deny")
+check("refused approval leaves it hidden", "anon", f"select count(*) from dose_drugs where id={r90}", eq(0))
+check("cleanup rule test drug", "admin", f"delete from dose_drugs where id={r90} returning id", rows(1))
+
+run("""insert into drug_fda_labels(key,generic,route,title,sections) values ('fix90|ORAL','fix90','ORAL','Fix90',
+  '[{"title":"ขนาดยาและวิธีใช้","body":"Children: 25 to 45 mg/kg/day in divided doses every 8 hours. Do not exceed 1500 mg per day."}]')""")
+run("insert into local_drugs(name,category,fda_key) values ('FIX90 250 MG/5 ML','ยาน้ำรับประทาน','fix90|ORAL')")
+run("insert into local_drugs(name,category) values ('FIX90 NOLABEL 10 MG','ยาเม็ด/แคปซูล')")
+L90 = "(select id from local_drugs where name='FIX90 250 MG/5 ML')"
+N90 = "(select id from local_drugs where name='FIX90 NOLABEL 10 MG')"
+I90 = """'{"name":"ติดเชื้อ","per":"day","min":25,"max":45,"times":1}'"""
+S90 = """'["ข้อบ่งใช้ 1: ยังไม่ระบุช่วงอายุ"]'"""
+g1 = check("AI fix (label) start", "admin", f"select ai_dose_fix_start({L90}, {I90}, {S90})", lambda o: o.strip().isdigit()).strip()
+check("label prompt carries the safety rules", None, f"select (convert_from(q.body,'utf8') like '%cap_day%' and convert_from(q.body,'utf8') like '%age_min%' and convert_from(q.body,'utf8') like '%every 8 hours = 3%')::text from ai_dose_fixes d join net.http_request_queue q on q.id=d.request_id where d.id={g1}", eq("true"))
+fix_answer(g1, '{"ind":{"name":"ติดเชื้อ","per":"day","min":25,"max":45,"times":3,"quote":"25 to 45 mg/kg/day in divided doses every 8 hours"},"why":"ฉลากไม่ระบุช่วงอายุ"}')
+check("valid fix that still misses rule fields → kept + remaining problem listed", "admin", f"select (r->'result'->'ind'->>'times') || ':' || (r->'result'->>'left' like '%ช่วงอายุ%')::text from (select ai_dose_fix_poll({g1}) r) t", eq("3:true"))
+check("staff cannot use AI web search", "s2", f"select ai_dose_web_start({N90}, {I90}, {S90})", "deny")
+w1 = check("AI web search works without a linked label", "admin", f"select ai_dose_web_start({N90}, {I90}, {S90})", lambda o: o.strip().isdigit()).strip()
+check("web search request uses Google Search tool (free) · key only in header · no MIMS", None, f"select (convert_from(q.body,'utf8') like '%google_search%' and convert_from(q.body,'utf8') not like '%mims.com%' and q.headers->>'x-goog-api-key'='test-key-123' and convert_from(q.body,'utf8') not like '%test-key-123%')::text from ai_dose_fixes d join net.http_request_queue q on q.id=d.request_id where d.id={w1}", eq("true"))
+def web_answer(fid, ans, chunks):
+    run(f"""insert into net._http_response(id,status_code,content) select request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('text', $q${ans}$q$))), 'groundingMetadata', jsonb_build_object('groundingChunks', $c${chunks}$c$::jsonb))))::text from ai_dose_fixes where id={fid}""")
+web_answer(w1, 'ผลการค้น ```json {"ind":{"name":"ติดเชื้อ","per":"day","min":25,"max":45,"times":3,"cap_day":1500,"age_min":0,"age_max":12,"quote":"25 to 45 mg/kg/day divided every 8 hours (max 1500 mg/day)"},"why":"พบในฉลาก","refs":[{"title":"DailyMed","url":"https://dailymed.nlm.nih.gov/dailymed/x"},{"title":"เว็บแต่ง","url":"https://invented.example/x"}]} ```',
+           '[{"web":{"uri":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc","title":"nih.gov"}},{"web":{"uri":"javascript:alert(1)","title":"bad"}}]')
+check("web result: suggestion + real search links (only https) + AI link only if its site was searched", "admin",
+      f"select (r->'result'->'ind'->>'cap_day') || ':' || jsonb_array_length(r->'result'->'sources') || ':' || jsonb_array_length(r->'result'->'refs') || ':' || (r->'result'->>'mode') from (select ai_dose_fix_poll({w1}) r) t", eq("1500:1:1:web"))
+check("web suggestion carries a reference link for the admin to open", "admin", f"select result->'ind'->'ref'->>'url' from ai_dose_fixes where id={w1}", eq("https://dailymed.nlm.nih.gov/dailymed/x"))
+w2 = check("second web search", "admin", f"select ai_dose_web_start({N90}, {I90}, {S90})", lambda o: o.strip().isdigit()).strip()
+web_answer(w2, '{"ind":{"name":"ติดเชื้อ","per":"day","min":25,"max":45,"times":3,"cap_day":1500,"age_min":0,"quote":"25 to 45 mg/kg/day"},"why":"จำ"}', '[]')
+check("web answer without real search links → rejected", "admin", f"select ai_dose_fix_poll({w2})->'result'->>'why' like '%ไม่ได้ค้นจากเว็บจริง%'", eq("t"))
+check("cleanup 90 test drugs", "admin", "delete from local_drugs where name like 'FIX90%' returning id", rows(2))
+run("delete from drug_fda_labels where key='fix90|ORAL'")
 
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

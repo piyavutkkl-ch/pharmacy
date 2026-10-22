@@ -4,9 +4,12 @@
 //   ขนาดคงที่ (fixed) ไม่ขึ้นกับน้ำหนัก → ทดสอบแถวเดียว
 //   ผลแต่ละข้อ: fail = คำนวณไม่ได้ หรือจำนวนเม็ด/มล. มากผิดปกติตั้งแต่น้ำหนักน้อยสุด (น่าจะกรอกหน่วย/จุดทศนิยมผิด) → อนุมัติไม่ได้จนแก้
 //                มากผิดปกติเฉพาะน้ำหนักมาก = warn (ควรใส่ขนาดสูงสุด/ช่วงอายุ)
-//                warn = ควรตรวจ (ถูกจำกัดเพดานตั้งแต่น้ำหนักน้อยสุด · น้อยเกินตวง · แบ่งเม็ดไม่ลงตัว · หลายเม็ดต่อครั้ง · ไม่มีขนาดสูงสุด) → อนุมัติได้
+//                warn = ควรตรวจ (ถูกจำกัดเพดานตั้งแต่น้ำหนักน้อยสุด · น้อยเกินตวง · แบ่งเม็ดไม่ลงตัว · หลายเม็ดต่อครั้ง) → อนุมัติได้เมื่อรับทราบทีละข้อ
+//                ไม่มีขนาดสูงสุด = ไม่ผ่าน (กฎ dose-rules.js · เดิมเป็นแค่เตือน)
 //   เกณฑ์ตัวเลข (LIMITS) เป็นค่าเริ่มต้นสำหรับจับการกรอกผิด ไม่ใช่เกณฑ์ทางคลินิก · เภสัชกรปรับได้ที่นี่
+//   + กฎความปลอดภัยข้อมูล (dose-rules.js · audit 22 ต.ค.): ช่วงอายุ · เพดานตามชนิดขนาดยา · ต่อครั้ง/ต่อวัน/จำนวนครั้งตรงฉลาก · ช่วงอายุขาดตอน · เด็กห้ามเกินผู้ใหญ่
 import { doseNumbers, concOf, strengthOf, indsOf } from './dose.js?v=4.4';
+import { drugRules } from './dose-rules.js?v=4.4';
 
 export const LIMITS = { failTabs: 20, failMl: 100, warnTabs: 5 };
 const W_CHILD = [5, 10, 20, 40], W_ADULT = [40, 60, 80], W_ALL = [5, 10, 20, 40, 60];
@@ -40,11 +43,12 @@ export function testDose(d, locals = []) {
   const inds = indsOf(d), concs = testConcs(d, locals), issues = [], rows = [];
   const add = (sev, text) => { if (!issues.some((x) => x.text === text)) issues.push({ sev, text }); };
   if (!inds.length) add('fail', 'ยังไม่มีข้อบ่งใช้');
+  const nameOf = (k) => `ข้อบ่งใช้ ${k + 1}${inds[k]?.name ? ` (${inds[k].name})` : ''}`;
+  for (const x of drugRules(inds)) add(x.sev, `${nameOf(x.k)}: ${x.text}`);   // กฎความปลอดภัยข้อมูล (ไม่ผ่าน = อนุมัติไม่ได้ · เตือน = ต้องรับทราบ)
   inds.forEach((i, k) => {
-    const name = `ข้อบ่งใช้ ${k + 1}${i.name ? ` (${i.name})` : ''}`, U = i.unit === 'mcg' ? 'mcg' : 'มก.';
+    const name = nameOf(k), U = i.unit === 'mcg' ? 'mcg' : 'มก.';
     if (!(typeof i.min === 'number' && typeof i.max === 'number' && i.max > 0 && i.max >= i.min)) { add('fail', `${name}: ขนาดยาต่ำสุด/สูงสุดไม่ถูกต้อง`); return; }
     if (i.per === 'day' && !(i.times >= 1)) { add('fail', `${name}: ขนาดต่อวันแต่ไม่ระบุจำนวนครั้ง จึงคิดขนาดต่อครั้งไม่ได้`); return; }
-    if (!i.fixed && !(+i.cap > 0) && !(+i.cap_day > 0)) add('warn', `${name}: ยังไม่มีขนาดสูงสุด (ต่อครั้งหรือต่อวัน)`);
     const ws = testWeights(i), times = i.per === 'day' ? [i.times, ...(i.times_alt || [])].map(Number).filter((t) => t >= 1) : [null];
     times.forEach((t) => {
       const ii = t ? { ...i, times: t } : i, tag = times.length > 1 ? ` · วันละ ${t} ครั้ง` : '';
@@ -82,7 +86,7 @@ export function testDose(d, locals = []) {
 /** ตารางผลทดสอบ (HTML · ข้อความผ่าน esc ที่ผู้เรียกส่งมา) */
 export function testHtml(t, esc) {
   const icon = { pass: '✓', warn: '●', fail: '!' }[t.status];
-  const head = { pass: 'ผ่านการทดสอบสูตร', warn: 'ผ่าน · มีข้อควรตรวจ', fail: 'ไม่ผ่าน · แก้ก่อนอนุมัติ' }[t.status];
+  const head = { pass: 'ผ่านการทดสอบสูตรและกฎความปลอดภัย', warn: 'ผ่าน · มีข้อควรตรวจ (ต้องรับทราบทีละข้อ)', fail: 'ไม่ผ่าน · แก้ก่อนอนุมัติ' }[t.status];
   const byInd = [...new Set(t.rows.map((r) => r.ind))];
   return `<div class="dt dt-${t.status}" data-dose-test="${t.status}"><p class="dt-h"><b>${icon} ${head}</b><span class="small muted"> · คิดด้วยสูตรเดียวกับหน้าคำนวณ · น้ำหนักตัวอย่างตามช่วงอายุของข้อบ่งใช้</span></p>`
     + (t.issues.length ? `<ul class="dt-issues">${t.issues.map((x) => `<li class="dt-${x.sev}">${esc(x.text)}</li>`).join('')}</ul>` : '')

@@ -47,7 +47,8 @@ function visible(t, r) {
     case 'staff_requests': return isAdmin() || (ME && r.user_id === ME.id);
     case 'staff_roster': return isAdmin() || (ME && r.email === ME.email);
     case 'profiles': return isAdmin() || (ME && r.id === ME.id) || (isStaff() && db.conversations.some((c) => c.citizen_id === r.id && c.target_unit === ME.unit_id));
-    case 'dose_drugs': case 'local_drugs': return r.active || isAdmin();
+    case 'dose_drugs': return (r.active && !!r.approved_at) || isAdmin();   // 90: ประชาชน/เจ้าหน้าที่เห็นเฉพาะที่อนุมัติแล้ว
+    case 'local_drugs': return r.active || isAdmin();
     default: return true;
   }
 }
@@ -116,7 +117,8 @@ function beforeInsert(table, row) {
     case 'documents': row.created_by = ME.id; row.version ??= 1; break;
     case 'patients': row.created_by = ME.id; break;
     case 'visits': row.unit_id = db.patients.find((p) => p.id === row.patient_id)?.unit_id; row.fiscal_year = fiscalYear(row.visit_date); row.created_by = ME.id; break;
-    case 'dose_drugs': row.active ??= true; row.concs ??= []; row.sort ??= 0; break;
+    case 'dose_drugs': row.active ??= true; row.concs ??= []; row.sort ??= 0; row.ai_draft ??= false;   // แทน trigger dose_drugs_approve (90): แสดง = อนุมัติโดยผู้บันทึก
+      Object.assign(row, row.active && !row.ai_draft ? { approved_at: now(), approved_by: ME?.id } : { approved_at: null, approved_by: null }); break;
     case 'visit_summaries': row.author_id = ME.id; row.gallery ??= []; row.created_at ??= now(); row.summary_date ??= now().slice(0, 10); summaryPeople(row); break;
     case 'staff_roster':
       row.email = String(row.email).trim().toLowerCase(); row.active ??= true;
@@ -155,8 +157,13 @@ function beforeUpdate(table, row, patch) {
   if (table === 'staff_roster' && row.email === ME?.email && (patch.active === false || (patch.role && patch.role !== 'admin')))
     return 'ไม่สามารถลบ ปิดใช้งาน หรือลดสิทธิ์บัญชีของตัวเองได้ — ให้ผู้ดูแลคนอื่นทำแทน';
   if (table === 'item_status' && isStaff()) delete patch.review_files;   // ไฟล์ของผู้ดูแล เจ้าหน้าที่แก้ไม่ได้
-  const prev = row.status;
+  const prev = row.status, was = table === 'dose_drugs' ? { active: row.active, ai_draft: row.ai_draft, inds: JSON.stringify(row.indications) } : null;
+  if (was) { delete patch.approved_at; delete patch.approved_by; }   // ผู้อนุมัติ: ระบบใส่เท่านั้น
   Object.assign(row, patch, { updated_at: now() });
+  if (was) {   // แทน trigger dose_drugs_approve (90): แสดงใหม่/แก้ข้อบ่งใช้ของยาที่แสดง = อนุมัติ · ซ่อน = ล้างการอนุมัติ
+    if (row.active && !row.ai_draft && (!was.active || was.ai_draft || was.inds !== JSON.stringify(row.indications))) Object.assign(row, { approved_at: now(), approved_by: ME?.id });
+    if (!row.active) Object.assign(row, { approved_at: null, approved_by: null });
+  }
   if (table === 'news' && isStaff()) row.status = 'pending';
   if (table === 'news' && patch.status === 'published' && !row.published_at) row.published_at = now();
   if (table === 'news' && 'status' in patch) {
@@ -534,19 +541,44 @@ function rpc(name, a = {}) {
     }
     /* แทน ai_dose_fix_start / poll (87_drug_work.sql): AI ช่วยแก้ข้อบ่งใช้ที่ทดสอบสูตรไม่ผ่าน · ตอบ "รอ" 1 รอบ
        ต้องผูกฉลาก OpenFDA (ไม่ส่ง MIMS) · ต่อวันไม่มีจำนวนครั้ง → เติมวันละ 3 ครั้ง · ไม่มีตัวเลข → 10–15 · ชื่อข้อมีคำว่า AIBAD = คำตอบตรวจกับฉลากไม่ผ่าน */
+    case 'approve_dose': {   // แทน approve_dose (90)
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const d = (db.dose_drugs || []).find((x) => String(x.id) === String(a.p_id)); if (!d) return err('ไม่พบข้อมูลขนาดยานี้', 'P0001');
+      if ((d.indications || []).some((i) => i.age_min == null)) return err('ข้อมูลขนาดยายังไม่ครบหรือไม่ผ่านกฎความปลอดภัย จึงยังแสดงในเครื่องคำนวณไม่ได้ · ยังไม่ระบุช่วงอายุ', '23514');
+      Object.assign(d, { active: true, ai_draft: false, approved_at: now(), approved_by: ME.id }); return { data: d.approved_at, error: null };
+    }
+    /* แทน ai_dose_web_start (90): AI ค้นจากเว็บพร้อมลิงก์ · ไม่ต้องผูกฉลาก · ตอบ "รอ" 1 รอบ · ชื่อข้อมีคำว่า AINONE = หาไม่พบ */
+    case 'ai_dose_web_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const l = (db.local_drugs || []).find((x) => String(x.id) === String(a.p_local));
+      if (!l) return err('ไม่พบยานี้', 'P0001');
+      const ind = { ...(a.p_ind || {}) }; delete ind.ref;
+      const fx = { ...ind, age_min: ind.age_min ?? 0, age_max: ind.age_max ?? 12, quote: ind.per === 'day' ? '10 to 15 mg/kg/day in 3 divided doses every 8 hours (maximum 1500 mg/day) (ข้อความจำลอง)' : '10 to 15 mg/kg every 8 hours (maximum 500 mg/dose) (ข้อความจำลอง)', ref: { label: 'AI ค้นจากเว็บ: dailymed.nlm.nih.gov', url: 'https://dailymed.nlm.nih.gov/dailymed/test' } };
+      if (fx.min == null || fx.max == null) Object.assign(fx, { min: 10, max: 15 });
+      if (fx.per === 'day' && !(fx.times >= 3)) fx.times = 3;
+      if (!fx.fixed) { if (fx.per === 'day') fx.cap_day = 1500; else fx.cap = fx.cap || 500; }
+      const sources = [{ title: 'nih.gov', url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/test1' }, { title: 'who.int', url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/test2' }];
+      const none = /AINONE/.test(ind.name || '');
+      const row = { id: newId('ai_dose_fixes'), local_id: l.id, status: 'pending', polls: 0,
+        _fake: none ? { none: true, why: 'ไม่พบข้อมูลที่เชื่อถือได้ (ข้อมูลจำลอง)', mode: 'web', sources, refs: [] }
+          : { ind: fx, why: 'พบช่วงอายุและขนาดสูงสุดต่อวันในฉลาก DailyMed (ข้อมูลจำลอง)', mode: 'web', sources, refs: [{ title: 'DailyMed', url: 'https://dailymed.nlm.nih.gov/dailymed/test' }] } };
+      (db.ai_dose_fixes ||= []).push(row); return { data: row.id, error: null };
+    }
     case 'ai_dose_fix_start': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
       const l = (db.local_drugs || []).find((x) => String(x.id) === String(a.p_local));
       if (!l) return err('ไม่พบยานี้', 'P0001');
       if (!l.fda_key) return err('ยาตัวนี้ยังไม่ได้ผูกฉลาก OpenFDA+DailyMed ที่มีข้อความขนาดยา · ผูกฉลากก่อน (AI ใช้เฉพาะข้อมูลสาธารณะ ไม่ส่งข้อความ MIMS)', 'P0001');
       const ind = { ...(a.p_ind || {}) }; delete ind.ref;
-      const fx = { ...ind, quote: '10 to 15 mg/kg every 8 hours (ข้อความฉลากจำลอง)' };
+      const fx = { ...ind, quote: ind.per === 'day' ? '10 to 15 mg/kg/day in 3 divided doses every 8 hours (ข้อความฉลากจำลอง)' : '10 to 15 mg/kg every 8 hours (ข้อความฉลากจำลอง)' };
       if (fx.min == null || fx.max == null) Object.assign(fx, { min: 10, max: 15 });
       if (fx.per === 'day' && !(fx.times >= 1)) fx.times = 3;
-      if (!(fx.cap > 0) && !(fx.cap_day > 0) && !fx.fixed) fx.cap_day = 1500;
+      if (!fx.fixed && fx.per === 'day' && !(fx.cap_day > 0)) fx.cap_day = 1500;
+      if (!fx.fixed && fx.per !== 'day' && !(fx.cap > 0)) fx.cap = 500;
+      const left = fx.age_min == null ? 'ยังไม่ระบุช่วงอายุ (อายุตั้งแต่ … ปี · ใช้ได้ทุกอายุ = 0)' : null;   // ฉลากไม่มีช่วงอายุ → ให้ค้นจากเว็บต่อ
       const bad = /AIBAD/.test(ind.name || '');
       const row = { id: newId('ai_dose_fixes'), local_id: l.id, status: 'pending', polls: 0,
-        _fake: bad ? { rejected: fx, why: 'ข้อความที่ AI อ้างไม่พบในฉลากยา' } : { ind: fx, why: 'เติมจำนวนครั้งต่อวันและขนาดสูงสุดต่อวันตามฉลาก (ข้อมูลจำลอง)' } };
+        _fake: bad ? { rejected: fx, why: 'ข้อความที่ AI อ้างไม่พบในฉลากยา', mode: 'label', sources: [], refs: [] } : { ind: fx, why: 'เติมจำนวนครั้งต่อวันและขนาดสูงสุดตามฉลาก (ข้อมูลจำลอง)', left, mode: 'label', sources: [], refs: [] } };
       (db.ai_dose_fixes ||= []).push(row); return { data: row.id, error: null };
     }
     /* แทน ai_drug_import_start / poll (89_ai_drug_import.sql): AI วิเคราะห์ไฟล์ยา · ตอบ "รอ" 1 รอบ

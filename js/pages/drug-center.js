@@ -75,7 +75,8 @@ function judge(l, k) {
     if (t.status === 'fail') return { s: 'err', t: name, why: `ผลทดสอบสูตรไม่ผ่าน: ${t.issues.find((x) => x.sev === 'fail').text}`, dose: d, test: t };
     if (!own.length) return { s: 'wait', t: `${name} · จับคู่ตามชื่อ ยังไม่ได้ยืนยัน`, dose: d, auto: d, test: t };
     if (!d.active) return { s: 'wait', t: `${name} · ซ่อนจากเครื่องคำนวณ`, dose: d, test: t };
-    return { s: 'ok', t: `${name}${d.approved_at ? ' · อนุมัติแล้ว' : ''}`, dose: d, test: t };
+    if (!d.approved_at) return { s: 'wait', t: `${name} · รอเภสัชกรอนุมัติ`, why: 'ยังไม่มีผู้อนุมัติ (ข้อมูลเดิมก่อนมีระบบอนุมัติ) · ประชาชน/เจ้าหน้าที่ยังไม่เห็นยานี้ในเครื่องคำนวณ · ตรวจแล้วกด "อนุมัติใช้คำนวณ" ในหน้าทำงานทีละยา', dose: d, test: t };
+    return { s: 'ok', t: `${name} · อนุมัติแล้ว`, dose: d, test: t };
   }
   if (k === 'rpst') {   // บัญชียา รพ.สต. (86): รหัสยาในเว็บแอพ = รหัสในบัญชี
     const it = l.code && (D.rpst || []).find((x) => x.code === l.code);
@@ -424,6 +425,7 @@ export async function saveDose(l, j, rows, mode) {
     const { error } = await sb.from('local_drugs').update(up).eq('id', x.id); if (error) throw error;
   }
   if (mode !== 'draft' && !l.active && !links.includes(l)) await sb.from('local_drugs').update({ active: true }).eq('id', l.id);
+  if (mode !== 'draft') { const { error } = await sb.rpc('approve_dose', { p_id: id }); if (error) throw error; }   // บันทึกผู้อนุมัติ (90 · ฐานข้อมูลตรวจกฎซ้ำ) แม้ข้อบ่งใช้ไม่เปลี่ยน
   return { sib };
 }
 async function saveDt(l, j, mode, btn) {

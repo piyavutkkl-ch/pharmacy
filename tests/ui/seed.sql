@@ -107,3 +107,10 @@ insert into public.news_quiz(news_id, sort, question, answer, choices, explain, 
 insert into public.ai_news_log(article_id, title, news_id, status, note, created_at) values
   (1870, 'บทความเก่า', null, 'error', 'Gemini HTTP 429: quota', now() - interval '2 days'),
   (1876, 'ยาทาสแตตินกับการสมานแผล', '00000000-0000-0000-0000-0000000a1001', 'done', 'รอผู้ดูแลตรวจ', now() - interval '1 hour');
+
+-- ข้อมูลขนาดยาตั้งต้น (01): เติมช่วงอายุ/เพดานต่อวันให้ผ่านกฎ 90 → แสดง + อนุมัติแล้ว
+--   ค่าสำหรับทดสอบหน้าเว็บเท่านั้น ไม่ใช่ข้อมูลทางคลินิก (ฐานข้อมูลจริงให้เภสัชกรตรวจและอนุมัติในหน้าทำงานทีละยา)
+update public.dose_drugs d set indications = (
+  select jsonb_agg(e || '{"age_min":0}'::jsonb || case when e->>'per' = 'day' and not e ? 'cap_day' then jsonb_build_object('cap_day', (e->>'max')::numeric * 40) else '{}'::jsonb end)
+    from jsonb_array_elements(d.indications) e)
+ where d.active and not d.ai_draft;
