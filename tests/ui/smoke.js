@@ -2521,7 +2521,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           await q.evaluate((code) => { window.__db.local_drugs.find((l) => l.name === 'AMLODIPINE 5 MG').code = code; }, code);   // ระหว่างตรวจ มีคนผูกรหัสนี้กับยาอื่นไปแล้ว → แถวนั้นบันทึกไม่ได้
           await q.click('#dgImpBox [data-dg-impok]'); await q.waitForTimeout(1000);
           check('บันทึกได้บางแถว → แถวอื่นยังบันทึก · บอกแถวที่ไม่ได้ + เหตุผล + ปุ่มลองใหม่/ข้าม', await q.evaluate(() => window.__db.local_drugs.some((l) => l.name === 'IMPORT OK DRUG 2 MG') && !window.__db.local_drugs.some((l) => l.name === 'IMPORT DUPCODE 3 MG'))
-            && /บันทึกได้ 1/.test(await text(q, '#dgImpBox [data-dg-result]')) && /บันทึกไม่ได้ 1/.test(await text(q, '#dgImpBox [data-dg-result]')) && /IMPORT DUPCODE 3 MG.*duplicate/s.test(await text(q, '#dgImpBox [data-dg-faillist]')) && await count(q, '#dgImpBox [data-dg-retry]') === 1, await text(q, '#dgImpBox'));
+            && /บันทึกได้ 1/.test(await text(q, '#dgImpBox [data-dg-result]')) && /บันทึกไม่ได้ 1/.test(await text(q, '#dgImpBox [data-dg-result]')) && /IMPORT DUPCODE 3 MG.*มีข้อมูลนี้อยู่แล้ว/s.test(await text(q, '#dgImpBox [data-dg-faillist]')) && await count(q, '#dgImpBox [data-dg-retry]') === 1, await text(q, '#dgImpBox'));
           await q.evaluate(() => { window.__db.local_drugs.find((l) => l.name === 'AMLODIPINE 5 MG').code = null; });
           await q.click('#dgImpBox [data-dg-retry]'); await q.waitForTimeout(1000);
           check('ลองบันทึกเฉพาะที่ไม่ได้อีกครั้ง → บันทึกแถวที่เหลือ (ไม่เพิ่มแถวที่ได้แล้วซ้ำ)', await q.evaluate(() => window.__db.local_drugs.filter((l) => /^IMPORT (OK|DUPCODE)/.test(l.name)).length) === 2 && /บันทึกได้ 2/.test(await text(q, '#dgImpBox [data-dg-result]')) && !(await count(q, '#dgImpBox [data-dg-retry]')), await text(q, '#dgImpBox'));
@@ -2535,7 +2535,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           await q.waitForTimeout(1200);
           const t = await text(q, '#dgImpBox');
           check('ไฟล์หน้า MIMS 2 ไฟล์ → แยกหัวข้อในเครื่อง (ไม่ส่งให้ AI) · ชื่อยา · หัวข้อ · การ์ดข้อบ่งใช้ · ชื่อการค้า', (await calls(q, (c) => c.rpc === 'ai_drug_import_start')).length === ai0
-            && await count(q, '#dgImpBox .dg-mims') === 2 && /Testamolol2/.test(t) && /แยกได้ 4 หัวข้อ/.test(t) && /การ์ดข้อบ่งใช้ 2 ข้อ/.test(t) && /ชื่อการค้า 2/.test(t) && /ไม่ใช้ AI/.test(t), t.slice(0, 500));
+            && await count(q, '#dgImpBox .dg-mims') === 2 && /Testamolol2/.test(t) && /แยกได้ 5 หัวข้อ/.test(t) && /การ์ดข้อบ่งใช้ 2 ข้อ/.test(t) && /ชื่อการค้า 2/.test(t) && /ไม่ใช้ AI/.test(t), t.slice(0, 500));
           const lid = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)').id);
           await q.selectOption('#dgImpBox [data-dg-mimsl="0"]', String(lid));
           const m0 = await q.evaluate(() => (window.__db.drug_mims || []).length);
