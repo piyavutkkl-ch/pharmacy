@@ -1528,7 +1528,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.keyboard.press('Escape'); await p.fill('#dcQ', ''); await p.waitForTimeout(150); }
       { // แผงยา 3 ขั้น: ขนาดยาคิดจากธาตุเหล็ก → ขั้นที่ 1 บอกให้กรอก "คิดเป็น" → ตารางข้อบ่งใช้จาก MIMS ติ๊ก/แก้ → ตรวจซ้ำ → อนุมัติ (ข้อมูลสมมติ ไม่ใช่ขนาดยาจริง)
         const fid = await p.evaluate(() => { const L = window.__db.local_drugs.find((x) => x.name === 'FERROUS FUMARATE 200 MG'); Object.assign(L, { dose_id: null, mims_id: null, link_na: [], strength: null }); return L.id; });
-        const sample = [{ drug: 'FERROUS FUMARATE 200 MG', indications: [{ name: 'ทดสอบ เหล็ก เด็ก', per: 'day', times: '2-3', min: 3, max: 6, cap_day: 200, note: 'elemental Fe' }, { name: 'ทดสอบ ป้องกัน', per: 'day', times: 'ไม่พบ', fixed_mg: { min: 30, max: 30 }, note: 'elemental Fe' }], ref: { label: 'MIMS Thailand', url: 'https://www.mims.com/thailand/drug/info/ferrous-fumarate' } }];
+        const sample = [{ drug: 'FERROUS FUMARATE 200 MG', indications: [{ name: 'ทดสอบ เหล็ก เด็ก', per: 'day', times: '2-3', min: 3, max: 6, cap_day: 200, age_min: 0, age_max: 12, note: 'elemental Fe' }, { name: 'ทดสอบ ป้องกัน', per: 'day', times: 'ไม่พบ', fixed_mg: { min: 30, max: 30 }, note: 'elemental Fe' }], ref: { label: 'MIMS Thailand', url: 'https://www.mims.com/thailand/drug/info/ferrous-fumarate' } }];
         await bulk(p);
         await p.setInputFiles('#mmFile', { name: 'mims_doses.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(sample)) }); await p.waitForTimeout(300);
         await p.click('#mmImport'); await p.waitForTimeout(1200);
