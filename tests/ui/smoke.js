@@ -2300,13 +2300,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await go(q, '#/admin/drugs'); await q.waitForTimeout(1000);
         check('ภาพรวม: กล่อง "AI ตรวจย้อนหลังพบ" ขัดกับฉลาก (หยุดแสดงแล้ว) + ตัวเลขแจ้งเตือนบนเมนูข้อมูลยา', await visible(q, '#dcAudit') && (await text(q, '#dcAudit')).includes('ขัดกับฉลาก 1 ข้อ') && (await text(q, '#admDrugsBadge')).trim() === '1', await text(q, '#dcAudit'));
         await q.click(`#dcAudit [data-ck-open="${lid}"]`); await q.waitForTimeout(1500);
-        check('เปิดจากกล่องแจ้งเตือน → การ์ดแสดงธง AI ตรวจย้อนหลัง (เหตุผล + ข้อความฉลาก) + ปุ่มล้างธง', await count(q, '[data-dw-audit="0"]') === 1 && (await text(q, '[data-dw-audit="0"]')).includes('ขัดกับฉลาก') && (await text(q, '[data-dw-audit="0"]')).includes('10 to 15 mg/kg'), await text(q, '#dwDose'));
-        await q.click('[data-dw-auditok="0"]'); await q.waitForTimeout(900);
-        check('ตรวจแล้ว ข้อมูลเดิมถูกต้อง → ล้างธง (dose_audit_resolve)', (await calls(q, (c) => c.rpc === 'dose_audit_resolve')).pop()?.args?.p_name === 'AUDITWRONG ไข้' && await count(q, '[data-dw-audit="0"]') === 0);
+        check('เปิดจากกล่องแจ้งเตือน → การ์ดแสดงธง AI ตรวจย้อนหลัง (เหตุผล + ข้อความฉลาก) + ปุ่มล้างธง', /IBUPROFEN/.test(await text(q, '#dwHead h3')) && await count(q, '[data-dw-audit]') === 1 && (await text(q, '[data-dw-audit]')).includes('ขัดกับฉลาก') && (await text(q, '[data-dw-audit]')).includes('10 to 15 mg/kg'), `${await text(q, '#dwHead h3')} | ${(await text(q, '#dwDose')).replace(/\s+/g, ' ').slice(0, 600)}`);
+        if (await count(q, '[data-dw-auditok]')) { await q.click('[data-dw-auditok]'); await q.waitForTimeout(900); }
+        check('ตรวจแล้ว ข้อมูลเดิมถูกต้อง → ล้างธง (dose_audit_resolve)', (await calls(q, (c) => c.rpc === 'dose_audit_resolve')).pop()?.args?.p_name === 'AUDITWRONG ไข้' && await count(q, '[data-dw-audit]') === 0);
         await q.evaluate((lid) => { const db = window.__db, l = db.local_drugs.find((x) => x.id === lid); l.fda_key = l.fda_key || (db.drug_fda_labels[0] || {}).key; }, lid);
         if (await count(q, '[data-dw-auditnow]')) {
-          await q.click('[data-dw-auditnow]'); await q.waitForSelector('[data-dw-audit="0"]', { timeout: 20000 }).catch(() => {});
-          check('ให้ AI ตรวจย้อนหลังยานี้ตอนนี้ → พบขัดกับฉลาก → ธงกลับมาในการ์ด + บอกผล', (await calls(q, (c) => c.rpc === 'dose_audit_now')).length === 1 && await count(q, '[data-dw-audit="0"]') === 1 && (await text(q, '#dwHead')).includes('AI ตรวจย้อนหลังพบ 1 ข้อ'), await text(q, '#dwHead'));
+          await q.click('[data-dw-auditnow]'); await q.waitForSelector('[data-dw-audit]', { timeout: 20000 }).catch(() => {});
+          check('ให้ AI ตรวจย้อนหลังยานี้ตอนนี้ → พบขัดกับฉลาก → ธงกลับมาในการ์ด + บอกผล', (await calls(q, (c) => c.rpc === 'dose_audit_now')).length === 1 && await count(q, '[data-dw-audit]') === 1 && (await text(q, '#dwHead')).includes('AI ตรวจย้อนหลังพบ 1 ข้อ'), await text(q, '#dwHead'));
         } else check('ปุ่มให้ AI ตรวจย้อนหลังยานี้ตอนนี้ (ยาที่อนุมัติแล้ว + มีฉลาก)', false, await text(q, '#dwDose')); }
       await q.setViewportSize({ width: 390, height: 900 }); await go(q, '#/admin/drugs'); await q.waitForTimeout(900); await q.click('#dcCheckBtn'); await q.waitForTimeout(300);
       check('ผลตรวจทุกตัว 390px: ไม่มี scroll แนวนอน', (await overflow(q)) <= 0, String(await overflow(q)));
