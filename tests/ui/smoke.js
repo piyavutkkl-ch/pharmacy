@@ -2258,9 +2258,14 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     { // ตรวจข้อมูลขนาดยาทุกตัวในครั้งเดียว (ภาพรวม · dose-check.js · เจ้าของเว็บ 22 ต.ค.) + ให้ AI หาค่าทุกข้อที่ไม่ผ่าน + ตรวจยานี้ทั้งตัว (หน้าทำงานทีละยา)
       const q = await open('admin', '#/admin/drugs'); await q.waitForTimeout(1200);
       let asked = '';
-      q.removeAllListeners('dialog'); q.once('dialog', (d) => { asked = d.message(); d.dismiss(); });   // ยังไม่ให้ AI เติม (ดูผลตรวจอย่างเดียว)
+      await q.evaluate(async () => {   // ให้มียาที่ไม่ผ่านอย่างน้อย 1 ตัว (ข้อมูลทดสอบ: เอาช่วงอายุออก)
+        const d = window.__db.dose_drugs.find((x) => /Amoxicillin/.test(x.name)); d.indications = d.indications.map(({ age_min, ...x }) => x);
+        await (await import('./js/pages/admin-drugs.js?v=4.4')).reloadDrugData(true); });
+      await go(q, '#/admin/drugs/work'); await go(q, '#/admin/drugs'); await q.waitForTimeout(800);
+      const dismiss = (d) => { asked = d.message(); d.dismiss(); };
+      q.removeAllListeners('dialog'); q.on('dialog', dismiss);   // ยังไม่ให้ AI เติม (ดูผลตรวจอย่างเดียว)
       await q.click('#dcCheckBtn'); await q.waitForTimeout(400);
-      q.on('dialog', (d) => d.accept());
+      q.off('dialog', dismiss); q.on('dialog', (d) => d.accept());
       check('ภาพรวม: ปุ่มเดียว "ตรวจ + ให้ AI เติมข้อมูลที่ขาด" → ตรวจเสร็จแล้วถามว่าจะให้ AI เติมเลยไหม', /ให้ AI เติมข้อมูลที่ขาดเลยไหม/.test(asked), asked);
       check('ภาพรวม: ผลตรวจ สรุป ไม่ผ่าน/ควรตรวจ/รออนุมัติ/ครบแล้ว + รายการยาที่ต้องแก้ (ยกเลิก = ยังไม่เรียก AI)', await visible(q, '#dcCheck') && /ไม่ผ่าน \d+/.test(await text(q, '#dcCheck .ck-sum')) && /ครบแล้ว \d+/.test(await text(q, '#dcCheck .ck-sum'))
         && await count(q, '#dcCheck .ck-row') >= 1 && (await calls(q, (c) => /^ai_dose_(fix|web)_start$/.test(c.rpc || ''))).length === 0, await text(q, '#dcCheck'));
