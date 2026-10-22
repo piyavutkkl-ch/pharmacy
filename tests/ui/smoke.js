@@ -1239,7 +1239,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.fill('#dfConcs .c-label', 'ยาน้ำ 10 มก./มล.'); await p.fill('#dfConcs .c-mg', '10'); await p.selectOption('#dfConcs .c-type', 'ml');
     await p.check('#dfActive'); await p.click('#dfSubmit'); await p.waitForTimeout(500);
     check('ฟอร์มขนาดยาเดิม: ข้อมูลไม่ผ่านกฎความปลอดภัย (ไม่มีช่วงอายุ/เพดาน) + ติ๊กแสดง → ไม่บันทึก + บอกเหตุผล', !(await p.evaluate(() => window.__db.dose_drugs.some((d) => d.name === 'ยาทดสอบ'))) && /ไม่ผ่าน/.test(await text(p, '#dfMsg')), await text(p, '#dfMsg'));
-    await p.uncheck('#dfActive'); await p.click('#dfSubmit'); await p.waitForTimeout(500);   // บันทึกแบบซ่อนไว้แก้ต่อได้
+    await p.evaluate(() => document.querySelectorAll('#dfInds .ind-box').forEach((b) => {   // เติมช่วงอายุ + เพดานตามชนิดขนาดยา (กฎความปลอดภัย) แล้วบันทึกแบบแสดง
+      const set = (sel, v) => { const el = b.querySelector(sel); if (el) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); } };
+      set('.i-agemin', '0'); if (b.querySelector('.i-per')?.value === 'day') set('.i-capday', '3000'); else set('.i-cap', '1000'); }));
+    await p.click('#dfSubmit'); await p.waitForTimeout(500);
     const dd = await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ'));
     check('ยา: บันทึก 4 ข้อบ่งใช้ + หน่วย มก./มล.', dd?.indications?.length === 4 && dd.concs[0].mgPerMl === 10 && dd.mg_per_kg_min === 10, JSON.stringify(dd));
     check('ยา: บันทึกการแบ่งให้หลายแบบ (times = แบบที่ 1 · times_alt = แบบอื่น)', dd?.indications?.[3]?.times === 1 && JSON.stringify(dd.indications[3].times_alt) === '[3]' && !('times_alt' in dd.indications[0]), JSON.stringify(dd?.indications?.[3]));
@@ -1717,7 +1720,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await go(p, '#/admin/drugs/db'); await dbAll(p); await p.waitForTimeout(600);
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1200110')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
-      check('ยา รพ.สต.: กดแก้ไข → ฟอร์มแก้ไขขยายใต้ยานั้น', await p.$eval('#ldForm', (f, i) => f.parentElement.id === 'ldList' && !!f.previousElementSibling?.querySelector(`[data-ld-edit="${i}"]`), id)); await p.selectOption('#ldIngs .r-dose', String(await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id)));   // บันทึกแบบซ่อน (ข้อมูลทดสอบไม่ผ่านกฎ) → ป้าย "(ซ่อน)" ต่อท้าย await p.click('#ldSubmit'); await p.waitForTimeout(300);
+      check('ยา รพ.สต.: กดแก้ไข → ฟอร์มแก้ไขขยายใต้ยานั้น', await p.$eval('#ldForm', (f, i) => f.parentElement.id === 'ldList' && !!f.previousElementSibling?.querySelector(`[data-ld-edit="${i}"]`), id)); await p.selectOption('#ldIngs .r-dose', { label: 'ยาทดสอบ' }); await p.click('#ldSubmit'); await p.waitForTimeout(300);
       check('ยา รพ.สต.: ผูกกับข้อมูลคำนวณขนาดยาเอง (dose_id)', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.dose_id === await p.evaluate(() => window.__db.dose_drugs.find((d) => d.name === 'ยาทดสอบ')?.id)); }
     { const id = await p.evaluate(() => window.__db.local_drugs.find((x) => x.code === '1050060')?.id);
       await p.click(`[data-ld-edit="${id}"]`); await p.waitForTimeout(100);
