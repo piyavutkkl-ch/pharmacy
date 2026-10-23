@@ -758,9 +758,6 @@
           <div class="dg-iomenu dg-histmenu" id="dgHistMenu" hidden><div class="dg-histf"><select id="dgHistKind" class="input" aria-label="กรองตามฐานข้อมูล"><option value="">ทุกฐานข้อมูล</option></select><select id="dgHistExt" class="input" aria-label="กรองตามสกุลไฟล์"><option value="">ทุกสกุลไฟล์</option></select><select id="dgHistWhen" class="input" aria-label="ช่วงเวลา"><option value="">ทุกช่วงเวลา</option><option value="7">7 วันล่าสุด</option><option value="30">30 วันล่าสุด</option><option value="365">1 ปีล่าสุด</option></select></div><p class="small muted">เก็บเฉพาะรายละเอียดไฟล์ (ชื่อ · ชนิด · ผลนำเข้า) ไม่เก็บตัวไฟล์</p><div id="dgHistList" aria-live="polite"></div></div>
           <div id="dgBulkSlot" hidden></div>
           <div id="dgImpBox" class="dg-impbox card" hidden aria-live="polite"></div>
-          <div class="dg-bar">
-            <div class="dg-dbs" id="dgDbs" role="group" aria-label="ฐานข้อมูลที่แสดงในตาราง"></div>
-          </div>
           <div class="dg-tools">
             <input id="dgQ" class="input" type="search" maxlength="80" placeholder="ค้นชื่อยา หรือรหัส" aria-label="ค้นหายาในตาราง">
             <select id="dgScope" class="input" aria-label="บัญชียา"><option value="all">ยา รพ.สต. + ยานอก</option><option value="local">ยา รพ.สต.</option><option value="outside">ยานอก รพ.สต.</option></select>
@@ -775,6 +772,9 @@
             <div class="dg-ing-h"><b>สารสำคัญ · <span id="dgIngTitle"></span></b><span class="small muted">1 สาร = ยาเดี่ยว · 2 สารขึ้นไป = ยาสูตรผสม (ทุกสารหน่วยเดียวกัน)</span></div>
             <div id="dgIngRows"></div>
             <div class="row-btns"><button type="button" class="btn btn-o btn-sm" id="dgIngAdd">+ เพิ่มสารสำคัญ</button><span class="sp"></span><button type="button" class="btn btn-o btn-sm" id="dgIngCancel">ยกเลิก</button><button type="button" class="btn btn-p btn-sm" id="dgIngSave">บันทึก</button></div>
+          </div>
+          <div class="dg-bar" title="กดค้างแล้วลาก = สลับลำดับคอลัมน์">
+            <div class="dg-dbs" id="dgDbs" role="group" aria-label="ฐานข้อมูลที่แสดงในตาราง"></div>
           </div>
           <div id="dgTable" class="dg-table"><div class="skeleton"></div><div class="skeleton" style="width:70%;margin-top:10px"></div></div>
         </div>
