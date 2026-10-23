@@ -1,7 +1,7 @@
 // ผู้ดูแล › ข้อมูลยา › โปรไฟล์ยา (#/admin/drugs · หน้าแรกของข้อมูลยา · เจ้าของเว็บ 21 ต.ค.) — "ค้นหา → เลือกยา → จัดการจบในหน้าเดียว"
 //   ซ้าย = รายการยา (ค้น ชื่อ/สารสำคัญ/รหัส · จุดสี = สถานะ) + "พิมพ์ชื่อยาใหม่ → AI เตรียมให้ทั้งตัว" (สร้างยา + ดึงฉลาก openFDA + ให้ AI ร่างขนาดยาเป็นการ์ดรอตรวจ)
 //   กลาง = หัวยา (ชื่อ · รูปแบบ · ความแรง · คิดเป็น แก้ในที่) + วงกลมความคืบหน้า + แถบขั้นตอน + ปุ่ม "ถัดไป" (พาไปสิ่งที่ยังค้าง)
-//          แหล่งข้อมูล 5 ชิป (บัญชี รพ.สต. · MIMS · OpenFDA+DailyMed · บัญชียาหลัก · DDInter) กดชิป = ผูก/เปลี่ยนในที่ · คู่ที่ระบบเสนอกดเดียว
+//          แหล่งข้อมูล 5 ชิป (บัญชี รพ.สต. · บัญชียาหลัก · MIMS · OpenFDA+DailyMed · DDInter) กดชิป = ผูก/เปลี่ยนในที่ · คู่ที่ระบบเสนอกดเดียว
 //          การ์ดขนาดยา (ข้อบ่งใช้ละ 1 การ์ด) กรอกด้วยปุ่มรูป: กลุ่มอายุ · ตามน้ำหนัก/คงที่ · ต่อครั้ง/ต่อวัน · Min/Max · วันละกี่ครั้ง · เพดาน · ละเอียดเพิ่ม (ไต/หมายเหตุ/ที่มา)
 //          หน่วยตามต้นฉบับ (ไม่แปลงเอง) · แต่ละการ์ดทดสอบสูตร + กฎความปลอดภัยทันที: ผ่าน → "ตรวจตัวเลขกับฉลากแล้ว" · ไม่ผ่าน/เตือน → "ให้ AI ตรวจกับฉลาก" (87 · ฉลาก OpenFDA) หรือ "ให้ AI ค้นจากเว็บพร้อมลิงก์" (90)
 //   ขวา = ต้นฉบับข้างกัน (OpenFDA+DailyMed / MIMS · ไฮไลต์ข้อความที่การ์ดอ้าง · เลือกข้อความ = ใช้เป็นที่มา/สร้างการ์ด) + ผลคำนวณสด (สูตรเดียวกับหน้าคำนวณ)
@@ -23,7 +23,7 @@ import { parseMimsText, headTh } from './mims-text.js?v=4.4';
 import { trashDrug } from './drug-trash.js?v=4.4';
 import { mimsPreviewHtml, saveMimsText } from './admin-mims.js?v=4.4';
 
-const SRCS = [['rpst', 'บัญชี รพ.สต.', 'list'], ['mims', 'MIMS', 'doc'], ['fda', 'OpenFDA+DailyMed', 'flask'], ['nlem', 'บัญชียาหลัก', 'book'], ['ddi', 'DDInter', 'swap']];
+const SRCS = [['rpst', 'บัญชี รพ.สต.', 'list'], ['nlem', 'บัญชียาหลัก', 'book'], ['mims', 'MIMS', 'doc'], ['fda', 'OpenFDA+DailyMed', 'flask'], ['ddi', 'DDInter', 'swap']];
 const SRCN = Object.fromEntries(SRCS.map(([k, t]) => [k, t]));
 const AGES = [['inf', 'ทารก', '< 2 ปี', 0, 2, 'baby'], ['kid', 'เด็ก', '2–12 ปี', 2, 12, 'kid'], ['adt', 'ผู้ใหญ่', '≥ 12 ปี', 12, null, 'adult']];
 const TIMES = [1, 2, 3, 4, 6];
@@ -38,7 +38,7 @@ const rg = (a, b) => (n2(a) === n2(b) ? `${n2(a)}` : `${n2(a)}–${n2(b)}`);
 const norm = (x) => String(x || '').trim().replace(/\s+/g, ' ').toUpperCase();
 const idv = (v) => (/^\d+$/.test(String(v ?? '')) ? +v : v || null);
 
-let wantPart = null;   // ส่วนที่ต้องเปิดให้หลังเลือกยา (drug | rpst | mims | fda | nlem | ddi | dose | new)
+let wantPart = null;   // ส่วนที่ต้องเปิดให้หลังเลือกยา (drug | rpst | mims | fda | nlem | ddi | dose | new · link-<ฐาน> = ช่องผูก/ค้นหา)
 let dbEd = null, ddPairs = null, dmRes = null, hist = null;   // แก้ไขรายละเอียดแหล่งข้อมูลในแผง · คู่ยา DDInter ของยานี้ · ผล DailyMed · ประวัติแก้ไข
 let D = null, rows = [], sel = null, cards = [], focus = 0, wSel = null, pop = null, popQ = '', srcTab = null, filt = 'todo', dirty = false, prep = '', bound = false, edit = null, mimsParsed = null;
 
@@ -195,14 +195,13 @@ function headHtml(l, j) {
   const tasks = todo(l, j), done = [j.str, j.rpst, j.fda, j.nlem, j.ddi, j.dose].filter((x) => x.s === 'ok' || x.s === 'na').length;
   const C = 2 * Math.PI * 26, st = strengthOf(l), cats = [...new Set(D.locals.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
   const ings = (l.ingredients || []).filter((x) => +x.mg > 0);
-  const strT = ings.length > 1 ? ings.map((x) => `${x.name} ${n2(+x.mg)}`).join(' + ') + ` ${DC.PER[ings[0].per] || ''}` : st ? `${n2(st.mg)} ${DC.PER[st.per]}${l.strength ? '' : ' (อ่านจากชื่อ)'}` : 'ยังไม่มีความแรง';
+  const strT = ings.length > 1 ? ings.map((x) => `${x.name} ${n2(+x.mg)}`).join(' + ') + ` ${DC.PER[ings[0].per] || ''}` : st ? `${ings[0]?.name || genericKey(l.name)} ${n2(st.mg)} ${DC.PER[st.per]}`.trim() : 'ยังไม่มีความแรง';
   const sp = steps(l, j);
   return `<section class="card dw-head" id="dwHead"><div class="dw-h1">`
     + `<div class="dw-ring" title="ครบ ${done} จาก 6 ส่วน"><svg viewBox="0 0 62 62"><circle cx="31" cy="31" r="26" class="dw-ring-bg"/><circle cx="31" cy="31" r="26" class="dw-ring-fg" stroke-dasharray="${(C * done / 6).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 31 31)"/></svg><b>${done}/6</b></div>`
-    + `<div class="dw-ttl">${edit === 'name' ? `<div class="dw-inl"><input id="dwName" class="input" maxlength="200" value="${esc(l.name)}" aria-label="ชื่อยา"><button type="button" class="btn btn-p btn-sm" data-dw-hsave="name">บันทึก</button><button type="button" class="btn btn-o btn-sm" data-dw-hcancel>ยกเลิก</button></div>`
-      : `<h3><button type="button" class="dw-name" data-dw-hedit="name" title="แก้ชื่อยา">${esc(l.name)} <span class="dw-pen">✎</span></button></h3>`}`
+    + `<div class="dw-ttl"><h3>${esc(l.name)}</h3>`
     + `<div class="dw-chips">${codeTag(l)}<label class="dw-chip">${ic('pill')}<select id="dwCat" aria-label="รูปแบบยา">${cats.map((c) => `<option${c === l.category ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>`
-    + `<button type="button" class="dw-chip p${j.str.s === 'ok' ? '' : ' warn'}" data-dw-hedit="drug" title="แก้ข้อมูลยาแบบละเอียด (สารสำคัญ · ความแรง · บรรจุ · หมายเหตุ)">${esc(strT)}${st?.as ? ` · คิดเป็น ${esc(st.as.name)} ${n2(+st.as.mg)}` : ''} <span class="dw-pen">✎</span></button>`
+    + `<button type="button" class="dw-chip p${j.str.s === 'ok' ? '' : ' warn'}" data-dw-hedit="drug" title="แก้ชื่อยา สารสำคัญ ความแรง บรรจุ หมายเหตุ"><span data-dw-str>${esc(strT)}${st?.as ? ` · คิดเป็น ${esc(st.as.name)} ${n2(+st.as.mg)}` : ''}</span> <span class="dw-pen dw-penl">✎ แก้ไขชื่อยา · ความแรง</span></button>`
     + `${l.outside ? '<span class="dw-tag t-man">ยานอก รพ.สต.</span>' : ''}${l.active ? '' : '<span class="dw-tag t-man">ซ่อนจากหน้าหลัก</span>'}<button type="button" class="dw-chip" data-dw-hist aria-expanded="${!!hist}">${ic('clock')}ประวัติแก้ไข</button></div>`
     + `<div class="dw-acts"><button type="button" class="btn btn-o btn-sm" data-dw-hide title="${l.active ? 'ซ่อนจากประชาชน/เจ้าหน้าที่ (ข้อมูลยังอยู่ แสดงใหม่ได้)' : 'แสดงยานี้ที่หน้าหลัก/เครื่องคำนวณ'}">${l.active ? '🙈 ซ่อนยานี้' : '👁 แสดงยานี้'}</button>`
     + `<button type="button" class="btn btn-o btn-sm dw-deldrug" data-dw-deldrug title="ย้ายลงถังยาที่ลบ (เรียกคืนได้ 7 วัน)">${ic('trash')}ลบยานี้</button></div>`
@@ -243,7 +242,7 @@ function srcHtml(l, j) {
     return `<div class="dw-s s-${c}${pop === k ? ' open' : ''}${sg ? ' sg' : ''}" id="dwSrc-${k}"><button type="button" class="dw-s-b" data-dw-src="${k}" aria-expanded="${pop === k}"><span class="ic-w">${ic(i)}</span><b>${esc(t)}</b><span class="dw-s-t">${esc(tx)}</span></button>`
       + (sg?.strong ? `<button type="button" class="dw-mini" data-dw-sgok="${k}" data-target="${esc(sg.target)}">⚡ เสนอ ${sg.conf}% · ✓ ใช้</button>` : sg ? `<span class="dw-mini o">เสนอ ${sg.conf}% · กดดู</span>` : '') + '</div>';
   }).join('');
-  return `<section class="card dw-src" id="dwSrcs"><div class="dw-sh">${ic('link')}<b>แหล่งข้อมูล</b><span class="dw-tag t-ok">กดชิป = ผูก/เปลี่ยนในที่</span></div><div class="dw-srow">${chips}</div>${pop ? popHtml(l, j, pop) : ''}</section>`;
+  return `<section class="card dw-src" id="dwSrcs"><div class="dw-sh">${ic('link')}<b>แหล่งข้อมูล</b></div><div class="dw-srow">${chips}</div>${pop ? popHtml(l, j, pop) : ''}</section>`;
 }
 function candidates(l, k) {
   const q = popQ.trim().toLowerCase(), has = (t) => !q || t.toLowerCase().includes(q);
@@ -533,7 +532,7 @@ const checkHtml = (t, c, k) => `<div class="dw-chk" data-dw-chk="${k}"><p class=
 function cfHtml(l, t, c, k) {
   const f = fdaOf(l);
   return `<div class="dw-cf" data-dw-cf="${k}">${t.status === 'fail' ? '' : `<button type="button" class="btn btn-p btn-sm" data-dw-ok="${k}"${c.ok || !acked(t, c) ? ' disabled' : ''} title="${acked(t, c) ? '' : 'ติ๊กรับทราบข้อควรตรวจทุกข้อก่อน'}">${ic('tick')}${c.ok ? 'ตรวจแล้ว' : 'ตรวจตัวเลขกับฉลากแล้ว'}</button>`}`
-    + (t.status === 'pass' || c.ok ? '' : `<button type="button" class="btn ${t.status === 'fail' ? 'btn-p' : 'btn-o'} btn-sm" data-dw-fix="${k}"${f ? '' : ' disabled title="ยานี้ยังไม่ได้ผูกฉลาก OpenFDA+DailyMed"'}>${ic('spark')}ให้ AI ตรวจกับฉลาก</button>`
+    + (t.status === 'pass' || c.ok ? '' : `<button type="button" class="btn ${t.status === 'fail' ? 'btn-p' : 'btn-o'} btn-sm" data-dw-fix="${k}" title="${f ? 'ตรวจกับฉลาก OpenFDA+DailyMed ที่ผูกกับยานี้ (ไม่ส่งข้อความ MIMS ให้ AI)' : 'ยานี้ยังไม่ได้ผูกฉลาก OpenFDA+DailyMed'}"${f ? '' : ' disabled'}>${ic('spark')}ให้ AI ตรวจกับฐานข้อมูลในระบบ</button>`
       + `<button type="button" class="btn btn-o btn-sm" data-dw-web="${k}" title="AI ค้นจากแหล่งที่เชื่อถือได้บนเว็บ แล้วเสนอค่าพร้อมลิงก์ให้เปิดตรวจ">${ic('spark')}ให้ AI ค้นจากเว็บพร้อมลิงก์</button>`)
     + `<button type="button" class="btn btn-o btn-sm" data-dw-skip="${k}">ข้อถัดไป ›</button></div>`;
 }
@@ -553,7 +552,7 @@ function fixHtml(c, k) {
   if (r.none) return `<div class="dw-fix bad" data-dw-fixnone>AI: ${esc(r.why || 'ไม่พบข้อมูลพอให้แก้')} · ${web ? 'แก้เองจากเอกสารกำกับยา' : 'ลอง "ให้ AI ค้นจากเว็บพร้อมลิงก์" หรือแก้เองจากต้นฉบับ'}${links}</div>`;
   if (r.rejected || !r.ind) return `<div class="dw-fix bad" data-dw-fixbad>ค่าที่ AI เสนอตรวจไม่ผ่าน จึงไม่ใช้: ${esc(r.why || f.note || '')} · แก้เองจากต้นฉบับ${links}</div>`;
   const old = cleanInd(c.ind), nw = r.ind, diff = Object.keys(FLAB).filter((x) => JSON.stringify(old[x] ?? null) !== JSON.stringify(nw[x] ?? null) && x !== 'name');
-  return `<div class="dw-fix" data-dw-fixok data-mode="${web ? 'web' : 'label'}"><b>${ic('spark')}${web ? 'AI ค้นจากเว็บ เสนอค่า' : 'AI ตรวจกับฉลาก เสนอแก้'}</b>${r.why ? ` <span class="small">${esc(r.why)}</span>` : ''}<ul>${diff.map((x) => `<li>${esc(FLAB[x])}: <s>${esc(fmtv(old[x]))}</s> → <b>${esc(fmtv(nw[x]))}</b></li>`).join('') || '<li>ไม่มีค่าที่เปลี่ยน</li>'}</ul>`
+  return `<div class="dw-fix" data-dw-fixok data-mode="${web ? 'web' : 'label'}"><b>${ic('spark')}${web ? 'AI ค้นจากเว็บ เสนอค่า' : 'AI ตรวจกับฐานข้อมูลในระบบ เสนอแก้'}</b>${r.why ? ` <span class="small">${esc(r.why)}</span>` : ''}<ul>${diff.map((x) => `<li>${esc(FLAB[x])}: <s>${esc(fmtv(old[x]))}</s> → <b>${esc(fmtv(nw[x]))}</b></li>`).join('') || '<li>ไม่มีค่าที่เปลี่ยน</li>'}</ul>`
     + (r.left ? `<p class="small dc-warn" data-dw-fixleft>ยังขาด: ${esc(r.left)}${web ? '' : ' · ลอง "ให้ AI ค้นจากเว็บพร้อมลิงก์"'}</p>` : '') + links
     + `<div class="row-btns"><button type="button" class="btn btn-p btn-sm" data-dw-fixuse="${k}">ใช้ค่าที่ AI เสนอ</button><button type="button" class="btn btn-o btn-sm" data-dw-fixno="${k}">ไม่ใช้</button></div>`
     + `<p class="small muted">${web ? '<b>ค่าจากเว็บยังไม่ได้ตรวจเทียบต้นฉบับโดยระบบ</b> · เปิดลิงก์ด้านบนตรวจตัวเลขเองก่อน · ' : ''}ใช้แล้วยังต้องตรวจและกด "ตรวจตัวเลขกับฉลากแล้ว" เอง</p></div>`;
@@ -747,7 +746,7 @@ async function startFix(k, btn, mode = 'label') {
 /** ให้ AI ตรวจย้อนหลังยาที่อนุมัติแล้วตอนนี้ (91 dose_audit_now/poll) → ธงในการ์ด */
 async function auditNow(l, j, btn) {
   const d = j.dose.dose; if (!d) return;
-  busy(btn, true, 'AI กำลังตรวจกับฉลาก…');
+  busy(btn, true, 'AI กำลังตรวจกับฐานข้อมูลในระบบ…');
   try {
     const { data: id, error } = await sb.rpc('dose_audit_now', { p_dose: d.id }); if (error) throw error;
     for (let n = 0; n < 70; n++) {
@@ -896,10 +895,9 @@ async function onMain(e) {
   if ((b = B('[data-dw-next]'))) { const tk = todo(l, j); if (tk.length) goTo(tk[0].go); else nextDrug(); return; }
   if ((b = B('[data-dw-go]'))) { goTo(b.dataset.dwGo); return; }
   if ((b = B('[data-dw-goto]'))) { goTo(b.dataset.dwGoto); return; }
-  if ((b = B('[data-dw-hedit]'))) { edit = edit === b.dataset.dwHedit ? null : b.dataset.dwHedit; renderMain(); $('#dwName, #dwEdName')?.focus(); return; }
+  if ((b = B('[data-dw-hedit]'))) { edit = edit === b.dataset.dwHedit ? null : b.dataset.dwHedit; renderMain(); $('#dwEdName')?.focus({ preventScroll: true }); return; }
   if (B('[data-dw-hcancel]')) { edit = null; renderMain(); return; }
   if ((b = B('[data-dw-hsave]'))) {
-    if (b.dataset.dwHsave === 'name') { const n = $('#dwName').value.trim(); if (!n) { toast('กรุณาใส่ชื่อยา', 'err'); return; } edit = null; await saveLocal({ name: n }, 'บันทึกชื่อยาแล้ว'); return; }
     await saveDrug(); return;
   }
   if ((b = B('[data-dw-deldrug]'))) { await delDrug(l, b); return; }
@@ -1061,8 +1059,10 @@ function pending() {
 }
 /** เปิดส่วนที่ภาพรวม/ตารางขอไว้ (แก้ละเอียดทันที) */
 async function applyPart() {
-  const part = wantPart; wantPart = null;
+  let part = wantPart; wantPart = null;
   if (!part) return;
+  const linkOnly = part.startsWith('link-');   // link-nlem / link-fda = เปิดช่องผูก/ค้นหา (ไม่ใช่ตัวแก้เนื้อหา) · มาจากแผงยาในภาพรวม
+  if (linkOnly) part = part.slice(5);
   if (part === 'new') { $('#dwNew')?.focus(); $('#dwNew')?.scrollIntoView({ block: 'center' }); return; }
   const r = cur(); if (!r) return;
   if (part === 'drug') { edit = 'drug'; renderMain(); $('#dwHead')?.scrollIntoView({ block: 'start' }); $('#dwEdName')?.focus({ preventScroll: true }); return; }
@@ -1070,7 +1070,7 @@ async function applyPart() {
   if (SRCN[part]) {
     pop = part; popQ = '';
     const linked = part === 'rpst' ? r.l.code : part === 'mims' ? r.l.mims_id : part === 'fda' ? r.l.fda_key : part === 'nlem' ? (r.l.mono_refs || []).length : (r.l.ddi_ids || []).length;
-    dbEd = linked ? { k: part, key: null } : null;
+    dbEd = linked && !linkOnly ? { k: part, key: null } : null;
     if (dbEd?.k === 'ddi') await loadPairs(r.l);
     renderMain(); ($('#dwDbEd') || $('#dwPop'))?.scrollIntoView({ block: 'nearest' });
   }
@@ -1086,7 +1086,6 @@ function bind() {
   m.addEventListener('click', (e) => { onMain(e).catch((err) => toast(errText(err), 'err')); });
   m.addEventListener('input', onInput);
   m.addEventListener('change', (e) => { onChange(e).catch((err) => toast(errText(err), 'err')); });
-  m.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'dwName') { e.preventDefault(); m.querySelector('[data-dw-hsave="name"]')?.click(); } });
   m.addEventListener('toggle', (e) => { const d = e.target; if (d.classList?.contains('dw-more')) { const k = +d.closest('[data-card]')?.dataset.card; if (cards[k]) cards[k].open = d.open; } }, true);
   window.addEventListener('pcps:workback', async () => {
     if ($('#dcWork').hidden) return;

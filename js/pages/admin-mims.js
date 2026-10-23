@@ -170,6 +170,7 @@ async function runImport(btn) {
     await reloadDrugData();
     const p = pending; pending = null;
     $('#mmFile').value = ''; $('#mmImport').disabled = true; $('#mmPreview').innerHTML = '';
+    window.dispatchEvent(new CustomEvent('pcps:bulkimported', { detail: { kind: 'mims_json', ok: sum.rows, note: `ข้อมูล MIMS ${sum.rows} รายการ` } }));   // ประวัติการนำเข้า (หน้าตาราง)
     $('#mmResult').innerHTML = `<div class="mm-done" data-mims-done><div><b>นำเข้าแล้ว</b><div class="small">ข้อมูล MIMS ${sum.rows} รายการ · ผูกกับยา ${sum.links} ตัว · สร้างร่างขนาดยาใหม่ ${sum.made} รายการ · เติมข้อบ่งใช้ในร่างเดิม ${sum.filled} รายการ${sum.kept ? ` · ข้อมูลคำนวณที่อนุมัติแล้ว ${sum.kept} ยา ไม่แตะ` : ''}</div>`
       + `<div class="small">ร่างขนาดยายังซ่อนอยู่ · เภสัชกรตรวจกับหน้า MIMS แล้วกด "อนุมัติใช้คำนวณ" ในศูนย์ข้อมูลยา${p.unmatched.length ? ` · ชื่อที่ไม่ตรงกับยาในระบบ: ${esc(p.unmatched.join(', '))}` : ''}</div></div></div>`;
     toast('นำเข้าข้อมูล MIMS แล้ว');

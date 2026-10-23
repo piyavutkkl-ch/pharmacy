@@ -1277,15 +1277,15 @@ details[open] > summary::before{transform:rotate(90deg)}
 /* ตารางแก้ไขยา (drug-grid.js · Tabulator 6.3.1) — สีตาม token ใช้ได้ทั้งโหมดสว่าง/มืด */
 .dg{display:grid;gap:10px;min-width:0}
 .dg-bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
-.dg-mode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--surface)}
-.dg-seg{appearance:none;border:0;background:none;color:var(--ink);font:inherit;font-weight:600;font-size:13.5px;padding:0 14px;min-height:44px;cursor:pointer}
-.dg-seg[aria-pressed="true"]{background:var(--primary);color:var(--on-primary)}
 .dg-dbs{display:flex;flex-wrap:wrap;gap:6px}
 .dg-chip{appearance:none;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:13.5px;font-weight:600;padding:0 14px;min-height:44px;cursor:pointer}
 .dg-chip[aria-pressed="true"]{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
 .dg-chip[aria-pressed="true"]::before{content:"✓ "}
 .dg-chip-str{margin-right:6px}
-.dg-seg:focus-visible,.dg-chip:focus-visible,.dg-open:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.dg-drag{touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.dg-sorting .dg-drag{cursor:grabbing}
+.dg-drag.dragging{box-shadow:var(--shadow);transform:scale(1.06);border-style:dashed;opacity:.9}
+.dg-chip:focus-visible,.dg-open:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 .dg-tools{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center}
 .dg-tools #dgQ{flex:1 1 220px}.dg-tools #dgScope{flex:0 1 200px}
 .dg-chk{display:inline-flex;gap:6px;align-items:center;min-height:44px}
@@ -1486,7 +1486,7 @@ input[type=file]::file-selector-button:hover{border-color:var(--primary)}
 .dw-inl .input{min-width:0}
 /* หัวยา */
 .dw-head{padding:14px 16px;display:grid;gap:12px}
-.dw-h1{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.dw-h1{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
 .dw-ring{position:relative;width:62px;height:62px;flex:none}
 .dw-ring svg{width:62px;height:62px}
 .dw-ring-bg{fill:none;stroke:var(--sunken);stroke-width:7}
@@ -1494,8 +1494,8 @@ input[type=file]::file-selector-button:hover{border-color:var(--primary)}
 .dw-ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:15px}
 .dw-ttl{flex:1;min-width:220px;display:grid;gap:6px}
 .dw-ttl h3{margin:0;font-size:19px}
-.dw-name{border:0;background:none;padding:0;font-weight:700;font-size:inherit;color:var(--ink);text-align:left}
 .dw-pen{color:var(--faint);font-size:.85em;font-weight:400}
+.dw-pen.dw-penl{color:var(--primary);font-size:.9em;font-weight:600;margin-left:4px;padding-left:8px;border-left:1px solid var(--line)}
 .dw-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .dw-chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-weight:600;font-size:12.5px;background:var(--surface);color:var(--ink);min-height:32px}
 .dw-chip select{border:0;background:transparent;font:inherit;color:inherit;padding:2px 0;max-width:170px}
@@ -1522,6 +1522,23 @@ input[type=file]::file-selector-button:hover{border-color:var(--primary)}
 .dg-bulk > summary{cursor:pointer;min-height:40px;display:flex;align-items:center;gap:6px}
 .dg-io{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
 .dg-io .dc-tools-link{margin-left:auto}
+.dg-io [aria-expanded="true"]{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.dg-iomenu{display:flex;gap:6px 8px;flex-wrap:wrap;align-items:center;margin:0 0 8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.dg-iomenu[hidden]{display:none}
+.dg-catmenu,.dg-histmenu{display:grid;gap:8px}
+.dg-catmenu[hidden],.dg-histmenu[hidden]{display:none}
+.dg-catmenu p,.dg-histmenu p{margin:0}
+.dg-cat .nt-x{min-width:32px;min-height:32px}
+.dg-catedit{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+.dg-histf{display:flex;flex-wrap:wrap;gap:6px}
+.dg-histf .input{flex:1 1 150px;width:auto}
+.dg-hist{max-height:420px;overflow:auto}
+.dg-detect{margin:0 0 6px;padding:6px 10px;border-radius:10px;background:var(--primary-soft)}
+.dg-catto{width:auto;max-width:100%;min-height:36px}
+.dc-help-tb{width:100%;border-collapse:collapse}
+.dc-help-tb th,.dc-help-tb td{border-bottom:1px solid var(--line);padding:6px;text-align:left;vertical-align:top}
+.dg-cond{display:flex;flex-wrap:wrap;gap:0 16px;align-items:center;margin:4px 0}
+.dg-cond>b{flex:1 1 100%;margin-top:4px}
 .dg-imp{cursor:pointer}
 .dg-io .btn{white-space:normal;max-width:100%;text-align:center}
 .dg-impbox,.dg-bulk{min-width:0;overflow-wrap:anywhere}

@@ -745,29 +745,30 @@
             <aside class="dc-panel" id="dcPanel" aria-live="polite"><p class="empty">กดชื่อยาหรือช่องสถานะในตาราง เพื่อดูและแก้ข้อมูลยาตัวนั้น</p></aside>
           </div>
         </div>
-        <!-- ตารางแก้ไขยา (drug-grid.js · Tabulator): ยา 1 แถว · คลิกช่อง = แก้ · เลือกฐานข้อมูลที่แสดง (หลายฐานพร้อมกัน / ทีละฐาน) -->
+        <!-- ตารางแก้ไขยา (drug-grid.js · Tabulator): ยา 1 แถว · คลิกช่อง = แก้ · เลือกฐานข้อมูลที่แสดง (เลือกฐานเดียว = มีรายละเอียด · กดค้างลากสลับลำดับ) -->
         <div id="dcGrid" class="dg" hidden>
+          <!-- นำเข้า/ส่งออก (บนสุด · เจ้าของเว็บ 23 ต.ค.): "นำเข้าไฟล์" = เลือกไฟล์ทันที ระบบตรวจเองว่าเป็นฐานไหน (drug-grid.js detect) · ปุ่มอื่นกดแล้วจึงแสดงเมนู -->
+          <div class="dg-io" role="group" aria-label="นำเข้า/ส่งออกตารางยา">
+            <button type="button" class="btn btn-p btn-sm" id="dgImpBtn" title="Excel / CSV / PDF / JSON / ข้อความ · ระบบตรวจเองว่าเป็นข้อมูลฐานไหน (ดูวิธีใช้)">⬆ นำเข้าไฟล์</button><input type="file" id="dgImport" multiple accept=".xlsx,.xls,.csv,.json,.pdf,.txt,application/json,text/csv,application/pdf,text/plain" hidden>
+            <button type="button" class="btn btn-o btn-sm" data-dg-menu="exp" aria-expanded="false" aria-controls="dgExpMenu">ส่งออก</button><button type="button" class="btn btn-o btn-sm" data-dg-menu="cat" aria-expanded="false" aria-controls="dgCatMenu">หมวดยา <span id="dgCatN"></span></button><button type="button" class="btn btn-o btn-sm" data-dg-menu="hist" aria-expanded="false" aria-controls="dgHistMenu">ประวัติการนำเข้า</button>
+            <a class="dc-tools-link" href="#/admin/drugs/tools" id="dcToolsBtn" title="ฐานข้อมูลแบบเดิม: นำเข้าบัญชี/MIMS ทั้งไฟล์ · ดึง/แปลฉลากทั้งชุด · คู่ยา DDInter" aria-label="เครื่องมือฐานข้อมูล (แบบเดิม)">⋯<span class="dc-tl-x"> เครื่องมือฐานข้อมูล (แบบเดิม)</span></a>
+          </div>
+          <div class="dg-iomenu" id="dgExpMenu" hidden><span class="small muted">ส่งออกแถวที่แสดงอยู่เป็น:</span> <button type="button" class="btn btn-o btn-sm" data-dg-export="xlsx">Excel</button><button type="button" class="btn btn-o btn-sm" data-dg-export="csv">CSV</button><button type="button" class="btn btn-o btn-sm" data-dg-export="json">JSON</button></div>
+          <div class="dg-iomenu dg-catmenu" id="dgCatMenu" hidden><p class="small muted">✎ = แก้ชื่อ (ใส่ชื่อหมวดที่มีอยู่ = รวมกัน · ยาที่ใช้หมวดนั้นย้ายตาม) · × = ลบหมวดที่ไม่มียาใช้ · หมวดใหม่ในไฟล์ที่นำเข้า ระบบถามว่าจะรวมหรือแยกเอง</p><div class="dg-catlist" id="dgCatList"></div><div class="dw-inl"><input id="dgCatNew" class="input" maxlength="100" placeholder="ชื่อหมวดใหม่ เช่น ยาหยอดตา" aria-label="ชื่อหมวดใหม่"><button type="button" class="btn btn-o btn-sm" id="dgCatAdd">+ เพิ่มหมวด</button></div></div>
+          <div class="dg-iomenu dg-histmenu" id="dgHistMenu" hidden><div class="dg-histf"><select id="dgHistKind" class="input" aria-label="กรองตามฐานข้อมูล"><option value="">ทุกฐานข้อมูล</option></select><select id="dgHistExt" class="input" aria-label="กรองตามสกุลไฟล์"><option value="">ทุกสกุลไฟล์</option></select><select id="dgHistWhen" class="input" aria-label="ช่วงเวลา"><option value="">ทุกช่วงเวลา</option><option value="7">7 วันล่าสุด</option><option value="30">30 วันล่าสุด</option><option value="365">1 ปีล่าสุด</option></select></div><p class="small muted">เก็บเฉพาะรายละเอียดไฟล์ (ชื่อ · ชนิด · ผลนำเข้า) ไม่เก็บตัวไฟล์</p><div id="dgHistList" aria-live="polite"></div></div>
+          <div id="dgBulkSlot" hidden></div>
+          <div id="dgImpBox" class="dg-impbox card" hidden aria-live="polite"></div>
           <div class="dg-bar">
-            <div class="dg-mode" role="group" aria-label="วิธีแสดงฐานข้อมูล"><button type="button" class="dg-seg" data-dg-mode="multi">หลายฐานพร้อมกัน</button><button type="button" class="dg-seg" data-dg-mode="one">ทีละฐาน</button></div>
             <div class="dg-dbs" id="dgDbs" role="group" aria-label="ฐานข้อมูลที่แสดงในตาราง"></div>
           </div>
           <div class="dg-tools">
-            <a class="btn btn-p btn-sm" href="#/admin/drugs/work" id="dgAddBtn" data-dw-new>+ เพิ่มยา</a>
             <input id="dgQ" class="input" type="search" maxlength="80" placeholder="ค้นชื่อยา หรือรหัส" aria-label="ค้นหายาในตาราง">
             <select id="dgScope" class="input" aria-label="บัญชียา"><option value="all">ยา รพ.สต. + ยานอก</option><option value="local">ยา รพ.สต.</option><option value="outside">ยานอก รพ.สต.</option></select>
+          </div>
+          <div class="dg-cond" role="group" aria-labelledby="dgCondH"><b class="small" id="dgCondH">เงื่อนไขการแสดง</b>
             <label class="small dg-chk"><input type="checkbox" id="dgGap"> เฉพาะยาที่ยังขาด/รอตรวจ ในฐานที่แสดง</label>
             <label class="small dg-chk"><input type="checkbox" id="dgGroup" checked> จัดกลุ่มตามรูปแบบยา</label>
           </div>
-          <!-- นำเข้า/ส่งออก (drug-grid.js · เจ้าของเว็บ 21 ต.ค.): ส่งออกแถวที่แสดงอยู่เป็น Excel/CSV/JSON · นำเข้าไฟล์แบบเดียวกันเพื่อแก้หลายยาในครั้งเดียว (แสดงสิ่งที่จะเปลี่ยนก่อนบันทึก) -->
-          <div class="dg-io" role="group" aria-label="นำเข้า/ส่งออกตารางยา">
-            <span class="small muted">ส่งออกแถวที่แสดง:</span>
-            <button type="button" class="btn btn-o btn-sm" data-dg-export="xlsx">Excel</button><button type="button" class="btn btn-o btn-sm" data-dg-export="csv">CSV</button><button type="button" class="btn btn-o btn-sm" data-dg-export="json">JSON</button>
-            <label class="btn btn-p btn-sm dg-imp">✦ นำเข้าไฟล์ (Excel/CSV/PDF/JSON · AI ช่วยจับช่อง · PDF หน้า MIMS แยกหัวข้อเองไม่ใช้ AI · เลือกหลายไฟล์ได้)<input type="file" id="dgImport" multiple accept=".xlsx,.xls,.csv,.json,.pdf,.txt,application/json,text/csv,application/pdf,text/plain" hidden></label>
-            <a class="dc-tools-link" href="#/admin/drugs/tools" id="dcToolsBtn" title="ฐานข้อมูลแบบเดิม: นำเข้าบัญชี/MIMS ทั้งไฟล์ · ดึง/แปลฉลากทั้งชุด · คู่ยา DDInter" aria-label="เครื่องมือฐานข้อมูล (แบบเดิม)">⋯<span class="dc-tl-x"> เครื่องมือฐานข้อมูล (แบบเดิม)</span></a>
-          </div>
-          <div id="dgImpBox" class="dg-impbox card" hidden aria-live="polite"></div>
-          <details class="dg-bulk" id="dgCats"><summary class="small"><b>หมวดยา</b> <span id="dgCatN"></span> · เพิ่มหมวดเองก่อนนำเข้าไฟล์ที่มีหมวดใหม่</summary><div class="dg-catlist" id="dgCatList"></div><div class="dw-inl"><input id="dgCatNew" class="input" maxlength="100" placeholder="ชื่อหมวดใหม่ เช่น ยาหยอดตา" aria-label="ชื่อหมวดใหม่"><button type="button" class="btn btn-o btn-sm" id="dgCatAdd">+ เพิ่มหมวด</button></div></details>
-          <details class="dg-bulk" id="dgBulk"><summary class="small"><b>นำเข้าฐานข้อมูลทั้งไฟล์</b> · บัญชียา รพ.สต. (Excel/CSV) · MIMS (JSON)</summary><div id="dgBulkSlot"></div></details>
           <p class="small muted" id="dgHint">คลิกช่องเพื่อแก้ · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป · ช่องขนาดยา: กดแล้วไปการ์ดขนาดยาในหน้าโปรไฟล์ยา (ทดสอบสูตรก่อนอนุมัติ)</p>
           <p class="small muted" id="dgCount" aria-live="polite"></p>
           <div class="dg-ing card" id="dgIng" hidden role="group" aria-labelledby="dgIngTitle">
@@ -791,7 +792,7 @@
               <li><b>หัวยา</b> กดชื่อ/ความแรง/รูปแบบเพื่อแก้ในที่ · วงกลมบอกว่าครบกี่ส่วน · แถบ 5 ขั้น: ข้อมูลยา → แหล่งข้อมูล → ขนาดยา → ทดสอบสูตร → พร้อมใช้คำนวณ</li>
               <li><b>แหล่งข้อมูล</b> กดชิป (บัญชี รพ.สต. · MIMS · OpenFDA+DailyMed · บัญชียาหลัก · DDInter) เพื่อผูก/เปลี่ยน · MIMS: วางข้อความทั้งหน้า ระบบแยกหัวข้อให้เอง</li>
               <li><b>การ์ดขนาดยา</b> ข้อบ่งใช้ละ 1 การ์ด กดปุ่มรูป (กลุ่มอายุ · ตามน้ำหนัก/คงที่ · ต่อครั้ง/ต่อวัน · วันละกี่ครั้ง) แล้วกรอก Min / Max ตามหน่วยของต้นฉบับ · ต้นฉบับอยู่ข้างกัน ลากเลือกข้อความเพื่อใช้เป็นที่มา</li>
-              <li><b>ตรวจ</b> ทุกการ์ดทดสอบสูตรและกฎความปลอดภัยทันที (ต้องมีช่วงอายุ · เพดานต่อครั้ง/ต่อวัน · ต่อครั้ง/ต่อวันและจำนวนครั้งตรงฉลาก · เด็กห้ามเกินผู้ใหญ่): ผ่าน → กด "ตรวจตัวเลขกับฉลากแล้ว" · มีข้อควรตรวจ → ติ๊กรับทราบทีละข้อก่อน · ไม่ผ่าน → กด "ให้ AI ตรวจกับฉลาก" หรือ "ให้ AI ค้นจากเว็บพร้อมลิงก์" แล้วเปิดลิงก์ตรวจค่าที่ AI เสนอเอง (ไม่ส่งข้อความ MIMS)</li>
+              <li><b>ตรวจ</b> ทุกการ์ดทดสอบสูตรและกฎความปลอดภัยทันที (ต้องมีช่วงอายุ · เพดานต่อครั้ง/ต่อวัน · ต่อครั้ง/ต่อวันและจำนวนครั้งตรงฉลาก · เด็กห้ามเกินผู้ใหญ่): ผ่าน → กด "ตรวจตัวเลขกับฉลากแล้ว" · มีข้อควรตรวจ → ติ๊กรับทราบทีละข้อก่อน · ไม่ผ่าน → กด "ให้ AI ตรวจกับฐานข้อมูลในระบบ" (ฉลาก OpenFDA+DailyMed ที่ผูกไว้) หรือ "ให้ AI ค้นจากเว็บพร้อมลิงก์" แล้วเปิดลิงก์ตรวจค่าที่ AI เสนอเอง (ไม่ส่งข้อความ MIMS)</li>
               <li><b>ซ่อน/ลบ</b> ปุ่มที่หัวยา: "ซ่อนยานี้" = ประชาชน/เจ้าหน้าที่ไม่เห็น ข้อมูลยังอยู่ · "ลบยานี้" = ย้ายลงถัง เรียกคืนได้ 7 วัน</li>
               <li><b>อนุมัติใช้คำนวณ</b> ที่แถบล่าง (ได้เมื่อตรวจครบทุกข้อและทดสอบสูตรผ่าน) · ป้าย: AI สร้าง · กรอกเอง · ตรวจแล้ว · พร้อมคำนวณ</li>
             </ol>
@@ -817,11 +818,22 @@
             <ul class="small dc-rules">
               <li>แท็บ "ตารางแก้ไขยา": ยา 1 แถว · คลิกช่องแล้วแก้ได้เลย · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป</li>
               <li>ในแผงยา ปุ่ม "✎ แก้ข้อมูลยา" / "แก้ในตารางแก้ไขยา" พาไปที่แถวของยานั้นในตาราง (แทนฟอร์มยาเต็ม) · ยาสูตรผสมแก้สารสำคัญด้วยปุ่ม "แก้สารสำคัญ (ยาสูตรผสม)"</li>
-              <li><b>เลือกฐานข้อมูลที่แสดง</b>: "หลายฐานพร้อมกัน" กดเปิด/ปิดทีละฐาน · "ทีละฐาน" แสดงฐานเดียวพร้อมรายละเอียด เหตุผล และคู่ที่ระบบเสนอ (✓ ใช้ / ✗ ไม่ใช่) · ปุ่ม "① รายการยาบนเว็บ" ซ่อนช่องรหัส/รูปแบบ/ความแรงได้</li>
+              <li><b>เลือกฐานข้อมูลที่แสดง</b>: กดชิปเปิด/ปิดทีละฐาน · เลือกไว้ฐานเดียว = แสดงรายละเอียด เหตุผล และคู่ที่ระบบเสนอ (✓ ใช้ / ✗ ไม่ใช่) · กดค้างที่ชิปแล้วลาก = สลับลำดับคอลัมน์ (จำในเครื่องนี้ ไม่เปลี่ยนข้อมูล) · ปุ่ม "① รายการยาบนเว็บ" ซ่อนช่องรหัส/รูปแบบ/ความแรงได้</li>
               <li>ช่องผูกฐานข้อมูล: พิมพ์ค้นหาแล้วเลือก · คู่ที่ระบบเสนออยู่บนสุด (★) · บัญชียาหลัก/DDInter ผูกได้หลายรายการ เลือกตัวที่มี ✓ = เอาออก</li>
               <li>ช่อง "คิดเป็น" ต้องกรอกทั้งสารและ มก. ระบบจึงบันทึก (กรอกไม่ครบช่องจะมีแถบสีส้ม)</li>
               <li>ขนาดยาแก้ตัวเลขในตารางไม่ได้ (เพื่อความปลอดภัย) กดช่องขนาดยาแล้วไปตารางข้อบ่งใช้ในแผงยา ตรวจซ้ำก่อนอนุมัติ</li>
             </ul>
+          </div>
+          <div class="panel" id="dcHelpImport"><h2>นำเข้าไฟล์: ระบบตรวจเองว่าเป็นข้อมูลฐานไหน</h2>
+            <p class="small muted">หน้าตารางแก้ไขยา › ปุ่ม "⬆ นำเข้าไฟล์" → เลือกไฟล์ → ระบบตรวจตามลำดับนี้ แล้วแสดงสิ่งที่จะเปลี่ยนให้ตรวจก่อนกดบันทึกเสมอ</p>
+            <table class="small dc-help-tb"><thead><tr><th>ไฟล์แบบนี้</th><th>ระบบจัดเป็น</th><th>วิธีอ่าน</th></tr></thead><tbody>
+              <tr><td>PDF / ข้อความที่พิมพ์จากหน้า MIMS (มีหัวข้อเช่น Indications and Dosage · เลือกหลายไฟล์ได้)</td><td>MIMS (หน้าเว็บ/PDF)</td><td>แยกหัวข้อในเครื่อง · PDF ที่เป็นภาพ = OCR ในเครื่อง · ไม่ส่งให้ AI</td></tr>
+              <tr><td>.json จาก Claude in Chrome (รายการ drug + indications)</td><td>MIMS (JSON)</td><td>อ่านในเครื่อง ไม่ส่งให้ AI</td></tr>
+              <tr><td>ไฟล์ที่ส่งออกจากหน้านี้ (Excel/CSV ที่มีคอลัมน์ "รหัสในเว็บ" หรือ .json ของเว็บ)</td><td>รายการยาในเว็บแอพ</td><td>นำเข้าตรง ไม่ใช้ AI</td></tr>
+              <tr><td>Excel/CSV ที่มีคอลัมน์รหัสยา + ชื่อยา และรหัสส่วนใหญ่ (≥ 30%) ตรงกับบัญชียา รพ.สต. เดิม</td><td>บัญชียา รพ.สต.</td><td>อ่านในเครื่อง · รายการที่ไม่อยู่ในไฟล์ = ทำเครื่องหมาย ไม่ลบ · กด "ไม่ใช่ไฟล์นี้" เพื่อให้ AI วิเคราะห์แทน</td></tr>
+              <tr><td>ไฟล์อื่น (Excel/CSV/PDF/ข้อความ)</td><td>AI บอกว่าเป็น รายการยาในเว็บแอพ / บัญชียา รพ.สต. / บัญชียาหลัก / อื่น ๆ</td><td>Gemini ตัวฟรี · ตัดแถวที่ AI ใส่มาแต่ไม่มีในไฟล์ · ห้ามใช้ไฟล์ที่มีข้อมูลผู้ป่วย</td></tr>
+            </tbody></table>
+            <p class="small muted">หมวดใหม่ในไฟล์: ระบบบอกว่าคล้ายหมวดเดิมอันไหน ให้เลือก "รวมเข้า…" หรือ "แยกเป็นหมวดใหม่" · ปุ่ม "หมวดยา" แก้ชื่อ/รวม/ลบหมวดได้ · ปุ่ม "ประวัติการนำเข้า" ดูไฟล์ที่เคยนำเข้า กรองตามฐานข้อมูล สกุลไฟล์ และช่วงเวลา (เก็บเฉพาะรายละเอียดไฟล์ ไม่เก็บตัวไฟล์)</p>
           </div>
           <div class="panel"><h2>เพิ่มยาจากบัญชียา รพ.สต.</h2>
             <p class="small muted">⋯ เครื่องมือฐานข้อมูล › ฐานข้อมูลบัญชียา รพ.สต. → ปุ่ม "เพิ่มยาในบัญชีที่ยังไม่มีในเว็บแอพ" ดึงทุกรายการที่ยังไม่มีมาครั้งเดียว · หรือนำเข้าไฟล์บัญชี (Excel/CSV จากระบบโรงพยาบาล) แล้วติ๊ก "เพิ่มยาใหม่เป็นยาในเว็บแอพด้วย" ทำในขั้นตอนเดียว · ยานอก รพ.สต. เพิ่มด้วยปุ่ม "+ เพิ่มยา"</p>

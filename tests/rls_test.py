@@ -1445,5 +1445,16 @@ check("cleanup audit test", "admin", f"delete from local_drugs where name='AUD91
 check("cleanup audit dose", "admin", f"delete from dose_drugs where id={A91} returning id", rows(1))
 run("delete from drug_fda_labels where key='aud91|ORAL'")
 
+# ---------- 93: ประวัติการนำเข้าไฟล์ข้อมูลยา (เก็บรายละเอียดไฟล์ ไม่เก็บตัวไฟล์) ----------
+check("93: admin logs an import", "admin", "insert into drug_import_log(file_name,file_ext,file_size,kind,how,rows_ok,rows_bad) values ('บัญชี.xlsx','xlsx',1200,'rpst','auto',5,1) returning created_by::text", eq("00000000-0000-0000-0000-00000000000a"))
+check("93: admin reads import history", "admin", "select count(*) from drug_import_log where file_name='บัญชี.xlsx'", eq(1))
+check("93: cannot log in someone else's name", "admin", "insert into drug_import_log(file_name,kind,created_by) values ('x.csv','drugs','00000000-0000-0000-0000-000000000002')", "deny")
+check("93: unknown kind refused", "admin", "insert into drug_import_log(file_name,kind) values ('x.csv','patients')", "deny")
+check("93: history cannot be edited", "admin", "update drug_import_log set rows_ok=99 returning id", "deny")
+check("93: history cannot be deleted", "admin", "delete from drug_import_log returning id", "deny")
+check("93: staff cannot read import history", "s2", "select count(*) from drug_import_log", eq(0))
+check("93: staff cannot log imports", "s2", "insert into drug_import_log(file_name,kind) values ('x.csv','drugs')", "deny")
+check("93: anon cannot read import history", "anon", "select count(*) from drug_import_log", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

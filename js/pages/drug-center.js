@@ -14,7 +14,7 @@
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { strengthOf, comboName, keysOf, sameDrug, doseText, sameBasis } from './dose.js?v=4.4';
-import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel } from './admin-drugs.js?v=4.4';
+import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag } from './admin-drugs.js?v=4.4';
 import { indsProblem, indsOf, doseQuery, draftWord, indBox, readInds, syncIndBoxes, asMg, ageText } from './admin-settings.js?v=4.4';
 import { testDose, testHtml } from './dose-test.js?v=4.4';
 import { flagHides, FLAG_LEVEL } from './dose-rules.js?v=4.4';
@@ -303,7 +303,7 @@ function editorHtml(l, k) {
   if (k === 'nlem') {
     const names = [...new Set(edit.refs.map((r) => D.monos.find((m) => m.ref === r)?.name).filter(Boolean))];
     return `<div class="di-chips">${names.map((n) => { const m = D.monos.find((x) => x.name === n); return `<span class="chip c-role">${codeTag(m)}${esc(n)}<button type="button" class="nt-x" data-dc-unmono="${esc(n)}" aria-label="เลิกผูก ${esc(n)}">×</button></span>`; }).join('') || '<span class="small muted">ยังไม่ได้ผูก</span>'}</div>`
-      + `<input id="dcMonoQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหา" aria-label="ค้นหาข้อมูลยาในบัญชียาหลัก" value="${esc(edit.q || '')}"><div class="ld-pick" id="dcMonoOut">${monoPick(edit.q)}</div>` + foot();
+      + `<input id="dcMonoQ" class="input" type="search" placeholder="พิมพ์ชื่อยาภาษาอังกฤษเพื่อค้นหา" aria-label="ค้นหาข้อมูลยาในบัญชียาหลัก" value="${esc(edit.q || '')}"><div class="ld-pick" id="dcMonoOut">${monoPick(edit.q)}</div>` + foot(`<button type="button" class="btn btn-o btn-sm" data-dc-work="link-nlem">✎ แก้ไขผูกกับบัญชียาหลัก ›</button>`);
   }
   if (k === 'mims') {
     return `<select id="dcMims" class="input" aria-label="ข้อมูล MIMS"><option value="">— ไม่ผูก —</option>${(D.mims || []).map((m) => `<option value="${m.id}"${m.id === l.mims_id ? ' selected' : ''}>${esc(`${m.web_code ? m.web_code + ' · ' : ''}${m.name}`)}</option>`).join('')}</select>`
@@ -311,7 +311,7 @@ function editorHtml(l, k) {
   }
   if (k === 'fda') {
     return `<select id="dcFda" class="input" aria-label="ฉลาก openFDA"><option value="">— ไม่ผูก —</option>${D.fdas.map((f) => `<option value="${esc(f.key)}"${f.key === l.fda_key ? ' selected' : ''}>${esc(`${f.web_code ? f.web_code + ' · ' : ''}${f.title} · ${f.generic} (${f.route})`)}</option>`).join('')}</select>`
-      + foot(`<button type="button" class="btn btn-o btn-sm" data-dc-fetch>ดึงฉลากจาก openFDA และผูกเลย</button>`);
+      + foot(`<button type="button" class="btn btn-o btn-sm" data-dc-work="link-fda">🔍 ค้นหาฉลากยาสหรัฐฯ (DailyMed / openFDA) ›</button>`);
   }
   return `<div class="di-chips">${edit.ddi.map((i) => { const d = D.ddDrugs.find((x) => x.id === i); return `<span class="chip c-role">${codeTag(d)}${esc(d?.name || i)}<button type="button" class="nt-x" data-dc-unddi="${esc(i)}" aria-label="เอาออก">×</button></span>`; }).join('') || '<span class="small muted">ยังไม่ได้ผูก</span>'}</div>`
     + `<div class="dc-ed-row"><input id="dcDdiQ" class="input" list="ddiNames" maxlength="120" placeholder="ชื่อยาภาษาอังกฤษใน DDInter" aria-label="เพิ่มยาใน DDInter"><button type="button" class="btn btn-o btn-sm" data-dc-addddi>เพิ่ม</button></div>` + foot();
@@ -411,9 +411,9 @@ function doseHtml(l, j) {
   const ok = on.length && !indsProblem(on) && testDose({ ...(d || {}), indications: on }, [l]).status !== 'fail';
   const mine = d && [l.dose_id, ...(l.ingredients || []).map((g) => g.dose_id)].includes(d.id), live = mine && d.active && !d.ai_draft;   // ข้อมูลที่จับคู่ตามชื่อ = ต้องยืนยันก่อน
   return (d ? `<p class="small muted">ข้อมูลคำนวณ: ${esc((x.t || '').replace(/^DOSE-\S+\s/, ''))}</p>${sharedNote(d, l)}` : '<p class="small muted">ยังไม่มีข้อมูลคำนวณ · ติ๊กข้อบ่งใช้จากแหล่งข้อมูลด้านล่าง หรือเพิ่มเอง</p>')
-    + (rows.length ? `<ul class="dt-rows">${rows.map(rowHtml).join('')}</ul>` : '<p class="empty small">ยังไม่มีข้อบ่งใช้จากแหล่งข้อมูล · ผูก MIMS ในขั้นที่ 2 หรือเพิ่มเอง</p>')
+    + (rows.length ? `<ul class="dt-rows">${rows.map(rowHtml).join('')}</ul>` : '<p class="empty small">ยังไม่มีข้อบ่งใช้จากแหล่งข้อมูล · ผูก MIMS ในขั้นที่ 2 หรือเพิ่มที่หน้าโปรไฟล์ยา</p>')
     + (dt.editing === -1 ? `<div class="dt-ed" id="dtEd">${indBox({ per: 'dose' }, true)}<div class="dc-ed-foot"><button type="button" class="btn btn-p btn-sm" data-dt-apply>เพิ่มข้อนี้</button><button type="button" class="btn btn-o btn-sm" data-dt-cancel>ยกเลิก</button></div></div>`
-      : `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dt-add>+ เพิ่มข้อบ่งใช้เอง</button><button type="button" class="btn btn-o btn-sm" data-dc-work="dose">ให้ AI ร่าง / แก้ละเอียด (หน้าโปรไฟล์ยา) ›</button></div>`)
+      : `<div class="dc-ed-foot"><button type="button" class="btn btn-o btn-sm" data-dc-work="dose">ให้ AI ร่าง / แก้ละเอียด (หน้าโปรไฟล์ยา) ›</button></div>`)
     + check
     + `<div class="dc-ed-foot dt-act"><button type="button" class="btn btn-p btn-sm" data-dt-save="${live ? 'save' : 'approve'}"${ok ? '' : ' disabled'}>${live && l.active ? 'บันทึกการแก้ไข' : 'อนุมัติใช้คำนวณ'}</button>`
     + (live ? '' : `<button type="button" class="btn btn-o btn-sm" data-dt-save="draft"${on.length ? '' : ' disabled'}>บันทึกไว้ก่อน (ยังไม่ใช้คำนวณ)</button>`)
@@ -609,7 +609,6 @@ async function onPanel(e) {
   if (t.matches('[data-dt-on]')) { const row = dt.rows[+t.dataset.dtOn]; if (row) row.on = t.checked; renderPanel(); return; }
   if (B('[data-rmind]') && B('#dtEd')) { e.preventDefault(); if (dt.editing >= 0) dt.rows.splice(dt.editing, 1); dt.editing = null; renderPanel(); return; }
   if (B('[data-dt-edit]')) { dt.editing = +B('[data-dt-edit]').dataset.dtEdit; renderPanel(); syncIndBoxes($('#dtEd')); $('#dtEd')?.scrollIntoView({ block: 'nearest' }); return; }
-  if (B('[data-dt-add]')) { dt.editing = -1; renderPanel(); syncIndBoxes($('#dtEd')); $('#dtEd')?.scrollIntoView({ block: 'nearest' }); return; }
   if (B('[data-dt-cancel]')) { dt.editing = null; renderPanel(); return; }
   if (B('[data-dt-apply]')) {
     let ind; try { [ind] = readInds($('#dtEd')); } catch (err) { toast(err.message, 'err'); return; }
@@ -632,19 +631,6 @@ async function onPanel(e) {
     const k = B('[data-dc-na]').dataset.dcNa, cur = l.link_na || [];
     const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
     await save(l, { link_na: next }, cur.includes(k) ? `${KS[k]}: ต้องมีข้อมูลส่วนนี้` : `${KS[k]}: ไม่ใช้กับยานี้`, k); return;
-  }
-  if (B('[data-dc-fetch]')) {
-    const btn = B('[data-dc-fetch]'), g = doseQuery(String(l.name).replace(/\d.*$/, '')) || genericKey(l.name);
-    busy(btn, true, 'กำลังดึง…');
-    try {
-      const row = await fetchFdaLabel(g, routeOf(l) || 'ORAL');
-      if (!row?.sections?.length) { toast(`ไม่พบฉลาก "${g}" ใน openFDA · ลองค้น DailyMed ใน ⋯ เครื่องมือฐานข้อมูล › ฉลากยา`, 'err'); return; }
-      const { error } = await sb.from('drug_fda_labels').upsert({ ...row, fetched_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-      if (error) throw error;
-      await reloadDrugData(true);
-      await save(l, { fda_key: row.key }, `ดึงและผูกฉลาก "${row.title}" แล้ว`, 'fda');
-    } catch (err) { toast(errText(err), 'err'); } finally { busy(btn, false); }
-    return;
   }
   if (B('[data-dc-save]')) {
     const k = B('[data-dc-save]').dataset.dcSave, btn = B('[data-dc-save]'); let row = {};

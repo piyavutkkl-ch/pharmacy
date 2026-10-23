@@ -69,18 +69,20 @@ export async function readDrugFile(f) {
 }
 
 /** เทียบไฟล์กับข้อมูลเดิม → { upd: [{l, row, diff}], add: [row], bad: [ข้อความ], same } */
-export async function planDrugImport(items) {
-  const D = await drugData(), out = { upd: [], add: [], bad: [], same: 0 }, cats = new Set(await knownCats());
+export async function planDrugImport(items, catMap = {}) {
+  const D = await drugData(), out = { upd: [], add: [], bad: [], same: 0, newCats: new Map() }, catList = await knownCats(), cats = new Set(catList);
+  out.cats = catList;
   const byCode = new Map(D.locals.filter((l) => l.web_code).map((l) => [l.web_code, l])), byName = new Map(D.locals.map((l) => [l.name.trim().toUpperCase(), l]));
   const has = (v) => v != null && String(v).trim() !== '';
   items.slice(0, 2000).forEach((o, n) => {
     const line = `แถว ${n + 2}`;
+    if (has(o.category)) { const c0 = String(o.category).trim().slice(0, 100), c = catMap[c0] || c0; o = { ...o, category: c }; if (!cats.has(c)) { out.newCats.set(c, [...(out.newCats.get(c) || []), String(o.name || line)]); return; } }   // หมวดใหม่ = รอเลือกรวม/แยกก่อน
     const l = (has(o.web_code) && byCode.get(String(o.web_code).trim())) || (has(o.name) && byName.get(String(o.name).trim().toUpperCase())) || null;
     const row = {}, diff = [];
     const set = (k, v, label, oldV) => { if (JSON.stringify(v) !== JSON.stringify(oldV ?? null)) { row[k] = v; diff.push([label, oldV, v]); } };
     try {
       if (has(o.name)) set('name', String(o.name).trim().slice(0, 200), 'ชื่อยา', l?.name);
-      if (has(o.category)) { const c = String(o.category).trim().slice(0, 100); if (cats && !cats.has(c)) throw new Error(`หมวดใหม่ "${c}" · เพิ่มหมวดก่อนจึงนำเข้าได้`); set('category', c, 'รูปแบบ', l?.category); }
+      if (has(o.category)) set('category', String(o.category).trim().slice(0, 100), 'รูปแบบ', l?.category);
       for (const [k, lb, max] of [['pack_size', 'บรรจุ', 40], ['unit', 'หน่วยนับ', 40], ['note', 'หมายเหตุ', 500]]) if (has(o[k])) set(k, String(o[k]).trim().slice(0, max), lb, l?.[k]);
       if (has(o.active)) { if (!yes(o.active) && !no(o.active)) throw new Error('ช่อง "แสดง" ต้องเป็น ใช่/ไม่'); set('active', yes(o.active), 'แสดง', l?.active); }
       if (has(o.ingredients)) {
@@ -125,7 +127,7 @@ export async function planDrugImport(items) {
 const show = (v) => (v == null || v === '' ? '–' : Array.isArray(v) ? `${v.length} รายการ` : typeof v === 'object' ? (v.mg ? `${v.u === 'mcg' ? v.amt : v.mg} ${unitLabel(UNIT_OF(v))}${v.as ? ` คิดเป็น ${v.as.name} ${v.as.mg}` : ''}` : JSON.stringify(v)) : v === true ? 'ใช่' : v === false ? 'ไม่' : String(v));
 export function planHtml(p, file) {
   const n = p.upd.length + p.add.length;
-  return `<b>นำเข้า "${esc(file)}"</b><div class="dg-sum" data-dg-sum><span class="dc-ok">✓ นำเข้าได้ ${n} ยา (แก้ ${p.upd.length} · เพิ่มใหม่ ${p.add.length} ซ่อนไว้ก่อน)</span>${p.same ? `<span class="muted">ไม่เปลี่ยน ${p.same}</span>` : ''}${p.bad.length ? `<span class="dc-err">✗ นำเข้าไม่ได้ ${p.bad.length} แถว</span>` : ''}</div>`
+  return `<b>นำเข้า "${esc(file)}"</b>${p.ai ? '' : newCatHtml(p)}<div class="dg-sum" data-dg-sum><span class="dc-ok">✓ นำเข้าได้ ${n} ยา (แก้ ${p.upd.length} · เพิ่มใหม่ ${p.add.length} ซ่อนไว้ก่อน)</span>${p.same ? `<span class="muted">ไม่เปลี่ยน ${p.same}</span>` : ''}${p.bad.length ? `<span class="dc-err">✗ นำเข้าไม่ได้ ${p.bad.length} แถว</span>` : ''}</div>`
     + (p.bad.length ? `<details class="small dg-bad" data-dg-badlist${p.bad.length <= 10 ? ' open' : ''}><summary>แถวที่นำเข้าไม่ได้ + เหตุผล (${p.bad.length})</summary><ul>${p.bad.slice(0, 100).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${p.bad.length > 100 ? `<p class="muted">และอีก ${p.bad.length - 100} แถว</p>` : ''}</details>` : '')
     + (n ? `<div class="chg"><table><thead><tr><th>ยา</th><th>ช่อง</th><th>เดิม</th><th>ใหม่</th></tr></thead><tbody>${[...p.upd.map((x) => [x.l.name, x.diff]), ...p.add.map((x) => [`${x.row.name} (ใหม่)`, x.diff])].slice(0, 80)
       .map(([nm, diff]) => diff.map(([f, a, b2], i) => `<tr>${i ? '<td></td>' : `<td><b>${esc(nm)}</b></td>`}<td>${esc(f)}</td><td class="muted">${esc(show(a))}</td><td>${esc(show(b2))}</td></tr>`).join('')).join('')}</tbody></table></div>` : '<p class="small muted">ไม่มีอะไรต้องเปลี่ยน</p>')
@@ -253,15 +255,104 @@ export async function addCats(names) {
   extraCats = next;
 }
 
+/** หมวดเดิมที่คล้ายที่สุด (ไม่สนตัวพิมพ์/ช่องว่าง/เครื่องหมาย · คำซ้อนกัน หรือตัวอักษรคู่ซ้ำกันมาก) · ไม่คล้าย = '' */
+const normCat = (x) => String(x || '').toLowerCase().replace(/[\s\-_.,/()·]+/g, '');
+const pairs = (x) => { const a = []; for (let i = 0; i < x.length - 1; i++) a.push(x.slice(i, i + 2)); return a; };
+export function similarCat(c, cats) {
+  const a = normCat(c); if (!a) return '';
+  let best = '', score = 0;
+  for (const x of cats) {
+    const b = normCat(x); if (!b || x === c) continue;
+    let s = 0;
+    if (a === b) s = 1;
+    else if (a.length >= 2 && b.length >= 2 && (a.includes(b) || b.includes(a))) s = 0.85;
+    else { const pa = pairs(a), pb = pairs(b), left = [...pb]; let hit = 0; for (const p of pa) { const k = left.indexOf(p); if (k >= 0) { hit++; left.splice(k, 1); } } s = pa.length + pb.length ? (2 * hit) / (pa.length + pb.length) : 0; }
+    if (s > score) { score = s; best = x; }
+  }
+  return score >= 0.5 ? best : '';
+}
+/** กล่องหมวดใหม่ในไฟล์: แต่ละหมวด = คล้ายหมวดเดิมอันไหน + รวมเข้า / แยกเป็นหมวดใหม่ / รวมเข้าหมวดอื่น */
+export function newCatHtml(p) {
+  const nc = [...(p.newCats?.entries() || [])]; if (!nc.length) return '';
+  const cats = p.cats || [];
+  return `<div class="dg-newcat" data-dg-newcat><b class="small">⚠ ในไฟล์มีหมวดใหม่ ${nc.length} หมวด · เลือกว่าจะรวมกับหมวดเดิมหรือแยกเป็นหมวดใหม่ (แถวในหมวดนี้รอจนกว่าจะเลือก)</b>`
+    + nc.map(([c, ls]) => { const sim = similarCat(c, cats);
+      return `<div class="dg-nc" data-dg-nc="${esc(c)}"><span><b>${esc(c)}</b> <small class="muted">(${ls.length} รายการ: ${esc(ls.slice(0, 3).join(', '))}${ls.length > 3 ? ' …' : ''})</small>`
+        + `<br><small>${sim ? `คล้ายหมวดเดิม <b data-dg-sim>${esc(sim)}</b>` : 'ไม่พบหมวดเดิมที่คล้าย'}</small></span><div class="row-btns">`
+        + (sim ? `<button type="button" class="btn btn-p btn-sm" data-dg-catmerge="${esc(c)}" data-to="${esc(sim)}">รวมเข้า "${esc(sim)}"</button>` : '')
+        + `<button type="button" class="btn btn-o btn-sm" data-dg-addcat="${esc(c)}">แยกเป็นหมวดใหม่</button>`
+        + `<select class="input dg-catto" data-dg-catto="${esc(c)}" aria-label="รวม ${esc(c)} เข้าหมวดอื่น"><option value="">รวมเข้าหมวดอื่น…</option>${cats.map((x) => `<option>${esc(x)}</option>`).join('')}</select></div></div>`; }).join('')
+    + '</div>';
+}
+/** แก้ชื่อหมวด (ชื่อซ้ำหมวดเดิม = รวมกัน): รายการหมวด + ยาในเว็บแอพ + บัญชียา รพ.สต. ที่ใช้หมวดนั้น · หมวดของบัญชียาหลักไม่แก้ (บัญชีทางการ) */
+export async function renameCat(from, to) {
+  to = String(to || '').trim().slice(0, 100); from = String(from || '').trim();
+  if (!to || to === from) return 0;
+  const cur = await loadCats(), next = [...new Set(cur.map((x) => (x === from ? to : x)).concat(cur.includes(from) ? [] : [to]))];
+  const { error } = await sb.from('site_texts').upsert({ key: 'drug_categories', body: JSON.stringify(next), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  if (error) throw error;
+  extraCats = next;
+  const r1 = await sb.from('local_drugs').update({ category: to }).eq('category', from).select('id'); if (r1.error) throw r1.error;
+  const r2 = await sb.from('rpst_list').update({ category: to }).eq('category', from).select('id'); if (r2.error) throw r2.error;
+  await reloadDrugData(true);
+  return (r1.data || []).length + (r2.data || []).length;
+}
+/** หมวดที่ใช้อยู่: ยาในเว็บแอพ / บัญชี รพ.สต. / บัญชียาหลัก (นับรายการ) */
+export async function catUse(c) {
+  const D = await drugData();
+  return { app: D.locals.filter((l) => l.category === c).length, rpst: (D.rpst || []).filter((x) => x.category === c).length, nlem: D.monos.filter((m) => m.group_name === c).length };
+}
+/** ลบหมวด: ได้เมื่อไม่มีรายการใช้อยู่ (มีอยู่ = ให้แก้ชื่อเป็นหมวดอื่นเพื่อรวมแทน) */
+export async function deleteCat(c) {
+  const u = await catUse(c);
+  if (u.app || u.rpst) throw new Error(`มี ${u.app + u.rpst} รายการใช้หมวด "${c}" อยู่ · แก้ชื่อเป็นหมวดอื่นเพื่อรวมแทน`);
+  if (u.nlem) throw new Error(`หมวด "${c}" มาจากบัญชียาหลักแห่งชาติ ลบไม่ได้`);
+  const next = (await loadCats()).filter((x) => x !== c);
+  const { error } = await sb.from('site_texts').upsert({ key: 'drug_categories', body: JSON.stringify(next), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  if (error) throw error;
+  extraCats = next;
+}
+
+/* ---- ตรวจชนิดไฟล์เอง + ประวัติการนำเข้า (93 · เก็บรายละเอียดไฟล์ ไม่เก็บตัวไฟล์) ---- */
+export const extOf = (n) => (/\.([a-z0-9]{1,8})$/i.exec(String(n || ''))?.[1] || '').toLowerCase();
+/** ไฟล์ mims_doses.json (Claude in Chrome): รายการ { drug, ref: { url }, indications } */
+export function looksMimsJson(v) {
+  return Array.isArray(v) && v.length > 0 && v.slice(0, 20).some((x) => x && typeof x === 'object' && typeof x.drug === 'string' && (Array.isArray(x.indications) || /mims/i.test(String(x.ref?.url || x.ref?.label || ''))));
+}
+/** ตารางบัญชียา รพ.สต.: แถวหัวมีคอลัมน์รหัส + ชื่อ · มีบัญชีเดิม = รหัสในไฟล์ตรงกับบัญชีเดิม ≥ 30% (กันไฟล์อื่นทับบัญชี) */
+export async function rpstShape(rows, list) {
+  const head = rows.find((r) => r.some((c) => /รหัส|code/i.test(String(c))) && r.some((c) => /ชื่อ|name|รายการ/i.test(String(c))));
+  if (!head || !list?.length) return null;
+  const D = await drugData(), have = new Set((D.rpst || []).map((x) => x.code));
+  const hit = list.filter((x) => have.has(x.code)).length, overlap = list.length ? hit / list.length : 0;
+  if (have.size >= 5 && overlap < 0.3) return null;
+  return { n: list.length, hit, overlap };
+}
+export const KIND = { drugs: 'รายการยาในเว็บแอพ', rpst: 'บัญชียา รพ.สต.', nlem: 'บัญชียาหลักแห่งชาติ', mims: 'MIMS (หน้าเว็บ/PDF)', mims_json: 'MIMS (JSON)', other: 'อื่น ๆ' };
+export const HOW = { own: 'ไฟล์ที่ส่งออกจากเว็บนี้', auto: 'ระบบตรวจในเครื่อง', ai: 'AI วิเคราะห์', ocr: 'PDF ภาพ (OCR)', '': '' };
+/** บันทึกประวัติการนำเข้า (ไม่สำเร็จ = ไม่ขวางการนำเข้า) */
+export async function logImport(f, kind, how, ok = 0, bad = 0, note = '') {
+  try {
+    const { error } = await sb.from('drug_import_log').insert({ file_name: String(f?.name || f || 'ไฟล์').slice(0, 200), file_ext: extOf(f?.name || f), file_size: +f?.size || 0, kind, how, rows_ok: ok, rows_bad: bad, note: String(note || '').slice(0, 500) });
+    if (error) throw error;
+  } catch (err) { console.warn('drug_import_log', err); }
+}
+export async function loadImportLog() {
+  const { data, error } = await sb.from('drug_import_log').select('*').order('created_at', { ascending: false }).limit(300);
+  if (error) throw error;
+  return data || [];
+}
+
 /** ผล AI → แผนนำเข้า (ตามฐาน) · แถวที่หมวดใหม่ = newCats (ข้ามจนกว่าจะเพิ่มหมวด) */
-export async function planFromAi(res) {
-  const D = await drugData(), cats = new Set(await knownCats()), newCats = new Map();
+export async function planFromAi(res, catMap = {}) {
+  const D = await drugData(), catList = await knownCats(), cats = new Set(catList), newCats = new Map();
+  const mapC = (c) => (c == null ? c : catMap[String(c).trim()] || c);
   const catOk = (c, line) => { if (!c || cats.has(String(c).trim())) return true; const k = String(c).trim(); newCats.set(k, [...(newCats.get(k) || []), line]); return false; };
-  const plan = { target: res.target, why: res.why || '', dropped: res.dropped || 0, unmapped: res.unmapped || [], upd: [], add: [], bad: [], same: 0, newCats };
-  const rows = res.rows || [];
+  const plan = { target: res.target, why: res.why || '', dropped: res.dropped || 0, unmapped: res.unmapped || [], upd: [], add: [], bad: [], same: 0, newCats, cats: catList };
+  const rows = (res.rows || []).map((r) => ({ ...r, ...(r.category != null ? { category: mapC(r.category) } : {}), ...(r.group_name != null ? { group_name: mapC(r.group_name) } : {}) }));
   if (res.target === 'drugs') {
     const ok = rows.filter((r, n) => catOk(r.category, r.name || `แถว ${n + 1}`));
-    Object.assign(plan, await planDrugImport(ok.map((r) => ({ name: r.name, category: r.category, strength: r.strength, strength_unit: r.strength_unit, pack_size: r.pack_size, unit: r.unit, note: r.note, rpst_code: r.rpst_code }))), { target: 'drugs', newCats });
+    Object.assign(plan, await planDrugImport(ok.map((r) => ({ name: r.name, category: r.category, strength: r.strength, strength_unit: r.strength_unit, pack_size: r.pack_size, unit: r.unit, note: r.note, rpst_code: r.rpst_code }))), { target: 'drugs', newCats, cats: catList });
   } else if (res.target === 'rpst') {
     const byCode = new Map((D.rpst || []).map((x) => [x.code, x]));
     rows.forEach((r) => {
@@ -284,11 +375,10 @@ export async function planFromAi(res) {
 }
 const TARGET = { drugs: 'รายการยาในเว็บแอพ', rpst: 'บัญชียา รพ.สต.', nlem: 'บัญชียาหลักแห่งชาติ', other: 'ไม่ใช่ข้อมูลยาที่นำเข้าได้' };
 export function aiPlanHtml(p, file) {
-  const nc = [...p.newCats.entries()];
   return `<div class="dg-ai-h"><span class="dg-ai-ic" aria-hidden="true">✦</span><div><b>AI วิเคราะห์ "${esc(file)}"</b><p class="small">ข้อมูลนี้คือ <b>${esc(TARGET[p.target] || p.target)}</b>${p.why ? ` · ${esc(p.why)}` : ''}</p></div></div>`
     + (p.dropped ? `<p class="small dc-warn">ตัด ${p.dropped} แถวที่ AI ใส่มาแต่ไม่พบในไฟล์ (กันข้อมูลที่ AI แต่งเอง)</p>` : '')
     + (p.unmapped.length ? `<p class="small muted">ข้อมูลในไฟล์ที่ยังไม่มีช่องรองรับ: ${esc(p.unmapped.join(', '))}</p>` : '')
-    + (nc.length ? `<div class="dg-newcat"><b class="small">⚠ พบหมวดใหม่ ${nc.length} หมวด · แถวในหมวดนี้ยังไม่นำเข้า จนกว่าคุณจะเพิ่มหมวด</b>${nc.map(([c, ls]) => `<div class="dg-nc"><span><b>${esc(c)}</b> <small class="muted">(${ls.length} รายการ: ${esc(ls.slice(0, 3).join(', '))}${ls.length > 3 ? ' …' : ''})</small></span><button type="button" class="btn btn-o btn-sm" data-dg-addcat="${esc(c)}">+ เพิ่มหมวดนี้</button></div>`).join('')}</div>` : '')
+    + newCatHtml(p)
     + (p.target === 'other' ? '<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dg-impno>ปิด</button></div>' : planHtml(p, file).replace(/^<b>นำเข้า[^<]*<\/b>/, ''));
 }
 /** บันทึกแผนจาก AI ตามฐาน */

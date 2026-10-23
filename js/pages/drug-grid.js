@@ -1,22 +1,25 @@
 // ผู้ดูแล › ข้อมูลยา › ตารางแก้ไขยา (#/admin/drugs/grid) — แก้ข้อมูลยาแบบตาราง Excel/Notion (เจ้าของเว็บ 21 ต.ค.)
 //   ยา 1 แถว · คลิกช่อง = แก้ (Enter บันทึก · Esc ยกเลิก · Tab ช่องถัดไป) · บันทึกลง local_drugs ทันทีทีละช่อง (RLS ผู้ดูแล + ประวัติแก้ไขข้อมูลยา 79 เหมือนเดิม)
-//   เลือกฐานข้อมูลที่แสดง (#dgDbs): "หลายฐานพร้อมกัน" = ช่องผูกของแต่ละฐาน · "ทีละฐาน" = ฐานเดียว + รายละเอียด/เหตุผล/คู่ที่ระบบเสนอ (✓ ใช้ ✗ ไม่ใช่)
+//   เลือกฐานข้อมูลที่แสดง (#dgDbs · เปิด/ปิดทีละฐาน): หลายฐาน = ช่องผูกของแต่ละฐาน · เลือกฐานเดียว = + รายละเอียด/เหตุผล/คู่ที่ระบบเสนอ (✓ ใช้ ✗ ไม่ใช่)
+//   กดค้างที่ชิปแล้วลาก = สลับลำดับคอลัมน์ฐาน (st.order · จำในเครื่อง · คีย์บอร์ด Alt+←/→)
 //   ช่องผูกฐานข้อมูล = เมนูค้นหา (คู่ที่ระบบเสนออยู่บนสุด) · บัญชียาหลัก/DDInter ผูกได้หลายรายการ: เลือก = เพิ่ม · เลือกตัวที่ผูกอยู่ (✓) = เอาออก
 //   ขนาดยาไม่แก้ตัวเลขในตาราง: กดช่อง → แผงยาขั้นที่ 3 ในศูนย์ข้อมูลยา (ตรวจซ้ำด้วยทดสอบสูตรก่อนอนุมัติ)
 //   สถานะ/คู่ที่ระบบเสนอใช้ชุดเดียวกับศูนย์ข้อมูลยา (drug-center.js judgeAll/suggest) · ไลบรารี Tabulator 6.3.1 (MIT) จาก jsDelivr โหลดเมื่อเปิดหน้านี้
 import { sb } from '../supabase.js?v=4.4';
-import { $, $$, esc, toast, errText } from '../util.js?v=4.4';
+import { $, $$, esc, toast, errText, thaiDateTime } from '../util.js?v=4.4';
+import { readTable } from './delivery-report.js?v=4.4';
+import { parseList } from './admin-rpst.js?v=4.4';
 import { strengthOf, comboName } from './dose.js?v=4.4';
 import { reloadDrugData, drugData } from './admin-drugs.js?v=4.4';
 import { DC, centerRows, suggest, applyRow, basesOf, rejectPair } from './drug-center.js?v=4.4';
 import { trashDrug } from './drug-trash.js?v=4.4';
-import { exportDrugs, readDrugFile, planDrugImport, planHtml, applyDrugImport, fileText, fileTextInfo, isOwnFormat, aiAnalyze, planFromAi, aiPlanHtml, applyAiPlan, knownCats, addCats, looksMims, resultHtml, retryPlan } from './drug-io.js?v=4.4';
+import { exportDrugs, readDrugFile, planDrugImport, planHtml, applyDrugImport, fileText, fileTextInfo, isOwnFormat, aiAnalyze, planFromAi, aiPlanHtml, applyAiPlan, knownCats, addCats, looksMims, resultHtml, retryPlan, renameCat, deleteCat, catUse, looksMimsJson, rpstShape, logImport, loadImportLog, extOf, KIND, HOW } from './drug-io.js?v=4.4';
 import { parseMimsText, headTh } from './mims-text.js?v=4.4';
 import { saveMimsText } from './admin-mims.js?v=4.4';
 
 const TAB = 'https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist';
 const TAB_JS = `${TAB}/js/tabulator_esm.min.mjs`, TAB_CSS = `${TAB}/css/tabulator.min.css`;
-const DBS = ['rpst', 'mims', 'fda', 'nlem', 'ddi', 'dose'];
+const DBS = ['rpst', 'nlem', 'mims', 'fda', 'ddi', 'dose'];
 const DBN = { rpst: 'บัญชียา รพ.สต.', mims: 'MIMS', fda: 'ฉลากยาสหรัฐฯ', nlem: 'บัญชียาหลัก', ddi: 'DDInter', dose: 'ขนาดยา' };
 const MULTI = ['nlem', 'ddi'];   // ผูกได้หลายรายการ
 const KEY = 'pcps_drug_grid';   // จำวิธีแสดง/ฐานที่เลือก (เฉพาะเครื่องนี้)
@@ -26,10 +29,66 @@ let table = null, Tabulator = null, D = null, rows = [], bound = false, saving =
 let st = load();
 
 function load() {
-  try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); if (v && ['multi', 'one'].includes(v.mode) && Array.isArray(v.dbs)) return { mode: v.mode, dbs: v.dbs.filter((k) => DBS.includes(k)), str: v.str !== false }; } catch { /* ไม่เป็นไร */ }
-  return { mode: 'multi', dbs: [...DBS], str: true };
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (v && Array.isArray(v.dbs)) {
+      const order = Array.isArray(v.order) && v.order.length === DBS.length && DBS.every((k) => v.order.includes(k)) ? v.order : [...DBS];
+      return { dbs: v.dbs.filter((k) => DBS.includes(k)), str: v.str !== false, order };
+    }
+  } catch { /* ไม่เป็นไร */ }
+  return { dbs: [...DBS], str: true, order: [...DBS] };
 }
 function remember() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* ไม่เป็นไร */ } }
+
+/* ---------- ลากสลับลำดับฐาน (กดค้าง 0.35 วิ แล้วลาก · ใช้ได้ทั้งเมาส์และนิ้ว) ---------- */
+let dragged = false;
+function moveDb(k, to) {
+  const o = st.order.filter((x) => x !== k); o.splice(Math.max(0, Math.min(o.length, to)), 0, k);
+  if (o.join() === st.order.join()) return false;
+  st.order = o; applyCols(); return true;
+}
+function bindDrag() {
+  const box = $('#dgDbs');
+  let hold = null, drag = null, holdAt = [0, 0];
+  const stop = () => { clearTimeout(hold); hold = null; };
+  box.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('[data-dg-db]'); if (!b || e.button > 0) return;
+    stop();
+    const x0 = e.clientX, y0 = e.clientY; holdAt = [x0, y0];
+    hold = setTimeout(() => {
+      hold = null; drag = { k: b.dataset.dgDb, b, x0, y0 };
+      b.classList.add('dragging'); box.classList.add('dg-sorting');
+      try { b.setPointerCapture(e.pointerId); } catch { /* ไม่เป็นไร */ }
+      navigator.vibrate?.(15);
+    }, 350);
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (hold && !drag) { if (Math.hypot(e.clientX - holdAt[0], e.clientY - holdAt[1]) > 8) stop(); return; }   // ขยับก่อนครบเวลา = เลื่อนหน้า ไม่ใช่ลาก
+    if (!drag) return;
+    e.preventDefault();
+    const over = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('#dgDbs [data-dg-db]');
+    if (!over || over === drag.b) return;
+    const r = over.getBoundingClientRect(), after = e.clientX > r.left + r.width / 2;
+    over.parentNode.insertBefore(drag.b, after ? over.nextSibling : over);   // ย้ายชิปตามนิ้ว/เมาส์ทันที · คอลัมน์เปลี่ยนตอนปล่อย
+  });
+  const end = () => {
+    stop(); if (!drag) return;
+    const { k, b } = drag; drag = null; dragged = true;
+    b.classList.remove('dragging'); box.classList.remove('dg-sorting');
+    const order = [...box.querySelectorAll('[data-dg-db]')].map((x) => x.dataset.dgDb);
+    if (order.join() !== st.order.join()) { st.order = order; applyCols(); toast(`ย้าย "${DBN[k]}" แล้ว`); }
+    setTimeout(() => { dragged = false; }, 300);
+  };
+  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+  box.addEventListener('pointerleave', () => { if (!drag) stop(); });
+  box.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-dg-db]')) e.preventDefault(); });   // กดค้างบนมือถือไม่เปิดเมนู
+  box.addEventListener('keydown', (e) => {   // คีย์บอร์ด: Alt+←/→ ย้ายชิปที่โฟกัส
+    const b = e.target.closest('[data-dg-db]'); if (!b || !e.altKey || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    e.preventDefault();
+    const k = b.dataset.dgDb, i = st.order.indexOf(k);
+    if (moveDb(k, i + (e.key === 'ArrowLeft' ? -1 : 1))) $(`#dgDbs [data-dg-db="${k}"]`)?.focus();
+  });
+}
 
 /* ---------- ข้อมูลแถว ---------- */
 const combo = (l) => DC.isCombo(l) || !!comboName(l.name);
@@ -160,12 +219,13 @@ function columns() {
         formatter: (cell) => (cell.getValue() ? '<span class="dg-ok">✓ แสดง</span>' : mut('ซ่อน')) },
     ] }] : []),
   ];
-  const groups = st.dbs.map((k) => {
+  const one = st.dbs.length === 1;   // เลือกฐานเดียว = แสดงรายละเอียด/เหตุผล/คู่ที่ระบบเสนอด้วย
+  const groups = st.order.filter((k) => st.dbs.includes(k)).map((k) => {
     const link = k === 'dose'
-      ? { title: st.mode === 'one' ? 'ข้อมูลคำนวณ' : DBN[k], field: 'dose', minWidth: 170, maxWidth: 280, cssClass: 'dg-link dg-goto dg-wrap', headerSort: false, formatter: (cell) => cellHtml(cell.getRow().getData(), 'dose'), cellClick: (e, cell) => openPanel(cell.getRow().getData().id) }
-      : { title: st.mode === 'one' ? 'ผูกกับ' : DBN[k], field: k, minWidth: 170, maxWidth: 300, cssClass: 'dg-link dg-ed dg-wrap', headerSort: false, editor: 'list',
+      ? { title: one ? 'ข้อมูลคำนวณ' : DBN[k], field: 'dose', minWidth: 170, maxWidth: 280, cssClass: 'dg-link dg-goto dg-wrap', headerSort: false, formatter: (cell) => cellHtml(cell.getRow().getData(), 'dose'), cellClick: (e, cell) => openPanel(cell.getRow().getData().id) }
+      : { title: one ? 'ผูกกับ' : DBN[k], field: k, minWidth: 170, maxWidth: 300, cssClass: 'dg-link dg-ed dg-wrap', headerSort: false, editor: 'list',
         editorParams: (cell) => listParams(linkValues(cell.getRow().getData(), k)), formatter: (cell) => cellHtml(cell.getRow().getData(), k) };
-    if (st.mode === 'multi') return link;
+    if (!one) return link;
     const cols = [link, ...DETAIL[k].map(([w, t]) => ({ title: t, field: `_${k}_${w}`, minWidth: 90, maxWidth: 240, headerSort: false, cssClass: 'dg-wrap', formatter: (cell) => detailHtml(cell.getRow().getData(), k, w) })),
       { title: 'เหตุผล', field: `_${k}_why`, minWidth: 160, maxWidth: 300, headerSort: false, cssClass: 'dg-wrap', formatter: (cell) => detailHtml(cell.getRow().getData(), k, 'why') }];
     if (k !== 'dose') cols.push({ title: 'คู่ที่ระบบเสนอ', field: `_${k}_sug`, minWidth: 220, maxWidth: 340, headerSort: false, cssClass: 'dg-wrap', formatter: (cell) => detailHtml(cell.getRow().getData(), k, 'sug'), cellClick: (e, cell) => onSug(e, cell, k) });
@@ -176,7 +236,7 @@ function columns() {
   const del = { title: 'ลบ', field: '_del', width: 110, headerSort: false, hozAlign: 'center', cssClass: 'dg-delcell',   // ลบรายการยานี้ = ย้ายลงถัง 7 วัน (drug-trash.js)
     formatter: (cell) => `<button type="button" class="dg-del" data-dg-del aria-label="ลบรายการยา ${esc(cell.getRow().getData().name)}">ลบรายการยานี้</button>`,
     cellClick: async (e, cell) => { if (!e.target.closest('[data-dg-del]') || saving) return; if (await trashDrug(cell.getRow().getData().l)) await refresh(true); } };
-  return [...base, ...(st.mode === 'multi' && groups.length ? [{ title: '② แหล่งข้อมูล · ③ ขนาดยา', columns: groups }] : groups), tail, del];
+  return [...base, ...(!one && groups.length ? [{ title: '② แหล่งข้อมูล · ③ ขนาดยา', columns: groups }] : groups), tail, del];
 }
 
 /* ---------- บันทึก ---------- */
@@ -305,9 +365,8 @@ function count() {
   $('#dgCount').textContent = `แสดง ${n} จาก ${rows.length} ยา · ฐานที่แสดง: ${st.dbs.map((k) => DBN[k]).join(', ') || 'ไม่มี (เฉพาะข้อมูลยา)'}`;
 }
 function renderBar() {
-  $$('[data-dg-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dgMode === st.mode)));
-  $('#dgDbs').innerHTML = `<button type="button" class="dg-chip dg-chip-str" data-dg-str aria-pressed="${st.str}" title="รหัส · รูปแบบ · ความแรง · คิดเป็น">① รายการยาบนเว็บ</button>` + (st.mode === 'multi' ? `<button type="button" class="dg-chip" data-dg-all aria-pressed="${st.dbs.length === DBS.length}">ทั้งหมด</button>` : '')
-    + DBS.map((k) => `<button type="button" class="dg-chip" data-dg-db="${k}" aria-pressed="${st.dbs.includes(k)}">${DBN[k]}</button>`).join('');
+  $('#dgDbs').innerHTML = `<button type="button" class="dg-chip dg-chip-str" data-dg-str aria-pressed="${st.str}" title="รหัส · รูปแบบ · ความแรง · คิดเป็น">① รายการยาบนเว็บ</button>` + `<button type="button" class="dg-chip" data-dg-all aria-pressed="${st.dbs.length === DBS.length}">ทั้งหมด</button>`
+    + st.order.map((k) => `<button type="button" class="dg-chip dg-drag" data-dg-db="${k}" aria-pressed="${st.dbs.includes(k)}" title="กด = แสดง/ซ่อน · กดค้างแล้วลาก = สลับลำดับ (Alt+←/→)">${DBN[k]}</button>`).join('');
 }
 function applyCols() {
   renderBar(); remember();
@@ -317,18 +376,17 @@ function applyCols() {
 }
 function bind() {
   window.addEventListener('pcps:drugtrash', () => { if (table && !$('#dcGrid').hidden) refresh(true); });   // เรียกคืนจากถังยาที่ลบ
-  bound = true;
-  $$('[data-dg-mode]').forEach((b) => b.addEventListener('click', () => {
-    if (st.mode === b.dataset.dgMode) return;
-    st.mode = b.dataset.dgMode;
-    if (st.mode === 'one') st.dbs = [st.dbs[0] || 'rpst'];
-    applyCols();
+  $$('[data-dg-menu]').forEach((b) => b.addEventListener('click', () => {   // ปุ่มนำเข้า/ส่งออก: กดแล้วจึงแสดงเมนู (เปิดได้ทีละเมนู)
+    const open = b.getAttribute('aria-expanded') !== 'true';
+    $$('[data-dg-menu]').forEach((x) => { const on = x === b && open; x.setAttribute('aria-expanded', String(on)); $(`#${x.getAttribute('aria-controls')}`).hidden = !on; });
   }));
+  bound = true;
+  bindDrag();
   $('#dgDbs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-dg-db],[data-dg-all],[data-dg-str]'); if (!b) return;
+    if (dragged) { dragged = false; return; }   // เพิ่งลากเสร็จ ไม่นับเป็นการกด
     if (b.matches('[data-dg-str]')) st.str = !st.str;
     else if (b.matches('[data-dg-all]')) st.dbs = st.dbs.length === DBS.length ? [] : [...DBS];
-    else if (st.mode === 'one') st.dbs = [b.dataset.dgDb];
     else { const k = b.dataset.dgDb; st.dbs = st.dbs.includes(k) ? st.dbs.filter((x) => x !== k) : DBS.filter((x) => x === k || st.dbs.includes(x)); }
     applyCols();
   });
@@ -336,7 +394,7 @@ function bind() {
   $('#dgQ').addEventListener('input', re); $('#dgScope').addEventListener('change', re); $('#dgGap').addEventListener('change', re);
   // นำเข้า/ส่งออก (drug-io.js)
   $$('[data-dg-export]').forEach((b) => b.addEventListener('click', async () => { if (!table) return; try { await exportDrugs(table.getData('active'), b.dataset.dgExport); } catch (err) { toast(errText(err), 'err'); } }));
-  let plan = null, aiRes = null, aiFile = '', mimsList = null, lastRes = null, stage = '';   // mimsList = ไฟล์ MIMS ที่แยกหัวข้อแล้ว [{ file, p, err }] · lastRes = ผลบันทึกล่าสุด (ลองใหม่เฉพาะที่ไม่ได้) · stage = ขั้นที่กำลังทำ (บอกว่า error ตรงไหน)
+  let plan = null, aiRes = null, aiFile = '', mimsList = null, lastRes = null, stage = '', catMap = {}, ownItems = null, curFile = null, bulkKind = '', detectNote = '';   // mimsList = ไฟล์ MIMS ที่แยกหัวข้อแล้ว [{ file, p, err }] · lastRes = ผลบันทึกล่าสุด (ลองใหม่เฉพาะที่ไม่ได้) · stage = ขั้นที่กำลังทำ (บอกว่า error ตรงไหน)
   const box = () => $('#dgImpBox');
   const stepHtml = (on, msg) => `<div class="dg-steps">${[['📄', 'อ่านไฟล์'], ['✦', 'AI วิเคราะห์ว่าเป็นข้อมูลฐานไหน'], ['✓', 'ตรวจแล้วกดบันทึก']].map(([i, t], k) => `<span class="dg-step${k < on ? ' ok' : k === on ? ' now' : ''}"><b aria-hidden="true">${i}</b>${t}</span>`).join('')}</div>${msg ? `<p class="small muted">${esc(msg)}</p>` : '<div class="skeleton"></div>'}`;
   // ไฟล์ MIMS (PDF ที่พิมพ์หน้าเว็บ · หลายไฟล์ได้) → แยกหัวข้อในเครื่อง (ไม่ใช้ AI) → เลือกยาที่ผูก → บันทึกฐานข้อมูล MIMS
@@ -355,11 +413,37 @@ function bind() {
           : `<p class="small dc-err" data-dg-mims-empty>ไม่พบหัวข้อของหน้า MIMS ในไฟล์นี้ (เช่น "Indications and Dosage")${ocr ? ' จากตัวอักษรที่อ่านจากภาพ' : ''} · ไฟล์นี้จะไม่ถูกบันทึก</p>`) + '</div>').join('')
       + `<div class="row-btns"><button type="button" class="btn btn-p btn-sm" data-dg-mimssave${mimsList.some((x) => x.p?.sections.length) ? '' : ' disabled'}>${mimsList.some((x) => !x.p?.sections.length) ? 'ข้ามไฟล์ที่ไม่ได้ · ' : ''}บันทึกลงฐานข้อมูล MIMS (${mimsList.filter((x) => x.p?.sections.length).length} ไฟล์)</button><button type="button" class="btn btn-o btn-sm" data-dg-impno>ยกเลิก</button></div>`;
   };
-  const showAi = async () => { plan = await planFromAi(aiRes); plan.ai = true; box().innerHTML = stepHtml(2, '') .replace('<div class="skeleton"></div>', '') + aiPlanHtml(plan, aiFile); };
+  const showAi = async () => { plan = await planFromAi(aiRes, catMap); plan.ai = true; box().innerHTML = stepHtml(2, '') .replace('<div class="skeleton"></div>', '') + aiPlanHtml(plan, aiFile); };
+  // ระบบตรวจชนิดไฟล์เอง (เจ้าของเว็บ 23 ต.ค.): ไฟล์ส่งออกจากเว็บนี้ · MIMS JSON · ตารางบัญชียา รพ.สต. = ตรวจในเครื่อง · อื่น ๆ = AI · กล่องนำเข้าทั้งไฟล์เดิมใช้ภายใน (ซ่อนใน #dgBulkSlot)
+  const detectHtml = (what, why) => `<p class="small dg-detect" data-dg-detect><b>ระบบตรวจไฟล์ "${esc(curFile?.name || '')}":</b> ${esc(what)}${why ? ` · ${esc(why)}` : ''}</p>`;
+  const parkBulk = () => { for (const id of ['rlImportFold', 'mmImportFold']) { const el = document.getElementById(id); if (el && el.parentElement?.id !== 'dgBulkSlot') $('#dgBulkSlot').append(el); } };
+  const useBulk = (foldId, inputId, f, head, aiOk) => {
+    const el = document.getElementById(foldId), inp = document.getElementById(inputId);
+    if (!el || !inp) throw new Error('ส่วนนำเข้านี้ยังไม่พร้อม กรุณาเปิดหน้าใหม่');
+    box().innerHTML = head + '<div id="dgBulkHere"></div>' + `<div class="row-btns">${aiOk ? '<button type="button" class="btn btn-o btn-sm" data-dg-useai>ไม่ใช่ไฟล์นี้ · ให้ AI วิเคราะห์แทน</button>' : ''}<button type="button" class="btn btn-o btn-sm" data-dg-impno>ปิด</button></div>`;
+    $('#dgBulkHere').append(el); el.open = true;
+    const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; inp.dispatchEvent(new Event('change'));
+  };
+  const runAi = async (f, pre) => {
+    stage = 'อ่านไฟล์';
+    const text = pre?.text ?? await fileText(f);
+    if (text.replace(/\s/g, '').length < 10) throw new Error('ไม่พบข้อความในไฟล์ (PDF ที่เป็นภาพสแกนอ่านไม่ได้)');
+    stage = 'AI วิเคราะห์ไฟล์';
+    box().innerHTML = stepHtml(1, 'ระบบตรวจไฟล์ในเครื่องแล้วไม่ตรงรูปแบบที่รู้จัก · AI กำลังวิเคราะห์ว่าเป็นข้อมูลฐานไหน… (ไม่ส่งข้อมูล MIMS · ห้ามใช้ไฟล์ที่มีข้อมูลผู้ป่วย)');
+    aiRes = await aiAnalyze(f.name, text);
+    stage = 'จับคู่ข้อมูลกับฐานข้อมูล';
+    await showAi();
+  };
+  const rePlan = async () => {   // หลังเลือกรวม/แยกหมวดใหม่
+    if (plan?.ai) { await showAi(); return; }
+    if (ownItems) { plan = await planDrugImport(ownItems, catMap); box().innerHTML = detectNote + planHtml(plan, curFile.name); }
+  };
+  window.addEventListener('pcps:bulkimported', (e) => { if (curFile && bulkKind === e.detail?.kind) { logImport(curFile, bulkKind, 'auto', e.detail.ok || 0, 0, e.detail.note || ''); curFile = null; } });
+  $('#dgImpBtn').addEventListener('click', () => $('#dgImport').click());
   $('#dgImport').addEventListener('change', async (e) => {
     const files = [...e.target.files], f = files[0]; e.target.value = ''; if (!f) return;
     box().hidden = false; box().innerHTML = stepHtml(0, ''); box().scrollIntoView({ block: 'nearest' });
-    plan = null; aiRes = null; aiFile = f.name; mimsList = null;
+    plan = null; aiRes = null; aiFile = f.name; mimsList = null; parkBulk(); catMap = {}; ownItems = null; curFile = f; bulkKind = ''; detectNote = '';
     let pre = null;
     try {
       if (files.length > 1 || /\.pdf$/i.test(f.name) || /\.(txt|md)$/i.test(f.name)) {   // MIMS: หลายไฟล์ได้ · แยกหัวข้อในเครื่อง ไม่ใช้ AI
@@ -367,16 +451,16 @@ function bind() {
         const texts = [], list = files.slice(0, 20);   // อ่านทีละไฟล์ (PDF ที่เป็นภาพ = OCR ในเครื่อง ใช้เวลาหน้าละหลายวินาที)
         for (const [k, x] of list.entries()) {
           const msg = (i, n) => { box().innerHTML = stepHtml(0, `ไฟล์ "${x.name}" เป็นภาพ · กำลังอ่านตัวอักษรจากภาพ (OCR ในเครื่อง · ไม่ใช้ AI) หน้า ${i}/${n}${list.length > 1 ? ` · ไฟล์ ${k + 1}/${list.length}` : ''}…`); };
-          try { const r = await fileTextInfo(x, msg); texts.push({ file: x.name, text: r.text, ocr: r.ocr, err: r.text.replace(/\s/g, '').length < 20 ? (r.ocr ? 'PDF นี้เป็นภาพ และอ่านตัวอักษรจากภาพไม่ได้ (ภาพไม่ชัด/ไม่ใช่ภาษาอังกฤษ) · ลองคัดลอกข้อความจากหน้าเว็บมาวางแทน' : 'ไม่พบข้อความในไฟล์') : null }); }
+          try { const r = await fileTextInfo(x, msg); texts.push({ file: x.name, size: x.size, text: r.text, ocr: r.ocr, err: r.text.replace(/\s/g, '').length < 20 ? (r.ocr ? 'PDF นี้เป็นภาพ และอ่านตัวอักษรจากภาพไม่ได้ (ภาพไม่ชัด/ไม่ใช่ภาษาอังกฤษ) · ลองคัดลอกข้อความจากหน้าเว็บมาวางแทน' : 'ไม่พบข้อความในไฟล์') : null }); }
           catch (err) { texts.push({ file: x.name, err: `อ่านไฟล์ไม่ได้: ${errText(err)}` }); }
         }
         if (texts.some((x) => x.text != null && looksMims(x.text, x.file))) {   // มีไฟล์ MIMS = แยกหัวข้อไฟล์ MIMS · ไฟล์อื่น/อ่านไม่ได้ = แสดงว่าข้าม พร้อมเหตุผล
           stage = 'แยกหัวข้อ MIMS';
           await reloadDrugData(); D = await drugData();
-          mimsList = texts.map(({ file, text, err, ocr }) => {
+          mimsList = texts.map(({ file, size, text, err, ocr }) => {
             if (err) return { file, err };
             if (!looksMims(text, file)) return { file, err: 'ไม่ใช่ไฟล์หน้า MIMS (ไฟล์ชนิดอื่นนำเข้าทีละไฟล์)' };
-            try { const p = parseMimsText(text, file.replace(/\.[^.]+$/, '').split(/[_]/)[0]); return { file, p, ocr, sel: guessLocal(p)?.id ?? null }; } catch (e2) { return { file, err: `แยกหัวข้อไม่ได้: ${errText(e2)}` }; }
+            try { const p = parseMimsText(text, file.replace(/\.[^.]+$/, '').split(/[_]/)[0]); return { file, size, p, ocr, sel: guessLocal(p)?.id ?? null }; } catch (e2) { return { file, err: `แยกหัวข้อไม่ได้: ${errText(e2)}` }; }
           });
           showMims(); return;
         }
@@ -385,18 +469,28 @@ function bind() {
         pre = texts[0];   // อ่านแล้ว (รวม OCR) ไม่ต้องอ่านซ้ำ
       }
       stage = 'อ่านไฟล์';
-      if (await isOwnFormat(f)) { stage = 'ตรวจข้อมูลในไฟล์'; plan = await planDrugImport(await readDrugFile(f)); box().innerHTML = planHtml(plan, f.name); return; }   // ไฟล์ที่ส่งออกจากเว็บนี้ = นำเข้าตรง ไม่ใช้ AI
-      const text = pre?.text ?? await fileText(f);
-      if (text.replace(/\s/g, '').length < 10) throw new Error('ไม่พบข้อความในไฟล์ (PDF ที่เป็นภาพสแกนอ่านไม่ได้)');
-      stage = 'AI วิเคราะห์ไฟล์';
-      box().innerHTML = stepHtml(1, 'AI กำลังวิเคราะห์ไฟล์… (ไม่ส่งข้อมูล MIMS · ห้ามใช้ไฟล์ที่มีข้อมูลผู้ป่วย)');
-      aiRes = await aiAnalyze(f.name, text);
-      stage = 'จับคู่ข้อมูลกับฐานข้อมูล';
-      await showAi();
+      if (extOf(f.name) === 'json') {   // MIMS JSON ก่อน (ไฟล์ .json ของเว็บนี้ก็เป็น JSON)
+        let v = null; try { v = JSON.parse(await f.text()); } catch { /* ไม่ใช่ JSON ที่อ่านได้ */ }
+        if (looksMimsJson(v)) { bulkKind = 'mims_json'; useBulk('mmImportFold', 'mmFile', f, detectHtml(KIND.mims_json, 'ไฟล์ mims_doses.json จาก Claude in Chrome · อ่านในเครื่อง ไม่ส่งให้ AI'), false); return; }
+      }
+      if (await isOwnFormat(f)) {   // ไฟล์ที่ส่งออกจากเว็บนี้ = นำเข้าตรง ไม่ใช้ AI
+        stage = 'ตรวจข้อมูลในไฟล์'; ownItems = await readDrugFile(f); plan = await planDrugImport(ownItems, catMap);
+        detectNote = detectHtml(KIND.drugs, 'ไฟล์ที่ส่งออกจากเว็บนี้ (มีคอลัมน์รหัสในเว็บ) · นำเข้าตรง ไม่ใช้ AI'); box().innerHTML = detectNote + planHtml(plan, f.name); return;
+      }
+      stage = 'ตรวจชนิดไฟล์';
+      if (['xlsx', 'xls', 'csv'].includes(extOf(f.name))) {
+        const rows = await readTable(f), list = parseList(rows), sh = await rpstShape(rows, list);
+        if (sh) { bulkKind = 'rpst'; useBulk('rlImportFold', 'rlFile', f, detectHtml(KIND.rpst, `ตารางมีคอลัมน์รหัสยา + ชื่อ ${sh.n} รายการ${sh.hit ? ` · รหัสตรงกับบัญชีเดิม ${Math.round(sh.overlap * 100)}%` : ''} · อ่านในเครื่อง ไม่ใช้ AI`), true); return; }
+      }
+      await runAi(f, pre);
     } catch (err) { plan = null; box().innerHTML = `<p class="small dc-err" data-dg-imperr>นำเข้า "${esc(f.name)}" ไม่สำเร็จ · ขั้น<b>${esc(stage || 'อ่านไฟล์')}</b>: ${esc(errText(err))}</p><p class="small muted">ยังไม่มีข้อมูลใดถูกบันทึก</p><div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dg-impno>ปิด</button></div>`; }
   });
+  box().addEventListener('change', async (e) => {
+    const sel = e.target.closest('[data-dg-catto]'); if (!sel || !sel.value) return;
+    catMap[sel.dataset.dgCatto] = sel.value; toast(`รวมหมวด "${sel.dataset.dgCatto}" เข้า "${sel.value}" (เฉพาะไฟล์นี้)`); await rePlan();
+  });
   box().addEventListener('click', async (e) => {
-    if (e.target.closest('[data-dg-impno]')) { plan = null; aiRes = null; mimsList = null; box().hidden = true; return; }
+    if (e.target.closest('[data-dg-impno]')) { plan = null; aiRes = null; mimsList = null; parkBulk(); box().hidden = true; return; }
     const ms = e.target.closest('[data-dg-mimssave]');
     if (ms && mimsList) {
       ms.disabled = true; ms.textContent = 'กำลังบันทึก…';
@@ -408,6 +502,7 @@ function bind() {
         catch (err) { results.push({ name: x.file, ok: false, why: errText(err), item: x, kind: 'mims' }); }
       }
       lastRes = { kind: 'mims', results };
+      for (const x of results) logImport({ name: x.item.file, size: x.item.size || 0 }, 'mims', x.item.ocr ? 'ocr' : 'auto', x.ok ? 1 : 0, x.ok ? 0 : 1, x.ok ? x.item.p?.name || '' : x.why || '');
       box().innerHTML = resultHtml(`บันทึกไฟล์ MIMS · การ์ดข้อบ่งใช้ใหม่ ${cards} ข้อ (รอกรอกตัวเลขในหน้าโปรไฟล์ยา)`, results);
       if (results.every((x) => x.ok)) toast(`บันทึก MIMS แล้ว ${results.length} ไฟล์`);
       mimsList = null; await refresh(true); return;
@@ -422,19 +517,76 @@ function bind() {
       box().innerHTML = resultHtml(`ลองใหม่แล้ว · ได้เพิ่ม ${r.ok} · ยังไม่ได้ ${r.bad}`, merged);
       await refresh(true); return;
     }
+    if (e.target.closest('[data-dg-useai]') && curFile) {   // ระบบตรวจว่าเป็นบัญชี รพ.สต. แต่ผู้ดูแลบอกว่าไม่ใช่
+      parkBulk(); const f = curFile; bulkKind = '';
+      try { await runAi(f, null); } catch (err) { box().innerHTML = `<p class="small dc-err" data-dg-imperr>นำเข้า "${esc(f.name)}" ไม่สำเร็จ · ขั้น<b>${esc(stage)}</b>: ${esc(errText(err))}</p><div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dg-impno>ปิด</button></div>`; }
+      return;
+    }
+    const mg = e.target.closest('[data-dg-catmerge]');
+    if (mg) { catMap[mg.dataset.dgCatmerge] = mg.dataset.to; toast(`รวมหมวด "${mg.dataset.dgCatmerge}" เข้า "${mg.dataset.to}" (เฉพาะไฟล์นี้)`); await rePlan(); return; }
     const c = e.target.closest('[data-dg-addcat]');
-    if (c) { try { await addCats([c.dataset.dgAddcat]); toast(`เพิ่มหมวด "${c.dataset.dgAddcat}" แล้ว`); renderCats(); await showAi(); } catch (err) { toast(errText(err), 'err'); } return; }
+    if (c) { try { await addCats([c.dataset.dgAddcat]); toast(`เพิ่มหมวด "${c.dataset.dgAddcat}" แล้ว`); renderCats(); await rePlan(); } catch (err) { toast(errText(err), 'err'); } return; }
     const b = e.target.closest('[data-dg-impok]'); if (!b || !plan) return;
     const skipped = plan.bad.length, r = plan.ai ? await applyAiPlan(plan, b) : await applyDrugImport(plan, b);
+    if (curFile) logImport(curFile, plan.ai ? plan.target : 'drugs', plan.ai ? 'ai' : 'own', r.ok, r.bad + skipped);
     lastRes = { kind: 'plan', plan, results: r.results }; plan = null; aiRes = null;
     if (r.bad) box().innerHTML = resultHtml(`บันทึกแล้วบางส่วน${skipped ? ` (ข้ามแถวที่ข้อมูลไม่ถูกต้อง ${skipped} แถว)` : ''}`, r.results);   // ไม่ได้บางรายการ = แสดงรายการ + ลองใหม่/ข้าม
     else { toast(`นำเข้าแล้ว ${r.ok} รายการ${skipped ? ` · ข้าม ${skipped} แถวที่ไม่ได้` : ''}`); box().hidden = true; }
     await refresh(true); renderCats();
   });
-  // หมวดยา: เจ้าของเว็บเพิ่มเอง (นำเข้าไฟล์ที่มีหมวดใหม่ต้องเพิ่มหมวดก่อน)
-  const renderCats = async () => { const cs = await knownCats(); $('#dgCatN').textContent = `(${cs.length})`; $('#dgCatList').innerHTML = cs.map((x) => `<span class="chip c-role">${esc(x)}</span>`).join(''); };
-  $('#dgCats').addEventListener('toggle', () => { if ($('#dgCats').open) renderCats(); });
+  // หมวดยา (เจ้าของเว็บ 23 ต.ค.): เพิ่ม · แก้ชื่อ (ชื่อซ้ำหมวดเดิม = รวม) · ลบหมวดที่ไม่มียาใช้ · หมวดของบัญชียาหลักแก้/ลบไม่ได้
+  let catEdit = null;
+  const renderCats = async () => {
+    const cs = await knownCats(), D2 = await drugData(), own = new Set([...D2.locals.map((l) => l.category), ...(D2.rpst || []).map((x) => x.category)].filter(Boolean)), nl = new Set(D2.monos.map((m) => m.group_name));
+    $('#dgCatN').textContent = `(${cs.length})`;
+    $('#dgCatList').innerHTML = cs.map((x) => (catEdit === x
+      ? `<span class="dw-inl dg-catedit"><input id="dgCatRen" class="input" maxlength="100" value="${esc(x)}" aria-label="ชื่อใหม่ของหมวด ${esc(x)}" list="dgCatNames"><button type="button" class="btn btn-p btn-sm" data-dg-catsave="${esc(x)}">บันทึก</button><button type="button" class="btn btn-o btn-sm" data-dg-catcancel>ยกเลิก</button></span>`
+      : `<span class="chip c-role dg-cat" data-dg-cat="${esc(x)}">${esc(x)}${nl.has(x) && !own.has(x) ? ' <small class="muted">บัญชียาหลัก</small>' : `<button type="button" class="nt-x" data-dg-catren="${esc(x)}" aria-label="แก้ชื่อหมวด ${esc(x)}" title="แก้ชื่อ / รวมเข้าหมวดอื่น">✎</button><button type="button" class="nt-x" data-dg-catdel="${esc(x)}" aria-label="ลบหมวด ${esc(x)}" title="ลบหมวด (ได้เมื่อไม่มียาใช้)">×</button>`}</span>`)).join('')
+      + `<datalist id="dgCatNames">${cs.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
+    if (catEdit) $('#dgCatRen')?.focus();
+  };
+  $('#dgCatList').addEventListener('click', async (e) => {
+    const r = e.target.closest('[data-dg-catren]'); if (r) { catEdit = r.dataset.dgCatren; renderCats(); return; }
+    if (e.target.closest('[data-dg-catcancel]')) { catEdit = null; renderCats(); return; }
+    const sv = e.target.closest('[data-dg-catsave]');
+    if (sv) {
+      const from = sv.dataset.dgCatsave, to = $('#dgCatRen').value.trim();
+      if (!to) { $('#dgCatRen').focus(); return; }
+      if (to === from) { catEdit = null; renderCats(); return; }
+      const u = await catUse(from), merge = (await knownCats()).includes(to), n = u.app + u.rpst;
+      if (!confirm(`${merge ? `รวมหมวด "${from}" เข้า "${to}"` : `เปลี่ยนชื่อหมวด "${from}" เป็น "${to}"`}${n ? `\nยา ${n} รายการที่ใช้หมวดนี้จะย้ายตาม` : ''}`)) return;
+      sv.disabled = true;
+      try { const k = await renameCat(from, to); catEdit = null; toast(`${merge ? 'รวมหมวดแล้ว' : 'แก้ชื่อหมวดแล้ว'}${k ? ` · ย้ายยา ${k} รายการ` : ''}`); await renderCats(); await refresh(true); } catch (err) { toast(errText(err), 'err'); sv.disabled = false; }
+      return;
+    }
+    const d = e.target.closest('[data-dg-catdel]');
+    if (d) {
+      const c = d.dataset.dgCatdel;
+      if (!confirm(`ลบหมวด "${c}"?`)) return;
+      try { await deleteCat(c); toast(`ลบหมวด "${c}" แล้ว`); renderCats(); } catch (err) { toast(errText(err), 'err'); }
+    }
+  });
+  $('#dgCatList').addEventListener('keydown', (e) => { if (e.target.id !== 'dgCatRen') return; if (e.key === 'Enter') { e.preventDefault(); $('#dgCatList [data-dg-catsave]')?.click(); } if (e.key === 'Escape') { catEdit = null; renderCats(); } });
   $('#dgCatAdd').addEventListener('click', async () => { const v = $('#dgCatNew').value.trim(); if (!v) { $('#dgCatNew').focus(); return; } try { await addCats([v]); $('#dgCatNew').value = ''; toast(`เพิ่มหมวด "${v}" แล้ว`); renderCats(); } catch (err) { toast(errText(err), 'err'); } });
+  // ประวัติการนำเข้า (93): กรองตามฐานข้อมูล · สกุลไฟล์ · ช่วงเวลา
+  let hist = null;
+  const renderHist = async (reload) => {
+    if (!hist || reload) {
+      $('#dgHistList').innerHTML = '<div class="skeleton"></div>';
+      try { hist = await loadImportLog(); } catch (err) { $('#dgHistList').innerHTML = `<p class="small dc-err">โหลดประวัติไม่สำเร็จ: ${esc(errText(err))}</p>`; return; }
+      const keep = (id, opts, first) => { const v = $(id).value; $(id).innerHTML = `<option value="">${first}</option>` + opts.map(([k, t]) => `<option value="${esc(k)}"${k === v ? ' selected' : ''}>${esc(t)}</option>`).join(''); };
+      keep('#dgHistKind', [...new Set(hist.map((x) => x.kind))].map((k) => [k, KIND[k] || k]), 'ทุกฐานข้อมูล');
+      keep('#dgHistExt', [...new Set(hist.map((x) => x.file_ext).filter(Boolean))].sort().map((k) => [k, `.${k}`]), 'ทุกสกุลไฟล์');
+    }
+    const k = $('#dgHistKind').value, x = $('#dgHistExt').value, w = +$('#dgHistWhen').value, t0 = w ? Date.now() - w * 864e5 : 0;
+    const rows = hist.filter((h) => (!k || h.kind === k) && (!x || h.file_ext === x) && (!t0 || new Date(h.created_at).getTime() >= t0));
+    $('#dgHistList').innerHTML = rows.length
+      ? `<p class="small muted">${rows.length} ครั้ง</p><div class="chg dg-hist"><table><thead><tr><th>เมื่อ</th><th>ไฟล์</th><th>ฐานข้อมูล</th><th>วิธีตรวจ</th><th>ผล</th></tr></thead><tbody>${rows.map((h) => `<tr data-dg-hist="${h.id}"><td>${esc(thaiDateTime(h.created_at))}</td><td><b>${esc(h.file_name)}</b>${h.file_size ? ` <small class="muted">${Math.max(1, Math.round(h.file_size / 1024))} KB</small>` : ''}</td><td>${esc(KIND[h.kind] || h.kind)}</td><td>${esc(HOW[h.how] || h.how || '—')}</td><td><span class="dc-ok">✓ ${h.rows_ok}</span>${h.rows_bad ? ` <span class="dc-err">✗ ${h.rows_bad}</span>` : ''}${h.note ? `<br><small class="muted">${esc(h.note)}</small>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="empty small">ยังไม่มีประวัติการนำเข้า' + (k || x || w ? 'ตามที่กรอง' : '') + '</p>';
+  };
+  renderCats().catch(() => {});   // ตัวเลขจำนวนหมวดบนปุ่ม
+  ['#dgHistKind', '#dgHistExt', '#dgHistWhen'].forEach((id) => $(id).addEventListener('change', () => renderHist(false)));
+  $$('[data-dg-menu]').forEach((b) => b.addEventListener('click', () => { if (b.getAttribute('aria-expanded') !== 'true') return; if (b.dataset.dgMenu === 'cat') renderCats(); if (b.dataset.dgMenu === 'hist') renderHist(true); }));
   $('#dgIngAdd').addEventListener('click', () => { $('#dgIngRows').insertAdjacentHTML('beforeend', ingRow({ u: $('#dgIngRows .i-u')?.value.split('|')[0], per: $('#dgIngRows .i-u')?.value.split('|')[1] })); $('#dgIngRows .dg-ing-row:last-child .i-n').focus(); });
   $('#dgIngRows').addEventListener('click', (e) => { const b = e.target.closest('[data-ing-rm]'); if (!b) return; if ($$('#dgIngRows .dg-ing-row').length > 1) b.closest('.dg-ing-row').remove(); else b.closest('.dg-ing-row').querySelectorAll('input').forEach((x) => { x.value = ''; }); });
   $('#dgIngSave').addEventListener('click', (e) => saveIngs(e.currentTarget));
@@ -455,7 +607,7 @@ async function focusPending() {
   const row = id && table.getRow(DC.idv(id));
   if (!row) return;
   $('#dgQ').value = ''; $('#dgGap').checked = false; $('#dgScope').value = 'all';
-  if (DBS.includes(k)) { st = { ...st, mode: 'one', dbs: [k], str: true }; applyCols(); }
+  if (DBS.includes(k)) { st = { ...st, dbs: [k], str: true }; applyCols(); }
   else if (!st.str) { st.str = true; applyCols(); } else { table.refreshFilter(); count(); }
   const r = table.getRow(DC.idv(id));
   await r.scrollTo('center', false).catch(() => {});

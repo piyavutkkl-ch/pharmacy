@@ -146,6 +146,7 @@ async function runImport(btn) {
       const D2 = await drugData(), list = notInApp(D2);
       if (list.length) { const { error } = await sb.from('local_drugs').insert(list.map(asLocal)); if (error) throw error; pulled = list.length; await reloadDrugData(); }
     }
+    window.dispatchEvent(new CustomEvent('pcps:bulkimported', { detail: { kind: 'rpst', ok: add.length + chg.length, note: `ใหม่ ${add.length} · อัปเดต ${chg.length}${gone.length ? ` · ไม่อยู่ในไฟล์ ${gone.length}` : ''}` } }));   // ประวัติการนำเข้า (หน้าตาราง)
     toast(`นำเข้าแล้ว · ใหม่ ${add.length} · อัปเดต ${chg.length}${gone.length ? ` · ไม่อยู่ในไฟล์ ${gone.length}` : ''}${pulled ? ` · เพิ่มเป็นยาในเว็บแอพ ${pulled}` : ''}`);
     pending = null; $('#rlFile').value = ''; $('#rlPreview').innerHTML = ''; btn.disabled = true;
   } catch (err) { toast(errText(err), 'err'); } finally { busy(btn, false); }
