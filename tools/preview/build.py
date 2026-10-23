@@ -122,6 +122,17 @@ def main():
     for u in data["units"]:
         u["phone"] = "0xx-xxx-xxx" if u.get("phone") else None
         u["address"] = f"ที่อยู่สมมติ หน่วยที่ {u['id']}" if u.get("address") else None
+    # ตัวอย่างธง AI ตรวจย้อนหลัง (92 · หน้าตัวอย่างเท่านั้น · ข้อความสมมติ): ตัวเลขขัด 1 ยา + นอกฉลาก 1 ยา → เห็นปุ่มเภสัชกรตัดสิน
+    for d in data.get("dose_drugs", []):
+        inds = d.get("indications") or []
+        if not inds:
+            continue
+        if d["id"] == 3:
+            d["audit_flags"] = [{"name": inds[0]["name"], "level": "wrong", "at": "2026-10-22T18:00:00Z",
+                                 "why": "ตัวอย่าง: ฉลากระบุขนาดสูงสุดต่ำกว่าที่บันทึก (ข้อความสมมติ)", "quote": "sample label text (preview only)"}]
+        elif d["id"] == 1:
+            d["audit_flags"] = [{"name": inds[0]["name"], "level": "offlabel", "at": "2026-10-22T18:00:00Z",
+                                 "why": "ตัวอย่าง: ฉลากสหรัฐฯ ไม่ได้ระบุข้อบ่งใช้/กลุ่มอายุนี้ (ข้อความสมมติ)"}]
     (OUT / "fixtures.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
     shutil.copy(ROOT / "assets/app.css", OUT / "assets/app.css")

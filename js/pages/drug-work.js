@@ -982,7 +982,8 @@ async function onMain(e) {
       : `ตัดสินข้อ "${c.ind.name}" ว่า "${DECISION[v]}"?${v === 'conflict' ? '\nหน้าคำนวณจะหยุดแสดงตัวเลขข้อนี้จนแก้ตัวเลขแล้วอนุมัติใหม่' : flagHides(f) ? '\nตัวเลขข้อนี้จะกลับมาแสดงในหน้าคำนวณ' : ''}`;
     if (!confirm(msg)) return;
     busy(b, true, 'กำลังบันทึก…');
-    try { const { error } = await sb.rpc('dose_audit_decide', { p_dose: d.id, p_name: c.ind.name, p_decision: v }); if (error) throw error; toast(v ? `บันทึกการตัดสินแล้ว: ${DECISION[v]}` : 'ยกเลิกการตัดสินแล้ว'); await refresh(false); renderMain(); }
+    try { const { error } = await sb.rpc('dose_audit_decide', { p_dose: d.id, p_name: c.ind.name, p_decision: v }); if (error) throw error; toast(v ? `บันทึกการตัดสินแล้ว: ${DECISION[v]}` : 'ยกเลิกการตัดสินแล้ว'); await refresh(false); renderMain();
+      import('./admin.js?v=4.4').then((m) => m.refreshAdminBadges()).catch(() => {}); }   // ตัวเลขบนเมนูข้อมูลยา (ธงที่ยังต้องทำ)
     catch (err) { toast(errText(err), 'err'); } finally { busy(b, false); }
     return;
   }
