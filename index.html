@@ -689,8 +689,8 @@
 
       <!-- ข้อมูลยา: คำนวณขนาดยา + ฐานข้อมูลยา (เฉพาะผู้ดูแลแก้ไขได้) -->
       <div data-admin-view="drugs" hidden>
-        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="center">ภาพรวม</a><a class="tab-link" href="#/admin/drugs/work" data-sub="work">ทำงานทีละยา</a><a class="tab-link" href="#/admin/drugs/grid" data-sub="grid">ตารางแก้ไขยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a></nav>
-        <!-- ทำงานทีละยา (drug-work.js · หน้าแรกของข้อมูลยา): ค้นหา → เลือกยา → จัดการจบในหน้าเดียว (หัวยา · แหล่งข้อมูล · การ์ดขนาดยา · ต้นฉบับข้างกัน · ผลคำนวณสด) -->
+        <nav class="unit-tabs dc-tabs" id="dcTabs" aria-label="ข้อมูลยา"><a class="tab-link" href="#/admin/drugs" data-sub="center">ภาพรวม</a><a class="tab-link" href="#/admin/drugs/work" data-sub="work">โปรไฟล์ยา</a><a class="tab-link" href="#/admin/drugs/grid" data-sub="grid">ตารางแก้ไขยา</a><a class="tab-link" href="#/admin/drugs/help" data-sub="help">วิธีใช้</a></nav>
+        <!-- โปรไฟล์ยา (drug-work.js · หน้าแรกของข้อมูลยา): ค้นหา → เลือกยา → จัดการจบในหน้าเดียว (หัวยา · แหล่งข้อมูล · การ์ดขนาดยา · ต้นฉบับข้างกัน · ผลคำนวณสด) -->
         <div id="dcWork" class="dw" hidden>
           <svg class="dw-sprite" width="0" height="0" aria-hidden="true" focusable="false"><defs>
 <symbol id="dwi-pill" viewBox="0 0 24 24"><path d="M10.5 20.5 3.5 13.5a4.95 4.95 0 0 1 7-7l7 7a4.95 4.95 0 0 1-7 7z"/><path d="M8.5 8.5l7 7"/></symbol>
@@ -727,7 +727,7 @@
         </div>
         <!-- ศูนย์ข้อมูลยา (drug-center.js): สรุป → วงกลมรายส่วน → ตารางสถานะยา → แผงรายละเอียด/แก้ไขทีละส่วน + คู่ที่ระบบเสนอ -->
         <div id="dcCenter" class="dc">
-          <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/work" id="dcAddBtn" data-dw-new>+ เพิ่มยา</a><button type="button" class="btn btn-o btn-sm" id="dcCheckBtn">✓ ตรวจขนาดยาทุกตัว + ให้ AI เติมข้อมูลที่ขาด</button><span class="small muted">ดูว่ายาไหนขาดอะไร · ผูกจากฐานข้อมูลที่มีได้เลยในแผงด้านขวา · แก้ละเอียดกด "แก้ไขในหน้าทำงานทีละยา"</span></div>
+          <div class="dc-actions"><a class="btn btn-p btn-sm" href="#/admin/drugs/work" id="dcAddBtn" data-dw-new>+ เพิ่มยา</a><button type="button" class="btn btn-o btn-sm" id="dcCheckBtn">✓ ตรวจขนาดยาทุกตัว + ให้ AI เติมข้อมูลที่ขาด</button><span class="small muted">ดูว่ายาไหนขาดอะไร · ผูกจากฐานข้อมูลที่มีได้เลยในแผงด้านขวา · แก้ละเอียดกด "แก้ไขในหน้าโปรไฟล์ยา"</span></div>
           <section class="card dc-check dc-audit" id="dcAudit" hidden aria-live="polite"></section>
           <section class="card dc-check" id="dcCheck" hidden aria-live="polite"></section>
           <div class="dc-cards" id="dcCards" role="group" aria-label="กรองตามสถานะ"></div>
@@ -767,7 +767,7 @@
           <div id="dgImpBox" class="dg-impbox card" hidden aria-live="polite"></div>
           <details class="dg-bulk" id="dgCats"><summary class="small"><b>หมวดยา</b> <span id="dgCatN"></span> · เพิ่มหมวดเองก่อนนำเข้าไฟล์ที่มีหมวดใหม่</summary><div class="dg-catlist" id="dgCatList"></div><div class="dw-inl"><input id="dgCatNew" class="input" maxlength="100" placeholder="ชื่อหมวดใหม่ เช่น ยาหยอดตา" aria-label="ชื่อหมวดใหม่"><button type="button" class="btn btn-o btn-sm" id="dgCatAdd">+ เพิ่มหมวด</button></div></details>
           <details class="dg-bulk" id="dgBulk"><summary class="small"><b>นำเข้าฐานข้อมูลทั้งไฟล์</b> · บัญชียา รพ.สต. (Excel/CSV) · MIMS (JSON)</summary><div id="dgBulkSlot"></div></details>
-          <p class="small muted" id="dgHint">คลิกช่องเพื่อแก้ · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป · ช่องขนาดยา: กดแล้วไปการ์ดขนาดยาในหน้าทำงานทีละยา (ทดสอบสูตรก่อนอนุมัติ)</p>
+          <p class="small muted" id="dgHint">คลิกช่องเพื่อแก้ · Enter = บันทึก · Esc = ยกเลิก · Tab = ช่องถัดไป · ช่องขนาดยา: กดแล้วไปการ์ดขนาดยาในหน้าโปรไฟล์ยา (ทดสอบสูตรก่อนอนุมัติ)</p>
           <p class="small muted" id="dgCount" aria-live="polite"></p>
           <div class="dg-ing card" id="dgIng" hidden role="group" aria-labelledby="dgIngTitle">
             <div class="dg-ing-h"><b>สารสำคัญ · <span id="dgIngTitle"></span></b><span class="small muted">1 สาร = ยาเดี่ยว · 2 สารขึ้นไป = ยาสูตรผสม (ทุกสารหน่วยเดียวกัน)</span></div>
@@ -779,12 +779,12 @@
         <div id="dcHelp" class="dc-help" hidden>
           <div class="panel"><h2>3 หน้าหลักของข้อมูลยา</h2>
             <div class="dc-help-grid">
-              <div><b>① ภาพรวม (หน้าแรก)</b><p class="small">ดูว่ายาไหนขาดอะไร · ผูกจากฐานข้อมูลที่มีได้เร็วในแผงด้านขวา (✓ ใช้คู่ที่ระบบเสนอ) · ต้องแก้ละเอียด กด "แก้ไขละเอียดในหน้าทำงานทีละยา"</p></div>
-              <div><b>② ทำงานทีละยา</b><p class="small">แก้ทุกอย่างของยา 1 ตัวในหน้าเดียว: ข้อมูลยา · สารสำคัญ · แหล่งข้อมูลทุกฐาน (แก้เนื้อหาได้ + บอกยาที่ใช้ข้อมูลเดียวกัน) · ขนาดยา · ประวัติแก้ไข</p></div>
+              <div><b>① ภาพรวม (หน้าแรก)</b><p class="small">ดูว่ายาไหนขาดอะไร · ผูกจากฐานข้อมูลที่มีได้เร็วในแผงด้านขวา (✓ ใช้คู่ที่ระบบเสนอ) · ต้องแก้ละเอียด กด "แก้ไขละเอียดในหน้าโปรไฟล์ยา"</p></div>
+              <div><b>② โปรไฟล์ยา</b><p class="small">แก้ทุกอย่างของยา 1 ตัวในหน้าเดียว: ข้อมูลยา · สารสำคัญ · แหล่งข้อมูลทุกฐาน (แก้เนื้อหาได้ + บอกยาที่ใช้ข้อมูลเดียวกัน) · ขนาดยา · ประวัติแก้ไข</p></div>
               <div><b>③ ตารางแก้ไขยา</b><p class="small">ตารางฐานข้อมูลแบบ Excel แก้ในช่องได้ · ส่งออก Excel/CSV/JSON · นำเข้าไฟล์ (AI ช่วยจับช่อง · หมวดใหม่ต้องเพิ่มก่อน) · เครื่องมือแบบเดิมซ่อนอยู่ที่นี่</p></div>
             </div>
           </div>
-          <div class="panel"><h2>ทำงานทีละยา</h2>
+          <div class="panel"><h2>โปรไฟล์ยา</h2>
             <p class="muted">ค้นหา → เลือกยาจากรายการด้านซ้าย → ทำจบในหน้าเดียว ไม่ต้องสลับหน้า · ปุ่ม "ถัดไป" พาไปสิ่งที่ยังค้าง</p>
             <ol class="dc-steps-help">
               <li><b>หัวยา</b> กดชื่อ/ความแรง/รูปแบบเพื่อแก้ในที่ · วงกลมบอกว่าครบกี่ส่วน · แถบ 5 ขั้น: ข้อมูลยา → แหล่งข้อมูล → ขนาดยา → ทดสอบสูตร → พร้อมใช้คำนวณ</li>

@@ -37,7 +37,7 @@ export async function initDose() {
   bound = true;
   ['doseWeight', 'doseHeight', 'doseAge', 'doseCr'].forEach((id) => $('#' + id).addEventListener('input', render));
   ['doseConc', 'doseRenal', 'doseSex', 'doseRenalMethod', 'doseAgeUnit', 'doseCrUnit'].forEach((id) => $('#' + id).addEventListener('change', render));
-  $('#doseResult').addEventListener('click', (e) => {   // ผู้ดูแล: ข้อที่ไม่ผ่านกฎ → เปิดยานั้นในหน้าทำงานทีละยา (ส่วนขนาดยา)
+  $('#doseResult').addEventListener('click', (e) => {   // ผู้ดูแล: ข้อที่ไม่ผ่านกฎ → เปิดยานั้นในหน้าโปรไฟล์ยา (ส่วนขนาดยา)
     const a = e.target.closest('[data-dose-fixlink]'); if (!a?.dataset.doseFixlink) return;
     try { sessionStorage.setItem('pcps_work_focus', `${a.dataset.doseFixlink}:dose`); } catch { /* ไม่เป็นไร */ }
   });
@@ -295,18 +295,18 @@ function render() {
       const why = blocked.get(k) || [];
       return `<div class="alert" data-rule-block>${warnIcon}<div><b>ข้อมูลขนาดยาข้อนี้ยังไม่ผ่านเกณฑ์ความปลอดภัยของระบบ จึงไม่แสดงตัวเลข</b>`
         + `<div class="small">รอเภสัชกรตรวจและแก้ไขข้อมูล · ระหว่างนี้ใช้เอกสารกำกับยาและปรึกษาเภสัชกร</div>`
-        + (isAdmin() ? `<ul class="small">${why.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><a class="btn btn-o btn-sm" href="#/admin/drugs/work" data-dose-fixlink="${esc(curLocalId() ?? '')}">แก้ในหน้าทำงานทีละยา</a>` : '') + '</div></div>' + tail;
+        + (isAdmin() ? `<ul class="small">${why.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><a class="btn btn-o btn-sm" href="#/admin/drugs/work" data-dose-fixlink="${esc(curLocalId() ?? '')}">แก้ในหน้าโปรไฟล์ยา</a>` : '') + '</div></div>' + tail;
     }
     if (st === 'audit') {
       const f = flagOf(i);
       return `<div class="alert" data-audit-block>${warnIcon}<div><b>ระบบตรวจย้อนหลังพบตัวเลขข้อนี้ไม่ตรงกับฉลากยา จึงหยุดแสดงตัวเลขชั่วคราว</b>`
         + `<div class="small">รอเภสัชกรตรวจและแก้ไข · ระหว่างนี้ใช้เอกสารกำกับยาและปรึกษาเภสัชกร</div>`
-        + (isAdmin() ? `<div class="small">AI: ${esc(f.why || '')}${f.quote ? ` · ฉลาก: <span lang="en">“${esc(f.quote)}”</span>` : ''}</div><a class="btn btn-o btn-sm" href="#/admin/drugs/work" data-dose-fixlink="${esc(curLocalId() ?? '')}">ตรวจในหน้าทำงานทีละยา</a>` : '') + '</div></div>' + tail;
+        + (isAdmin() ? `<div class="small">AI: ${esc(f.why || '')}${f.quote ? ` · ฉลาก: <span lang="en">“${esc(f.quote)}”</span>` : ''}</div><a class="btn btn-o btn-sm" href="#/admin/drugs/work" data-dose-fixlink="${esc(curLocalId() ?? '')}">ตรวจในหน้าโปรไฟล์ยา</a>` : '') + '</div></div>' + tail;
     }
     if (st === 'need') return `<div class="alert" data-age-need>${warnIcon}<div><b>ข้อบ่งใช้นี้ใช้กับ${aTxt}</b><div class="small">กรอกอายุผู้ป่วยก่อน จึงจะแสดงขนาดยา (ใช้ตรวจว่าตรงช่วงอายุ)</div></div></div>` + tail;
     const fd = isAdmin() && flagOf(i)?.level === 'doubt' ? flagOf(i) : null;   // สงสัย = ยังแสดง · เตือนเฉพาะผู้ดูแล
     const agePre = (aTxt ? `<p class="small muted">ใช้กับ${aTxt}</p>` : '')
-      + (fd ? `<p class="small fx-warn" data-audit-doubt>AI ตรวจย้อนหลังสงสัยข้อนี้ (ผู้ดูแลเห็นเท่านั้น): ${esc(fd.why || '')} · ตรวจในหน้าทำงานทีละยา</p>` : '');
+      + (fd ? `<p class="small fx-warn" data-audit-doubt>AI ตรวจย้อนหลังสงสัยข้อนี้ (ผู้ดูแลเห็นเท่านั้น): ${esc(fd.why || '')} · ตรวจในหน้าโปรไฟล์ยา</p>` : '');
     if (i.per === 'day' && ts.length > 1) return agePre + ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + tail;
     return agePre + doseCore(i) + tail;
   };
@@ -388,7 +388,7 @@ function render() {
   const main = list.filter((x) => x.st !== 'out'), others = list.filter((x) => x.st === 'out');
   const none = age > 0 && !main.length;
   out.innerHTML = (age > 0 ? `<p class="small muted">ผู้ป่วยอายุ ${$('#doseAgeUnit').value === 'm' ? `${num(ag.months)} เดือน` : `${num(age)} ปี`} · น้ำหนัก ${num(w)} กก.${h > 0 ? ` · ส่วนสูง ${num(h)} ซม.` : ''}</p>` : '') + alert
-    + (isAdmin() && !d.approved_at ? '<div class="alert" data-unapproved>' + warnIcon + '<div><b>ข้อมูลขนาดยานี้ยังไม่ได้รับอนุมัติจากเภสัชกร</b><div class="small">ประชาชนและเจ้าหน้าที่ยังไม่เห็นยานี้ในเครื่องคำนวณ · ตรวจแล้วกด "อนุมัติใช้คำนวณ" ในหน้าทำงานทีละยา</div></div></div>' : '')
+    + (isAdmin() && !d.approved_at ? '<div class="alert" data-unapproved>' + warnIcon + '<div><b>ข้อมูลขนาดยานี้ยังไม่ได้รับอนุมัติจากเภสัชกร</b><div class="small">ประชาชนและเจ้าหน้าที่ยังไม่เห็นยานี้ในเครื่องคำนวณ · ตรวจแล้วกด "อนุมัติใช้คำนวณ" ในหน้าโปรไฟล์ยา</div></div></div>' : '')
     + (none ? `<div class="alert" data-age-none>${warnIcon}<div><b>ไม่มีข้อมูลขนาดยาของยานี้สำหรับผู้ป่วยอายุ ${ageWord(age)}</b><div class="small">ห้ามใช้ขนาดยาของช่วงอายุอื่นแทน · ตรวจเอกสารกำกับยาและปรึกษาเภสัชกร</div></div></div>` : '')
     + (main.length > SHOW_OPEN ? `<p class="small muted">ยานี้มี ${main.length} ข้อบ่งใช้ที่ตรงกับผู้ป่วย · แสดง ${SHOW_OPEN} ข้อแรก ที่เหลือกดเพื่อดูขนาดยา</p>` : '')
     + (c?.auto ? '<p class="small fx-warn" data-auto-match>ยา รพ.สต. ที่เลือกจับคู่กับข้อมูลขนาดยาจากชื่ออัตโนมัติ ผู้ดูแลยังไม่ได้ยืนยันว่าตรงรูปแบบ/ข้อบ่งใช้ · ตรวจก่อนใช้</p>' : '')

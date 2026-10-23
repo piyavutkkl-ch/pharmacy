@@ -1441,7 +1441,7 @@ input[type=file]::file-selector-button:hover{border-color:var(--primary)}
   .dc-tools-link{min-width:44px;justify-content:center;font-size:20px;border:1px solid var(--line);border-radius:999px}
 }
 
-/* ข้อมูลยา › ทำงานทีละยา (drug-work.js): ซ้าย = รายการยา · ขวา = หัวยา → แหล่งข้อมูล → การ์ดขนาดยา + ต้นฉบับ/ผลคำนวณ → แถบล่าง */
+/* ข้อมูลยา › โปรไฟล์ยา (drug-work.js): ซ้าย = รายการยา · ขวา = หัวยา → แหล่งข้อมูล → การ์ดขนาดยา + ต้นฉบับ/ผลคำนวณ → แถบล่าง */
 .dw{display:grid;grid-template-columns:230px minmax(0,1fr);gap:12px;align-items:start}
 .dw-sprite{position:absolute;width:0;height:0;overflow:hidden}
 .dw .card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
@@ -1632,7 +1632,7 @@ input[type=file]::file-selector-button:hover{border-color:var(--primary)}
 .dw-links{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .dw-links .chip{white-space:normal;overflow-wrap:anywhere;min-height:36px;text-decoration:none}
 .dw-ref{margin:0;overflow-wrap:anywhere}
-/* ตรวจยานี้ทั้งตัว (หน้าทำงานทีละยา) + ตรวจทุกตัว (ภาพรวม · dose-check.js) */
+/* ตรวจยานี้ทั้งตัว (หน้าโปรไฟล์ยา) + ตรวจทุกตัว (ภาพรวม · dose-check.js) */
 .dw-chkall{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
 .dw-chkall .btn{min-height:44px}
 .dc-check{display:grid;gap:10px}
@@ -1714,7 +1714,7 @@ input[type=file]::file-selector-button:hover{border-color:var(--primary)}
   .dw-x{width:44px}
   .dw-chip select,.dw .dc-na-t,.dw-deldrug,.dw-chipgo{min-height:44px}
 }
-/* หน้าทำงานทีละยา: ขยายความกว้างหน้าให้วางการ์ดขนาดยาคู่กับต้นฉบับได้ (เฉพาะตอนเปิดหน้านี้) */
+/* หน้าโปรไฟล์ยา: ขยายความกว้างหน้าให้วางการ์ดขนาดยาคู่กับต้นฉบับได้ (เฉพาะตอนเปิดหน้านี้) */
 body:has(section[data-view="admin"]:not([hidden]) [data-admin-view="drugs"]:not([hidden]) > #dcWork:not([hidden])) .wrap{max-width:1480px}
 
 /* ตาราง › นำเข้าไฟล์หน้า MIMS (แยกหัวข้อในเครื่อง ไม่ใช้ AI) */

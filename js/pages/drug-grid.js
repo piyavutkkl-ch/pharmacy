@@ -285,7 +285,7 @@ async function saveIngs(btn) {
   if (ok) closeIngs();
 }
 
-/** เปิดยานี้ในหน้าทำงานทีละยา (#/admin/drugs) · ขนาดยาแก้ที่การ์ดขนาดยาในหน้านั้น */
+/** เปิดยานี้ในหน้าโปรไฟล์ยา (#/admin/drugs) · ขนาดยาแก้ที่การ์ดขนาดยาในหน้านั้น */
 function openPanel(id) { try { sessionStorage.setItem('pcps_work_focus', String(id)); } catch { /* ไม่เป็นไร */ } location.hash = '#/admin/drugs/work'; }
 
 /* ---------- ตาราง ---------- */
@@ -345,7 +345,7 @@ function bind() {
   const guessLocal = (p) => { const k = nameKey(p.name)[0]; if (!k) return null; const ls = (D?.locals || []).filter((l) => nameKey(l.name).includes(k)); return ls.find((l) => !l.mims_id) || ls[0] || null; };
   const showMims = () => {
     const locals = [...(D?.locals || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    box().innerHTML = mimsStep(2) + `<p class="small muted">ไฟล์ข้อมูล MIMS ไม่ส่งให้ AI · ระบบแยกหัวข้อจากข้อความในไฟล์เอง · การ์ดข้อบ่งใช้รอเภสัชกรกรอกตัวเลขในหน้าทำงานทีละยา (ไม่เดาตัวเลข)</p>`
+    box().innerHTML = mimsStep(2) + `<p class="small muted">ไฟล์ข้อมูล MIMS ไม่ส่งให้ AI · ระบบแยกหัวข้อจากข้อความในไฟล์เอง · การ์ดข้อบ่งใช้รอเภสัชกรกรอกตัวเลขในหน้าโปรไฟล์ยา (ไม่เดาตัวเลข)</p>`
       + `<div class="dg-sum" data-dg-sum><span class="dc-ok">✓ ใช้ได้ ${mimsList.filter((x) => x.p?.sections.length).length} ไฟล์</span>${mimsList.some((x) => !x.p?.sections.length) ? `<span class="dc-err">✗ ข้าม ${mimsList.filter((x) => !x.p?.sections.length).length} ไฟล์</span>` : ''}</div>`
       + mimsList.map(({ file, p, sel, err }, k) => `<div class="dg-mims${err || !p.sections.length ? ' bad' : ''}" data-dg-mims="${k}"><p class="small"><b>${esc(file)}</b></p>`
         + (err ? `<p class="small dc-err" data-dg-mims-err>ข้ามไฟล์นี้: ${esc(err)}</p>` : p.sections.length ? `<p><b>${esc(p.name || '(ไม่พบชื่อยา)')}</b> · แยกได้ ${p.sections.length} หัวข้อ · การ์ดข้อบ่งใช้ ${p.inds.length} ข้อ${p.brands.length ? ` · ชื่อการค้า ${p.brands.length}` : ''}</p>`
@@ -400,7 +400,7 @@ function bind() {
         catch (err) { results.push({ name: x.file, ok: false, why: errText(err), item: x, kind: 'mims' }); }
       }
       lastRes = { kind: 'mims', results };
-      box().innerHTML = resultHtml(`บันทึกไฟล์ MIMS · การ์ดข้อบ่งใช้ใหม่ ${cards} ข้อ (รอกรอกตัวเลขในหน้าทำงานทีละยา)`, results);
+      box().innerHTML = resultHtml(`บันทึกไฟล์ MIMS · การ์ดข้อบ่งใช้ใหม่ ${cards} ข้อ (รอกรอกตัวเลขในหน้าโปรไฟล์ยา)`, results);
       if (results.every((x) => x.ok)) toast(`บันทึก MIMS แล้ว ${results.length} ไฟล์`);
       mimsList = null; await refresh(true); return;
     }
@@ -442,7 +442,7 @@ async function loadLib() {
 }
 /** มาจากแผงยา (✎ แก้ข้อมูลยา) → ล้างตัวกรอง แสดงช่องข้อมูลยา เลื่อนไปแถวยานั้น + ไฮไลต์ */
 async function focusPending() {
-  let id = null, k = null;   // 'id' หรือ 'id:ฐาน' (มาจากหน้าทำงานทีละยา · แก้ไขรายละเอียด → แสดงทีละฐานที่ฐานนั้น)
+  let id = null, k = null;   // 'id' หรือ 'id:ฐาน' (มาจากหน้าโปรไฟล์ยา · แก้ไขรายละเอียด → แสดงทีละฐานที่ฐานนั้น)
   try { [id, k] = String(sessionStorage.getItem('pcps_grid_focus') || '').split(':'); sessionStorage.removeItem('pcps_grid_focus'); } catch { /* ไม่เป็นไร */ }
   const row = id && table.getRow(DC.idv(id));
   if (!row) return;

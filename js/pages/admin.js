@@ -58,7 +58,7 @@ export async function showAdmin(tab, sub) {
     return mountRiderEditor($('#adminRiderSlot'));
   }
   if (tab === 'drugs') {   // ข้อมูลยา
-    // ไม่ระบุ/center = ภาพรวม (drug-center.js · หน้าแรก) · work = ทำงานทีละยา (drug-work.js) · grid = ตารางแก้ไขยา + นำเข้า/ส่งออก (drug-grid.js) · help = วิธีใช้
+    // ไม่ระบุ/center = ภาพรวม (drug-center.js · หน้าแรก) · work = โปรไฟล์ยา (drug-work.js) · grid = ตารางแก้ไขยา + นำเข้า/ส่งออก (drug-grid.js) · help = วิธีใช้
     // ai/dose/rpst/local/outside/nlem/fda/ddi/mims/db/tools = เครื่องมือฐานข้อมูล (แผงด้านขวา) เปิดที่ส่วนนั้น · หน้าด้านหลังแผง = หน้าที่เปิดอยู่ล่าสุด
     const page = !sub ? 'center' : ['work', 'center', 'grid', 'help'].includes(sub) ? sub : drugPage();
     subTabs('#dcTabs', page); showDrugTab(page);

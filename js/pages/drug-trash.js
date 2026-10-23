@@ -1,5 +1,5 @@
 // ผู้ดูแล › ข้อมูลยา › ถังยาที่ลบ (88_drug_trash.sql · เจ้าของเว็บ 21 ต.ค.)
-//   กดลบยา (หน้าทำงานทีละยา · ตารางแก้ไขยา · เครื่องมือฐานข้อมูล) = ย้ายลงถัง (local_drugs.trashed_at) ยังไม่ลบจริง · ประชาชน/เจ้าหน้าที่มองไม่เห็นทันที (RLS)
+//   กดลบยา (หน้าโปรไฟล์ยา · ตารางแก้ไขยา · เครื่องมือฐานข้อมูล) = ย้ายลงถัง (local_drugs.trashed_at) ยังไม่ลบจริง · ประชาชน/เจ้าหน้าที่มองไม่เห็นทันที (RLS)
 //   กล่อง #dcTrash ใต้หน้าข้อมูลยา: เรียกคืนได้ภายใน 7 วัน · ครบ 7 วัน หน้าผู้ดูแลลบถาวรให้เอง (purgeOld)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText, thaiDate } from '../util.js?v=4.4';
@@ -28,7 +28,7 @@ async function restore(id, btn) {
   if (error) { toast(errText(error), 'err'); return; }
   toast('เรียกคืนยาแล้ว');
   await reloadDrugData();
-  window.dispatchEvent(new CustomEvent('pcps:drugtrash'));   // หน้าทำงานทีละยา/ตารางแก้ไขยา วาดรายการใหม่
+  window.dispatchEvent(new CustomEvent('pcps:drugtrash'));   // หน้าโปรไฟล์ยา/ตารางแก้ไขยา วาดรายการใหม่
 }
 /** ยาที่อยู่ในถังครบ 7 วัน → ลบถาวร (ทำครั้งเดียวต่อการเปิดหน้า) */
 async function purgeOld() {

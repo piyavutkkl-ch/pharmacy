@@ -2,7 +2,7 @@
 //   ① ตรวจทันที (ไม่ใช้ AI): testDose + กฎความปลอดภัย dose-rules.js ของข้อมูลคำนวณทุกชุด → ไม่ผ่าน / ควรตรวจ / รออนุมัติ / ครบแล้ว
 //   ปุ่มเดียว "ตรวจ + ให้ AI เติมข้อมูลที่ขาด": ตรวจเสร็จ → ถามยืนยัน → AI หาค่าทุกข้อที่ไม่ผ่านต่อเลย (ยกเลิก = ดูผลตรวจอย่างเดียว · กดเติมทีหลังได้)
 //   ② AI เติมข้อมูล: ทีละข้อ · ยาที่ผูกฉลาก OpenFDA = ตรวจกับฉลากก่อน (87/90) · ไม่มีฉลาก/ฉลากไม่พอ = ค้นจากเว็บพร้อมลิงก์ (90 ai_dose_web_start)
-//      ผลเก็บในฐานข้อมูล (ai_dose_fixes) → เปิดยาในหน้าทำงานทีละยา = ค่าถูกเติมลงการ์ดให้เลย (loadSavedFixes · ยังไม่บันทึก) · ผู้ดูแลเปิดลิงก์ตรวจ แล้วกดตรวจ/อนุมัติเอง
+//      ผลเก็บในฐานข้อมูล (ai_dose_fixes) → เปิดยาในหน้าโปรไฟล์ยา = ค่าถูกเติมลงการ์ดให้เลย (loadSavedFixes · ยังไม่บันทึก) · ผู้ดูแลเปิดลิงก์ตรวจ แล้วกดตรวจ/อนุมัติเอง
 //      ไม่บันทึกลงข้อมูลคำนวณเอง เพราะการแก้ข้อบ่งใช้ของยาที่แสดงอยู่ = อนุมัติ (90) → ต้องเป็นเภสัชกรกดเท่านั้น
 //   ไม่ส่งข้อความ MIMS ให้ AI · จำกัด 60 ครั้ง/วัน/ผู้ดูแล (ฐานข้อมูลกำหนด) → ครบแล้วหยุดพร้อมบอกเหตุผล
 import { sb } from '../supabase.js?v=4.4';
@@ -82,7 +82,7 @@ function rowHtml(it) {
   return `<li class="ck-row" data-ck-row="${it.d.id}"><div class="ck-h"><span class="${cls} ck-tag">${word}</span><b>${esc(it.d.web_code ? `${it.d.web_code} ` : '')}${esc(it.d.name)}</b>`
     + `<span class="small muted">${esc(it.ls.map((x) => x.name).slice(0, 2).join(', '))}${it.ls.length > 2 ? ' …' : ''}${it.wait ? ` · ${esc(it.wait)}` : ''}</span>${aiTxt}</div>`
     + (iss.length ? `<ul class="small">${iss.map((x) => `<li>${esc(x)}</li>`).join('')}${it.fails.length + it.warns.length > iss.length ? `<li class="muted">และอีก ${it.fails.length + it.warns.length - iss.length} ข้อ</li>` : ''}</ul>` : '')
-    + (l ? `<button type="button" class="btn btn-o btn-sm" data-ck-open="${esc(l.id)}">แก้ในหน้าทำงานทีละยา ›</button>` : '') + '</li>';
+    + (l ? `<button type="button" class="btn btn-o btn-sm" data-ck-open="${esc(l.id)}">แก้ในหน้าโปรไฟล์ยา ›</button>` : '') + '</li>';
 }
 function render() {
   const box = $('#dcCheck'); if (!box || !report) return;
@@ -119,7 +119,7 @@ async function aiAll(btn) {
       catch (err) { delete it.ai.busy; report.msg = `หยุดที่ ${it.d.name}: ${errText(err)}`; render(); break; }
       delete it.ai.busy; render();
     }
-    if (!report.msg) report.msg = `AI ทำครบ ${n} ข้อแล้ว · กด "แก้ในหน้าทำงานทีละยา" = ค่าถูกเติมในการ์ดแล้ว เปิดลิงก์ตรวจตัวเลข แล้วกดตรวจและอนุมัติ`;
+    if (!report.msg) report.msg = `AI ทำครบ ${n} ข้อแล้ว · กด "แก้ในหน้าโปรไฟล์ยา" = ค่าถูกเติมในการ์ดแล้ว เปิดลิงก์ตรวจตัวเลข แล้วกดตรวจและอนุมัติ`;
     toast('AI เติมข้อมูลเสร็จแล้ว · เปิดยาแต่ละตัวเพื่อตรวจและอนุมัติ');
   } finally { running = false; report.prog = ''; render(); }
 }
@@ -139,7 +139,7 @@ export function renderAudit(rows) {
     + `<div class="ck-sum">${nw ? `<span class="dc-err">ขัดกับฉลาก ${nw} ข้อ · หยุดแสดงตัวเลขแล้ว</span>` : ''}${nd ? `<span class="dc-warn">สงสัย ${nd} ข้อ · ยังแสดงอยู่</span>` : ''}</div>`
     + `<ul class="ck-list">${list.map(({ d, l, fl }) => `<li class="ck-row" data-audit-row="${d.id}"><div class="ck-h"><b>${esc(d.web_code ? `${d.web_code} ` : '')}${esc(d.name)}</b></div>`
       + `<ul class="small">${fl.map((f) => `<li><span class="${f.level === 'wrong' ? 'dc-err' : 'dc-warn'}">${f.level === 'wrong' ? 'ขัดกับฉลาก' : 'สงสัย'}</span> ${esc(f.name)}: ${esc(f.why || '')}</li>`).join('')}</ul>`
-      + `<button type="button" class="btn btn-o btn-sm" data-ck-open="${esc(l.id)}">ตรวจในหน้าทำงานทีละยา ›</button></li>`).join('')}</ul>`;
+      + `<button type="button" class="btn btn-o btn-sm" data-ck-open="${esc(l.id)}">ตรวจในหน้าโปรไฟล์ยา ›</button></li>`).join('')}</ul>`;
 }
 let bound = false;
 /** ผูกปุ่มในกล่องผลตรวจ (เรียกครั้งเดียว) */
@@ -160,7 +160,7 @@ export function bindCheck() {
   });
 }
 
-/** ค่าที่ AI เสนอไว้แล้ว (ai_dose_fixes · 14 วัน) ของยาเหล่านี้ → Map(ชื่อข้อบ่งใช้ → ผลล่าสุดที่ใช้ได้) · หน้าทำงานทีละยาใส่ในการ์ดให้ */
+/** ค่าที่ AI เสนอไว้แล้ว (ai_dose_fixes · 14 วัน) ของยาเหล่านี้ → Map(ชื่อข้อบ่งใช้ → ผลล่าสุดที่ใช้ได้) · หน้าโปรไฟล์ยาใส่ในการ์ดให้ */
 export async function loadSavedFixes(localIds) {
   const ids = [...new Set((localIds || []).filter((x) => x != null))];
   if (!ids.length) return new Map();

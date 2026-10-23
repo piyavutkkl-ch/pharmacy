@@ -1389,10 +1389,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('แก้ทีละส่วน: บันทึกฉลาก → ผูก fda_key + ปิดตัวแก้', (await calls(p, (c) => c.table === 'local_drugs' && c.op === 'update')).pop()?.payload?.fda_key === 'amoxicillin|ORAL' && !(await count(p, '#dcPanel .dc-sec.is-open')));
       if (!(await p.$eval('[data-dc-step="1"]', (d) => d.open))) await p.click('[data-dc-step="1"] > summary');
       check('ขั้นที่ 1 ยาในเว็บแอพ: ชื่อยา · รูปแบบยา · ความแรง', /ชื่อยา[\s\S]*AMOXICILLIN 500 MG[\s\S]*รูปแบบยา[\s\S]*ความแรง[\s\S]*500/.test(await text(p, '#dcSec-str')), await text(p, '#dcSec-str'));
-      check('แผงยา: ปุ่มแก้ละเอียด = หน้าทำงานทีละยา (ไม่เปิดฟอร์มยาเต็ม/ตาราง)', !(await p.$('#dcPanel [data-dc-full="all"]')) && !(await p.$('#dcPanel [data-dc-grid]')) && await count(p, '#dcPanel [data-dc-work]') >= 2);
+      check('แผงยา: ปุ่มแก้ละเอียด = หน้าโปรไฟล์ยา (ไม่เปิดฟอร์มยาเต็ม/ตาราง)', !(await p.$('#dcPanel [data-dc-full="all"]')) && !(await p.$('#dcPanel [data-dc-grid]')) && await count(p, '#dcPanel [data-dc-work]') >= 2);
       await p.click('#dcSec-str [data-dc-work="drug"]'); await p.waitForTimeout(1500);
-      { // เจ้าของเว็บ 21 ต.ค.: ภาพรวม → กดแก้ไข = หน้าทำงานทีละยา เปิดตัวแก้ข้อมูลยาแบบละเอียดของยานั้น
-        check('ภาพรวม › ✎ แก้ไข → หน้าทำงานทีละยา ยานั้น + ตัวแก้ข้อมูลยาเปิดอยู่', (await p.evaluate(() => location.hash)) === '#/admin/drugs/work' && (await text(p, '#dwHead h3')).includes('AMOXICILLIN 500 MG') && await visible(p, '#dwDrugEd'));
+      { // เจ้าของเว็บ 21 ต.ค.: ภาพรวม → กดแก้ไข = หน้าโปรไฟล์ยา เปิดตัวแก้ข้อมูลยาแบบละเอียดของยานั้น
+        check('ภาพรวม › ✎ แก้ไข → หน้าโปรไฟล์ยา ยานั้น + ตัวแก้ข้อมูลยาเปิดอยู่', (await p.evaluate(() => location.hash)) === '#/admin/drugs/work' && (await text(p, '#dwHead h3')).includes('AMOXICILLIN 500 MG') && await visible(p, '#dwDrugEd'));
         await p.fill('#dwIngRows .dw-ing:nth-child(1) .i-a', '250'); await p.selectOption('#dwIngRows .dw-ing:nth-child(1) .i-u', 'mg|5ml'); await p.fill('#dwEdPack', '60 ML');
         await p.click('[data-dw-hsave="drug"]'); await p.waitForTimeout(800);
         const l = await p.evaluate((id) => window.__db.local_drugs.find((x) => x.id === id), amx);
@@ -1414,7 +1414,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       // flow ใหม่: หน้าเดียว · ฐานข้อมูล 7 ส่วนอยู่ในแผง "เครื่องมือฐานข้อมูล" · แก้จากแผงยา → บันทึกแล้วกลับมาที่ยาเดิมเอง
       check('ภาพรวม: ไม่มีส่วนฐานข้อมูล 7 ส่วน · ไม่มีลิงก์เครื่องมือฐานข้อมูล (อยู่ในหน้าตารางเท่านั้น)', !(await visible(p, '[data-adr-sec="local"]')) && !(await p.isVisible('#dcDrawer')) && await visible(p, '#dcAddBtn') && !(await visible(p, '#dcToolsBtn')));
       await p.click('#dcAddBtn'); await p.waitForTimeout(1200);
-      check('+ เพิ่มยา → หน้าทำงานทีละยา ช่องชื่อยาใหม่ (ไม่เปิดเครื่องมือฐานข้อมูล)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/work' && !(await p.isVisible('#dcDrawer')) && (await p.evaluate(() => document.activeElement?.id)) === 'dwNew');
+      check('+ เพิ่มยา → หน้าโปรไฟล์ยา ช่องชื่อยาใหม่ (ไม่เปิดเครื่องมือฐานข้อมูล)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/work' && !(await p.isVisible('#dcDrawer')) && (await p.evaluate(() => document.activeElement?.id)) === 'dwNew');
       await go(p, '#/admin/drugs/center'); await go(p, '#/admin/drugs/ai'); await p.waitForTimeout(600);
       await p.click('#dcDrClose'); await p.waitForTimeout(500);
       check('ปิดแผง (×) → กลับศูนย์ข้อมูลยา', !(await p.isVisible('#dcDrawer')) && ['#/admin/drugs/center', '#/admin/drugs'].includes(await p.evaluate(() => location.hash)));
@@ -1428,7 +1428,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.fill('#dcQ', 'Loratadine'); await p.waitForTimeout(150);
         await p.click(`#dcTable [data-dc-row="${lid}"][data-dc-k="dose"]`); await p.waitForTimeout(300);
         await p.click('[data-dc-step="3"] [data-dc-work="dose"]'); await p.waitForTimeout(1500);
-        check('ร่าง AI จากภาพรวม → หน้าทำงานทีละยา (การ์ดขนาดยา "AI ร่าง · รอตรวจ" ของยานั้น)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/work' && /Loratadine/i.test(await text(p, '#dwHead h3')) && await count(p, '#dwDose .dw-card') > 0, await text(p, '#dwHead h3'));
+        check('ร่าง AI จากภาพรวม → หน้าโปรไฟล์ยา (การ์ดขนาดยา "AI ร่าง · รอตรวจ" ของยานั้น)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/work' && /Loratadine/i.test(await text(p, '#dwHead h3')) && await count(p, '#dwDose .dw-card') > 0, await text(p, '#dwHead h3'));
         await go(p, '#/admin/drugs/center'); await p.waitForTimeout(600); }
       { // อนุมัติใช้คำนวณ: ข้อมูลครบ + ขนาดยาตรวจแล้ว แต่ยายังซ่อน → ปุ่มเดียวแสดงยา + ใช้คำนวณ
         const lid = await p.evaluate(() => { const L = window.__db.local_drugs, d = window.__db.dose_drugs.find((x) => /Paracetamol/.test(x.name) && !x.ai_draft);
@@ -1536,7 +1536,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.fill('#dcQ', 'AMITYIPTYLINE'); await p.waitForTimeout(150);
         await p.click(`#dcTable [data-dc-row="${aid}"][data-dc-k="dose"]`); await p.waitForTimeout(250);
         await p.click('[data-dc-step="3"] [data-dc-work="dose"]'); await p.waitForTimeout(1500);
-        check('ขนาดยาของยาที่ยังไม่มีข้อมูลคำนวณ → หน้าทำงานทีละยา ส่วนขนาดยาของยานี้ (เพิ่มข้อบ่งใช้/ให้ AI ร่าง)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/work' && (await text(p, '#dwHead h3')).includes('AMITYIPTYLINE 10 MG') && await visible(p, '#dwDose [data-dw-addind]'));
+        check('ขนาดยาของยาที่ยังไม่มีข้อมูลคำนวณ → หน้าโปรไฟล์ยา ส่วนขนาดยาของยานี้ (เพิ่มข้อบ่งใช้/ให้ AI ร่าง)', (await p.evaluate(() => location.hash)) === '#/admin/drugs/work' && (await text(p, '#dwHead h3')).includes('AMITYIPTYLINE 10 MG') && await visible(p, '#dwDose [data-dw-addind]'));
         await go(p, '#/admin/drugs/center'); await p.waitForTimeout(600);
         await p.keyboard.press('Escape'); await p.fill('#dcQ', ''); await p.waitForTimeout(150); }
       { // แผงยา 3 ขั้น: ขนาดยาคิดจากธาตุเหล็ก → ขั้นที่ 1 บอกให้กรอก "คิดเป็น" → ตารางข้อบ่งใช้จาก MIMS ติ๊ก/แก้ → ตรวจซ้ำ → อนุมัติ (ข้อมูลสมมติ ไม่ใช่ขนาดยาจริง)
@@ -2235,7 +2235,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       // ช่องขนาดยา → แผงยาขั้นที่ 3
       await q.click('#dgDbs [data-dg-db="dose"]'); await q.waitForTimeout(400);
       await q.click(cell('dose')); await q.waitForTimeout(1200);
-      check('ช่องขนาดยา (ไม่แก้ตัวเลขในตาราง) → ไปหน้าทำงานทีละยา เปิดยานั้น', (await q.evaluate(() => location.hash)) === '#/admin/drugs/work' && await visible(q, '#dcWork') && (await text(q, '#dwHead h3')).includes('AMOXICILLIN 500 MG') && await count(q, '#dwList .dw-dr.on') === 1, await text(q, '#dwHead h3'));
+      check('ช่องขนาดยา (ไม่แก้ตัวเลขในตาราง) → ไปหน้าโปรไฟล์ยา เปิดยานั้น', (await q.evaluate(() => location.hash)) === '#/admin/drugs/work' && await visible(q, '#dcWork') && (await text(q, '#dwHead h3')).includes('AMOXICILLIN 500 MG') && await count(q, '#dwList .dw-dr.on') === 1, await text(q, '#dwHead h3'));
       await q.evaluate((id) => { Object.assign(window.__db.local_drugs.find((x) => x.id === id), { name: 'AMOXICILLIN 500 MG', strength: null }); }, amx);
       await go(q, '#/admin/drugs/grid'); await q.waitForTimeout(800); await q.click('[data-dg-mode="multi"]'); await q.click('#dgDbs [data-dg-all]'); await q.fill('#dgQ', ''); await q.waitForTimeout(300);
       if ((await count(q, '#dgDbs [data-dg-db][aria-pressed="true"]')) !== 6) await q.click('#dgDbs [data-dg-all]');
@@ -2255,7 +2255,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.close();
     }
 
-    { // ตรวจข้อมูลขนาดยาทุกตัวในครั้งเดียว (ภาพรวม · dose-check.js · เจ้าของเว็บ 22 ต.ค.) + ให้ AI หาค่าทุกข้อที่ไม่ผ่าน + ตรวจยานี้ทั้งตัว (หน้าทำงานทีละยา)
+    { // ตรวจข้อมูลขนาดยาทุกตัวในครั้งเดียว (ภาพรวม · dose-check.js · เจ้าของเว็บ 22 ต.ค.) + ให้ AI หาค่าทุกข้อที่ไม่ผ่าน + ตรวจยานี้ทั้งตัว (หน้าโปรไฟล์ยา)
       const q = await open('admin', '#/admin/drugs'); await q.waitForTimeout(1200);
       let asked = '';
       await q.evaluate(async () => {   // ให้มียาที่ไม่ผ่านอย่างน้อย 1 ตัว (ข้อมูลทดสอบ: เอาช่วงอายุออก)
@@ -2282,7 +2282,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       { const cs = await calls(q, (c) => /^ai_dose_(fix|web)_start$/.test(c.rpc || ''));
         check('ให้ AI เติมข้อมูลทุกข้อ: ฉลาก OpenFDA ก่อน → ยังขาดช่วงอายุ → ค้นจากเว็บพร้อมลิงก์ · บอกว่าเติมแล้วกี่ข้อ (ไม่บันทึกข้อมูลคำนวณเอง)', cs.map((c) => c.rpc).join() === 'ai_dose_fix_start,ai_dose_web_start' && /AI เติมแล้ว 1\/1/.test(await text(q, '#dcCheck')) && (await calls(q, (c) => c.table === 'dose_drugs' && c.op === 'update')).length === 0, JSON.stringify(cs.map((c) => c.rpc))); }
       await q.click(`[data-ck-open="${lid}"]`); await q.waitForTimeout(1500);
-      check('เปิดยาจากผลตรวจ → หน้าทำงานทีละยา ค่าที่ AI หาได้ถูกเติมในการ์ดแล้ว (ลิงก์ให้เปิดตรวจ · ยังไม่บันทึก) → ข้อนั้นผ่านกฎ', (await q.evaluate(() => location.hash)) === '#/admin/drugs/work' && /IBUPROFEN/.test(await text(q, '#dwHead h3'))
+      check('เปิดยาจากผลตรวจ → หน้าโปรไฟล์ยา ค่าที่ AI หาได้ถูกเติมในการ์ดแล้ว (ลิงก์ให้เปิดตรวจ · ยังไม่บันทึก) → ข้อนั้นผ่านกฎ', (await q.evaluate(() => location.hash)) === '#/admin/drugs/work' && /IBUPROFEN/.test(await text(q, '#dwHead h3'))
         && await count(q, '[data-dw-filled][data-mode="web"] [data-dw-links] a') >= 1 && (await text(q, '#dwHead')).includes('AI เติมข้อมูลให้แล้ว') && !(await text(q, '[data-dw-chkall]')).includes('ไม่ผ่าน') && (await text(q, '#dwBar')).includes('ยังไม่บันทึก')
         && (await calls(q, (c) => c.table === 'dose_drugs' && c.op === 'update')).length === 0, await text(q, '#dwDose'));
       await q.click('[data-dw-undo="0"]'); await q.waitForTimeout(200);
@@ -2314,16 +2314,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผลตรวจทุกตัว 390px: ไม่มี scroll แนวนอน', (await overflow(q)) <= 0, String(await overflow(q)));
       await (await q.$('#dcCheck')).screenshot({ path: path.join(SHOTS, 'dose-check-390.png') });
       await q.close(); }
-    { // ทำงานทีละยา (drug-work.js · หน้าแรกของข้อมูลยา): ค้นหา → เลือกยา → จัดการจบในหน้าเดียว · การ์ดขนาดยา Min/Max · ตรวจแล้วได้เมื่อทดสอบสูตรผ่าน · ไม่ผ่าน = ส่งให้ AI แก้ (87)
+    { // โปรไฟล์ยา (drug-work.js · หน้าแรกของข้อมูลยา): ค้นหา → เลือกยา → จัดการจบในหน้าเดียว · การ์ดขนาดยา Min/Max · ตรวจแล้วได้เมื่อทดสอบสูตรผ่าน · ไม่ผ่าน = ส่งให้ AI แก้ (87)
       const q = await open('admin', '#/admin/drugs/work'); await q.waitForTimeout(900);
       const pid = await q.evaluate(() => window.__db.local_drugs.find((x) => x.name === 'PARACETAMOL 500 MG (FOIL)').id);
-      check('ข้อมูลยา: แท็บ ภาพรวม (หน้าแรก #/admin/drugs) → ทำงานทีละยา (#/admin/drugs/work) → ตาราง', await visible(q, '#dcWork') && !(await visible(q, '#dcCenter'))
+      check('ข้อมูลยา: แท็บ ภาพรวม (หน้าแรก #/admin/drugs) → โปรไฟล์ยา (#/admin/drugs/work) → ตาราง', await visible(q, '#dcWork') && !(await visible(q, '#dcCenter'))
         && (await q.getAttribute('#dcTabs [data-sub="work"]', 'aria-current')) === 'page' && (await q.getAttribute('#dcTabs [data-sub="center"]', 'href')) === '#/admin/drugs' && (await q.$eval('#dcTabs', (n) => [...n.querySelectorAll('[data-sub]')].map((a) => a.dataset.sub).join())) === 'center,work,grid,help' && await count(q, '#dwList .dw-dr') > 10 && await count(q, '#dwList .dw-dr.on') === 1);
       await q.fill('#dwQ', 'paracetamol 500'); await q.waitForTimeout(150);
       await q.click('[data-dw-filt="all"]'); await q.waitForTimeout(150);
-      check('ทำงานทีละยา: ค้นหาในรายการยา', await count(q, '#dwList .dw-dr') === 1 && (await text(q, '#dwList')).includes('PARACETAMOL 500 MG (FOIL)'), await text(q, '#dwList'));
+      check('โปรไฟล์ยา: ค้นหาในรายการยา', await count(q, '#dwList .dw-dr') === 1 && (await text(q, '#dwList')).includes('PARACETAMOL 500 MG (FOIL)'), await text(q, '#dwList'));
       await q.click(`[data-dw-pick="${pid}"]`); await q.waitForTimeout(400);
-      check('ทำงานทีละยา: หัวยา (วงกลมความคืบหน้า · ชิปรูปแบบ/ความแรง · แถบ 5 ขั้น · ปุ่มถัดไป) + แหล่งข้อมูล 5 ชิป (OpenFDA+DailyMed)',
+      check('โปรไฟล์ยา: หัวยา (วงกลมความคืบหน้า · ชิปรูปแบบ/ความแรง · แถบ 5 ขั้น · ปุ่มถัดไป) + แหล่งข้อมูล 5 ชิป (OpenFDA+DailyMed)',
         (await text(q, '#dwHead h3')).includes('PARACETAMOL 500 MG (FOIL)') && await count(q, '.dw-ring') === 1 && await count(q, '.dw-steps .dw-stp') === 5 && (await text(q, '[data-dw-next]')).includes('ถัดไป')
         && await count(q, '#dwSrcs .dw-s') === 5 && (await text(q, '#dwSrc-fda')).includes('OpenFDA+DailyMed') && !(await text(q, '#dwSrcs')).includes('DailyMed/openFDA'), await text(q, '#dwSrcs'));
       check('การ์ดขนาดยา: ข้อบ่งใช้จากข้อมูลคำนวณเดิม · ช่องขนาดมีป้าย Min / Max · ปุ่มรูปกลุ่มอายุ/วิธีคิด/ต่อครั้ง-ต่อวัน',
@@ -2476,7 +2476,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ตัวกรองรายการยา เรียง ทั้งหมด · เสร็จสิ้น · รอตรวจสอบ', (await q.$$eval('.dw-filt button', (x) => x.map((b) => b.dataset.dwFilt).join()))  === 'all,ready,todo' && /^ทั้งหมด/.test(await text(q, '[data-dw-filt="all"]')) && /^เสร็จสิ้น/.test(await text(q, '[data-dw-filt="ready"]')) && /^รอตรวจสอบ/.test(await text(q, '[data-dw-filt="todo"]')));
       for (const w of [1280, 768, 390]) {
         await q.setViewportSize({ width: w, height: 900 }); await q.waitForTimeout(300);
-        check(`ทำงานทีละยา (${w}px): ไม่มี scroll แนวนอน`, (await overflow(q)) <= 0, String(await overflow(q)));
+        check(`โปรไฟล์ยา (${w}px): ไม่มี scroll แนวนอน`, (await overflow(q)) <= 0, String(await overflow(q)));
         await q.screenshot({ path: path.join(SHOTS, `drug-work-${w}.png`), fullPage: w === 1280 });
       }
       await q.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await q.setViewportSize({ width: 1280, height: 900 }); await q.waitForTimeout(300);

@@ -2,7 +2,7 @@
 //   ส่งออก: แถวที่แสดงอยู่ในตาราง → Excel (.xlsx · SheetJS จาก jsDelivr) / CSV (UTF-8 BOM) / JSON · ทำในเบราว์เซอร์
 //   นำเข้า: ไฟล์รูปแบบเดียวกัน → จับคู่ยาด้วยรหัสในเว็บ (SHPS-…/OUT-…) → ชื่อยาตรงกัน → แสดงรายการที่จะเปลี่ยนก่อน → กดยืนยันจึงบันทึก
 //   ช่องว่างในไฟล์ = ไม่เปลี่ยนค่าเดิม (ไม่ลบข้อมูลด้วยช่องว่าง) · แถวที่ไม่พบยา + มีชื่อ = เพิ่มยาใหม่ (ซ่อนไว้จนผู้ดูแลตรวจ)
-//   ขนาดยา (ข้อบ่งใช้) ไม่นำเข้าจากไฟล์ — ต้องผ่านการ์ดขนาดยา + ทดสอบสูตรในหน้าทำงานทีละยา
+//   ขนาดยา (ข้อบ่งใช้) ไม่นำเข้าจากไฟล์ — ต้องผ่านการ์ดขนาดยา + ทดสอบสูตรในหน้าโปรไฟล์ยา
 import { sb } from '../supabase.js?v=4.4';
 import { esc, toast, busy, errText } from '../util.js?v=4.4';
 import { readTable, downloadXlsx } from './delivery-report.js?v=4.4';
@@ -250,7 +250,7 @@ export async function planFromAi(res) {
     rows.forEach((r) => {
       if (!catOk(r.group_name, r.name)) return;
       const old = D.monos.find((m) => m.name.toLowerCase() === String(r.name).trim().toLowerCase());
-      if (old) { plan.same++; return; }   // มีในบัญชียาหลักแล้ว = ไม่ทับเนื้อหาเดิม (แก้ที่หน้าทำงานทีละยา)
+      if (old) { plan.same++; return; }   // มีในบัญชียาหลักแล้ว = ไม่ทับเนื้อหาเดิม (แก้ที่หน้าโปรไฟล์ยา)
       plan.add.push({ row: { name: String(r.name).trim(), group_name: r.group_name || 'อื่น ๆ', sub_name: r.sub_name || '', forms: r.forms || [], flags: [], sections: [] }, diff: [['ใหม่ในบัญชียาหลัก', '', [r.group_name, r.sub_name].filter(Boolean).join(' › ')]] });
     });
   }
