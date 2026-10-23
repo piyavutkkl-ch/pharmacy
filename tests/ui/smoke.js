@@ -1367,7 +1367,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         await p.click('#dcCards [data-dc-f="err"]'); await p.waitForTimeout(150); }
       { await p.click('#dcRings [data-dc-f="sec:fda"]'); await p.waitForTimeout(150);
         const cells = await p.$$eval('#dcTable [data-dc-k="fda"]', (x) => x.map((e) => e.className));
-        check('ศูนย์ข้อมูลยา: กดวงกลม "ฉลาก" → เหลือยาที่ยังขาด/รอตรวจฉลาก', cells.length > 0 && cells.every((c) => !/s-ok|s-na/.test(c)) && (await text(p, '#dcCount')).includes('ฉลาก'));
+        check('ศูนย์ข้อมูลยา: กดวงกลม "DailyMed / openFDA" → เหลือยาที่ยังขาด/รอตรวจฉลาก', cells.length > 0 && cells.every((c) => !/s-ok|s-na/.test(c)) && (await text(p, '#dcCount')).includes('DailyMed / openFDA'));
         await p.click('#dcRings [data-dc-f="sec:fda"]'); await p.waitForTimeout(150); }
       const ranks = await p.$$eval('#dcTable .dc-pill', (x) => x.map((e) => ({ 'ผิดพลาด': 0, 'ยังไม่ครบ': 1, 'รอตรวจ': 2, 'พร้อมใช้': 3 })[e.textContent]));
       check('ศูนย์ข้อมูลยา: เรียงปัญหาหนักก่อน (ผิดพลาด → ยังไม่ครบ → รอตรวจ → พร้อมใช้)', ranks.every((r, i) => !i || r >= ranks[i - 1]));
