@@ -168,7 +168,10 @@ export const retryPlan = (p, results) => ({ ...p, upd: results.filter((x) => !x.
    → ตรวจหมวด (หมวดที่ยังไม่มี = แจ้งเตือน ไม่นำเข้าแถวนั้น จนกว่าผู้ดูแลกด "เพิ่มหมวด") → แสดงรายการ → ผู้ดูแลกดบันทึก */
 const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build';
 /** ข้อความจากไฟล์ (ตาราง = คั่นด้วยแท็บ) · ≤ 40,000 ตัวอักษร */
-export async function fileText(f) {
+export async function fileText(f, onProgress) { return (await fileTextInfo(f, onProgress)).text; }
+/** อ่านข้อความจากไฟล์ → { text, ocr } · PDF ที่เป็นภาพ (ไม่มีตัวอักษร เช่น บันทึกหน้าเว็บเป็นภาพ) = อ่านด้วย OCR ในเครื่อง (ocr: true)
+ *  onProgress(หน้า, ทั้งหมด) = แจ้งความคืบหน้าตอน OCR */
+export async function fileTextInfo(f, onProgress) {
   if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
     const pdfjs = await import(`${PDFJS}/pdf.min.mjs`);
     pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS}/pdf.worker.min.mjs`;
@@ -179,11 +182,34 @@ export async function fileText(f) {
       for (const it of tc.items) { const yy = Math.round(it.transform[5]); if (y != null && Math.abs(yy - y) > 2) { out.push(line); line = ''; } line += (line && !line.endsWith(' ') ? '\t' : '') + it.str; y = yy; }
       out.push(line);
     }
-    return out.join('\n').slice(0, 40000);
+    const text = out.join('\n').slice(0, 40000);
+    if (text.replace(/\s/g, '').length >= 20 || !doc.numPages) return { text, ocr: false };
+    return { text: (await ocrPdf(doc, onProgress)).slice(0, 40000), ocr: true };
   }
-  if (/\.(txt|md)$/i.test(f.name) || f.type.startsWith('text/plain')) return (await f.text()).slice(0, 40000);
+  if (/\.(txt|md)$/i.test(f.name) || f.type.startsWith('text/plain')) return { text: (await f.text()).slice(0, 40000), ocr: false };
   const aoa = await readTable(f);
-  return aoa.slice(0, 600).map((r) => r.map((c) => String(c ?? '').replace(/\s+/g, ' ').trim()).join('\t')).join('\n').slice(0, 40000);
+  return { text: aoa.slice(0, 600).map((r) => r.map((c) => String(c ?? '').replace(/\s+/g, ' ').trim()).join('\t')).join('\n').slice(0, 40000), ocr: false };
+}
+/* PDF ที่เป็นภาพ → OCR ในเบราว์เซอร์ด้วย Tesseract.js (Apache-2.0 · ฟรี · โหลดจาก jsDelivr เมื่อใช้ครั้งแรก ~ 10 MB)
+   ทำในเครื่องผู้ดูแลเท่านั้น ไม่ส่งภาพ/ข้อความออกนอกเครื่อง ไม่ใช้ AI (ใช้กับข้อมูล MIMS ได้) · อ่านภาษาอังกฤษ · สูงสุด 12 หน้า */
+const TESS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js';
+const TESS_LANG = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int';
+async function ocrPdf(doc, onProgress) {
+  const T = (await import(TESS)).default;
+  const w = await T.createWorker('eng', 1, { langPath: TESS_LANG });
+  try {
+    const out = [], n = Math.min(doc.numPages, 12);
+    for (let i = 1; i <= n; i++) {
+      onProgress?.(i, n);
+      const page = await doc.getPage(i), vp1 = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: Math.min(4, 2200 / (vp1.width || 600)) });   // ~2200 px กว้าง = ตัวอักษรชัดพอสำหรับ OCR
+      const c = document.createElement('canvas'); c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      const { data } = await w.recognize(c);
+      out.push(data?.text || '');
+    }
+    return out.join('\n');
+  } finally { await w.terminate().catch(() => {}); }
 }
 /** ข้อความจากหน้า MIMS (PDF ที่พิมพ์หน้าเว็บ / ข้อความที่คัดลอก) → แยกหัวข้อในเครื่องด้วย mims-text.js (ไม่ส่งให้ AI · ข้อมูลสมาชิก) · ตรงกับ looks_mims (89) + หัวข้อหลักของหน้า MIMS */
 export const looksMims = (text, name = '') => /(mims\.com|MIMS Thailand|MIMS Class|What are the brands available for)/i.test(text)

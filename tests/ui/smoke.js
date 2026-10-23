@@ -2591,6 +2591,20 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           await q.click('#dgImpBox [data-dg-mimssave]'); await q.waitForTimeout(1200);
           check('ข้ามไฟล์ที่ไม่ได้ → บันทึกไฟล์ MIMS ที่ใช้ได้ + สรุปผล', await q.evaluate(() => window.__db.drug_mims.some((x) => x.name === 'Testamolol3')) && /บันทึกได้ 1/.test(await text(q, '#dgImpBox [data-dg-result]')), await text(q, '#dgImpBox'));
           await q.click('#dgImpBox [data-dg-impno]'); await q.waitForTimeout(150);
+        { // PDF ที่เป็นภาพ (ไม่มีตัวอักษร) → OCR ในเครื่อง (Tesseract.js · ไม่ใช้ AI) → แยกหัวข้อ MIMS + เตือนให้ตรวจตัวเลข · pdf.js/Tesseract จำลอง (ข้อความสมมติ)
+          const OCR_TXT = ['Fakemycin', 'Indications and Dosage', 'Oral', 'Infection (ข้อความสมมติ)', 'Adult: 250 mg every 8 hours.', 'Contraindications', 'Hypersensitivity (ข้อความสมมติ).'].join('\n');
+          await q.route('**/npm/pdfjs-dist@4.4.168/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: /worker/.test(r.request().url()) ? '' : 'export const GlobalWorkerOptions = {}; export function getDocument() { const page = { getTextContent: async () => ({ items: [] }), getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale }), render: () => ({ promise: Promise.resolve() }) }; return { promise: Promise.resolve({ numPages: 2, getPage: async () => page }) }; }' }));
+          await q.route('**/npm/tesseract.js@5.1.1/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: `let n = 0; export default { createWorker: async () => ({ recognize: async () => ({ data: { text: n++ ? '' : ${JSON.stringify(OCR_TXT)} } }), terminate: async () => {} }) };` }));
+          const ai1 = (await calls(q, (c) => c.rpc === 'ai_drug_import_start')).length;
+          await q.setInputFiles('#dgImport', { name: 'Fakemycin_ Uses _ MIMS Thailand.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fake') });
+          await q.waitForSelector('#dgImpBox [data-dg-mimssave]', { timeout: 15000 }).catch(() => {});
+          const t = await text(q, '#dgImpBox');
+          check('PDF ที่เป็นภาพ (ไม่มีตัวอักษร) → อ่านด้วย OCR ในเครื่อง (ไม่ส่งให้ AI) → แยกหัวข้อ MIMS + เตือนตรวจตัวเลขกับต้นฉบับ', await count(q, '#dgImpBox [data-dg-ocr]') === 1 && /Fakemycin · แยกได้ 2 หัวข้อ/.test(t) && (await calls(q, (c) => c.rpc === 'ai_drug_import_start')).length === ai1, t.slice(0, 400));
+          await q.click('#dgImpBox [data-dg-impno]'); await q.waitForTimeout(150);
+          await q.route('**/npm/tesseract.js@5.1.1/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: 'export default { createWorker: async () => ({ recognize: async () => ({ data: { text: \'\' } }), terminate: async () => {} }) };' }));
+          await q.setInputFiles('#dgImport', { name: 'Blank_MIMS.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fake') }); await q.waitForTimeout(1500);
+          check('PDF ภาพที่อ่านตัวอักษรไม่ได้ → บอกเหตุผล (เป็นภาพ อ่านไม่ได้) + แนะนำวางข้อความแทน', /เป็นภาพ และอ่านตัวอักษรจากภาพไม่ได้/.test(await text(q, '#dgImpBox')), await text(q, '#dgImpBox'));
+          await q.click('#dgImpBox [data-dg-impno]').catch(() => {}); await q.waitForTimeout(150); }
         await q.setInputFiles('#dgImport', [{ name: 'a.csv', mimeType: 'text/csv', buffer: Buffer.from('ชื่อยา\nX 1 MG\n') }, { name: 'b.csv', mimeType: 'text/csv', buffer: Buffer.from('ชื่อยา\nY 1 MG\n') }]); await q.waitForTimeout(800);
         check('หลายไฟล์ที่ไม่ใช่ MIMS → ให้นำเข้าทีละไฟล์', /ทีละไฟล์/.test(await text(q, '#dgImpBox')), await text(q, '#dgImpBox'));
         await q.click('#dgImpBox [data-dg-impno]'); await q.waitForTimeout(150);
