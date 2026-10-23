@@ -10,12 +10,12 @@
 //   กฎความปลอดภัย (dose-rules.js · audit 22 ต.ค.): ไม่ผ่าน = แก้ก่อน (ให้ AI ตรวจกับฉลาก หรือค้นจากเว็บพร้อมลิงก์ 90) · เตือน = ติ๊กรับทราบทีละข้อ → "ตรวจตัวเลขกับฉลากแล้ว"
 //   หัวยา: ปุ่ม ซ่อน/แสดงยานี้ (local_drugs.active) + ลบ (ย้ายลงถัง 7 วัน) · ยาที่แสดงอยู่แต่ยังไม่มีผู้อนุมัติ = ปุ่ม "อนุมัติใช้คำนวณ" (approve_dose)
 import { sb } from '../supabase.js?v=4.4';
-import { $, $$, esc, toast, busy, errText } from '../util.js?v=4.4';
+import { $, $$, esc, toast, busy, errText, thaiDate } from '../util.js?v=4.4';
 import { strengthOf, concOf, comboName, doseNumbers, sameBasis } from './dose.js?v=4.4';
 import { drugData, reloadDrugData, genericKey, codeTag, fetchFdaLabel, fetchFdaBySetId, sectionsText, parseSections, formsText, parseForms } from './admin-drugs.js?v=4.4';
 import { indsProblem, refOfLabel, doseQuery, timesOf } from './admin-settings.js?v=4.4';
 import { testDose, testWeights } from './dose-test.js?v=4.4';
-import { drugRules, indRules, autoCaps, OPEN_AGE } from './dose-rules.js?v=4.4';
+import { drugRules, indRules, autoCaps, OPEN_AGE, flagHides, FLAG_LEVEL, DECISION } from './dose-rules.js?v=4.4';
 import { loadSavedFixes } from './dose-check.js?v=4.4';
 import { DC, centerRows, suggest, applyRow, basesOf, rejectPair, saveDose, doseRows, openTools } from './drug-center.js?v=4.4';
 import { ingsRow } from './drug-grid.js?v=4.4';
@@ -98,15 +98,21 @@ function fillCard(l, c, k, fix) {
   changed(k);
   return true;
 }
-/** ธง AI ตรวจย้อนหลัง (91) ของข้อนี้: ขัดกับฉลาก (หยุดแสดงแล้ว) / สงสัย · ล้างธงได้เมื่อตรวจแล้วถูกต้อง · แก้แล้วอนุมัติใหม่ = ล้างเอง */
+/** ธง AI ตรวจย้อนหลัง (91/92) ของข้อนี้: AI เสนอ (ตัวเลขขัด/นอกฉลาก/สงสัย) → เภสัชกรตัดสิน 4 แบบ (DECISION) · ตัดสินแล้วไม่ถูกธงซ้ำจนกว่าตัวเลขจะเปลี่ยน
+ *  ซ่อนตัวเลขเมื่อ AI ว่าตัวเลขขัด (ยังไม่ตัดสิน) หรือเภสัชกรยืนยันว่าขัด · แก้ตัวเลขแล้วอนุมัติใหม่ = ล้างธงเอง */
+const DEC_BTN = [['conflict', 'ขัดจริง · ต้องแก้'], ['offlabel_ok', 'นอกฉลาก · มีแนวทางรองรับ'], ['local', 'แนวปฏิบัติท้องถิ่น'], ['no_conflict', 'ไม่ขัด · AI เข้าใจผิด']];
 function auditHtml(j, c, k) {
   const f = (Array.isArray(j.dose.dose?.audit_flags) ? j.dose.dose.audit_flags : []).find((x) => x.name === c.ind.name);
   if (!f) return '';
-  const w = f.level === 'wrong';
-  return `<div class="dw-fix${w ? ' bad' : ''}" data-dw-audit="${k}"><b>${ic('spark')}AI ตรวจย้อนหลัง: ${w ? 'ตัวเลขขัดกับฉลาก · หน้าคำนวณหยุดแสดงข้อนี้แล้ว' : 'สงสัย · ยังแสดงอยู่'}</b>`
+  const hide = flagHides(f), kind = FLAG_LEVEL[f.level] || 'สงสัย';
+  const head = f.decision ? `ตัดสินแล้ว: ${DECISION[f.decision] || f.decision}${hide ? ' · หน้าคำนวณหยุดแสดงข้อนี้จนแก้ตัวเลข' : ' · แสดงตามเดิม'}`
+    : `${kind} · ${hide ? 'หน้าคำนวณหยุดแสดงข้อนี้แล้ว' : 'ยังแสดงอยู่'} · รอเภสัชกรตัดสิน`;
+  return `<div class="dw-fix${hide ? ' bad' : ''}" data-dw-audit="${k}" data-level="${esc(f.level || '')}" data-decision="${esc(f.decision || '')}"><b>${ic('spark')}AI ตรวจย้อนหลัง: ${esc(head)}</b>`
     + `<span class="small">${esc(f.why || '')}</span>${f.quote ? `<span class="small">ฉลาก: <span lang="en">“${esc(f.quote)}”</span></span>` : ''}`
-    + `<span class="small muted">แก้ค่าแล้วกดอนุมัติใหม่ = ล้างธงเอง · ถ้าตรวจแล้วข้อมูลเดิมถูกต้อง กดปุ่มด้านล่าง</span>`
-    + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dw-auditok="${k}">ตรวจแล้ว ข้อมูลเดิมถูกต้อง (ล้างธง)</button></div></div>`;
+    + (f.decision ? `<span class="small muted">ตัดสินเมื่อ ${esc(thaiDate(f.decided_at) || '-')} · ผู้ตัดสินดูได้ที่ "ประวัติแก้ไข" · ตรวจซ้ำรอบหน้าจะไม่ถูกธงซ้ำ ถ้าตัวเลขข้อนี้ไม่เปลี่ยน</span>`
+      + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-dw-decide="${k}" data-v="">เปลี่ยนการตัดสิน</button></div></div>`
+      : `<span class="small muted">AI เสนอ เภสัชกรตัดสิน · เทียบกับต้นฉบับ MIMS/แนวทางด้านข้างก่อน · ถ้าตัวเลขผิดจริง แก้ค่าแล้วกดอนุมัติใหม่ (ล้างธงเอง)</span>`
+      + `<div class="row-btns dw-dec">${DEC_BTN.map(([v, t]) => `<button type="button" class="btn ${v === 'conflict' ? 'btn-o dw-dec-bad' : 'btn-o'} btn-sm" data-dw-decide="${k}" data-v="${v}">${t}</button>`).join('')}</div></div>`);
 }
 /** การ์ดที่ AI เติมให้แล้ว: เปลี่ยนอะไร · ที่ยังขาด · ลิงก์ให้เปิดตรวจ · ย้อนกลับค่าเดิม */
 function filledHtml(c, k) {
@@ -969,11 +975,14 @@ async function onMain(e) {
   if ((b = B('[data-dw-fix]'))) { await startFix(+b.dataset.dwFix, b, 'label'); return; }
   if ((b = B('[data-dw-web]'))) { await startFix(+b.dataset.dwWeb, b, 'web'); return; }
   if ((b = B('[data-dw-aiall]'))) { await aiAllCards(b); return; }
-  if ((b = B('[data-dw-auditok]'))) {
-    const c = cards[+b.dataset.dwAuditok], d = j.dose.dose; if (!c || !d) return;
-    if (!confirm(`ยืนยันว่าตรวจกับฉลากแล้ว ข้อมูล "${c.ind.name}" ถูกต้อง? (ล้างธง · บันทึกในประวัติแก้ไข)`)) return;
+  if ((b = B('[data-dw-decide]'))) {   // เภสัชกรตัดสินธง AI ตรวจย้อนหลัง (92 dose_audit_decide · บันทึกผู้ตัดสินในประวัติแก้ไข)
+    const c = cards[+b.dataset.dwDecide], d = j.dose.dose, v = b.dataset.v; if (!c || !d) return;
+    const f = (d.audit_flags || []).find((x) => x.name === c.ind.name);
+    const msg = !v ? `ยกเลิกการตัดสินข้อ "${c.ind.name}" (กลับเป็นรอตัดสิน)?`
+      : `ตัดสินข้อ "${c.ind.name}" ว่า "${DECISION[v]}"?${v === 'conflict' ? '\nหน้าคำนวณจะหยุดแสดงตัวเลขข้อนี้จนแก้ตัวเลขแล้วอนุมัติใหม่' : flagHides(f) ? '\nตัวเลขข้อนี้จะกลับมาแสดงในหน้าคำนวณ' : ''}`;
+    if (!confirm(msg)) return;
     busy(b, true, 'กำลังบันทึก…');
-    try { const { error } = await sb.rpc('dose_audit_resolve', { p_dose: d.id, p_name: c.ind.name }); if (error) throw error; toast('ล้างธงแล้ว'); await refresh(false); renderMain(); }
+    try { const { error } = await sb.rpc('dose_audit_decide', { p_dose: d.id, p_name: c.ind.name, p_decision: v }); if (error) throw error; toast(v ? `บันทึกการตัดสินแล้ว: ${DECISION[v]}` : 'ยกเลิกการตัดสินแล้ว'); await refresh(false); renderMain(); }
     catch (err) { toast(errText(err), 'err'); } finally { busy(b, false); }
     return;
   }

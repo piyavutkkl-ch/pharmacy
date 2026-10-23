@@ -95,7 +95,8 @@ export async function refreshAdminBadges() {
     sb.from('staff_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     sb.from('dose_drugs').select('id,audit_flags').eq('active', true),   // AI ตรวจย้อนหลังพบ (91)
   ]);
-  const nAudit = (dz.data || []).reduce((a, x) => a + (Array.isArray(x.audit_flags) ? x.audit_flags.length : 0), 0);
+  const open = (f) => !!f && (!f.decision || f.decision === 'conflict');   // = flagOpen (dose-rules.js) · ตัดสินแล้วว่าไม่ขัด ไม่นับ
+  const nAudit = (dz.data || []).reduce((a, x) => a + (Array.isArray(x.audit_flags) ? x.audit_flags.filter(open).length : 0), 0);
   if ($('#admDrugsBadge')) $('#admDrugsBadge').textContent = nAudit ? String(nAudit) : '';
   $('#admNewsBadge').textContent = n.count ? String(n.count) : '';
   $('#admReviewBadge').textContent = r.count ? String(r.count) : '';

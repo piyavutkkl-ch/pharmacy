@@ -17,6 +17,7 @@ import { strengthOf, comboName, keysOf, sameDrug, doseText, sameBasis } from './
 import { drugData, reloadDrugData, doseIdsOf, genericKey, codeTag, fetchFdaLabel } from './admin-drugs.js?v=4.4';
 import { indsProblem, indsOf, doseQuery, draftWord, indBox, readInds, syncIndBoxes, asMg, ageText } from './admin-settings.js?v=4.4';
 import { testDose, testHtml } from './dose-test.js?v=4.4';
+import { flagHides, FLAG_LEVEL } from './dose-rules.js?v=4.4';
 import { runCheck, bindCheck, renderAudit } from './dose-check.js?v=4.4';
 
 const K = ['str', 'rpst', 'nlem', 'mims', 'fda', 'ddi', 'dose'];   // ตามลำดับขั้น: ① str ② rpst/mims/fda/nlem/ddi ③ dose (รวมผลทดสอบสูตร)
@@ -26,9 +27,15 @@ const KN = { str: 'ยาในเว็บแอพ', rpst: 'บัญชีย
 const KS = { str: 'ข้อมูลยา', rpst: 'บัญชี รพ.สต.', mims: 'MIMS', fda: 'DailyMed / openFDA', nlem: 'บัญชียาหลัก', ddi: 'DDInter', dose: 'ขนาดยา' };
 const KH = { ...KS, rpst: 'รพ.สต.', fda: 'ฉลาก', ddi: 'DDI' };   // หัวตาราง (คอลัมน์แคบ)
 const SYM = { ok: '✓', wait: '●', miss: '✗', err: '!', na: '–', opt: '○' };
-const SN = { ok: 'ครบ', wait: 'รอตรวจ', miss: 'ยังไม่ผูก', err: 'ผิดพลาด', na: 'ไม่ใช้', opt: 'ยังไม่ผูก (ไม่บังคับ)' };
+const SN = { ok: 'ครบ', wait: 'รอตรวจ', miss: 'ยังไม่ผูก', err: 'ต้องแก้ไข', na: 'ไม่ใช้', opt: 'ยังไม่ผูก (ไม่บังคับ)' };
 const cellS = (k, s) => (k === 'mims' && s === 'miss' ? 'opt' : s);   // MIMS ไม่บังคับ → ช่องที่ยังไม่ผูกแสดงแบบกลาง ๆ
-const ROW = { err: ['ผิดพลาด', 'err'], miss: ['ยังไม่ครบ', 'miss'], wait: ['รอตรวจ', 'wait'], ready: ['พร้อมใช้', 'ok'] };
+/** เหตุผลที่ยา "ต้องแก้ไข" (ผลตรวจระบบ 23 ต.ค. F-02 · ชั้นแสดงผล ไม่เปลี่ยนเกณฑ์ผ่าน/ไม่ผ่าน) · ลำดับ = ลำดับในกล่องงานที่ต้องทำต่อ */
+export const WHY = { age: 'ช่วงอายุไม่ครบ/ไม่ตรง', cap: 'ไม่มี/ผิดเพดานขนาดยา', freq: 'ต่อครั้ง/ต่อวัน/จำนวนครั้ง ไม่ตรงฉลาก', calc: 'ทดสอบสูตรคำนวณไม่ผ่าน', data: 'ข้อมูลขนาดยาไม่ครบ',
+  draft: 'ร่างขนาดยาไม่ครบ', audit: 'AI: ตัวเลขขัดกับฉลาก', combo: 'ยาสูตรผสม ยังไม่กรอกสารสำคัญ', rpst: 'รหัสไม่อยู่ในบัญชี รพ.สต.', fda: 'ฉลากที่ผูกไว้หายไป', other: 'อื่น ๆ' };
+const RULE_WHY = { age_req: 'age', age_name: 'age', age_gap: 'age', cap_req: 'cap', capday_req: 'cap', cap_order: 'cap', cap_is_day: 'cap', capday_quote: 'cap', capday_over: 'cap', cap_over: 'cap',
+  child_over: 'cap', child_over_day: 'cap', per_day: 'freq', per_dose: 'freq', divided: 'freq', times: 'freq' };
+const failWhy = (t) => [...new Set((t?.issues || []).filter((x) => x.sev === 'fail').map((x) => RULE_WHY[x.code] || 'calc'))];
+const ROW = { err: ['ต้องแก้ไข', 'err'], miss: ['ยังไม่ครบ', 'miss'], wait: ['รอตรวจ', 'wait'], ready: ['พร้อมใช้', 'ok'] };
 const RANK = { err: 0, miss: 1, wait: 2, ready: 3 };
 const PER = { tab: 'มก./เม็ด', '5ml': 'มก./5 มล.', ml: 'มก./มล.' };
 const UNITS = [['mg|tab', 'มก./เม็ด'], ['mg|5ml', 'มก./5 มล.'], ['mg|ml', 'มก./มล.'], ['mcg|tab', 'mcg/เม็ด'], ['mcg|ml', 'mcg/มล.']];
@@ -53,7 +60,7 @@ function judge(l, k) {
     const ings = (l.ingredients || []).filter((x) => +x.mg > 0);
     if (ings.length > 1) return ings.some((x) => x.auto) ? { s: 'wait', t: ings.map((x) => `${x.name} ${num(x.mg)}`).join(' + ') + ` ${PER[ings[0].per] || ''}`, why: 'สารสำคัญชุดนี้ระบบใส่ให้ รอทวนสอบกับฉลากจริง' }
       : { s: 'ok', t: ings.map((x) => `${x.name} ${num(x.mg)}`).join(' + ') + ` ${PER[ings[0].per] || ''}` };
-    if (comboName(l.name)) return na ? NA() : { s: 'err', why: 'ยาสูตรผสม ยังไม่ได้กรอกสารสำคัญแต่ละตัว เครื่องคำนวณจึงคิดจำนวนเม็ด/มล. ไม่ได้' };
+    if (comboName(l.name)) return na ? NA() : { s: 'err', codes: ['combo'], why: 'ยาสูตรผสม ยังไม่ได้กรอกสารสำคัญแต่ละตัว เครื่องคำนวณจึงคิดจำนวนเม็ด/มล. ไม่ได้' };
     const st = strengthOf(l);
     if (st) {
       const own = [l.dose_id, ...(l.ingredients || []).map((x) => x.dose_id)].filter(Boolean), d = doseById((own.length ? own : doseIdsOf(l))[0]);
@@ -69,16 +76,18 @@ function judge(l, k) {
     const ids = own.length ? own : doseIdsOf(l), d = ids.length ? doseById(ids[0]) : null;
     if (!d) return na || !ORAL.test(cat(l)) ? NA(NCD.test(cat(l)) ? 'ยาโรคเรื้อรังผู้ใหญ่ ไม่คำนวณตามน้ำหนัก' : 'ยากลุ่มนี้ไม่คำนวณตามน้ำหนัก') : { s: 'miss', why: 'ยังไม่มีข้อมูลคำนวณขนาดยา' };
     const name = `${d.web_code ? d.web_code + ' ' : ''}${d.name}`;
-    if (d.ai_draft) return d.draft_issue ? { s: 'err', t: name, why: `${draftWord(d)} ข้อมูลไม่ครบ: ${d.draft_issue}`, dose: d } : { s: 'wait', t: `${name} · ${draftWord(d)} รอเภสัชกรตรวจ`, dose: d };
+    if (d.ai_draft) return d.draft_issue ? { s: 'err', codes: ['draft'], t: name, why: `${draftWord(d)} ข้อมูลไม่ครบ: ${d.draft_issue}`, dose: d } : { s: 'wait', t: `${name} · ${draftWord(d)} รอเภสัชกรตรวจ`, dose: d };
     const p = indsProblem(indsOf(d));
-    if (p) return { s: 'err', t: name, why: p, dose: d };
+    if (p) return { s: 'err', codes: ['data'], t: name, why: p, dose: d };
     const t = testDose(d, [l]);   // ตรวจซ้ำด้วยทดสอบสูตร (สูตรเดียวกับหน้าคำนวณ)
-    if (t.status === 'fail') return { s: 'err', t: name, why: `ผลทดสอบสูตรไม่ผ่าน: ${t.issues.find((x) => x.sev === 'fail').text}`, dose: d, test: t };
-    const flags = Array.isArray(d.audit_flags) ? d.audit_flags : [], fw = flags.filter((f) => f.level === 'wrong'), fq = flags.filter((f) => f.level === 'doubt');
-    if (fw.length) return { s: 'err', t: name, why: `AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก ${fw.length} ข้อ (หยุดแสดงข้อนั้นแล้ว): ${fw.map((f) => `${f.name} — ${f.why}`).join(' · ')}`, dose: d, test: t, audit: flags };
+    const hid = (Array.isArray(d.audit_flags) ? d.audit_flags : []).some(flagHides);
+    if (t.status === 'fail') return { s: 'err', codes: [...failWhy(t), ...(hid ? ['audit'] : [])], t: name, why: `ผลทดสอบสูตรไม่ผ่าน: ${t.issues.find((x) => x.sev === 'fail').text}`, dose: d, test: t };
+    // ธง AI ตรวจย้อนหลัง (91/92): ซ่อนตัวเลขอยู่ = ต้องแก้ · นอกฉลาก/สงสัยที่ยังไม่ตัดสิน = รอเภสัชกรตัดสิน · ตัดสินแล้วว่าไม่ขัด = ไม่นับ
+    const flags = Array.isArray(d.audit_flags) ? d.audit_flags : [], fw = flags.filter(flagHides), fq = flags.filter((f) => !f.decision && !flagHides(f));
+    if (fw.length) return { s: 'err', codes: ['audit'], t: name, why: `AI ตรวจย้อนหลัง: ตัวเลขขัดกับฉลาก ${fw.length} ข้อ (หยุดแสดงข้อนั้นแล้ว): ${fw.map((f) => `${f.name} — ${f.why}`).join(' · ')}`, dose: d, test: t, audit: flags };
     if (!own.length) return { s: 'wait', t: `${name} · จับคู่ตามชื่อ ยังไม่ได้ยืนยัน`, dose: d, auto: d, test: t };
     if (!d.active) return { s: 'wait', t: `${name} · ซ่อนจากเครื่องคำนวณ`, dose: d, test: t };
-    if (fq.length) return { s: 'wait', t: `${name} · AI สงสัย ${fq.length} ข้อ`, why: `AI ตรวจย้อนหลังสงสัย: ${fq.map((f) => `${f.name} — ${f.why}`).join(' · ')}`, dose: d, test: t, audit: flags };
+    if (fq.length) return { s: 'wait', t: `${name} · รอเภสัชกรตัดสินธง AI ${fq.length} ข้อ`, why: `AI ตรวจย้อนหลัง (ยังแสดงตัวเลขอยู่): ${fq.map((f) => `${FLAG_LEVEL[f.level] || 'สงสัย'} ${f.name} — ${f.why}`).join(' · ')}`, dose: d, test: t, audit: flags };
     if (!d.approved_at) return { s: 'wait', t: `${name} · รอเภสัชกรอนุมัติ`, why: 'ยังไม่มีผู้อนุมัติ (ข้อมูลเดิมก่อนมีระบบอนุมัติ) · ประชาชน/เจ้าหน้าที่ยังไม่เห็นยานี้ในเครื่องคำนวณ · ตรวจแล้วกด "อนุมัติใช้คำนวณ" ในหน้าโปรไฟล์ยา', dose: d, test: t };
     return { s: 'ok', t: `${name} · อนุมัติแล้ว`, dose: d, test: t };
   }
@@ -86,7 +95,7 @@ function judge(l, k) {
     const it = l.code && (D.rpst || []).find((x) => x.code === l.code);
     if (it) return { s: it.in_list === false ? 'wait' : 'ok', t: `รหัส ${it.code} · ${it.name}${it.unit ? ` (${it.unit})` : ''}`, why: it.in_list === false ? 'ไม่อยู่ในไฟล์บัญชีล่าสุดที่นำเข้า' : '' , item: it };
     if (l.outside) return { s: 'na', t: 'ยานอก รพ.สต. (ไม่อยู่ในบัญชี)' };
-    if (l.code) return { s: 'err', why: `รหัส ${l.code} ไม่อยู่ในบัญชียา รพ.สต.` };
+    if (l.code) return { s: 'err', codes: ['rpst'], why: `รหัส ${l.code} ไม่อยู่ในบัญชียา รพ.สต.` };
     return { s: 'miss', why: 'ยังไม่ได้ผูกกับรายการในบัญชี' };
   }
   if (k === 'test') {   // ทดสอบสูตรด้วยน้ำหนักตัวอย่าง × ความแรงของยานี้ (สูตรเดียวกับหน้าคำนวณ)
@@ -103,7 +112,7 @@ function judge(l, k) {
   if (k === 'fda') {
     const f = l.fda_key && D.fdas.find((x) => x.key === l.fda_key);
     if (f) return { s: 'ok', t: `${f.web_code ? f.web_code + ' ' : ''}${f.title} · ${f.generic} (${f.route})` };
-    if (l.fda_key) return { s: 'err', why: `ผูกฉลาก "${l.fda_key}" ไว้ แต่ไม่พบฉลากนี้แล้ว` };
+    if (l.fda_key) return { s: 'err', codes: ['fda'], why: `ผูกฉลาก "${l.fda_key}" ไว้ แต่ไม่พบฉลากนี้แล้ว` };
     return na || NO_FDA.test(cat(l)) ? NA('ยาสมุนไพรไม่มีฉลาก FDA') : { s: 'miss' };
   }
   if (k === 'mims') {
@@ -116,6 +125,12 @@ function judge(l, k) {
   return ds.length ? { s: 'ok', t: ds.map((x) => `${x.web_code ? x.web_code + ' ' : ''}${x.name}`).join(' + ') } : na || NO_DDI.test(cat(l)) ? NA('ยาใช้เฉพาะที่/สมุนไพร ไม่ตรวจ interaction') : { s: 'miss' };
 }
 const judgeAll = (l) => Object.fromEntries(K.map((k) => [k, judge(l, k)]));
+/** เหตุผลทั้งหมดของยาที่ "ต้องแก้ไข" (ทุกส่วนบังคับที่ไม่ผ่าน) · ไม่มีรหัส = อื่น ๆ (ต้องไม่เกิด · ทดสอบใน smoke) */
+export function whyOf(j) {
+  const out = new Set();
+  for (const k of KREQ) if (j[k]?.s === 'err') (j[k].codes?.length ? j[k].codes : ['other']).forEach((c) => out.add(c));
+  return Object.keys(WHY).filter((c) => out.has(c));
+}
 function rowStatus(j, l) {
   const v = KREQ.map((k) => j[k].s);
   return v.includes('err') ? 'err' : v.includes('miss') ? 'miss' : v.includes('wait') || !l.active ? 'wait' : 'ready';
@@ -218,16 +233,21 @@ async function save(l, row, msg, k) {
 /* ---------- หน้า ---------- */
 let rowsCache = [];
 function compute() {
-  rowsCache = D.locals.map((l) => { const j = judgeAll(l); return { l, j, st: rowStatus(j, l) }; });
+  rowsCache = D.locals.map((l) => { const j = judgeAll(l), st = rowStatus(j, l); return { l, j, st, why: st === 'err' ? whyOf(j) : [] }; });
 }
 function inScope(r) { return scope === 'all' || (scope === 'outside' ? !!r.l.outside : !r.l.outside); }
 function renderTop() {
   renderAudit(rowsCache);   // แจ้งเตือน AI ตรวจย้อนหลัง (dose-check.js)
   const rs = rowsCache.filter(inScope), n = { all: rs.length, ready: 0, wait: 0, miss: 0, err: 0 };
   rs.forEach((r) => n[r.st]++);
-  const cards = [['all', 'ยาทั้งหมด', ''], ['ready', 'พร้อมใช้', 'ok'], ['miss', 'ข้อมูลยังไม่ครบ', 'miss'], ['wait', 'รอเภสัชกรตรวจ', 'wait'], ['err', 'ผิดพลาด', 'err']];
+  const cards = [['all', 'ยาทั้งหมด', ''], ['ready', 'พร้อมใช้', 'ok'], ['miss', 'ข้อมูลยังไม่ครบ', 'miss'], ['wait', 'รอเภสัชกรตรวจ', 'wait'], ['err', 'ต้องแก้ไข', 'err']];
   $('#dcCards').innerHTML = cards.map(([k, t, c]) => `<button type="button" class="dc-card" data-dc-f="${k}" aria-pressed="${filt === k}"><span class="dc-num">${n[k]}</span><span class="dc-lbl">${c ? `<i class="dc-dot d-${c}"></i>` : ''}${t}</span></button>`).join('');
   $('#dcStack').innerHTML = ['ready', 'wait', 'miss', 'err'].map((k) => `<span class="d-${ROW[k][1]}" style="flex-grow:${n[k]}" title="${ROW[k][0]} ${n[k]}"></span>`).join('');
+  // งานที่ต้องทำต่อ: ยาที่ "ต้องแก้ไข" แยกตามเหตุผล (ยา 1 ตัวมีได้หลายเหตุผล) · กด = กรองตาราง
+  const wn = Object.fromEntries(Object.keys(WHY).map((c) => [c, rs.filter((r) => r.why.includes(c)).length]));
+  $('#dcTodo').hidden = !n.err;
+  $('#dcTodo').innerHTML = n.err ? `<b>งานที่ต้องทำต่อ</b><span class="small muted">ยาที่ต้องแก้ไข ${n.err} ตัว แยกตามเหตุผล · กดเพื่อดูรายการ</span><div class="dc-todo-l">`
+    + Object.keys(WHY).filter((c) => wn[c]).map((c) => `<button type="button" class="chip dc-why w-${c}" data-dc-f="why:${c}" aria-pressed="${filt === 'why:' + c}">${WHY[c]} <b>${wn[c]}</b></button>`).join('') + '</div>' : '';
   const C = 2 * Math.PI * 22;
   $('#dcRings').innerHTML = K.map((k) => {
     const app = rs.filter((r) => r.j[k].s !== 'na'), ok = app.filter((r) => r.j[k].s === 'ok').length, bad = app.length - ok, p = app.length ? ok / app.length : 1;
@@ -239,22 +259,22 @@ function renderTop() {
 }
 function visibleRows() {
   const q = $('#dcQ').value.trim().toLowerCase();
-  return rowsCache.filter((r) => inScope(r) && (filt === 'all' || (filt.startsWith('sec:') ? ['miss', 'err', 'wait'].includes(r.j[filt.slice(4)].s) : r.st === filt))
+  return rowsCache.filter((r) => inScope(r) && (filt === 'all' || (filt.startsWith('sec:') ? ['miss', 'err', 'wait'].includes(r.j[filt.slice(4)].s) : filt.startsWith('why:') ? r.why.includes(filt.slice(4)) : r.st === filt))
     && (!q || [r.l.name, r.l.web_code, r.l.code, cat(r.l)].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => RANK[a.st] - RANK[b.st] || (a.l.sort ?? 0) - (b.l.sort ?? 0) || a.l.id - b.l.id);
 }
 function renderTable() {
   const list = visibleRows();
-  const label = filt === 'all' ? '' : filt.startsWith('sec:') ? ` · ยังขาด/รอตรวจส่วน "${KS[filt.slice(4)]}"` : ` · ${ROW[filt][0]}`;
+  const label = filt === 'all' ? '' : filt.startsWith('sec:') ? ` · ยังขาด/รอตรวจส่วน "${KS[filt.slice(4)]}"` : filt.startsWith('why:') ? ` · ต้องแก้ไข: ${WHY[filt.slice(4)]}` : ` · ${ROW[filt][0]}`;
   $('#dcCount').textContent = `แสดง ${list.length} ยา${label} · ปัญหาหนักอยู่บนสุด · กดช่องเพื่อแก้ส่วนนั้น`;
   const strong = list.flatMap((r) => K.filter((k) => ['miss', 'wait'].includes(r.j[k].s)).map((k) => ({ r, k, sg: suggest(r.l, k, r.j) })).filter((x) => x.sg?.strong && (x.k !== 'dose' || x.r.j.dose.auto)));
   $('#dcBulk').hidden = !strong.length;
   $('#dcBulk').textContent = `✓ ยืนยันคู่ที่มั่นใจสูง (${strong.length})`;
   $('#dcTable').innerHTML = `<div class="dc-tr dc-th" role="row"><span role="columnheader">ยา</span>${K.map((k) => `<span role="columnheader" title="${KN[k]}">${KH[k]}</span>`).join('')}<span role="columnheader">สถานะ</span></div>`
-    + (list.length ? list.map(({ l, j, st }) => `<div class="dc-tr${l.id === sel ? ' is-sel' : ''}" role="row">`
+    + (list.length ? list.map(({ l, j, st, why }) => `<div class="dc-tr${l.id === sel ? ' is-sel' : ''}" role="row">`
       + `<button type="button" class="dc-nm" data-dc-row="${l.id}"><b>${esc(l.name)}</b><span class="code">${esc(l.web_code || '')}${l.outside ? ' · ยานอก รพ.สต.' : ''}${l.active ? '' : ' · ซ่อน'}</span></button>`
       + K.map((k) => { const c = cellS(k, j[k].s); return `<button type="button" class="dc-cell s-${c}" data-dc-row="${l.id}" data-dc-k="${k}" title="${KN[k]}: ${SN[c]}" aria-label="${esc(l.name)} · ${KN[k]}: ${SN[c]}">${SYM[c]}</button>`; }).join('')
-      + `<span class="dc-pill p-${ROW[st][1]}">${ROW[st][0]}</span></div>`).join('')
+      + `<span class="dc-st"><span class="dc-pill p-${ROW[st][1]}">${ROW[st][0]}</span>${why.map((c) => `<span class="dc-whyt w-${c}" data-dc-why="${c}">${WHY[c]}</span>`).join('')}</span></div>`).join('')
       : '<p class="empty">ไม่มียาในกลุ่มนี้</p>');
 }
 /* ---- แก้ทีละส่วนในแผง ---- */
@@ -560,7 +580,7 @@ function bind() {
   window.addEventListener('pcps:localsaved', () => back('str'));
   window.addEventListener('pcps:drugdata', async () => { if (!D) return; D = await drugData(); if (dt && dt.editing == null) dt = null; if (!$('#dcCenter').hidden) renderAll(); });   // ข้อมูลชุดใหม่หลังบันทึก (ที่นี่หรือส่วนฐานข้อมูลด้านล่าง)
   const onF = (e) => { const b = e.target.closest('[data-dc-f]'); if (!b) return; filt = filt === b.dataset.dcF ? 'all' : b.dataset.dcF; renderTop(); renderTable(); };
-  $('#dcCards').addEventListener('click', onF); $('#dcRings').addEventListener('click', onF);
+  $('#dcCards').addEventListener('click', onF); $('#dcRings').addEventListener('click', onF); $('#dcTodo').addEventListener('click', onF);
   $('#dcQ').addEventListener('input', renderTable);
   $('#dcScope').addEventListener('change', () => { scope = $('#dcScope').value; renderTop(); renderTable(); });
   $('#dcTable').addEventListener('click', (e) => { const b = e.target.closest('[data-dc-row]'); if (b) pick(+b.dataset.dcRow, b.dataset.dcK); });

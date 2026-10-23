@@ -126,6 +126,8 @@ js/pages/drug-center.js    ผู้ดูแล › ข้อมูลยา �
                            แผงยา 3 ขั้น (stepBox · ขั้นที่เสร็จย่อไว้ · stepOpen จำที่ผู้ดูแลเปิดเอง): ① ยาในเว็บแอพ (ชื่อ · รูปแบบ = category · ความแรง + "คิดเป็น" strength.as {name, mg} เมื่อข้อบ่งใช้คิดจากสารเฉพาะ เช่น Elemental iron)
                              ② แหล่งข้อมูล SRC (การ์ดละแหล่ง secHtml: บัญชียา รพ.สต. (local_drugs.code = rpst_list.code · ไม่มี = ยานอก) · MIMS · ฉลากยาสหรัฐฯ DailyMed/openFDA (fda) · บัญชียาหลัก · DDInter)
                              ③ ขนาดยา doseHtml/buildDt: แถวข้อบ่งใช้จากข้อมูลคำนวณเดิม (ติ๊กไว้) + dose_drugs.spare_inds + MIMS (drug_mims.indications) · ติ๊ก/แก้ด้วย indBox (admin-settings) · ตรวจซ้ำ testDose · saveDt อนุมัติ/บันทึก/เก็บร่าง → อัปเดตหรือสร้าง dose_drugs + ผูกยานี้และยาเม็ด/ยาน้ำชื่อสามัญหรือ MIMS เดียวกันที่ยังไม่มีข้อมูล (ผู้ดูแลไม่ต้องเลือก DOSE-xx)
+                           สถานะ "ต้องแก้ไข" (เดิม "ผิดพลาด" · F-02) = ส่วนบังคับใดเป็น err · judge() ใส่ codes → whyOf() เหตุผล WHY (ช่วงอายุ · เพดาน · ต่อครั้ง/ต่อวัน · ทดสอบสูตร · ข้อมูลไม่ครบ · ร่างไม่ครบ · AI ขัดฉลาก · สูตรผสม · บัญชี · ฉลากหาย)
+                           กล่อง "งานที่ต้องทำต่อ" #dcTodo (จำนวนตามเหตุผล · กด = กรอง why:<code>) + ป้ายเหตุผลในแถว [data-dc-why] · ชั้นแสดงผล ไม่เปลี่ยนเกณฑ์ (testDose ส่ง code ของกฎต่อ)
                            judge() สถานะต่อส่วน (ขนาดยารวมผลทดสอบสูตร: ไม่ผ่าน = err) · na = กลุ่มยาไม่ต้องมี หรือ local_drugs.link_na (83_drug_center.sql)
                            คู่ที่ระบบเสนอ suggest(): หลักฐาน + ความมั่นใจ · ✓ ได้เมื่อ ≥85% และหลักฐานตรงทุกข้อ · ✗ → drug_link_rejects (ผู้ดูแลเท่านั้น) · ปุ่มยืนยันคู่ที่มั่นใจสูงทีละหลายรายการ · ระบบไม่ผูกเอง
                            ใช้ข้อมูลจาก admin-drugs.js drugData()/reloadDrugData() · เหตุการณ์ 'pcps:drugdata' = วาดใหม่
@@ -219,7 +221,10 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
   ยาเดิมที่แสดงอยู่แต่ไม่มีผู้อนุมัติ → ผู้ดูแลตรวจในหน้าโปรไฟล์ยาแล้วกดอนุมัติ (approve_dose · ตรวจกฎซ้ำ) · ทุกทางที่บันทึกแบบแสดง (saveDose · ฟอร์มขนาดยาเดิม) เรียก approve_dose
 - AI ตรวจย้อนหลังขนาดยา (91_dose_audit.sql): ai_auto_tick → dose_audit_tick ช่วง 00–05 น. ไทย ทีละ 1 ยา (อนุมัติแล้ว + มีฉลาก OpenFDA · ยังไม่เคยตรวจ/อนุมัติใหม่/เกิน 30 วัน) → dose_drugs.audit_flags [{name, level, why, quote}]
   wrong (ตัวเลขขัดกับฉลาก + quote อยู่ในฉลากจริง) = หน้าคำนวณหยุดแสดงข้อนั้น [data-audit-block] · doubt = ยังแสดง เตือนผู้ดูแล [data-audit-doubt] · ธงระบบใส่เท่านั้น (GUC pcps.audit) · อนุมัติใหม่ล้างธง
-  ผู้ดูแล: กล่อง #dcAudit (ภาพรวม) + ตัวเลข #admDrugsBadge + ธงในการ์ด [data-dw-audit] ล้างด้วย dose_audit_resolve [data-dw-auditok] · สั่งตรวจตอนนี้ dose_audit_now/poll [data-dw-auditnow] (30 ครั้ง/วัน) · ผลตอบที่ข้อมูลเปลี่ยนไปแล้ว = ไม่ใช้
+  92_dose_audit_decide.sql (ผลตรวจระบบ 23 ต.ค. F-01 · ไม่เพิ่มตาราง): AI ให้ระดับ wrong (ฉลากมีข้อบ่งใช้นี้แต่ตัวเลขขัด = ซ่อนเอง) · offlabel (ฉลากไม่มีข้อบ่งใช้/อายุนี้ = ไม่ซ่อน) · doubt
+  เภสัชกรตัดสินในการ์ด [data-dw-decide] → dose_audit_decide: conflict (ซ่อนจนแก้) · offlabel_ok · local · no_conflict (กลับมาแสดง) · การตัดสินอยู่ในธง (decision/decided_at/sig) · ผู้ตัดสิน = drug_data_history
+  ตรวจซ้ำทุก 30 วัน: ตัดสินแล้ว + ตัวเลขเดิม (sig ตรง) = คงการตัดสิน ไม่ธง/ซ่อนซ้ำ · หน้าคำนวณบอก "ซ่อนเพราะ… โดย… เมื่อ…" [data-audit-why] · JS ใช้ flagHides/flagOpen/FLAG_LEVEL/DECISION ใน dose-rules.js
+  ผู้ดูแล: กล่อง #dcAudit (ภาพรวม · เฉพาะธงที่ยังต้องทำ) + ตัวเลข #admDrugsBadge + ธงในการ์ด [data-dw-audit] (dose_audit_resolve 91 = รุ่นเก่า ยังใช้ได้) · สั่งตรวจตอนนี้ dose_audit_now/poll [data-dw-auditnow] (30 ครั้ง/วัน) · ผลตอบที่ข้อมูลเปลี่ยนไปแล้ว = ไม่ใช้
 - ข่าว: สถานะ pending/fix/rejected/published/unpublished/deleted · ถังข่าว (unpublished/deleted/rejected) มี trashed_at — หน้าผู้ดูแลลบถาวรเมื่อครบ 30 วัน
 
 ## แนวทางเขียนโค้ด

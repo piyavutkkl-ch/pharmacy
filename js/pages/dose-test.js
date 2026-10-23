@@ -41,10 +41,10 @@ export function testConcs(d, locals = []) {
 /** ทดสอบข้อมูลคำนวณ d กับยาที่ใช้ข้อมูลนี้ → { status: pass|warn|fail, issues: [{ sev, text }], rows: [{ ind, w, dose, units: [{ label, text, sev }] }] } */
 export function testDose(d, locals = []) {
   const inds = indsOf(d), concs = testConcs(d, locals), issues = [], rows = [];
-  const add = (sev, text) => { if (!issues.some((x) => x.text === text)) issues.push({ sev, text }); };
+  const add = (sev, text, code = 'calc') => { if (!issues.some((x) => x.text === text)) issues.push({ sev, text, code }); };   // code = รหัสกฎ (dose-rules.js) · calc = ทดสอบสูตร
   if (!inds.length) add('fail', 'ยังไม่มีข้อบ่งใช้');
   const nameOf = (k) => `ข้อบ่งใช้ ${k + 1}${inds[k]?.name ? ` (${inds[k].name})` : ''}`;
-  for (const x of drugRules(inds)) add(x.sev, `${nameOf(x.k)}: ${x.text}`);   // กฎความปลอดภัยข้อมูล (ไม่ผ่าน = อนุมัติไม่ได้ · เตือน = ต้องรับทราบ)
+  for (const x of drugRules(inds)) add(x.sev, `${nameOf(x.k)}: ${x.text}`, x.code);   // กฎความปลอดภัยข้อมูล (ไม่ผ่าน = อนุมัติไม่ได้ · เตือน = ต้องรับทราบ)
   inds.forEach((i, k) => {
     const name = nameOf(k), U = i.unit === 'mcg' ? 'mcg' : 'มก.';
     if (!(typeof i.min === 'number' && typeof i.max === 'number' && i.max > 0 && i.max >= i.min)) { add('fail', `${name}: ขนาดยาต่ำสุด/สูงสุดไม่ถูกต้อง`); return; }

@@ -8,13 +8,13 @@
 //            ฉลากยาสหรัฐฯ openFDA (drug_fda_labels · 59_fda_labels.sql) ผ่าน local_drugs.fda_key · ภาษาอังกฤษ
 //            ค้นหา/กรองหมวด → เลือกยา → กลุ่มยา รูปแบบยา บัญชี เงื่อนไข คำเตือน คำแนะนำ หมายเหตุ + ขนาดยาจากเครื่องคำนวณ (จับคู่ชื่ออังกฤษ)
 import { sb } from '../supabase.js?v=4.4';
-import { $, esc, toast, errText } from '../util.js?v=4.4';
+import { $, esc, toast, errText, thaiDate } from '../util.js?v=4.4';
 import { isAdmin } from '../auth.js?v=4.4';
 import { estimateWeight } from '../growth.js?v=4.4';
 import { renderGrowth } from './growth-chart.js?v=4.4';
 import { initFluid } from './fluid.js?v=4.4';
 import { initDdi, resetDdi } from './ddi.js?v=4.4';
-import { blockedInds } from './dose-rules.js?v=4.4';
+import { blockedInds, flagHides } from './dose-rules.js?v=4.4';
 
 let drugs = null, bound = false;
 let monos = null, locals = null, items = null, litems = [], scope = 'local', shown = 40;   // ข้อมูลยา: โหลดเมื่อเปิดส่วนข้อมูลยา
@@ -299,14 +299,16 @@ function render() {
     }
     if (st === 'audit') {
       const f = flagOf(i);
-      return `<div class="alert" data-audit-block>${warnIcon}<div><b>ระบบตรวจย้อนหลังพบตัวเลขข้อนี้ไม่ตรงกับฉลากยา จึงหยุดแสดงตัวเลขชั่วคราว</b>`
-        + `<div class="small">รอเภสัชกรตรวจและแก้ไข · ระหว่างนี้ใช้เอกสารกำกับยาและปรึกษาเภสัชกร</div>`
+      const byPh = f.decision === 'conflict';   // ซ่อนเพราะ… โดย… เมื่อ… (ผลตรวจระบบ F-01)
+      return `<div class="alert" data-audit-block>${warnIcon}<div><b>หยุดแสดงตัวเลขข้อนี้ชั่วคราว</b>`
+        + `<div class="small" data-audit-why>ซ่อนเพราะ: ตัวเลขไม่ตรงกับฉลากยา · โดย: ${byPh ? 'เภสัชกรยืนยันแล้ว รอแก้ไขข้อมูล' : 'ระบบตรวจย้อนหลังอัตโนมัติ (รอเภสัชกรตัดสิน)'} · เมื่อ: ${esc(thaiDate(byPh ? f.decided_at : f.at) || '-')}</div>`
+        + `<div class="small">ระหว่างนี้ใช้เอกสารกำกับยาและปรึกษาเภสัชกร</div>`
         + (isAdmin() ? `<div class="small">AI: ${esc(f.why || '')}${f.quote ? ` · ฉลาก: <span lang="en">“${esc(f.quote)}”</span>` : ''}</div><a class="btn btn-o btn-sm" href="#/admin/drugs/work" data-dose-fixlink="${esc(curLocalId() ?? '')}">ตรวจในหน้าโปรไฟล์ยา</a>` : '') + '</div></div>' + tail;
     }
     if (st === 'need') return `<div class="alert" data-age-need>${warnIcon}<div><b>ข้อบ่งใช้นี้ใช้กับ${aTxt}</b><div class="small">กรอกอายุผู้ป่วยก่อน จึงจะแสดงขนาดยา (ใช้ตรวจว่าตรงช่วงอายุ)</div></div></div>` + tail;
-    const fd = isAdmin() && flagOf(i)?.level === 'doubt' ? flagOf(i) : null;   // สงสัย = ยังแสดง · เตือนเฉพาะผู้ดูแล
+    const fd = isAdmin() && flagOf(i) && !flagOf(i).decision ? flagOf(i) : null;   // สงสัย/นอกฉลาก ที่ยังไม่ตัดสิน = ยังแสดง · เตือนเฉพาะผู้ดูแล
     const agePre = (aTxt ? `<p class="small muted">ใช้กับ${aTxt}</p>` : '')
-      + (fd ? `<p class="small fx-warn" data-audit-doubt>AI ตรวจย้อนหลังสงสัยข้อนี้ (ผู้ดูแลเห็นเท่านั้น): ${esc(fd.why || '')} · ตรวจในหน้าโปรไฟล์ยา</p>` : '');
+      + (fd ? `<p class="small fx-warn" data-audit-doubt>AI ตรวจย้อนหลัง${fd.level === 'offlabel' ? 'พบว่าเป็นข้อบ่งใช้นอกฉลาก' : 'สงสัยข้อนี้'} (ผู้ดูแลเห็นเท่านั้น · รอเภสัชกรตัดสิน): ${esc(fd.why || '')} · ตัดสินในหน้าโปรไฟล์ยา</p>` : '');
     if (i.per === 'day' && ts.length > 1) return agePre + ts.map((n, k) => `<div class="dose-opt"><p class="small"><b>แบบที่ ${k + 1}: แบ่งให้วันละ ${n} ครั้ง</b></p>${doseCore({ ...i, times: n })}</div>`).join('') + tail;
     return agePre + doseCore(i) + tail;
   };
@@ -348,7 +350,7 @@ function render() {
     const aMin = i.age_min != null ? +i.age_min : null, aMax = i.age_max != null ? +i.age_max : null;
     if (age > 0 && ((aMin != null && age < aMin) || (aMax != null && age >= aMax))) return 'out';   // ช่วง "ตั้งแต่ … ถึงต่ำกว่า …"
     if (blocked.has(k)) return 'block';
-    if (flagOf(i)?.level === 'wrong') return 'audit';   // AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก → หยุดแสดงจนเภสัชกรตรวจ
+    if (flagHides(flagOf(i))) return 'audit';   // AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก (ยังไม่มีผู้ตัดสิน) / เภสัชกรยืนยันว่าขัด → หยุดแสดง
     if (!(age > 0) && ((aMin != null && aMin > 0) || aMax != null)) return 'need';
     return 'ok';
   };

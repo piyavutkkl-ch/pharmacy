@@ -556,10 +556,26 @@ function rpc(name, a = {}) {
       const r = (db.dose_audits || []).find((x) => x.id === a.p_id); if (!r) return err('ไม่พบรายการนี้', 'P0001');
       const d = db.dose_drugs.find((x) => x.id === r.dose_id);
       if (r.status === 'pending' && ++r.polls >= 2) {
-        const flags = (d.indications || []).filter((i) => /AUDITWRONG/.test(i.name || '')).map((i) => ({ name: i.name, level: 'wrong', why: 'ฉลากให้ 10–15 มก./กก. (ข้อมูลจำลอง)', quote: '10 to 15 mg/kg every 6 hours', at: now() }));
+        // AUDITWRONG = ตัวเลขขัด · AUDITOFF = นอกฉลาก · ข้อที่เภสัชกรตัดสินแล้ว (ตัวเลขเดิม) = คงการตัดสิน (แทน 92)
+        const sig = (i) => JSON.stringify({ ...i, ref: undefined, checked: undefined, quote: undefined, note: undefined });
+        const flags = (d.indications || []).filter((i) => /AUDITWRONG|AUDITOFF/.test(i.name || '')).map((i) => {
+          const old = (d.audit_flags || []).find((f) => f.name === i.name && f.decision && f.sig === sig(i));
+          return old || (/AUDITOFF/.test(i.name) ? { name: i.name, level: 'offlabel', why: 'ฉลากสหรัฐฯ ไม่มีข้อบ่งใช้นี้ (ข้อมูลจำลอง)', at: now(), sig: sig(i) }
+            : { name: i.name, level: 'wrong', why: 'ฉลากให้ 10–15 มก./กก. (ข้อมูลจำลอง)', quote: '10 to 15 mg/kg every 6 hours', at: now(), sig: sig(i) });
+        });
         Object.assign(r, { status: 'done', result: { flags } }); d.audit_flags = flags;
       }
       return { data: { id: r.id, status: r.status, result: r.result || null, note: null, flags: d.audit_flags || [] }, error: null };
+    }
+    case 'dose_audit_decide': {   // แทน dose_audit_decide (92)
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const d = (db.dose_drugs || []).find((x) => String(x.id) === String(a.p_dose)); if (!d) return err('ไม่พบข้อมูลขนาดยานี้', 'P0001');
+      const v = (a.p_decision || '').trim();
+      if (v && !['conflict', 'offlabel_ok', 'local', 'no_conflict'].includes(v)) return err('การตัดสินไม่ถูกต้อง', 'P0001');
+      const i = (d.indications || []).find((x) => x.name === a.p_name);
+      const sig = i ? JSON.stringify({ ...i, ref: undefined, checked: undefined, quote: undefined, note: undefined }) : null;
+      d.audit_flags = (d.audit_flags || []).map((f) => { if (f.name !== a.p_name) return f; const { decision, decided_at, ...rest } = f; return v ? { ...rest, decision: v, decided_at: now(), sig } : rest; });
+      return { data: d.audit_flags, error: null };
     }
     case 'dose_audit_resolve': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');

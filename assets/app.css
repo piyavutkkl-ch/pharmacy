@@ -1730,3 +1730,11 @@ body:has(section[data-view="admin"]:not([hidden]) [data-admin-view="drugs"]:not(
 .dg-sum span{border-radius:999px;padding:4px 12px;font-weight:600;font-size:13px;border:1px solid var(--line)}
 .dg-bad ul,.dg-ok ul{margin:4px 0;padding-left:20px;overflow-wrap:anywhere}
 .dg-mims.bad{border-color:var(--error);background:var(--error-soft)}
+
+/* ภาพรวมข้อมูลยา › งานที่ต้องทำต่อ (เหตุผลที่ยา "ต้องแก้ไข" · ผลตรวจระบบ F-02) */
+.dc-todo{border:1px solid var(--line);border-left:4px solid var(--danger,#c0392b);border-radius:12px;padding:10px 12px;display:grid;gap:6px;background:var(--surface)}
+.dc-todo-l{display:flex;flex-wrap:wrap;gap:6px}
+.dc-why{min-height:44px;cursor:pointer;font:inherit}
+.dc-why[aria-pressed="true"]{border-color:var(--primary);background:var(--primary-soft)}
+.dc-st{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+.dc-whyt{font-size:.72rem;line-height:1.25;color:var(--muted);overflow-wrap:anywhere}

@@ -9,6 +9,7 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, busy, errText } from '../util.js?v=4.4';
 import { indsOf } from './dose.js?v=4.4';
 import { testDose } from './dose-test.js?v=4.4';
+import { flagHides, flagOpen, FLAG_LEVEL } from './dose-rules.js?v=4.4';
 
 const IND_RE = /^ข้อบ่งใช้ (\d+)(?: \([^)]*\))?(?: · [^:]*)?: /;
 let report = null, running = false, stop = false;
@@ -128,18 +129,19 @@ export function renderAudit(rows) {
   const box = $('#dcAudit'); if (!box) return;
   const seen = new Set(), list = [];
   for (const r of rows || []) {
-    const d = r.j?.dose?.dose, fl = Array.isArray(d?.audit_flags) ? d.audit_flags : [];
+    const d = r.j?.dose?.dose, fl = (Array.isArray(d?.audit_flags) ? d.audit_flags : []).filter(flagOpen);   // ตัดสินแล้วว่าไม่ขัด = ไม่ต้องทำอะไร
     if (!d || !fl.length || seen.has(d.id)) continue;
     seen.add(d.id); list.push({ d, l: r.l, fl });
   }
   box.hidden = !list.length;
   if (!list.length) { box.innerHTML = ''; return; }
-  const nw = list.reduce((a, x) => a + x.fl.filter((f) => f.level === 'wrong').length, 0), nd = list.reduce((a, x) => a + x.fl.filter((f) => f.level !== 'wrong').length, 0);
-  box.innerHTML = `<div class="ck-top"><b>AI ตรวจย้อนหลังพบข้อมูลขนาดยาที่ควรตรวจ</b><span class="small muted">ตรวจยาที่อนุมัติแล้วกับฉลากทุกคืน</span></div>`
-    + `<div class="ck-sum">${nw ? `<span class="dc-err">ขัดกับฉลาก ${nw} ข้อ · หยุดแสดงตัวเลขแล้ว</span>` : ''}${nd ? `<span class="dc-warn">สงสัย ${nd} ข้อ · ยังแสดงอยู่</span>` : ''}</div>`
+  const cnt = (fn) => list.reduce((a, x) => a + x.fl.filter(fn).length, 0);
+  const nw = cnt(flagHides), no = cnt((f) => !flagHides(f) && f.level === 'offlabel'), nd = cnt((f) => !flagHides(f) && f.level !== 'offlabel');
+  box.innerHTML = `<div class="ck-top"><b>AI ตรวจย้อนหลังพบข้อมูลขนาดยาที่ควรตรวจ</b><span class="small muted">เทียบยาที่อนุมัติแล้วกับฉลาก OpenFDA+DailyMed ทุกคืน · AI เสนอ เภสัชกรตัดสิน · ตัดสินแล้วไม่ถูกธงซ้ำจนกว่าตัวเลขจะเปลี่ยน</span></div>`
+    + `<div class="ck-sum">${nw ? `<span class="dc-err">ตัวเลขขัดกับฉลาก ${nw} ข้อ · หยุดแสดงตัวเลขแล้ว</span>` : ''}${no ? `<span class="dc-warn">นอกฉลาก ${no} ข้อ · ยังแสดงอยู่ รอตัดสิน</span>` : ''}${nd ? `<span class="dc-warn">สงสัย ${nd} ข้อ · ยังแสดงอยู่</span>` : ''}</div>`
     + `<ul class="ck-list">${list.map(({ d, l, fl }) => `<li class="ck-row" data-audit-row="${d.id}"><div class="ck-h"><b>${esc(d.web_code ? `${d.web_code} ` : '')}${esc(d.name)}</b></div>`
-      + `<ul class="small">${fl.map((f) => `<li><span class="${f.level === 'wrong' ? 'dc-err' : 'dc-warn'}">${f.level === 'wrong' ? 'ขัดกับฉลาก' : 'สงสัย'}</span> ${esc(f.name)}: ${esc(f.why || '')}</li>`).join('')}</ul>`
-      + `<button type="button" class="btn btn-o btn-sm" data-ck-open="${esc(l.id)}">ตรวจในหน้าโปรไฟล์ยา ›</button></li>`).join('')}</ul>`;
+      + `<ul class="small">${fl.map((f) => `<li><span class="${flagHides(f) ? 'dc-err' : 'dc-warn'}">${f.decision === 'conflict' ? 'เภสัชกรยืนยันว่าขัด · รอแก้' : FLAG_LEVEL[f.level] || 'สงสัย'}</span> ${esc(f.name)}: ${esc(f.why || '')}</li>`).join('')}</ul>`
+      + `<button type="button" class="btn btn-o btn-sm" data-ck-open="${esc(l.id)}">ตัดสินในหน้าโปรไฟล์ยา ›</button></li>`).join('')}</ul>`;
 }
 let bound = false;
 /** ผูกปุ่มในกล่องผลตรวจ (เรียกครั้งเดียว) */

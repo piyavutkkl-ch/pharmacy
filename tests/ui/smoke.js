@@ -271,12 +271,19 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           await p.evaluate(async () => { const d = window.__db.dose_drugs.find((x) => x.id === 9902); d.approved_at = new Date().toISOString();
             const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }); }
         { // 91: AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก → หยุดแสดงข้อนั้น (แบบ ข) · สงสัย → ยังแสดง ไม่เตือนประชาชน (แบบ ก)
-          const setFlag = (level) => p.evaluate(async (level) => { const d = window.__db.dose_drugs.find((x) => x.id === 9902);
+          const setFlag = (level, decision) => p.evaluate(async ([level, decision]) => { const d = window.__db.dose_drugs.find((x) => x.id === 9902);
             d.indications = [{ name: 'เด็ก 2–6 ปี', per: 'dose', min: 1, max: 2, cap: 50, age_min: 2, age_max: 6 }];
-            d.audit_flags = level ? [{ name: 'เด็ก 2–6 ปี', level, why: 'ฉลากให้ 0.5–1 มก./กก. (ข้อมูลจำลอง)' }] : [];
-            const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }, level);
+            d.audit_flags = level ? [{ name: 'เด็ก 2–6 ปี', level, why: 'ฉลากให้ 0.5–1 มก./กก. (ข้อมูลจำลอง)', at: '2026-10-20T00:00:00Z', ...(decision ? { decision, decided_at: '2026-10-21T00:00:00Z' } : {}) }] : [];
+            const m = await import('./js/pages/dose.js?v=4.4'); m.resetDrugInfo(); await m.initDose(); }, [level, decision]);
           await setFlag('wrong'); await p.selectOption('#doseDrug', v); await p.fill('#doseWeight', '18'); await p.fill('#doseAge', '4'); await p.waitForTimeout(250);
           check('AI ตรวจย้อนหลังพบตัวเลขขัดกับฉลาก → หน้าคำนวณหยุดแสดงตัวเลขข้อนั้น + บอกให้รอเภสัชกร (ไม่โชว์เหตุผลภายในให้ประชาชน)', !!(await p.$('#doseResult [data-audit-block]')) && !(await p.$('#doseResult .ind-result .fig')) && !(await text(p, '#doseResult')).includes('ข้อมูลจำลอง'), await text(p, '#doseResult'));
+          check('92: หยุดแสดงแล้วบอก "ซ่อนเพราะ… โดย… เมื่อ…" (ระบบอัตโนมัติ · รอเภสัชกรตัดสิน)', /ซ่อนเพราะ.*โดย: ระบบตรวจย้อนหลังอัตโนมัติ.*เมื่อ:/s.test(await text(p, '#doseResult [data-audit-why]')), await text(p, '#doseResult'));
+          await setFlag('offlabel'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(250);
+          check('92: AI ว่า "นอกฉลาก" → ไม่ซ่อน ยังแสดงขนาดยา', !!(await p.$('#doseResult .ind-result .fig')) && !(await p.$('#doseResult [data-audit-block]')));
+          await setFlag('wrong', 'offlabel_ok'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(250);
+          check('92: เภสัชกรตัดสินว่า "นอกฉลาก · มีแนวทางรองรับ" → ตัวเลขกลับมาแสดง', !!(await p.$('#doseResult .ind-result .fig')) && !(await p.$('#doseResult [data-audit-block]')));
+          await setFlag('doubt', 'conflict'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(250);
+          check('92: เภสัชกรยืนยันว่าขัด → หยุดแสดง "โดย: เภสัชกรยืนยันแล้ว"', !!(await p.$('#doseResult [data-audit-block]')) && /เภสัชกรยืนยันแล้ว/.test(await text(p, '#doseResult [data-audit-why]')));
           await setFlag('doubt'); await p.selectOption('#doseDrug', v); await p.waitForTimeout(250);
           check('AI แค่สงสัย → ยังแสดงขนาดยาตามเดิม · ประชาชนไม่เห็นคำเตือน (เฉพาะผู้ดูแล)', !!(await p.$('#doseResult .ind-result .fig')) && !(await p.$('#doseResult [data-audit-doubt]')));
           await setFlag(null); await p.fill('#doseAge', ''); }
@@ -1363,14 +1370,24 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       { const n = +(await text(p, '#dcCards [data-dc-f="err"] .dc-num'));
         await p.click('#dcCards [data-dc-f="err"]'); await p.waitForTimeout(150);
         const pills = await p.$$eval('#dcTable .dc-pill', (x) => x.map((e) => e.textContent));
-        check('ศูนย์ข้อมูลยา: กดการ์ด "ผิดพลาด" → ตารางเหลือเฉพาะยาที่ผิดพลาด (จำนวนตรงการ์ด)', n > 0 && pills.length === n && pills.every((t) => t === 'ผิดพลาด'), `${n} ${pills.length}`);
-        await p.click('#dcCards [data-dc-f="err"]'); await p.waitForTimeout(150); }
+        check('ศูนย์ข้อมูลยา: กดการ์ด "ต้องแก้ไข" → ตารางเหลือเฉพาะยาที่ต้องแก้ไข (จำนวนตรงการ์ด)', n > 0 && pills.length === n && pills.every((t) => t === 'ต้องแก้ไข'), `${n} ${pills.length}`);
+        // F-02: ทุกยาที่ต้องแก้ไขมีเหตุผลอย่างน้อย 1 ข้อ (ไม่มี "อื่น ๆ") · กล่องงานที่ต้องทำต่อนับตามเหตุผล · กดเหตุผล = กรองตาราง
+        const whys = await p.$$eval('#dcTable .dc-tr:not(.dc-th)', (rows) => rows.map((r) => [...r.querySelectorAll('[data-dc-why]')].map((e) => e.dataset.dcWhy)));
+        check('F-02: ยาที่ต้องแก้ไขทุกตัวมีเหตุผลกำกับ (ไม่มียาที่ไม่มีเหตุผล · ไม่มี "อื่น ๆ")', whys.length === n && whys.every((w) => w.length > 0 && !w.includes('other')), JSON.stringify(whys));
+        await p.click('#dcCards [data-dc-f="err"]'); await p.waitForTimeout(150);
+        const todo = await p.$$eval('#dcTodo [data-dc-f^="why:"]', (x) => x.map((e) => [e.dataset.dcF.slice(4), +e.querySelector('b').textContent]));
+        const fda = todo.find(([c]) => c === 'fda');
+        check('F-02: กล่อง "งานที่ต้องทำต่อ" แยกเหตุผลพร้อมจำนวน (รวมทุกเหตุผล ≥ จำนวนยาที่ต้องแก้ไข) · มีเหตุผลฉลากหาย', await visible(p, '#dcTodo') && todo.reduce((a, [, k]) => a + k, 0) >= n && !!fda, JSON.stringify(todo));
+        await p.click('#dcTodo [data-dc-f="why:fda"]'); await p.waitForTimeout(150);
+        const fr = await p.$$eval('#dcTable .dc-tr:not(.dc-th)', (rows) => rows.map((r) => !!r.querySelector('[data-dc-why="fda"]')));
+        check('F-02: กดเหตุผล "ฉลากที่ผูกไว้หายไป" → ตารางเหลือเฉพาะยานั้น (จำนวนตรง) + บอกตัวกรอง', fr.length === fda[1] && fr.every(Boolean) && (await text(p, '#dcCount')).includes('ต้องแก้ไข: ฉลากที่ผูกไว้หายไป'), `${fr.length} ${await text(p, '#dcCount')}`);
+        await p.click('#dcTodo [data-dc-f="why:fda"]'); await p.waitForTimeout(150); }
       { await p.click('#dcRings [data-dc-f="sec:fda"]'); await p.waitForTimeout(150);
         const cells = await p.$$eval('#dcTable [data-dc-k="fda"]', (x) => x.map((e) => e.className));
         check('ศูนย์ข้อมูลยา: กดวงกลม "DailyMed / openFDA" → เหลือยาที่ยังขาด/รอตรวจฉลาก', cells.length > 0 && cells.every((c) => !/s-ok|s-na/.test(c)) && (await text(p, '#dcCount')).includes('DailyMed / openFDA'));
         await p.click('#dcRings [data-dc-f="sec:fda"]'); await p.waitForTimeout(150); }
-      const ranks = await p.$$eval('#dcTable .dc-pill', (x) => x.map((e) => ({ 'ผิดพลาด': 0, 'ยังไม่ครบ': 1, 'รอตรวจ': 2, 'พร้อมใช้': 3 })[e.textContent]));
-      check('ศูนย์ข้อมูลยา: เรียงปัญหาหนักก่อน (ผิดพลาด → ยังไม่ครบ → รอตรวจ → พร้อมใช้)', ranks.every((r, i) => !i || r >= ranks[i - 1]));
+      const ranks = await p.$$eval('#dcTable .dc-pill', (x) => x.map((e) => ({ 'ต้องแก้ไข': 0, 'ยังไม่ครบ': 1, 'รอตรวจ': 2, 'พร้อมใช้': 3 })[e.textContent]));
+      check('ศูนย์ข้อมูลยา: เรียงปัญหาหนักก่อน (ต้องแก้ไข → ยังไม่ครบ → รอตรวจ → พร้อมใช้)', ranks.every((r, i) => !i || r >= ranks[i - 1]));
       await p.fill('#dcQ', 'AMOXICILLIN 500'); await p.waitForTimeout(150);
       await p.click(`#dcTable [data-dc-row="${amx}"][data-dc-k="ddi"]`); await p.waitForTimeout(400);
       check('แผงรายละเอียด: กดช่อง DDInter → แผงยานั้น 3 ขั้น (ยาในเว็บแอพ · แหล่งข้อมูล · ขนาดยา) · ขั้นแหล่งข้อมูลเปิด + DDInter เด่นขึ้น', (await text(p, '#dcPanel h3')) === 'AMOXICILLIN 500 MG' && await count(p, '#dcPanel .dc-step') === 3
@@ -2303,12 +2320,16 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ภาพรวม: กล่อง "AI ตรวจย้อนหลังพบ" ขัดกับฉลาก (หยุดแสดงแล้ว) + ตัวเลขแจ้งเตือนบนเมนูข้อมูลยา', await visible(q, '#dcAudit') && (await text(q, '#dcAudit')).includes('ขัดกับฉลาก 1 ข้อ') && (await text(q, '#admDrugsBadge')).trim() === '1', await text(q, '#dcAudit'));
         await q.click('#dcAudit [data-ck-open]'); await q.waitForTimeout(1500);   // ยาที่ใช้ข้อมูลคำนวณชุดนี้ (อาจเป็นยาน้ำ/ยาเม็ดตัวใดก็ได้)
         check('เปิดจากกล่องแจ้งเตือน → การ์ดแสดงธง AI ตรวจย้อนหลัง (เหตุผล + ข้อความฉลาก) + ปุ่มล้างธง', /PARACETAMOL/.test(await text(q, '#dwHead h3')) && await count(q, '[data-dw-audit]') === 1 && (await text(q, '[data-dw-audit]')).includes('ขัดกับฉลาก') && (await text(q, '[data-dw-audit]')).includes('10 to 15 mg/kg'), `${await text(q, '#dwHead h3')} | ${(await text(q, '#dwDose')).replace(/\s+/g, ' ').slice(0, 600)}`);
-        if (await count(q, '[data-dw-auditok]')) { await q.click('[data-dw-auditok]'); await q.waitForTimeout(900); }
-        check('ตรวจแล้ว ข้อมูลเดิมถูกต้อง → ล้างธง (dose_audit_resolve)', (await calls(q, (c) => c.rpc === 'dose_audit_resolve')).pop()?.args?.p_name === 'AUDITWRONG ไข้' && await count(q, '[data-dw-audit]') === 0);
+        check('92: ธงยังไม่ตัดสิน → ปุ่มตัดสิน 4 แบบ (ขัดจริง · นอกฉลาก–มีแนวทาง · แนวปฏิบัติท้องถิ่น · ไม่ขัด)', await count(q, '[data-dw-audit] [data-dw-decide]') === 4 && /รอเภสัชกรตัดสิน/.test(await text(q, '[data-dw-audit]')), await text(q, '[data-dw-audit]'));
+        await q.click('[data-dw-audit] [data-dw-decide][data-v="offlabel_ok"]'); await q.waitForTimeout(900);
+        check('92: ตัดสิน "นอกฉลาก · มีแนวทางรองรับ" → บันทึก (dose_audit_decide) · การ์ดบอกตัดสินแล้ว + แสดงตามเดิม · ตัวเลขบนเมนูหาย', (await calls(q, (c) => c.rpc === 'dose_audit_decide')).pop()?.args?.p_decision === 'offlabel_ok'
+          && /ตัดสินแล้ว: นอกฉลาก · มีแนวทางรองรับ · แสดงตามเดิม/.test(await text(q, '[data-dw-audit]')) && (await text(q, '#admDrugsBadge')).trim() === '', await text(q, '[data-dw-audit]'));
         await q.evaluate((lid) => { const db = window.__db, l = db.local_drugs.find((x) => x.id === lid); l.fda_key = l.fda_key || (db.drug_fda_labels[0] || {}).key; }, lid);
         if (await count(q, '[data-dw-auditnow]')) {
           await q.click('[data-dw-auditnow]'); await q.waitForSelector('[data-dw-audit]', { timeout: 20000 }).catch(() => {});
-          check('ให้ AI ตรวจย้อนหลังยานี้ตอนนี้ → พบขัดกับฉลาก → ธงกลับมาในการ์ด + บอกผล', (await calls(q, (c) => c.rpc === 'dose_audit_now')).length === 1 && await count(q, '[data-dw-audit]') === 1 && (await text(q, '#dwHead')).includes('AI ตรวจย้อนหลังพบ 1 ข้อ'), await text(q, '#dwHead'));
+          check('92: ให้ AI ตรวจซ้ำ (ตัวเลขเดิม) → คงการตัดสินของเภสัชกร ไม่ธง/ซ่อนซ้ำ', (await calls(q, (c) => c.rpc === 'dose_audit_now')).length === 1 && await count(q, '[data-dw-audit]') === 1 && /ตัดสินแล้ว/.test(await text(q, '[data-dw-audit]')), await text(q, '[data-dw-audit]'));
+          await q.click('[data-dw-audit] [data-dw-decide][data-v=""]'); await q.waitForTimeout(900);
+          check('92: เปลี่ยนการตัดสิน → กลับเป็นรอตัดสิน (ตัวเลขขัด = หยุดแสดงอีกครั้ง)', /รอเภสัชกรตัดสิน/.test(await text(q, '[data-dw-audit]')) && /หยุดแสดง/.test(await text(q, '[data-dw-audit]')), await text(q, '[data-dw-audit]'));
         } else check('ปุ่มให้ AI ตรวจย้อนหลังยานี้ตอนนี้ (ยาที่อนุมัติแล้ว + มีฉลาก)', false, await text(q, '#dwDose')); }
       await q.setViewportSize({ width: 390, height: 900 }); await go(q, '#/admin/drugs'); await q.waitForTimeout(900); await q.click('#dcCheckBtn'); await q.waitForTimeout(300);
       check('ผลตรวจทุกตัว 390px: ไม่มี scroll แนวนอน', (await overflow(q)) <= 0, String(await overflow(q)));

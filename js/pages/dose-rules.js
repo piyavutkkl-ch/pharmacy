@@ -246,3 +246,13 @@ export const RULES_TEXT = 'ทุกข้อต้องมี age_min (ปี 
   + ' · คิดตามน้ำหนักแบบ per "dose" ต้องมี cap (สูงสุดต่อครั้ง) · แบบ per "day" ต้องมี cap_day (สูงสุดต่อวัน) และ times (วันละกี่ครั้ง)'
   + ' · ฉลากเขียน mg/kg/day หรือ daily/divided = per "day" · ฉลากเขียน every 6 hours = times 4, every 8 hours = 3, every 12 hours = 2'
   + ' · เพดานต่อวันที่ฉลากเขียน (maximum … mg/day) ใส่ cap_day ห้ามใส่ cap · cap ต้องไม่มากกว่า cap_day · ขนาดเด็กต้องไม่เกินขนาดผู้ใหญ่';
+
+/* ---------- ธง AI ตรวจย้อนหลัง (91/92 · ผลตรวจระบบ 23 ต.ค. F-01) ---------- */
+/** ระดับที่ AI ให้ · wrong = ฉลากมีข้อบ่งใช้นี้แต่ตัวเลขขัด · offlabel = ฉลากไม่มีข้อบ่งใช้/กลุ่มอายุนี้ · doubt = สงสัย */
+export const FLAG_LEVEL = { wrong: 'ตัวเลขขัดกับฉลาก', offlabel: 'นอกฉลาก', doubt: 'สงสัย' };
+/** การตัดสินของเภสัชกร (dose_audit_decide) */
+export const DECISION = { conflict: 'ขัดกับฉลากจริง · ต้องแก้', offlabel_ok: 'นอกฉลาก · มีแนวทางรองรับ', local: 'แนวปฏิบัติท้องถิ่น', no_conflict: 'ไม่พบความขัดแย้ง' };
+/** หน้าคำนวณหยุดแสดงตัวเลขข้อนี้: AI ว่าตัวเลขขัด (ยังไม่มีผู้ตัดสิน) หรือเภสัชกรยืนยันว่าขัด */
+export const flagHides = (f) => !!f && (f.decision === 'conflict' || (f.level === 'wrong' && !f.decision));
+/** ยังต้องทำอะไรอยู่: รอเภสัชกรตัดสิน หรือยืนยันว่าขัดแต่ยังไม่แก้ */
+export const flagOpen = (f) => !!f && (!f.decision || f.decision === 'conflict');
