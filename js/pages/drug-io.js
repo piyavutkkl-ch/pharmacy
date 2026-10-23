@@ -171,22 +171,36 @@ export const retryPlan = (p, results) => ({ ...p, upd: results.filter((x) => !x.
 const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build';
 /** ข้อความจากไฟล์ (ตาราง = คั่นด้วยแท็บ) · ≤ 40,000 ตัวอักษร */
 export async function fileText(f, onProgress) { return (await fileTextInfo(f, onProgress)).text; }
-/** อ่านข้อความจากไฟล์ → { text, ocr } · PDF ที่เป็นภาพ (ไม่มีตัวอักษร เช่น บันทึกหน้าเว็บเป็นภาพ) = อ่านด้วย OCR ในเครื่อง (ocr: true)
- *  onProgress(หน้า, ทั้งหมด) = แจ้งความคืบหน้าตอน OCR */
+/** อ่านข้อความจากไฟล์ → { text, ocr } · PDF: ดูทีละหน้า หน้าที่แทบไม่มีตัวอักษร (< 200) แต่มีภาพ = อ่านภาพด้วย OCR ในเครื่อง (ocr: true)
+ *  (เช่น บันทึกหน้าเว็บ MIMS เป็นภาพ: หน้าแรกมีแค่หัว "Advertisement…" + ชื่อยา ที่เหลือเป็นภาพ) · onProgress(ลำดับ, ทั้งหมด) = แจ้งความคืบหน้าตอน OCR */
 export async function fileTextInfo(f, onProgress) {
   if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
     const pdfjs = await import(`${PDFJS}/pdf.min.mjs`);
     pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS}/pdf.worker.min.mjs`;
-    const doc = await pdfjs.getDocument({ data: await f.arrayBuffer() }).promise, out = [];
+    const doc = await pdfjs.getDocument({ data: await f.arrayBuffer() }).promise, pages = [], need = [];
+    const IMG = new Set(['paintImageXObject', 'paintInlineImageXObject', 'paintJpegXObject', 'paintImageMaskXObject', 'paintImageXObjectRepeat'].map((k) => pdfjs.OPS?.[k]).filter((x) => x != null));
     for (let i = 1; i <= Math.min(doc.numPages, 40); i++) {
-      const tc = await (await doc.getPage(i)).getTextContent();
-      let line = '', y = null;
-      for (const it of tc.items) { const yy = Math.round(it.transform[5]); if (y != null && Math.abs(yy - y) > 2) { out.push(line); line = ''; } line += (line && !line.endsWith(' ') ? '\t' : '') + it.str; y = yy; }
+      const page = await doc.getPage(i), tc = await page.getTextContent(), out = [];
+      let line = '', y = null, xEnd = null;
+      for (const it of tc.items) {
+        const yy = Math.round(it.transform[5]), x = it.transform[4], h = Math.abs(it.transform[3]) || it.height || 10;
+        if (y != null && Math.abs(yy - y) > 2) { out.push(line); line = ''; xEnd = null; }
+        // ชิ้นข้อความติดกัน (PDF จาก iOS แยกอักษรตัวแรก "I"+"ndications") = ต่อเลย · ห่างนิดหน่อย = เว้นวรรค · ห่างมาก = แท็บ (คอลัมน์ตาราง)
+        const gap = xEnd == null || !Number.isFinite(x) ? null : x - xEnd;
+        const sep = !line || line.endsWith(' ') || it.str.startsWith(' ') ? '' : gap == null ? '\t' : gap <= h * 0.15 ? '' : gap <= h * 1.2 ? ' ' : '\t';
+        line += sep + it.str; y = yy;
+        if (Number.isFinite(x) && Number.isFinite(it.width)) xEnd = x + it.width; else xEnd = null;
+      }
       out.push(line);
+      const t = out.join('\n'); pages.push(t);
+      if (t.replace(/\s/g, '').length < 200) {   // แทบไม่มีตัวอักษร: มีภาพในหน้า = ต้อง OCR (ตรวจภาพไม่ได้ = ถือว่ามี)
+        const img = IMG.size && page.getOperatorList ? await page.getOperatorList().then((ol) => ol.fnArray.some((fn) => IMG.has(fn))).catch(() => true) : true;
+        if (img) need.push(i);
+      }
     }
-    const text = out.join('\n').slice(0, 40000);
-    if (text.replace(/\s/g, '').length >= 20 || !doc.numPages) return { text, ocr: false };
-    return { text: (await ocrPdf(doc, onProgress)).slice(0, 40000), ocr: true };
+    if (!need.length) return { text: pages.join('\n').slice(0, 40000), ocr: false };
+    const got = await ocrPdf(doc, need.slice(0, 12), onProgress);
+    return { text: pages.map((t, k) => (got.has(k + 1) ? `${t}\n${got.get(k + 1)}` : t)).join('\n').slice(0, 40000), ocr: true };   // ตัวอักษรจริงของหน้านั้น (เช่น ชื่อยา) ก่อน แล้วตามด้วยข้อความจากภาพ
   }
   if (/\.(txt|md)$/i.test(f.name) || f.type.startsWith('text/plain')) return { text: (await f.text()).slice(0, 40000), ocr: false };
   const aoa = await readTable(f);
@@ -196,21 +210,21 @@ export async function fileTextInfo(f, onProgress) {
    ทำในเครื่องผู้ดูแลเท่านั้น ไม่ส่งภาพ/ข้อความออกนอกเครื่อง ไม่ใช้ AI (ใช้กับข้อมูล MIMS ได้) · อ่านภาษาอังกฤษ · สูงสุด 12 หน้า */
 const TESS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js';
 const TESS_LANG = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int';
-async function ocrPdf(doc, onProgress) {
+async function ocrPdf(doc, nums, onProgress) {
   const T = (await import(TESS)).default;
   const w = await T.createWorker('eng', 1, { langPath: TESS_LANG });
   try {
-    const out = [], n = Math.min(doc.numPages, 12);
-    for (let i = 1; i <= n; i++) {
-      onProgress?.(i, n);
+    const out = new Map();
+    for (const [k, i] of nums.entries()) {
+      onProgress?.(k + 1, nums.length);
       const page = await doc.getPage(i), vp1 = page.getViewport({ scale: 1 });
       const vp = page.getViewport({ scale: Math.min(4, 2200 / (vp1.width || 600)) });   // ~2200 px กว้าง = ตัวอักษรชัดพอสำหรับ OCR
       const c = document.createElement('canvas'); c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
       await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
       const { data } = await w.recognize(c);
-      out.push(data?.text || '');
+      out.set(i, data?.text || '');
     }
-    return out.join('\n');
+    return out;
   } finally { await w.terminate().catch(() => {}); }
 }
 /** ข้อความจากหน้า MIMS (PDF ที่พิมพ์หน้าเว็บ / ข้อความที่คัดลอก) → แยกหัวข้อในเครื่องด้วย mims-text.js (ไม่ส่งให้ AI · ข้อมูลสมาชิก) · ตรงกับ looks_mims (89) + หัวข้อหลักของหน้า MIMS */

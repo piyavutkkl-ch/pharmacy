@@ -2649,6 +2649,25 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           await q.setInputFiles('#dgImport', { name: 'Blank_MIMS.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fake') }); await q.waitForTimeout(1500);
           check('PDF ภาพที่อ่านตัวอักษรไม่ได้ → บอกเหตุผล (เป็นภาพ อ่านไม่ได้) + แนะนำวางข้อความแทน', /เป็นภาพ และอ่านตัวอักษรจากภาพไม่ได้/.test(await text(q, '#dgImpBox')), await text(q, '#dgImpBox'));
           await q.click('#dgImpBox [data-dg-impno]').catch(() => {}); await q.waitForTimeout(150); }
+          { const q = await open('admin', '#/admin'); await q.waitForTimeout(500); await go(q, '#/admin/drugs/grid'); await q.waitForTimeout(1500);   // หน้าใหม่ (โมดูล pdf.js/Tesseract จำลองของกรณีก่อนถูกแคชในหน้าเดิม)
+            // PDF ผสม: หน้า 1 ตัวอักษรจริงแบบ iOS (อักษรตัวแรกแยกชิ้น "I"+"ndications") · หน้า 2 มีแค่หัวสั้น ๆ + ภาพ → OCR เฉพาะหน้า 2 (ข้อความสมมติ)
+            const pad = 'padding text for a long real-text page '.repeat(6);
+            const fake = `export const GlobalWorkerOptions = {}; export const OPS = { paintImageXObject: 85 };
+              const T = (s, x, y, w) => ({ str: s, transform: [10, 0, 0, 10, x, y], width: w });
+              const vp = ({ scale }) => ({ width: 600 * scale, height: 800 * scale }), rd = () => ({ promise: Promise.resolve() });
+              const p1 = { getTextContent: async () => ({ items: [T('> Drugs >', 50, 820, 40), T('Splitol', 95, 820, 40), T('Splitol', 50, 800, 40), T('I', 50, 780, 3), T('ndications and Dosage', 53, 780, 110), T('Oral', 50, 760, 20), T('Fever (sample text)', 50, 740, 100), T('A', 50, 720, 6), T('dult: 500 mg every 6 hours. ${pad}', 56, 720, 900)] }), getOperatorList: async () => ({ fnArray: [] }), getViewport: vp, render: rd };
+              const p2 = { getTextContent: async () => ({ items: [T('Advertisement for Healthcare Professionals only', 50, 800, 200)] }), getOperatorList: async () => ({ fnArray: [85] }), getViewport: vp, render: rd };
+              export function getDocument() { return { promise: Promise.resolve({ numPages: 2, getPage: async (i) => (i === 1 ? p1 : p2) }) }; }`;
+            await q.route('**/npm/pdfjs-dist@4.4.168/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: /worker/.test(r.request().url()) ? '' : fake }));
+            let pages = 0;
+            await q.exposeFunction('__ocrPage', () => { pages++; });
+            await q.route('**/npm/tesseract.js@5.1.1/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: `export default { createWorker: async () => ({ recognize: async () => { window.__ocrPage(); return { data: { text: 'Mm > .. > Splitol\\nContraindications\\nHypersensitivity (sample text).' } }; }, terminate: async () => {} }) };` }));
+            await q.setInputFiles('#dgImport', { name: 'Splitol_ Uses _ MIMS Thailand.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fake') });
+            await q.waitForSelector('#dgImpBox [data-dg-mimssave]', { timeout: 15000 }).catch(() => {});
+            const heads = await q.$$eval('#dgImpBox .dg-mh summary', (x) => x.map((e) => e.textContent));
+            check('PDF จาก iOS (อักษรตัวแรกแยกชิ้น) อ่านหัวข้อได้ · หน้าที่มีแค่หัวสั้น ๆ + ภาพ = OCR เฉพาะหน้านั้น · ชื่อยาไม่ติดเส้นทางเมนู', heads.length === 2 && pages === 1 && /Splitol · แยกได้ 2 หัวข้อ/.test(await text(q, '#dgImpBox')) && await count(q, '#dgImpBox [data-dg-ocr]') === 1,
+              `${pages} | ${heads.join(',')} | ${(await text(q, '#dgImpBox')).slice(0, 300)}`);
+            await q.close(); }
         await q.setInputFiles('#dgImport', [{ name: 'a.csv', mimeType: 'text/csv', buffer: Buffer.from('ชื่อยา\nX 1 MG\n') }, { name: 'b.csv', mimeType: 'text/csv', buffer: Buffer.from('ชื่อยา\nY 1 MG\n') }]); await q.waitForTimeout(800);
         check('หลายไฟล์ที่ไม่ใช่ MIMS → ให้นำเข้าทีละไฟล์', /ทีละไฟล์/.test(await text(q, '#dgImpBox')), await text(q, '#dgImpBox'));
         await q.click('#dgImpBox [data-dg-impno]'); await q.waitForTimeout(150);

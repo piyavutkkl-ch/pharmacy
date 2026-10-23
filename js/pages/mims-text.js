@@ -15,7 +15,7 @@ const ROUTES = /^(Oral|Intravenous|IV|Intramuscular|IM|Subcutaneous|SC|Topical\/
 const POPS = { Adult: 'ผู้ใหญ่', Child: 'เด็ก', Elderly: 'ผู้สูงอายุ', Infant: 'ทารก', Neonate: 'ทารกแรกเกิด', Adolescent: 'วัยรุ่น' };
 const POP_RE = new RegExp(`^(${Object.keys(POPS).join('|')})s?:\\s*`);
 const STOP = /^(Disclaimer:|Related Diseases|MIMS Drugs V\d|Copyright ©)/;
-const NOISE = [/^https?:\/\/\S+$/, /^\d{1,2}\/\d{1,2}\/\d{4}(\s*BE)?,?\s*\d{1,2}:\d{2}$/, /^Page \d+ of \d+$/i, /^Advertisement for Healthcare Professionals only$/i, /^>\s*Drugs\s*>?$/,
+const NOISE = [/^https?:\/\/\S+$/, /^\d{1,2}\/\d{1,2}\/\d{4}(\s*BE)?,?\s*\d{1,2}:\d{2}$/, /^Page \d+ of \d+$/i, /^Advertisement for Healthcare Professionals only$/i, /^>\s*Drugs\s*>?$/, /^[>\s.…]+$/,
   /^Generic Medicine Info$/i, /^This information is not country-specific/i, /^the Thailand prescribing information\.?$/i, /^Other Known Brands$/i, /^See More\s*$/i, /^\d+\s*\/\s*\d+$/, /^\d{1,3}$/, /^[‹›]$/];
 const okUrl = (u) => (typeof u === 'string' && /^https:\/\/(www\.)?mims\.com\//.test(u) && u.length <= 300 ? u : null);
 
@@ -52,7 +52,8 @@ export function parseMimsText(text, fallbackName = '') {
     const head = HEADS.find((h) => l.toLowerCase() === h.toLowerCase());
     if (head) { mode = 'body'; cur = { title: head, lines: [] }; sections.push(cur); continue; }
     if (mode === 'brands') { if (l.length <= 60) brands.push(l); continue; }
-    if (!cur) { if (!name && l.length <= 120 && !/[.:]$/.test(l)) name = l; continue; }
+    if (!cur) { const c = l.includes('>') ? l.split('>').pop().trim() : l;   // เส้นทางเมนู "> Drugs > ชื่อยา" (OCR อาจอ่านเป็น "Mm > .. > ชื่อยา") = เอาท้ายสุด
+      if (!name && c.length <= 120 && !/[.:]$/.test(c) && /^[A-Za-z]/.test(c) && !/MIMS|^Drugs$/i.test(c)) name = c; continue; }   // ชื่อยา = บรรทัดแรกที่ขึ้นต้นด้วยตัวอักษร (OCR อ่านแถบเมนู/โลโก้เป็นสัญลักษณ์ เช่น "= MIMS & Q" = ข้าม)
     cur.lines.push(l);
   }
   // PDF ที่พิมพ์หน้าเว็บ: รายชื่อการค้า (คอลัมน์ข้าง) หลุดไปอยู่ท้ายหัวข้อสุดท้าย → บรรทัดสั้นท้ายสุดที่ไม่ใช่ประโยค = ชื่อการค้า (เมื่อหน้ามีส่วนชื่อการค้า)
