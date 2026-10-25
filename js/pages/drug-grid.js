@@ -179,7 +179,9 @@ function linkValues(d, k) {
   return [...top, ...(on.length ? [{ label: '— เอาออกทั้งหมด —', value: '__clear__' }] : []), ...on.map((i) => ({ label: `✓ ${name(i)} (เลือก = เอาออก)`, value: i })), ...D.ddDrugs.filter((x) => !on.includes(x.id)).map((x) => ({ label: `${x.web_code ? x.web_code + ' · ' : ''}${x.name}`, value: x.id }))];
 }
 const lc = (s) => String(s || '').toLowerCase();
-const listParams = (values, extra = {}) => ({ values, autocomplete: true, listOnEmpty: true, allowEmpty: true, filterDelay: 120, placeholderEmpty: 'ไม่พบ', placeholderLoading: 'กำลังค้นหา…', filterFunc: (term, label) => lc(label).includes(lc(term)), ...extra });
+/** ตัวเลือกของ Tabulator list editor แสดงด้วย innerHTML → ต้อง esc ป้ายทุกตัว (ชื่อยา/หมวดมาจากไฟล์นำเข้า · openFDA · DDInter) · ค้นหาด้วยข้อความเดิม (raw) */
+const safeVals = (values) => values.map((v) => (v && typeof v === 'object' ? { ...v, raw: String(v.label ?? ''), label: esc(v.label ?? '') } : { value: v, raw: String(v ?? ''), label: esc(v ?? '') }));
+const listParams = (values, extra = {}) => ({ values: safeVals(values), autocomplete: true, listOnEmpty: true, allowEmpty: true, filterDelay: 120, placeholderEmpty: 'ไม่พบ', placeholderLoading: 'กำลังค้นหา…', filterFunc: (term, label, value, item) => lc(item?.raw ?? label).includes(lc(term)), ...extra });
 
 /* ---------- คอลัมน์ ---------- */
 const DETAIL = {   // ทีละฐาน: คอลัมน์รายละเอียดเพิ่ม
@@ -201,7 +203,7 @@ function columns() {
     ...(st.str ? [{ title: '① รายการยาบนเว็บ', columns: [
       { title: 'รหัส', field: 'code', width: 110, formatter: (cell) => mut(cell.getValue() || '—') },
       { title: 'รูปแบบ', field: 'category', minWidth: 150, maxWidth: 200, cssClass: 'dg-ed dg-wrap', editor: 'list',
-        editorParams: () => ({ values: [...new Set(D.locals.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')) }), formatter: (cell) => esc(cell.getValue() || '—') },
+        editorParams: () => ({ values: safeVals([...new Set(D.locals.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'))) }), formatter: (cell) => esc(cell.getValue() || '—') },
       { title: 'สารสำคัญ', field: '_ings', minWidth: 170, maxWidth: 280, headerSort: false, cssClass: 'dg-ed dg-wrap', formatter: (cell) => ingsHtml(cell.getRow().getData().l),   // เพิ่ม/ลดสารสำคัญ + ความแรงรายสาร (thread 534c846e)
         cellClick: (e, cell) => openIngs(cell.getRow().getData().l) },
       { title: 'ความแรง', field: 'amt', width: 130, cssClass: 'dg-ed dg-wrap', editor: 'number', editorParams: { min: 0, step: 0.001, selectContents: true }, editable: ed((d) => !combo(d.l)), formatter: (cell) => amtHtml(cell.getRow().getData()), sorter: 'number',

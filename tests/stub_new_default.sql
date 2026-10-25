@@ -21,7 +21,7 @@ grant execute on function auth.uid() to anon, authenticated;
 create schema storage;
 grant usage on schema storage to anon, authenticated;
 create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
-create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, owner_id text default (auth.uid())::text);
+create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, owner_id text default (auth.uid())::text, created_at timestamptz default now());
 alter table storage.objects enable row level security;
 grant all on storage.objects to anon, authenticated;
 create function storage.foldername(name text) returns text[] language sql immutable as

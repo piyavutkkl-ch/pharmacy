@@ -1,5 +1,5 @@
 // ตัวแทน supabase-js แบบจำลองในหน่วยความจำ — ใช้เฉพาะตอนทดสอบหน้าเว็บ (tests/ui/smoke.js)
-// ระบบทดสอบส่งไฟล์นี้แทน https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm
+// ระบบทดสอบส่งไฟล์นี้แทน https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm
 // ข้อมูลตั้งต้นมาจาก tests/ui/fixtures.json (สร้างจากโครงสร้างจริงใน supabase/*.sql + tests/ui/seed.sql)
 // เลือกผู้ใช้ด้วย ?mockrole=admin|staff|staff3|citizen|citizen2 (ไม่ใส่ = ยังไม่เข้าสู่ระบบ)
 // สิ่งที่หน้าเว็บทดสอบอ่านได้: window.__db (ข้อมูล), window.__calls (ทุกคำสั่งที่เรียก), window.__emit(table,row) (จำลอง real-time)

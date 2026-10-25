@@ -1,5 +1,5 @@
 // Supabase client (โหลดจาก CDN — ไม่มีขั้นตอน build)
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm';
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=4.4';
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {

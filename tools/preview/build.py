@@ -142,7 +142,7 @@ def main():
         dst.parent.mkdir(parents=True, exist_ok=True)
         text = rename(f.read_text(encoding="utf-8"))
         if f.name == "supabase.js":
-            text = must_sub(text, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm", "./mock-supabase.js", "js/supabase.js")
+            text = must_sub(text, "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/+esm", "./mock-supabase.js", "js/supabase.js")
         if f.name == "drug-grid.js":   # ตารางแก้ไขยา: หน้าตัวอย่างโหลดสไตล์จาก jsDelivr ไม่ได้ → ใช้สำเนาในหน้าตัวอย่าง
             text = must_sub(text, "const TAB_JS = `${TAB}/js/tabulator_esm.min.mjs`, TAB_CSS = `${TAB}/css/tabulator.min.css`;",
                             "const TAB_JS = '../../vendor/tabulator_esm.min.js', TAB_CSS = 'vendor/tabulator.min.css';", "js/pages/drug-grid.js")

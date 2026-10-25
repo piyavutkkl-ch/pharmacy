@@ -1169,7 +1169,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('นำเข้าไฟล์ Health Rider: อ่านวันที่ไม่ได้ → บอกตัวอย่างวันที่ในไฟล์', (await text(p, '#hrImportMsg')).includes('อ่าน "วันเวลาที่สร้างออเดอร์" ไม่ได้'), await text(p, '#hrImportMsg'));
         await p.setInputFiles('#hrFile', { name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('\uFEFF' + csv) }); await p.waitForTimeout(500); }
       { // ส่งออกข้อมูลจากไฟล์ที่เลือกเป็น Excel (เลือกหัวข้อ/รายการเอง · ทำในเครื่อง ไม่อัปโหลด) — แทน SheetJS ด้วยตัวจำลองที่จำสิ่งที่จะเขียน
-        await p.route('**/npm/xlsx@*/xlsx.mjs', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body:
+        await p.route('**/xlsx-0.20.3/package/xlsx.mjs', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body:
           'export const utils = { book_new: () => ({ s: [] }), aoa_to_sheet: (a) => ({ a }), book_append_sheet: (wb, ws, n) => wb.s.push({ n, a: ws.a }) };'
           + 'export function writeFile(wb, name) { window.__xlsxOut = { name, sheet: wb.s[0].n, aoa: wb.s[0].a }; }' }));
         const heads = await p.$$eval('#hrExCols input', (x) => x.map((i) => i.value));
@@ -2180,6 +2180,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     { // ตารางแก้ไขยา (Tabulator · เจ้าของเว็บ 21 ต.ค.): เลือกฐานที่แสดง (ฐานเดียว = รายละเอียด · ลากสลับลำดับ) · คลิกช่องแก้ → บันทึก local_drugs ทันที · ช่องขนาดยา → แผงยาขั้นที่ 3
       const q = await open('admin', '#/admin'); await q.waitForTimeout(500);
       const amx = await q.evaluate(() => { const l = window.__db.local_drugs.find((x) => x.name === 'AMOXICILLIN 500 MG'); Object.assign(l, { mono_refs: [], ddi_ids: [], fda_key: null, strength: null }); return l.id; });
+      await q.evaluate(() => { window.__db.ddi_drugs.push({ id: 'DDInterXSS', cyp: {}, name: 'XSSDRUG <img src=x onerror="window.__xss=1">', web_code: 'DDI-X-99', updated_at: new Date().toISOString() }); });   // ตรวจความปลอดภัย: ชื่อจากฐานข้อมูลภายนอกมี HTML
       const N = await q.evaluate(() => window.__db.local_drugs.length);
       await go(q, '#/admin/drugs/grid'); await q.waitForTimeout(1500);
       const heads = () => q.$$eval('#dgTable .tabulator-col-title', (x) => x.map((e) => e.textContent.trim()));
@@ -2247,6 +2248,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.click(cell('active')); await pickItem('ซ่อน');
       check('ตารางแก้ไขยา: แสดง/ซ่อนจากหน้าหลัก', (await upd()).active === false && (await text(q, cell('active'))).includes('ซ่อน'));
       await q.click(cell('active')); await pickItem('แสดง');
+      { // ตรวจความปลอดภัย 25 ต.ค.: รายการตัวเลือกของ Tabulator แสดงเป็น HTML → ชื่อยาที่มี HTML ต้องเป็นข้อความธรรมดา ไม่รันสคริปต์
+        await q.click(cell('ddi')); await q.waitForTimeout(150); await q.locator(`${cell('ddi')} input`).pressSequentially('XSSDRUG'); await q.waitForTimeout(500);
+        const it = await q.$$eval('.tabulator-edit-list .tabulator-edit-list-item', (n) => n.map((e) => ({ t: e.textContent, img: !!e.querySelector('img') })));
+        check('ตารางแก้ไขยา: ชื่อในรายการตัวเลือกที่มี HTML แสดงเป็นข้อความ (ไม่สร้างแท็ก/ไม่รันสคริปต์)', it.some((x) => x.t.includes('<img src=x')) && !it.some((x) => x.img) && !(await q.evaluate(() => window.__xss)), JSON.stringify(it));
+        await q.keyboard.press('Escape'); await q.waitForTimeout(200); }
       // ช่องผูก: คู่ที่ระบบเสนออยู่บนสุด · บัญชียาหลัก/DDInter เลือก = เพิ่ม, เลือกซ้ำ (✓) = เอาออก
       await q.click(cell('ddi')); await q.waitForSelector('.tabulator-edit-list .tabulator-edit-list-item');
       check('ช่องผูก DDInter: คู่ที่ระบบเสนออยู่บนสุดของรายการ', /^★ ระบบเสนอ \d+% · .*Amoxicillin/i.test(await q.$eval('.tabulator-edit-list .tabulator-edit-list-item', (e) => e.textContent)), await q.$eval('.tabulator-edit-list .tabulator-edit-list-item', (e) => e.textContent));

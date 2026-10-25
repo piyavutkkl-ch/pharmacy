@@ -74,9 +74,12 @@ export function exportRows(rows, picked, which = 'ok') {
   }
   return out;
 }
+/* SheetJS 0.20.3 จาก CDN ทางการของ SheetJS (ฟรี): รุ่น 0.18.5 บน npm/jsDelivr มีช่องโหว่ CVE-2023-30533 (prototype pollution ตอนอ่านไฟล์)
+   และ CVE-2024-22363 (ReDoS) · SheetJS ไม่ออกรุ่นใหม่บน npm แล้ว (ตรวจความปลอดภัย 25 ต.ค. 2569) */
+const XLSX_URL = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
 /** บันทึกเป็นไฟล์ .xlsx (SheetJS จาก CDN · ช่องข้อความคงเป็นข้อความ เช่น HN ที่ขึ้นต้นด้วย 0) */
 export async function downloadXlsx(aoa, name) {
-  const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
+  const XLSX = await import(XLSX_URL);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'ข้อมูล');
   XLSX.writeFile(wb, name);
@@ -167,7 +170,7 @@ export function parseText(text) {
 /** อ่านไฟล์ในเครื่อง → ตาราง (CSV อ่านเอง · Excel ใช้ SheetJS จาก CDN) */
 export async function readTable(f) {
   if (/\.csv$/i.test(f.name) || f.type === 'text/csv') return parseText((await f.text()).replace(/^﻿/, ''));
-  const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
+  const XLSX = await import(XLSX_URL);
   const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
   // ช่องวันที่ของ Excel เป็นวันที่จริง (ไม่ใช่ข้อความ "วันที่ 01/05/2569") → แปลงเป็น วว/ดด/ปปปป ชช:นน (ค.ศ.) ให้อ่านแบบเดียวกับ CSV
   const pad = (x) => String(x).padStart(2, '0');

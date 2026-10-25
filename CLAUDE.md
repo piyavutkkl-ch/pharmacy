@@ -22,12 +22,12 @@ Primary Care Pharmacy Services — เว็บงานเภสัชกรร
 
 ## ข้อบังคับ (ห้ามฝ่า)
 - **ต้องฟรี 100%**: GitHub Pages (repo public) + Supabase Free + Google OAuth · ห้ามเพิ่มบริการที่ต้องจ่ายเงินหรือใส่บัตรเครดิต
-- **ไม่มีขั้นตอน build**: HTML + CSS + ES modules ตรง ๆ, ไลบรารีโหลดจาก CDN (jsDelivr) · ขึ้นเว็บผ่าน `ci-deploy.yml` เท่านั้น (ต้องผ่านการทดสอบ)
+- **ไม่มีขั้นตอน build**: HTML + CSS + ES modules ตรง ๆ, ไลบรารีโหลดจาก CDN (jsDelivr · ระบุเลขรุ่นเต็มเสมอ เช่น supabase-js@2.118.0) · ยกเว้น SheetJS ใช้ cdn.sheetjs.com 0.20.3 (รุ่นบน npm/jsDelivr 0.18.5 มีช่องโหว่ CVE-2023-30533/CVE-2024-22363) · ขึ้นเว็บผ่าน `ci-deploy.yml` เท่านั้น (ต้องผ่านการทดสอบ)
 - **ความลับห้ามอยู่ใน repo** (repo เป็น public): มีได้แค่ Supabase URL + publishable key ใน `js/config.js`
   ห้ามมี service_role / secret key / รหัสฐานข้อมูล / Google client secret
 - **ความปลอดภัยอยู่ที่ฐานข้อมูล (RLS)** ไม่ใช่การซ่อนปุ่ม — ทุกตารางใหม่ต้อง `enable row level security` + policy + grant
 - **ข้อมูลอ่อนไหว (PDPA)**: ข้อมูลผู้ป่วย/เยี่ยมบ้านเห็นได้เฉพาะเจ้าหน้าที่ รพ.สต. นั้น + ผู้ดูแล · หน้าสาธารณะแสดงได้แค่ตัวเลขสรุป
-- **XSS**: ข้อความจากผู้ใช้/ฐานข้อมูลต้องผ่าน `esc()` (js/util.js) ก่อนใส่ `innerHTML` ทุกครั้ง
+- **XSS**: ข้อความจากผู้ใช้/ฐานข้อมูลต้องผ่าน `esc()` (js/util.js) ก่อนใส่ `innerHTML` ทุกครั้ง · รวมถึงป้ายตัวเลือกของ Tabulator (list editor แสดงด้วย innerHTML → drug-grid.js safeVals) · ลิงก์จากข้อมูลต้องเป็น https:// (DB check + ตรวจใน JS)
 - **login ด้วย Google เท่านั้น** (trigger `handle_new_user` ปฏิเสธ provider อื่น)
 - **คำสั่งที่ลบข้อมูลจริง** (drop table/column, truncate, delete from ใน SQL ใหม่) ต้องถามเจ้าของเว็บในแชทก่อนเสมอ
   เมื่อเขายืนยันแล้วจึงใส่บรรทัด `-- confirmed-destructive: <เหตุผล>` ในไฟล์ SQL (ไม่มีบรรทัดนี้ ระบบจะไม่ยอมรัน)
@@ -230,6 +230,9 @@ tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำ�
   เภสัชกรตัดสินในการ์ด [data-dw-decide] → dose_audit_decide: conflict (ซ่อนจนแก้) · offlabel_ok · local · no_conflict (กลับมาแสดง) · การตัดสินอยู่ในธง (decision/decided_at/sig) · ผู้ตัดสิน = drug_data_history
   ตรวจซ้ำทุก 30 วัน: ตัดสินแล้ว + ตัวเลขเดิม (sig ตรง) = คงการตัดสิน ไม่ธง/ซ่อนซ้ำ · หน้าคำนวณบอก "ซ่อนเพราะ… โดย… เมื่อ…" [data-audit-why] · JS ใช้ flagHides/flagOpen/FLAG_LEVEL/DECISION ใน dose-rules.js
   ผู้ดูแล: กล่อง #dcAudit (ภาพรวม · เฉพาะธงที่ยังต้องทำ) + ตัวเลข #admDrugsBadge + ธงในการ์ด [data-dw-audit] (dose_audit_resolve 91 = รุ่นเก่า ยังใช้ได้) · สั่งตรวจตอนนี้ dose_audit_now/poll [data-dw-auditnow] (30 ครั้ง/วัน) · ผลตอบที่ข้อมูลเปลี่ยนไปแล้ว = ไม่ใช้
+- กันใช้งานเกินควร (94_abuse_limits.sql · ตรวจความปลอดภัย 25 ต.ค.): อัปโหลดรูปประจำตัว ≤ 10/วัน · รูปในแชทของประชาชน ≤ 30/วัน (upload_quota_ok ใน storage policy · เจ้าหน้าที่/ผู้ดูแลไม่จำกัด · upload.js quotaErr บอกเหตุ)
+  ความคิดเห็นข่าว ≤ 10/10 นาที · ข้อเสนอแนะ ≤ 10/ชม. · ห้องแชทใหม่ ≤ 5/วัน (rate_limit_guard · ผู้ดูแลไม่จำกัด) · anon อ่านข่าว/ความคิดเห็นเฉพาะช่องสาธารณะ (column grant: ไม่มี review_comment/author_id) · anon อ่าน news_likes ไม่ได้
+  เลือกคอลัมน์ข่าวให้ anon ใหม่ต้อง grant select (คอลัมน์) to anon เพิ่มในไฟล์ SQL ใหม่ ไม่งั้นหน้าข่าวสาธารณะ error
 - ข่าว: สถานะ pending/fix/rejected/published/unpublished/deleted · ถังข่าว (unpublished/deleted/rejected) มี trashed_at — หน้าผู้ดูแลลบถาวรเมื่อครบ 30 วัน
 
 ## แนวทางเขียนโค้ด

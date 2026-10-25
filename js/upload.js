@@ -63,9 +63,11 @@ export async function uploadPublicImage(file, folder) {
   const blob = file.w ? file : await compressImage(file);
   const path = `${folder}/${Date.now()}-${rand()}.webp`;
   const { error } = await sb.storage.from('public-images').upload(path, blob, { contentType: 'image/webp', upsert: false });
-  if (error) throw error;
+  if (error) throw folder.startsWith('avatars/') ? quotaErr(error, 'เปลี่ยนรูปประจำตัวได้ไม่เกิน 10 ครั้งต่อวัน กรุณาลองใหม่พรุ่งนี้') : error;
   return path;
 }
+/** อัปโหลดไม่ผ่านสิทธิ์ของผู้ใช้ทั่วไป = เกินโควตาต่อวัน (94_abuse_limits.sql · พื้นที่ฟรีรวม 1 GB) */
+function quotaErr(error, msg) { return /row-level security|unauthorized|403/i.test(error?.message || '') ? new Error(msg) : error; }
 
 /** ไฟล์หลักฐาน (ส่วนตัว) → bucket evidence · รับ PDF หรือรูป · ไม่เกิน 2 MB */
 export async function uploadEvidence(file, folder) {
@@ -88,7 +90,7 @@ export async function uploadEvidence(file, folder) {
 export async function uploadChatImage(blob, convId) {
   const path = `${convId}/${Date.now()}-${rand()}.webp`;
   const { error } = await sb.storage.from('chat-images').upload(path, blob, { contentType: 'image/webp', upsert: false });
-  if (error) throw error;
+  if (error) throw quotaErr(error, 'ส่งรูปในแชทได้ไม่เกิน 30 รูปต่อวัน กรุณาลองใหม่พรุ่งนี้');
   return path;
 }
 
