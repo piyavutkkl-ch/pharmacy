@@ -35,6 +35,7 @@ INDEX_MUST = [
 
 
 def problems(files, read):
+    files = [f.replace("\\", "/") for f in files]
     out = []
     for f in files:
         name = f.rsplit("/", 1)[-1]

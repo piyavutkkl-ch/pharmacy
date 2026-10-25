@@ -10,6 +10,9 @@
 import ast, pathlib, re, subprocess, sys
 from html.parser import HTMLParser
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 fails = []
 
@@ -31,7 +34,7 @@ def tracked():
 
 
 FILES = [f for f in tracked() if not {"shots", "__pycache__", "node_modules"} & set(f.parts)]
-rel = lambda f: str(f.relative_to(ROOT))
+rel = lambda f: f.relative_to(ROOT).as_posix()
 
 # ---------- 1) ไวยากรณ์ ----------
 for f in FILES:

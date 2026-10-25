@@ -8,6 +8,9 @@
 """
 import pathlib, re, sys
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests"))
 import structure_guard as G  # noqa: E402
@@ -38,6 +41,7 @@ def probs(extra_files=(), texts=None):
 
 check("โครงสร้างปัจจุบันผ่าน", probs() == [], probs())
 check("package.json ของเครื่องมือทดสอบ (tests/ui) ใช้ได้", not any("tests/ui/package.json" in m for m in probs()))
+check("path แบบ Windows (tests\\ui\\smoke.js) ถูกข้ามถูกต้อง", probs(texts={"tests\\ui\\smoke.js": "https://cdn.jsdelivr.net/**"}) == [])
 for f in ["package.json", "package-lock.json", "metadata.json", "tsconfig.json", "index.tsx", "App.tsx",
           "vite.config.ts", ".env", ".env.local", "src/App.tsx", "src/components/Nav.jsx", "js/pages/new.ts",
           "server.js", "node_modules/react/index.js", "js/package.json"]:

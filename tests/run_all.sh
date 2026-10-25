@@ -16,7 +16,8 @@ step() { printf '\n==== %s ====\n' "$1"; }
 skip() { if [ -n "${CI:-}" ]; then echo "ERROR: $1" >&2; exit 1; fi; echo "⚠️  ข้าม: $1 — GitHub Actions จะทดสอบขั้นนี้ให้ก่อนขึ้นเว็บ"; skipped=1; }
 skipped=0
 have_pg() { [ -n "${PG_ADMIN_URL:-}" ] || ls -d /usr/lib/postgresql/*/bin >/dev/null 2>&1; }
-[ -d tests/ui/node_modules/playwright ] || export NODE_PATH=${NODE_PATH:-$(npm root -g 2>/dev/null || true)}
+if [ -d tests/ui/node_modules/playwright ]; then export NODE_PATH=$(cd tests/ui/node_modules && pwd -W 2>/dev/null || pwd); else export NODE_PATH=${NODE_PATH:-$(npm root -g 2>/dev/null || true)}; fi
+export PYTHONIOENCODING=utf-8 PYTHONUTF8=1
 have_pw() { (cd tests/ui && node -e "require('playwright')") >/dev/null 2>&1; }
 
 step "1/4 static"; python3 tests/static_checks.py

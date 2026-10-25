@@ -5,6 +5,8 @@
 #         · ตรวจทานครบรอบแล้วยังพบจุดผิด → ไม่เผยแพร่อัตโนมัติ (รอผู้ดูแลตรวจ)
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
+export PYTHONIOENCODING=utf-8 PYTHONUTF8=1
+if [ -d "$root/tests/ui/node_modules/playwright" ]; then export NODE_PATH=$(cd "$root/tests/ui/node_modules" && pwd -W 2>/dev/null || pwd); else export NODE_PATH=${NODE_PATH:-$(npm root -g 2>/dev/null || true)}; fi
 out=$(mktemp -d); trap 'rm -rf "$out"' EXIT
 node "$root/tools/ai_news/run.mjs" --offline "$root/tests/ai_news/fixtures" "$out" >/dev/null
 # รอบที่ 2: เปิดเผยแพร่อัตโนมัติ แต่ตรวจทานทุกรอบยังพบจุดผิด → ต้องรอผู้ดูแลตรวจ
@@ -61,13 +63,13 @@ probe = r'''
 const good = 'ยาสแตตินแบบทาอาจช่วยให้แผลหายเร็วขึ้น ควรปรึกษาแพทย์หรือเภสัชกรก่อนใช้ยา '.repeat(12);
 const bad = 'ย า ส แ ต ต ิ น แ บ บ ท ำ อ ำ จ ช ่ ว ย '.repeat(40);
 '''
-check_js = probe + "const m = await import(process.argv[1]); const a = m.cleanPdfText(good + '\\f' + good), b = m.cleanPdfText(bad);" \
+check_js = probe + "import { pathToFileURL } from 'node:url'; const m = await import(pathToFileURL(process.argv[1]).href); const a = m.cleanPdfText(good + '\\f' + good), b = m.cleanPdfText(bad);" \
   + "console.log(JSON.stringify({ ok: a.ok, pages: a.pages, head: a.body.slice(0, 8), bad: b.ok }));"
 import json as _j
 out = subprocess.run(['node', '--input-type=module', '-e', check_js, os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs')], capture_output=True, text=True, env={**os.environ, 'AI_NEWS_IMPORT_ONLY': '1'})
 try: r = _j.loads(out.stdout.strip().splitlines()[-1])
 except Exception: r = {'err': out.stderr[-300:]}
-js2 = "const m = await import(process.argv[1]); const bad = { candidates: [{ content: { parts: [{ text: '{\"a\": \"ยา \"X\" ดี\"}' }] } }] }, good = { candidates: [{ content: { parts: [{ text: '```json {\"a\": 1} ```' }] } }] };" \
+js2 = "import { pathToFileURL } from 'node:url'; const m = await import(pathToFileURL(process.argv[1]).href); const bad = { candidates: [{ content: { parts: [{ text: '{\"a\": \"ยา \"X\" ดี\"}' }] } }] }, good = { candidates: [{ content: { parts: [{ text: '```json {\"a\": 1} ```' }] } }] };" \
   + "let n = 0; const r1 = await m.askJson(async () => (n++ ? good : bad)); let err = ''; try { await m.askJson(async () => bad, 2); } catch (e) { err = e.message; }" \
   + "console.log(JSON.stringify({ r1, n, err }));"
 o2 = subprocess.run(['node', '--input-type=module', '-e', js2, os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs')], capture_output=True, text=True, env={**os.environ, 'AI_NEWS_IMPORT_ONLY': '1'})
