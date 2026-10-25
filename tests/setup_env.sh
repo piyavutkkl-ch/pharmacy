@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# เตรียมเครื่องมือทดสอบในเครื่องที่ Claude ใช้ทำงาน (เรียกอัตโนมัติตอนเริ่ม session จาก .claude/settings.json)
+# เตรียมเครื่องมือทดสอบในเครื่องที่ AI ใช้ทำงาน (Claude: เรียกอัตโนมัติจาก .claude/settings.json · Antigravity: GEMINI.md สั่งให้รันครั้งแรก)
 # ติดตั้งเฉพาะที่ยังไม่มี · ติดตั้งไม่ได้ก็ไม่เป็นไร (tests/run_all.sh จะข้ามขั้นนั้น และ GitHub Actions ทดสอบให้แทน)
 root=$(cd "$(dirname "$0")/.." && pwd)
 SUDO=$([ "$(id -u)" = 0 ] || echo sudo)
-if ! ls -d /usr/lib/postgresql/*/bin >/dev/null 2>&1; then
+# Postgres ติดตั้งอัตโนมัติเฉพาะ Linux ที่มี apt-get (Mac/Windows ข้าม — GitHub Actions ทดสอบฐานข้อมูลให้)
+if command -v apt-get >/dev/null 2>&1 && ! ls -d /usr/lib/postgresql/*/bin >/dev/null 2>&1; then
   timeout 240 bash -c "$SUDO apt-get update -qq && $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql >/dev/null" 2>/dev/null \
     && echo "setup: ติดตั้ง Postgres แล้ว" || echo "setup: ติดตั้ง Postgres ไม่ได้ (ข้ามได้)"
 fi

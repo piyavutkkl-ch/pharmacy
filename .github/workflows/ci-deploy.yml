@@ -8,7 +8,7 @@
 name: ci-deploy
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main, 'claude/**', 'gemini/**']   # gemini/… = งานจาก Google Antigravity (GEMINI.md) · ทำเหมือนงานของ Claude ทุกขั้น
   workflow_dispatch:
 permissions:
   contents: read

@@ -5,6 +5,7 @@
 #   3) ui      : เปิดทุกหน้าทุกบทบาทด้วย Chromium + Supabase จำลอง, ทดสอบงานหลัก, จอมือถือ/แท็บเล็ต
 #   4) backup  : สำรอง → ทดลองกู้ → กู้จริง ครบวงจร (ข้ามได้ด้วย SKIP_BACKUP_TEST=1)
 #   + ai-news : ช่อง AI สร้างข่าว (tools/ai_news) แบบไม่ใช้เน็ต/คีย์จริง
+#   + gemini  : GEMINI.md (Antigravity) ↔ ci-deploy · กันแปลงเป็น React/npm (tests/structure_guard.py)
 #   + clinical: กฎความปลอดภัยข้อมูลขนาดยา (js/pages/dose-rules.js · node --test ไม่ต้องติดตั้งอะไร)
 # ตั้ง PG_ADMIN_URL เพื่อใช้ Postgres ที่มีอยู่ (ไม่ตั้ง = เปิด Postgres ชั่วคราวในเครื่องให้เอง)
 # ในเครื่องที่ไม่มี Postgres/Playwright จะข้ามขั้นนั้นพร้อมเตือน (บน GitHub Actions ห้ามข้าม — ต้องผ่านทุกขั้น)
@@ -19,6 +20,7 @@ have_pg() { [ -n "${PG_ADMIN_URL:-}" ] || ls -d /usr/lib/postgresql/*/bin >/dev/
 have_pw() { (cd tests/ui && node -e "require('playwright')") >/dev/null 2>&1; }
 
 step "1/4 static"; python3 tests/static_checks.py
+step "gemini (GEMINI.md สำหรับ Antigravity · กันแปลงโครงสร้าง)"; python3 tests/gemini/test_tools.py | grep -v '^PASS'; test "${PIPESTATUS[0]}" = 0
 step "clinical (กฎความปลอดภัยข้อมูลขนาดยา)"; node --test tests/clinical/*.test.mjs 2>&1 | grep -E '^(not ok|# (pass|fail))'; test "${PIPESTATUS[0]}" = 0
 if have_pg; then
   step "2/4 db"; bash tests/db/run.sh

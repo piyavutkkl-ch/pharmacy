@@ -5,6 +5,7 @@
 
 ตรวจ: ไวยากรณ์ JS/Python/Bash · แท็ก HTML ปิดครบ · id ซ้ำใน index.html · import ในโปรเจกต์ใช้ ?v= เดียวกัน
       ไฟล์ที่ index.html อ้างถึงมีอยู่จริง · ไม่มีค่าลับ (secret key, รหัสผ่าน, token) หลุดในไฟล์ใด ๆ
+      โครงสร้างไม่ถูกแปลงเป็นโปรเจกต์ build (React/npm/metadata.json/importmap) · ไลบรารี CDN ระบุรุ่นเต็ม (structure_guard.py)
 """
 import ast, pathlib, re, subprocess, sys
 from html.parser import HTMLParser
@@ -128,6 +129,12 @@ for f in FILES:
 cfg = (ROOT / "js/config.js").read_text(encoding="utf-8") if (ROOT / "js/config.js").exists() else ""
 if cfg and not re.search(r"sb_publishable_", cfg):
     fail("js/config.js ต้องใช้ publishable key (sb_publishable_…) เท่านั้น")
+
+# ---------- 5) โครงสร้างโปรเจกต์ (ไม่มี build · ไม่ถูกแปลงเป็น React/Node · ไลบรารีระบุรุ่นเต็ม) ----------
+sys.path.insert(0, str(ROOT / "tests"))
+import structure_guard  # noqa: E402
+for msg in structure_guard.problems([rel(f) for f in FILES], lambda p: (ROOT / p).read_text(encoding="utf-8", errors="replace")):
+    fail(msg)
 
 print(f"static: {'OK' if not fails else str(len(fails)) + ' problem(s)'} ({len(FILES)} files)")
 sys.exit(1 if fails else 0)

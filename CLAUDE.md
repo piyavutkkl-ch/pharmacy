@@ -8,7 +8,7 @@ Primary Care Pharmacy Services — เว็บงานเภสัชกรร
 1. อ่านไฟล์นี้ + โค้ดส่วนที่เกี่ยวข้องก่อนแก้ · ถ้าคำขอกำกวมจนทำผิดทางได้ ให้ถามสั้น ๆ 1 คำถาม
 2. แก้โค้ด (ตามแนวทางด้านล่าง) · ฟีเจอร์ใหม่ต้องเพิ่มการทดสอบใน `tests/ui/smoke.js` (และ `tests/rls_test.py` ถ้าแตะสิทธิ์ฐานข้อมูล)
 3. รัน `bash tests/run_all.sh` จนผ่าน · เปลี่ยนหน้าตา → เปิดดูภาพใน `tests/ui/shots/` (390/768/1280 px) ก่อนส่ง
-4. commit ข้อความภาษาไทยสั้น ๆ แล้ว push ไป branch ที่ขึ้นต้นด้วย `claude/` (หรือ `main`) — branch ชื่ออื่นระบบจะไม่ทำต่อให้
+4. commit ข้อความภาษาไทยสั้น ๆ แล้ว push ไป branch ที่ขึ้นต้นด้วย `claude/` (หรือ `main` · งานจาก Gemini ใช้ `gemini/`) — branch ชื่ออื่นระบบจะไม่ทำต่อให้
 5. GitHub Actions `ci-deploy.yml` ทำต่อเองทั้งหมด: ทดสอบซ้ำ → รวมเข้า main → อัปเดตฐานข้อมูล (ถ้ามี SQL ใหม่ · สำรองก่อน) → ขึ้นเว็บ → ตรวจว่าเว็บจริงเป็นรุ่นใหม่
 6. ตรวจผลรอบ Actions แล้วสรุปให้เจ้าของเว็บ: เปลี่ยนอะไร · ขึ้นเว็บแล้วหรือยัง · มีอะไรที่เขาต้องทำเองไหม (ปกติไม่มี)
    ถ้า Actions ไม่ผ่าน → อ่าน log แก้แล้ว push ใหม่เอง ไม่ต้องให้เจ้าของเว็บทำอะไร
@@ -18,6 +18,9 @@ Primary Care Pharmacy Services — เว็บงานเภสัชกรร
   อ่าน comment ด้วย ArtifactComments (url เดิม) → แก้โค้ดจริง + ทดสอบ → publish หน้าตัวอย่างใหม่ → ตอบ/resolve thread · ขึ้นเว็บจริง (push) เมื่อเจ้าของเว็บบอกเท่านั้น
   ข้อจำกัดหน้าตัวอย่าง: confirm() ยืนยันเอง, ดาวน์โหลดไฟล์ไม่ได้, ลิงก์ตรงไปหน้าย่อยไม่ได้ (ใช้แถบเลือกบทบาทบนสุด)
 - สิ่งที่ Claude ทำแทนไม่ได้ (บอกเจ้าของเว็บเป็นขั้นตอนสั้น ๆ): ตั้งค่าใน Supabase Dashboard (Auth/Providers/URL), Google Cloud Console, GitHub Settings/Secrets
+- **ทำงานต่อใน Google Antigravity (Gemini)**: Antigravity โหลด `GEMINI.md` อัตโนมัติ (≤ 24,000 bytes · ไฟล์นี้ใหญ่เกิน → GEMINI.md สั่งให้เปิดอ่านไฟล์นี้ก่อนทุกงาน · คู่มือเล่มนี้ยังเป็นเล่มหลักของทุก AI · แก้โครงสร้างแล้วอัปเดตที่นี่ที่เดียว)
+  ทำงานบนเครื่องเจ้าของเว็บ · branch `gemini/<งาน>` → ci-deploy ทำต่อเหมือนงานของ Claude · หน้าตัวอย่าง = `_preview/local.html` ในเครื่อง (tools/preview/build.py + http.server) · ดูผล Actions ด้วย `gh`
+  `tests/structure_guard.py` (ใน static_checks) กันการแปลงเป็น React/npm/metadata.json/importmap และ CDN ที่ไม่ระบุรุ่นเต็ม · ทดสอบ tests/gemini/test_tools.py
 - ย้อนเว็บกลับรุ่นก่อน: `git revert <commit>` แล้ว push (ฐานข้อมูลย้อนเองไม่ได้ — ใช้ไฟล์ SQL ใหม่แก้ หรือ restore ตาม docs/BACKUP.md)
 
 ## ข้อบังคับ (ห้ามฝ่า)
@@ -36,6 +39,7 @@ Primary Care Pharmacy Services — เว็บงานเภสัชกรร
 ## โครงสร้าง
 ```
 index.html            โครงหน้าทั้งหมด: <section data-view="home|article|login|me|staff|admin|message">
+GEMINI.md             กฎสำหรับ Google Antigravity (โหลดอัตโนมัติ · ≤ 24,000 bytes): อ่าน CLAUDE.md ก่อน · branch gemini/… · push เมื่อเจ้าของสั่ง · ความปลอดภัยเครื่องเจ้าของเว็บ · ห้ามแปลงโครงสร้าง
 privacy.html terms.html  หน้ากฎหมาย (Google ใช้ตรวจแอป — ห้ามลบ/ย้าย URL)
 assets/app.css        design tokens (:root สี/เงา/ฟอนต์ + dark mode) + ทุก component — รีดีไซน์ที่ไฟล์นี้
 js/config.js          SUPABASE_URL / SUPABASE_KEY (ค่าสาธารณะ)
@@ -203,9 +207,9 @@ tools/db/migrate.sh   รัน SQL ใหม่บน Supabase (จดไว้
 tools/backup/         สคริปต์สำรอง/กู้ข้อมูล (bash + Python มาตรฐาน) — วิธีตั้งค่าอยู่ใน docs/BACKUP.md
 tools/preview/build.py สร้างหน้าตัวอย่าง (_preview/ · Supabase จำลอง + ชื่อสมมติ · ตรวจว่าไม่มีชื่อจริงหลุด)
 tools/bump_version.py ติด ?v= กันแคช — ระบบ deploy เรียกให้เองกับสำเนาที่ขึ้นเว็บ (ไม่ต้องรันเอง)
-tests/run_all.sh      ทดสอบทั้งหมด (คำสั่งเดียว) · static_checks.py · db/ (RLS) · ui/ (หน้าเว็บ) · ai_news/ (ช่อง AI แบบไม่ใช้เน็ต) · backup/ (สำรอง/กู้)
+tests/run_all.sh      ทดสอบทั้งหมด (คำสั่งเดียว) · static_checks.py (+ structure_guard.py) · gemini/ (GEMINI.md/กันแปลงโครงสร้าง) · db/ (RLS) · ui/ (หน้าเว็บ) · ai_news/ (ช่อง AI แบบไม่ใช้เน็ต) · backup/ (สำรอง/กู้)
 tests/ui/             smoke.js (Playwright) + mock_supabase.js (Supabase จำลอง) + seed.sql → fixtures.json (ข้อมูลตัวอย่าง)
-.claude/settings.json ตอนเริ่ม session ติดตั้ง Postgres/Playwright ให้ (tests/setup_env.sh)
+.claude/settings.json ตอนเริ่ม session ติดตั้ง Postgres/Playwright ให้ (tests/setup_env.sh · Postgres เฉพาะ Linux ที่มี apt-get)
 ```
 
 ## ฐานข้อมูล (Supabase, region Singapore)
