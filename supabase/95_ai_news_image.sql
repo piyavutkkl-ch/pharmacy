@@ -79,7 +79,7 @@ begin
   palette := public.ai_random_vibrant_palette();
   full_prompt := 'Create ONLY ONE single tall portrait poster divided into 3 clearly separated sections stacked from top to bottom, with thin subtle divider lines. Flat modern vector graphic design, highly aesthetic and professional medical illustration. Tone: Random bright vibrant colors featuring ' || palette || '.' || E'\n\n'
     || 'TOPIC: ' || p_title || E'\n'
-    || 'CONTENT SUMMARY: ' || left(p_body, 1200) || E'\n\n'
+    || 'CONTENT SUMMARY: ' || left(p_body, 3500) || E'\n\n'
     || 'SECTION 1 (top - Executive Summary for patients & clinic front): An informative medical infographic poster. Clean minimalist layout, clear visual hierarchy, modern healthcare vector icons, core mechanism, and key tips.' || E'\n'
     || 'SECTION 2 (middle - Humorous 3-panel comic): A funny 3-panel comic strip in 2D hand-drawn editorial cartoon style with speech bubbles. Panel 1: Cute organ or pill character dealing with health stress. Panel 2: Discovering new medication/lifestyle solution with energetic spark. Panel 3: Happy healthy outcome with smiling patient. Humorous and lighthearted.' || E'\n'
     || 'SECTION 3 (bottom - Clinical Guideline & Matrix for healthcare staff): A professional clinical flowchart and structured decision matrix. Step-by-step decision tree, dosage/management comparison tables, color-coded sections, crisp and readable typography.' || E'\n\n'

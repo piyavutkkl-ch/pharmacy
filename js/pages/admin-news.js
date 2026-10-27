@@ -4,6 +4,7 @@ import { $, esc, thaiDate, toast, errText, busy } from '../util.js?v=4.4';
 import { auth } from '../auth.js?v=4.4';
 import { loadUnits, unitName } from '../data.js?v=4.4';
 import { newsForm, removeNewsFiles, fileLink, extFileLink } from './news-form.js?v=4.4';
+import { newsFileUrl } from '../upload.js?v=4.4';
 import { loadNews, renderSlides } from './news.js?v=4.4';
 import { refreshAdminBadges } from './admin.js?v=4.4';
 import { initAiPanel } from './admin-ai.js?v=4.4';
@@ -180,22 +181,119 @@ function editNews(n) {
 
 let anKit = null, aqKit = null;
 
-/** ???? base64 ???? Blob */
+const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build';
+
+/** อ่านข้อความจาก PDF (จำกัดไม่เกิน 6 หน้าแรก) */
+async function extractPdfText(buffer, maxPages = 6) {
+  try {
+    const pdfjs = await import(`${PDFJS}/pdf.min.mjs`);
+    pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS}/pdf.worker.min.mjs`;
+    const doc = await pdfjs.getDocument({ data: buffer }).promise;
+    const num = Math.min(doc.numPages, maxPages), pages = [];
+    for (let i = 1; i <= num; i++) {
+      const page = await doc.getPage(i);
+      const tc = await page.getTextContent();
+      const txt = (tc.items || []).map((it) => it.str).join(' ').replace(/\s+/g, ' ').trim();
+      if (txt) pages.push(`[หน้า ${i}]: ${txt}`);
+    }
+    return pages.join('\n\n');
+  } catch (err) {
+    console.warn('extractPdfText error:', err);
+    return '';
+  }
+}
+
+/** ค้นหาและดึงข้อความจากไฟล์แนบหรือบทความต้นฉบับของข่าว */
+async function getNewsDocText(prefix) {
+  const current = prefix === 'aq' ? reviewing : editing;
+
+  // 1. ตรวจไฟล์ที่ผู้ใช้เพิ่งเลือกในฟอร์มปัจจุบัน
+  const fileInput = $(`#${prefix}File`);
+  const localFile = fileInput?.files?.[0];
+  if (localFile) {
+    if (localFile.type === 'application/pdf' || /\.pdf$/i.test(localFile.name)) {
+      const buf = await localFile.arrayBuffer();
+      const text = await extractPdfText(buf);
+      if (text) return { text, source: `ไฟล์แนบ ${localFile.name}` };
+    } else if (/\.(txt|md)$/i.test(localFile.name) || localFile.type.startsWith('text/')) {
+      const text = (await localFile.text()).trim();
+      if (text) return { text, source: `ไฟล์แนบ ${localFile.name}` };
+    }
+  }
+
+  // 2. ถ้ากำลังตรวจหรือแก้ไขข่าวเดิมที่มีอยู่แล้ว
+  if (current?.id) {
+    // 2a. ลองดึงจากตาราง news_sources (ข้อความที่ระบบถอดจาก PDF บทความ CCPE ไว้แล้ว)
+    try {
+      const { data } = await sb.from('news_sources').select('body').eq('news_id', current.id).maybeSingle();
+      if (data?.body && data.body.trim()) return { text: data.body.trim(), source: 'บทความต้นฉบับ' };
+    } catch (e) {
+      console.warn('load news_sources', e);
+    }
+  }
+
+  // 2b. ไฟล์แนบใน Supabase Storage
+  if (current?.file_path) {
+    try {
+      const url = newsFileUrl(current.file_path);
+      const res = await fetch(url);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        const text = await extractPdfText(buf);
+        if (text) return { text, source: current.file_name || 'ไฟล์แนบ' };
+      }
+    } catch (e) {
+      console.warn('fetch file_path', e);
+    }
+  }
+
+  // 2c. ลิงก์ PDF ต้นฉบับภายนอก
+  if (current?.source_file_url) {
+    try {
+      const res = await fetch(current.source_file_url);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        const text = await extractPdfText(buf);
+        if (text) return { text, source: 'PDF ต้นฉบับ' };
+      }
+    } catch (e) {
+      console.warn('fetch source_file_url', e);
+    }
+  }
+
+  return null;
+}
+
+/** แปลง base64 เป็น Blob */
 function b64ToBlob(b64, type = 'image/jpeg') {
   const bin = atob(b64), len = bin.length, u8 = new Uint8Array(len);
   for (let i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
   return new Blob([u8], { type });
 }
 
-/** ???????? 1 ??? 3 ???? ???? AI (Nano Banana / Imagen) ?????????????????????????? */
+/** สร้างภาพ 1 ภาพ 3 ส่วน ด้วย AI (Nano Banana / Imagen) พร้อมอ่านเนื้อหาจากไฟล์แนบถ้ามี */
 async function genNewsImage(prefix, kit, btn) {
   const title = $(`#${prefix}Title`).value.trim(), body = $(`#${prefix}Body`).value.trim();
-  if (title.length < 3) { toast('กรุณากรอกหัวข้อข่าวก่อน เพื่อให้ AI นำ๊rrayวาดภาพ', 'err'); $(`#${prefix}Title`).focus(); return; }
+  if (title.length < 3) { toast('กรุณากรอกหัวข้อข่าวก่อน เพื่อให้ AI นำไปวาดภาพ', 'err'); $(`#${prefix}Title`).focus(); return; }
+
+  busy(btn, true, 'กำลังตรวจหาและอ่านไฟล์แนบ…');
+  let fullBody = body;
+  try {
+    const doc = await getNewsDocText(prefix);
+    if (doc?.text) {
+      toast(`อ่านเนื้อหาจาก ${doc.source} สำเร็จ! นำไปสรุปสร้างภาพ 3 ส่วน`);
+      const docExcerpt = doc.text.slice(0, 2500);
+      fullBody = `[เนื้อหาจาก${doc.source}]:\n${docExcerpt}${body ? `\n\n[ข้อความข่าว]:\n${body.slice(0, 800)}` : ''}`;
+    }
+  } catch (err) {
+    console.warn('getNewsDocText error:', err);
+  }
+
   busy(btn, true, 'กำลังส่งคำสั่งสร้างภาพ…');
   try {
-    const { data: jobId, error } = await sb.rpc('ai_news_image_start', { p_title: title, p_body: body });
+    const { data: jobId, error } = await sb.rpc('ai_news_image_start', { p_title: title, p_body: fullBody });
     if (error) throw error;
-    busy(btn, true, 'AI กำลังวาดภาพ (รอสักครุ่)…');
+    busy(btn, true, 'AI กำลังวาดภาพ (รอสักครู่)…');
     let done = null;
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 3000));

@@ -440,16 +440,16 @@ function rpc(name, a = {}) {
     }
     /* แทน ai_match_* (37_ai_match.sql): ตอบ "รอ" 1 รอบก่อนได้ผล · จับคู่ข้อเกณฑ์ด้วยตัวอักษร 3 ตัวที่ซ้ำกัน (ของจริงใช้ Gemini) */
     case 'ai_news_image_start': {
-      if (!isAdmin()) return err('??????????? ????????????????????', '42501');
+      if (!isAdmin()) return err('ไม่มีสิทธิ์ เฉพาะผู้ดูแลเท่านั้น', '42501');
       const title = String(a.p_title || '').trim();
-      if (title.length < 3) return err('???????????????????????', 'P0001');
-      const L = (db.ai_image_jobs ||= []), row = { id: newId('criteria_items'), user_id: ME.id, title,
+      if (title.length < 3) return err('กรุณากรอกหัวข้อข่าวก่อน', 'P0001');
+      const L = (db.ai_image_jobs ||= []), row = { id: newId('criteria_items'), user_id: ME.id, title, body: a.p_body,
         status: 'pending', image_base64: null, mime_type: 'image/png', note: null, created_at: now(), polls: 0 };
       L.push(row); return { data: row.id, error: null };
     }
     case 'ai_news_image_poll': {
       const r = (db.ai_image_jobs || []).find((x) => x.id === a.p_id);
-      if (!r || !isAdmin()) return err('??????????????', 'P0001');
+      if (!r || !isAdmin()) return err('ไม่พบงานสร้างภาพ', 'P0001');
       if (r.status === 'pending' && ++r.polls >= 1) {
         r.image_base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
         r.mime_type = 'image/png';

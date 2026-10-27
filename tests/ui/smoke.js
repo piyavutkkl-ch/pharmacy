@@ -54,6 +54,11 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     p.on('dialog', (d) => d.accept());
     p.on('popup', (pp) => pp.close().catch(() => {}));
     await p.route('https://cdn.jsdelivr.net/**', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: MOCK }));
+    await p.route('**/npm/pdfjs-dist@4.4.168/**', (r) => r.fulfill({
+      status: 200,
+      contentType: 'text/javascript',
+      body: /worker/.test(r.request().url()) ? '' : 'export const GlobalWorkerOptions = {}; export function getDocument() { const page = { getTextContent: async () => ({ items: [{ str: "ข้อความทดสอบจาก PDF บทความวิชาการ นำมาสรุปเป็นภาพ 3 ส่วน" }] }), getViewport: ({ scale }) => ({ width: 600 * scale, height: 800 * scale }), render: () => ({ promise: Promise.resolve() }) }; return { promise: Promise.resolve({ numPages: 2, getPage: async () => page }) }; }'
+    }));
     await p.route('**/npm/tabulator-tables@6.3.1/**', tabulator);
     await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
     await p.route(/https:\/\/(img|signed)\.test\//, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
@@ -900,8 +905,10 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผู้ดูแล: มีปุ่ม ✨ Gen ภาพด้วย AI ในฟอร์มตรวจข่าวและฟอร์มเขียนข่าว', await visible(p, '#aqGenAiBtn') && await visible(p, '#anGenAiBtn'));
       await p.fill('#anTitle', 'ข่าวทดสอบสร้างภาพด้วย AI');
       await p.fill('#anBody', 'เนื้อหาข่าวเกี่ยวกับคำแนะนำการใช้ยาอย่างปลอดภัยในชุมชน');
+      await p.setInputFiles('#anFile', [{ name: 'sample_guideline.pdf', mimeType: 'application/pdf', buffer: PDF }]);
       await p.click('#anGenAiBtn'); await p.waitForTimeout(4000);
-      check('ผู้ดูแล: กดปุ่ม Gen ภาพด้วย AI → สร้างภาพสำเร็จและแทรกเป็นรูปหลักในฟอร์ม', (await count(p, '#anImagePreview .img-item')) >= 1 && await visible(p, '#anImagePreview .img-item.main img'));
+      check('ผู้ดูแล: กดปุ่ม Gen ภาพด้วย AI → สกัดเนื้อหาจากไฟล์แนบมาสร้างภาพสำเร็จและแทรกเป็นรูปหลักในฟอร์ม', (await count(p, '#anImagePreview .img-item')) >= 1 && await visible(p, '#anImagePreview .img-item.main img'));
+      check('สร้างภาพด้วย AI: มีการอ่านเนื้อหาจากไฟล์แนบส่งให้ AI', await p.evaluate(() => window.__db.ai_image_jobs.some((j) => (j.body || '').includes('เนื้อหาจาก'))));
 
       await (await p.$('.ai-panel')).screenshot({ path: path.join(SHOTS, 'admin-news-review-box.png') });
       await p.fill('#aqBody', 'แก้โดยเภสัชกรแล้ว'); await p.click('#anReview [data-decide="save"]'); await p.waitForTimeout(600);
