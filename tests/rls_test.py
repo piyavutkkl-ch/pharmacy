@@ -1388,6 +1388,7 @@ check("cleanup 90 test drugs", "admin", "delete from local_drugs where name like
 run("delete from drug_fda_labels where key='fix90|ORAL'")
 
 # ---------- 91: AI ตรวจย้อนหลังข้อมูลขนาดยาที่อนุมัติแล้ว ----------
+run("delete from dose_audits")
 run("""insert into drug_fda_labels(key,generic,route,title,sections) values ('aud91|ORAL','aud91','ORAL','Aud91',
   '[{"title":"ขนาดยาและวิธีใช้","body":"Children: 10 to 15 mg/kg every 6 hours. Do not exceed 1000 mg per day."}]')""")
 A91 = check("admin approves a drug (passes rules)", "admin", """insert into dose_drugs(name,indication,mg_per_kg_min,mg_per_kg_max,per,indications,concs,active) values ('ตรวจย้อนหลัง91','x',20,30,'dose','[{"name":"ไข้","per":"dose","min":20,"max":30,"cap":500,"age_min":0,"age_max":12}]','[]',true) returning id""", lambda o: o.strip().isdigit()).strip()
