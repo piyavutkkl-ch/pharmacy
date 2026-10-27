@@ -47,6 +47,12 @@ export function imageList(input, box, note, { max = MAX_NEWS_IMAGES, hint = HINT
   return {
     ready: () => pending,
     set(paths) { job++; items.forEach(free); items = paths.filter(Boolean).map((path) => ({ path })); pending = Promise.resolve(); input.value = ''; render(); sayCount(); },
+    addBlob(blob, asMain = false) {
+      if (items.length >= max) throw new Error(`เพิ่มรูปได้สุงสุด ${max} รูปเท่านั้น`);
+      const item = { blob, url: URL.createObjectURL(blob) };
+      if (asMain) items.unshift(item); else items.push(item);
+      render(); sayCount();
+    },
     items: () => items,
   };
 }
@@ -76,6 +82,7 @@ export function newsForm(p) {
       img.set([n.image_path, ...(n.gallery || [])]);
       pdf.value = ''; sayPdf(n.file_path ? `ไฟล์เดิม: ${n.file_name || 'PDF'} · เลือกไฟล์ใหม่เพื่อแทนที่` : HINT_PDF);
     },
+    addBlob(blob, asMain = false) { img.addBlob(blob, asMain); },
     /** อัปโหลดรูปใหม่/ไฟล์ที่เลือก → { fields: ช่องที่ต้องบันทึก (image_path + gallery ตามลำดับในฟอร์มเสมอ), undo(): ลบไฟล์ที่เพิ่งอัปโหลด (ใช้เมื่อบันทึกข่าวไม่สำเร็จ) } */
     async upload(userId) {
       const fields = {}, done = [];

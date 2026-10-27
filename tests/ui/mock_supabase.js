@@ -439,6 +439,26 @@ function rpc(name, a = {}) {
       return { data: out.slice(a.p_offset || 0, (a.p_offset || 0) + (a.p_limit || 200)).map((r) => ({ ...r, total: out.length })), error: null };
     }
     /* แทน ai_match_* (37_ai_match.sql): ตอบ "รอ" 1 รอบก่อนได้ผล · จับคู่ข้อเกณฑ์ด้วยตัวอักษร 3 ตัวที่ซ้ำกัน (ของจริงใช้ Gemini) */
+    case 'ai_news_image_start': {
+      if (!isAdmin()) return err('??????????? ????????????????????', '42501');
+      const title = String(a.p_title || '').trim();
+      if (title.length < 3) return err('???????????????????????', 'P0001');
+      const L = (db.ai_image_jobs ||= []), row = { id: newId('criteria_items'), user_id: ME.id, title,
+        status: 'pending', image_base64: null, mime_type: 'image/png', note: null, created_at: now(), polls: 0 };
+      L.push(row); return { data: row.id, error: null };
+    }
+    case 'ai_news_image_poll': {
+      const r = (db.ai_image_jobs || []).find((x) => x.id === a.p_id);
+      if (!r || !isAdmin()) return err('??????????????', 'P0001');
+      if (r.status === 'pending' && ++r.polls >= 1) {
+        r.image_base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        r.mime_type = 'image/png';
+        r.status = 'done';
+        r.done_at = now();
+      }
+      return { data: { id: r.id, status: r.status, image_base64: r.image_base64, mime_type: r.mime_type, note: r.note }, error: null };
+    }
+
     case 'ai_match_start': {
       if (!isStaff() && !isAdmin()) return err('ไม่มีสิทธิ์', '42501');
       const t = String(a.p_text || '').trim();

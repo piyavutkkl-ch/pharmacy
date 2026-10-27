@@ -179,6 +179,43 @@ function editNews(n) {
 }
 
 let anKit = null, aqKit = null;
+
+/** ???? base64 ???? Blob */
+function b64ToBlob(b64, type = 'image/jpeg') {
+  const bin = atob(b64), len = bin.length, u8 = new Uint8Array(len);
+  for (let i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
+  return new Blob([u8], { type });
+}
+
+/** ???????? 1 ??? 3 ???? ???? AI (Nano Banana / Imagen) ?????????????????????????? */
+async function genNewsImage(prefix, kit, btn) {
+  const title = $(`#${prefix}Title`).value.trim(), body = $(`#${prefix}Body`).value.trim();
+  if (title.length < 3) { toast('กรุณากรอกหัวข้อข่าวก่อน เพื่อให้ AI นำ๊rrayวาดภาพ', 'err'); $(`#${prefix}Title`).focus(); return; }
+  busy(btn, true, 'กำลังส่งคำสั่งสร้างภาพ…');
+  try {
+    const { data: jobId, error } = await sb.rpc('ai_news_image_start', { p_title: title, p_body: body });
+    if (error) throw error;
+    busy(btn, true, 'AI กำลังวาดภาพ (รอสักครุ่)…');
+    let done = null;
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const res = await sb.rpc('ai_news_image_poll', { p_id: jobId });
+      if (res.error) throw res.error;
+      const r = res.data;
+      if (r.status === 'done') { done = r; break; }
+      if (r.status === 'error') throw new Error(r.note || 'สร้างภาพไม่สำเร็จ');
+    }
+    if (!done || !done.image_base64) throw new Error('AI ตอบช้าเกินไป กรุณาลองใหม่อีกครั้ง');
+    const blob = b64ToBlob(done.image_base64, done.mime_type || 'image/jpeg');
+    kit.addBlob(blob, true);
+    toast('สร้างภาพสำเร็จแล้ว! แทรกเป็นรูปหลักเรียบร้อย');
+  } catch (err) {
+    toast(errText(err), 'err');
+  } finally {
+    busy(btn, false);
+  }
+}
+
 function bind() {
   anKit = newsForm('an'); aqKit = newsForm('aq');
   $('#anQueue').addEventListener('click', (e) => { const b = e.target.closest('[data-review]'); if (!b) return; if (reviewing?.id === b.dataset.review) closeReview(); else openReview(b.dataset.review); });
@@ -201,6 +238,8 @@ function bind() {
       removeNewsFiles(n); toast('ลบถาวรแล้ว'); loadTrash();
     }
   });
+  $('#aqGenAiBtn').addEventListener('click', () => genNewsImage('aq', aqKit, $('#aqGenAiBtn')));
+  $('#anGenAiBtn').addEventListener('click', () => genNewsImage('an', anKit, $('#anGenAiBtn')));
   $('#anExpand').addEventListener('click', () => { pubOpen = !pubOpen; renderPublished(); });
   $('#anSearch').addEventListener('input', renderPublished);
   ['#anDate', '#anTagF', '#anSort', '#anTopicF'].forEach((s) => $(s).addEventListener('change', renderPublished));

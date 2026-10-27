@@ -22,7 +22,7 @@ have_pw() { (cd tests/ui && node -e "require('playwright')") >/dev/null 2>&1; }
 
 step "1/4 static"; python3 tests/static_checks.py
 step "gemini (GEMINI.md สำหรับ Antigravity · กันแปลงโครงสร้าง)"; python3 tests/gemini/test_tools.py | grep -v '^PASS'; test "${PIPESTATUS[0]}" = 0
-step "clinical (กฎความปลอดภัยข้อมูลขนาดยา)"; node --test tests/clinical/*.test.mjs 2>&1 | grep -E '^(not ok|# (pass|fail))'; test "${PIPESTATUS[0]}" = 0
+step "clinical (กฎความปลอดภัยข้อมูลขนาดยา)"; node --test tests/clinical/*.test.mjs 2>&1 | grep -E '^(not ok|✖|# (pass|fail)|ℹ (pass|fail))'; test "${PIPESTATUS[0]}" = 0
 if have_pg; then
   step "2/4 db"; bash tests/db/run.sh
   step "3/4 ui"; bash tests/ui/make_fixtures.sh

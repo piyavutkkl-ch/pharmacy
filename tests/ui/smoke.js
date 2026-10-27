@@ -897,6 +897,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#aqImagePreview [data-rmimg="3"]'); await p.waitForTimeout(150);
       await p.click('#aqImagePreview [data-mainimg="2"]'); await p.waitForTimeout(150);
       check('แก้ข่าว: ตั้งรูปใหม่เป็นรูปหลักได้', (await p.getAttribute('#aqImagePreview .img-item.main img', 'src')).startsWith('blob:'));
+      check('ผู้ดูแล: มีปุ่ม ✨ Gen ภาพด้วย AI ในฟอร์มตรวจข่าวและฟอร์มเขียนข่าว', await visible(p, '#aqGenAiBtn') && await visible(p, '#anGenAiBtn'));
+      await p.fill('#anTitle', 'ข่าวทดสอบสร้างภาพด้วย AI');
+      await p.fill('#anBody', 'เนื้อหาข่าวเกี่ยวกับคำแนะนำการใช้ยาอย่างปลอดภัยในชุมชน');
+      await p.click('#anGenAiBtn'); await p.waitForTimeout(4000);
+      check('ผู้ดูแล: กดปุ่ม Gen ภาพด้วย AI → สร้างภาพสำเร็จและแทรกเป็นรูปหลักในฟอร์ม', (await count(p, '#anImagePreview .img-item')) >= 1 && await visible(p, '#anImagePreview .img-item.main img'));
+
       await (await p.$('.ai-panel')).screenshot({ path: path.join(SHOTS, 'admin-news-review-box.png') });
       await p.fill('#aqBody', 'แก้โดยเภสัชกรแล้ว'); await p.click('#anReview [data-decide="save"]'); await p.waitForTimeout(600);
       const ue = (await calls(p, (c) => c.table === 'news' && c.op === 'update')).map((c) => c.payload).find((x) => x.body === 'แก้โดยเภสัชกรแล้ว') || {};

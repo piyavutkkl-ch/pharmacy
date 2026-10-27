@@ -1490,5 +1490,11 @@ run("delete from conversations where id = '" + CID94 + "'")
 run("delete from news_comments where author_id in ('" + U["c1"] + "','" + U["admin"] + "') and (body like 'ความเห็น %' or body like 'ผู้ดูแล %')")
 run("delete from feedback where author_id = '" + U["c1"] + "' and body like 'ข้อเสนอแนะ %'")
 
+# ---------- 95: ai_news_image ----------
+check("95: anon cannot call ai_news_image_start", "anon", "select ai_news_image_start('??????', '???????')", "deny")
+check("95: citizen cannot call ai_news_image_start", "c1", "select ai_news_image_start('??????', '???????')", "deny")
+check("95: staff cannot call ai_news_image_start", "s2", "select ai_news_image_start('??????', '???????')", "deny")
+check("95: short title rejected", "admin", "select ai_news_image_start('??', '???????')", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
