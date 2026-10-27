@@ -172,4 +172,17 @@ end $$;
 revoke execute on function public.ai_news_image_start(text, text), public.ai_news_image_poll(bigint) from public, anon, authenticated;
 grant execute on function public.ai_news_image_start(text, text), public.ai_news_image_poll(bigint) to authenticated;
 
+/** ยา รพ.สต. ที่ผูกข้อมูลคำนวณนี้และมีข้อความฉลาก OpenFDA พร้อมตรวจ (ใช้ตรวจย้อนหลัง) */
+create or replace function public.dose_audit_local(p_dose bigint)
+returns int language sql stable security definer
+set search_path = ''
+as $$
+  select l.id from public.local_drugs l
+   where l.fda_key is not null and l.trashed_at is null
+     and (l.dose_id = p_dose or exists (select 1 from jsonb_array_elements(case when jsonb_typeof(l.ingredients) = 'array' then l.ingredients else '[]' end) g where (g->>'dose_id')::bigint = p_dose))
+     and coalesce(btrim(public.ai_dose_fix_src(l.id)), '') <> ''
+   order by l.active desc, l.id limit 1
+$$;
+revoke execute on function public.dose_audit_local(bigint) from public, anon, authenticated;
+
 select 'ok' as step_95_ai_news_image;

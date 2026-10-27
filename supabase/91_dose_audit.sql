@@ -67,6 +67,7 @@ as $$
   select l.id from public.local_drugs l
    where l.fda_key is not null and l.trashed_at is null
      and (l.dose_id = p_dose or exists (select 1 from jsonb_array_elements(case when jsonb_typeof(l.ingredients) = 'array' then l.ingredients else '[]' end) g where (g->>'dose_id')::bigint = p_dose))
+     and coalesce(btrim(public.ai_dose_fix_src(l.id)), '') <> ''
    order by l.active desc, l.id limit 1
 $$;
 
