@@ -1496,7 +1496,15 @@ check("95: anon cannot call ai_news_image_start", "anon", "select ai_news_image_
 check("95: citizen cannot call ai_news_image_start", "c1", "select ai_news_image_start('หัวข้อ', 'เนื้อหา')", "deny")
 check("95: staff cannot call ai_news_image_start", "s2", "select ai_news_image_start('หัวข้อ', 'เนื้อหา')", "deny")
 check("95: short title rejected", "admin", "select ai_news_image_start('กข', 'เนื้อหา')", "deny")
-check("95: admin can call ai_news_image_start", "admin", "select ai_news_image_start('หัวข้อข่าวทดสอบ', 'เนื้อหาข่าว')", lambda o: o.strip().isdigit())
+j95 = check("95: admin can call ai_news_image_start", "admin", "select ai_news_image_start('หัวข้อข่าวทดสอบ', 'เนื้อหาข่าว')", lambda o: o.strip().isdigit())
+
+# ---------- 97: nano banana (gemini-2.5-flash-image) ----------
+jid = j95.strip()
+check("97: request sent to gemini-2.5-flash-image with generateContent", None, f"select (url like '%/gemini-2.5-flash-image:generateContent' and convert_from(body,'utf8') like '%responseModalities%')::text from net.http_request_queue where id = (select request_id from ai_image_jobs where id = {jid})", eq("true"))
+run(f"""insert into net._http_response(id, status_code, content) select request_id, 200, jsonb_build_object('candidates', jsonb_build_array(jsonb_build_object('content', jsonb_build_object('parts', jsonb_build_array(jsonb_build_object('inlineData', jsonb_build_object('mimeType', 'image/jpeg', 'data', 'dGVzdA==')))))))::text from ai_image_jobs where id = {jid}""")
+check("97: admin can poll done image", "admin", f"select (ai_news_image_poll({jid})->>'status') = 'done' and (ai_news_image_poll({jid})->>'image_base64') = 'dGVzdA=='", eq("t"))
+check("97: anon cannot poll image", "anon", f"select ai_news_image_poll({jid})", "deny")
+check("97: citizen cannot poll image", "c1", f"select ai_news_image_poll({jid})", "deny")
 
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
