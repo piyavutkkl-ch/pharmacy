@@ -1495,7 +1495,7 @@ run("delete from feedback where author_id = '" + U["c1"] + "' and body like 'ข
 check("95: anon cannot call ai_news_image_start", "anon", "select ai_news_image_start('หัวข้อ', 'เนื้อหา')", "deny")
 check("95: citizen cannot call ai_news_image_start", "c1", "select ai_news_image_start('หัวข้อ', 'เนื้อหา')", "deny")
 check("95: staff cannot call ai_news_image_start", "s2", "select ai_news_image_start('หัวข้อ', 'เนื้อหา')", "deny")
-check("95: short title rejected", "admin", "select ai_news_image_start('สั้', 'เนื้อหา')", "deny")
+check("95: short title rejected", "admin", "select ai_news_image_start('กข', 'เนื้อหา')", "deny")
 check("95: admin can call ai_news_image_start", "admin", "select ai_news_image_start('หัวข้อข่าวทดสอบ', 'เนื้อหาข่าว')", lambda o: o.strip().isdigit())
 
 print(f"\n{passed} passed, {failed} failed")
