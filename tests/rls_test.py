@@ -1506,5 +1506,9 @@ check("97: admin can poll done image", "admin", f"select (ai_news_image_poll({ji
 check("97: anon cannot poll image", "anon", f"select ai_news_image_poll({jid})", "deny")
 check("97: citizen cannot poll image", "c1", f"select ai_news_image_poll({jid})", "deny")
 
+# ---------- 98: ai image fallback ----------
+check("98: anon cannot execute ai_image_models", "anon", "select ai_image_models('gemini-2.5-flash-image')", "deny")
+check("98: ai_image_jobs records models list and try count", "admin", f"select array_length(models, 1) >= 2 and try = 1 from ai_image_jobs where id = {jid}", eq("t"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

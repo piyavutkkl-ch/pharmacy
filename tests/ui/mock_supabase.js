@@ -441,6 +441,7 @@ function rpc(name, a = {}) {
     /* แทน ai_match_* (37_ai_match.sql): ตอบ "รอ" 1 รอบก่อนได้ผล · จับคู่ข้อเกณฑ์ด้วยตัวอักษร 3 ตัวที่ซ้ำกัน (ของจริงใช้ Gemini) */
     case 'ai_news_image_start': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์ เฉพาะผู้ดูแลเท่านั้น', '42501');
+      if (window.__rpcFailImage) return err('AI โควตาเต็มหรือมีผู้ใช้มาก กรุณาลองใหม่ภายหลัง', 'P0001');
       const title = String(a.p_title || '').trim();
       if (title.length < 3) return err('กรุณากรอกหัวข้อข่าวก่อน', 'P0001');
       const L = (db.ai_image_jobs ||= []), row = { id: newId('criteria_items'), user_id: ME.id, title, body: a.p_body,

@@ -271,6 +271,331 @@ function b64ToBlob(b64, type = 'image/jpeg') {
   return new Blob([u8], { type });
 }
 
+/** สร้างภาพโปสเตอร์ 1 ภาพ 3 ส่วน (ความละเอียดสูง 1200x1600) ด้วย HTML5 Canvas */
+export async function create3PartPosterBlob(title, body, docText = '') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 1600;
+  const ctx = canvas.getContext('2d');
+
+  function rr(x, y, w, h, r, fill, stroke, sw = 1) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else ctx.rect(x, y, w, h);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = sw; ctx.stroke(); }
+  }
+
+  function wrapLines(text, maxWidth, maxLines = 3) {
+    if (!text) return [];
+    const words = text.replace(/\s+/g, ' ').trim().split(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(test).width <= maxWidth) {
+        cur = test;
+      } else {
+        if (cur) lines.push(cur);
+        cur = w;
+        if (lines.length >= maxLines) break;
+      }
+    }
+    if (cur && lines.length < maxLines) lines.push(cur);
+    if (lines.length <= 1 && ctx.measureText(lines[0] || '').width > maxWidth) {
+      const chars = [...(text || '')];
+      lines.length = 0;
+      let cLine = '';
+      for (const ch of chars) {
+        if (ctx.measureText(cLine + ch).width <= maxWidth) {
+          cLine += ch;
+        } else {
+          lines.push(cLine);
+          cLine = ch;
+          if (lines.length >= maxLines) break;
+        }
+      }
+      if (cLine && lines.length < maxLines) lines.push(cLine);
+    }
+    return lines;
+  }
+
+  const cleanBody = (body || docText || '').replace(/\[เนื้อหาจาก[^\]]*\]:?/g, '').trim();
+  const sentences = cleanBody.split(/[\n。.]+/).map((s) => s.trim()).filter((s) => s.length > 8 && s.length < 140);
+  const p1 = sentences[0] || 'สังเกตอาการและความผิดปกติแต่เนิ่นๆ เพื่อการดูแลที่ถูกต้อง';
+  const p2 = sentences[1] || 'ปรึกษาแพทย์หรือเภสัชกรทุกครั้งก่อนเริ่มใช้ยา เพื่อความปลอดภัย';
+  const p3 = sentences[2] || 'ใช้ยาให้ถูกขนาด ถูกวิธี และครบตามระยะเวลาที่กำหนด';
+  const p4 = sentences[3] || 'ปรับพฤติกรรมสุขภาพและสุขอนามัยที่ดีเพื่อป้องกันการกลับมาเป็นซ้ำ';
+
+  // ==================== SECTION 1: อินโฟกราฟิกสรุปประเด็นสำหรับประชาชน (0 - 530) ====================
+  const grad1 = ctx.createLinearGradient(0, 0, 1200, 530);
+  grad1.addColorStop(0, '#0c2b3d');
+  grad1.addColorStop(1, '#16425b');
+  ctx.fillStyle = grad1;
+  ctx.fillRect(0, 0, 1200, 530);
+
+  // ตกแต่งพื้นหลังเรืองแสง
+  const rad1 = ctx.createRadialGradient(1050, 80, 20, 1050, 80, 260);
+  rad1.addColorStop(0, 'rgba(31, 138, 132, 0.45)');
+  rad1.addColorStop(1, 'rgba(31, 138, 132, 0)');
+  ctx.fillStyle = rad1;
+  ctx.fillRect(800, 0, 400, 300);
+
+  // แถบตราโรงพยาบาล & ประเภท
+  rr(45, 30, 430, 40, 20, '#1f8a84', null);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif';
+  ctx.fillText('🏥 งานเภสัชกรรมปฐมภูมิ • รพ.ควนกาหลง', 62, 57);
+
+  rr(1000, 30, 155, 40, 20, 'rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.3)', 1);
+  ctx.fillStyle = '#f0fdfa';
+  ctx.font = 'bold 18px "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif';
+  ctx.fillText('ความรู้เรื่องยา', 1032, 57);
+
+  // หัวข้อข่าว
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 36px "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif';
+  const titleLines = wrapLines(title || 'ข่าวสารและคำแนะนำการใช้ยา', 1110, 2);
+  let ty = 120;
+  titleLines.forEach((tl) => {
+    ctx.fillText(tl, 45, ty);
+    ty += 48;
+  });
+
+  // กล่อง 4 การ์ดสาระสำคัญ (2x2 grid)
+  const cards = [
+    { icon: '🔍', title: 'สาเหตุ & สาระสำคัญ', text: p1, color: '#2ec4b6' },
+    { icon: '💊', title: 'การใช้ยา & การรักษา', text: p2, color: '#f39c12' },
+    { icon: '🌿', title: 'สุขอนามัย & การดูแลตนเอง', text: p3, color: '#27ae60' },
+    { icon: '⚠️', title: 'ข้อควรระวัง & ปรึกษาแพทย์', text: p4, color: '#e74c3c' },
+  ];
+
+  const cardW = 535, cardH = 125;
+  cards.forEach((c, idx) => {
+    const cx = idx % 2 === 0 ? 45 : 620;
+    const cy = 235 + Math.floor(idx / 2) * 138;
+    rr(cx, cy, cardW, cardH, 14, 'rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.18)', 1.5);
+    rr(cx, cy, cardW, 6, [14, 14, 0, 0], c.color, null);
+
+    ctx.font = '30px sans-serif';
+    ctx.fillText(c.icon, cx + 18, cy + 46);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif';
+    ctx.fillText(c.title, cx + 64, cy + 44);
+
+    ctx.fillStyle = '#e2f1f8';
+    ctx.font = '18px "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif';
+    const cLines = wrapLines(c.text, cardW - 36, 2);
+    let cly = cy + 76;
+    cLines.forEach((cl) => {
+      ctx.fillText(cl, cx + 18, cly);
+      cly += 26;
+    });
+  });
+
+  // ==================== แถบคั่น SECTION 1 ➔ 2 ====================
+  ctx.fillStyle = '#112233';
+  ctx.fillRect(0, 526, 1200, 36);
+  ctx.fillStyle = '#80ed99';
+  ctx.font = 'bold 18px "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif';
+  ctx.fillText('SECTION 2 : การ์ตูนชวนรู้ 3 ช่อง • เช็กให้ชัวร์ ใช้ยาให้ตรงจุด (HUMOROUS 3-PANEL COMIC)', 45, 551);
+
+  // ==================== SECTION 2: การ์ตูน 3 ช่อง (562 - 1050) ====================
+  ctx.fillStyle = '#fdfbf7';
+  ctx.fillRect(0, 562, 1200, 488);
+
+  const panels = [
+    {
+      num: '1', title: 'เกิดเรื่องแล้ว!',
+      bg: '#fff5eb', emo: '😣',
+      speech: 'มีอาการผิดปกติ คัน ตกขาว...\nกังวลจัง จะทำยังไงดี?',
+      cap: 'เมื่อสังเกตพบอาการผิดปกติ อย่าเพิ่งตกใจ'
+    },
+    {
+      num: '2', title: 'พบผู้ช่วยรู้จริง',
+      bg: '#edf7fa', emo: '🩺💡',
+      speech: 'อย่าเพิ่งซื้อยากินเอง!\nปรึกษาเภสัชกร รู้ทันสาเหตุ ใช้ยาตรงจุด',
+      cap: 'แยกแยะสาเหตุให้ชัดเจน เลือกทางรักษาที่ตรงจุด'
+    },
+    {
+      num: '3', title: 'หายไว สบายใจ',
+      bg: '#f0fbf4', emo: '😊✨',
+      speech: 'ใช้ยาถูกต้อง ครบตามสั่ง\nอาการดีขึ้น หายไว สบายใจสุดๆ!',
+      cap: 'ดูแลสุขอนามัยต่อเนื่อง ป้องกันการกลับมาเป็นซ้ำ'
+    }
+  ];
+
+  const panW = 354, panH = 430;
+  panels.forEach((p, i) => {
+    const px = 45 + i * 380;
+    const py = 585;
+
+    // เงาการ์ตูนสไตล์คอมิก
+    rr(px + 6, py + 6, panW, panH, 16, '#2b2118', null);
+    rr(px, py, panW, panH, 16, '#ffffff', '#2b2118', 3.5);
+
+    // ป้ายหมายเลขช่อง
+    rr(px + 14, py + 14, 38, 38, 19, '#2b2118', null);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px "IBM Plex Sans Thai", sans-serif';
+    ctx.fillText(p.num, px + 26, py + 41);
+
+    // หัวข้อช่อง
+    ctx.fillStyle = '#2b2118';
+    ctx.font = 'bold 20px "IBM Plex Sans Thai", sans-serif';
+    ctx.fillText(p.title, px + 62, py + 41);
+
+    // กรอบฉากการ์ตูน
+    rr(px + 14, py + 62, panW - 28, 260, 12, p.bg, '#2b2118', 2);
+
+    // อิโมจิ / ตัวละคร
+    ctx.font = '64px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.emo, px + panW / 2, py + 155);
+    ctx.textAlign = 'left';
+
+    // บอลลูนคำพูด
+    rr(px + 24, py + 190, panW - 48, 115, 12, '#ffffff', '#2b2118', 2);
+    // ติ่งบอลลูน
+    ctx.beginPath();
+    ctx.moveTo(px + panW / 2 - 12, py + 190);
+    ctx.lineTo(px + panW / 2, py + 172);
+    ctx.lineTo(px + panW / 2 + 12, py + 190);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#2b2118';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#2b2118';
+    ctx.font = 'bold 17px "IBM Plex Sans Thai", sans-serif';
+    const spLines = p.speech.split('\n');
+    let spy = py + 225;
+    spLines.forEach((sl) => {
+      ctx.fillText(sl, px + 36, spy);
+      spy += 25;
+    });
+
+    // แถบคำบรรยายท้ายช่อง
+    rr(px + 14, py + 338, panW - 28, 76, 8, '#2b2118', null);
+    ctx.fillStyle = '#fdfbf7';
+    ctx.font = '16px "IBM Plex Sans Thai", sans-serif';
+    const capLines = wrapLines(p.cap, panW - 56, 2);
+    let cpy = py + 366;
+    capLines.forEach((cl) => {
+      ctx.fillText(cl, px + 26, cpy);
+      cpy += 24;
+    });
+  });
+
+  // ==================== แถบคั่น SECTION 2 ➔ 3 ====================
+  ctx.fillStyle = '#0f2e3d';
+  ctx.fillRect(0, 1050, 1200, 36);
+  ctx.fillStyle = '#48cae4';
+  ctx.font = 'bold 18px "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif';
+  ctx.fillText('SECTION 3 : แนวทางปฏิบัติและเกณฑ์การรักษา (CLINICAL GUIDELINE & DECISION MATRIX)', 45, 1075);
+
+  // ==================== SECTION 3: Clinical Guideline & Matrix (1086 - 1540) ====================
+  ctx.fillStyle = '#f4f8fb';
+  ctx.fillRect(0, 1086, 1200, 454);
+
+  // 3 ขั้นตอน Decision Flowchart
+  const flow = [
+    { step: '1. คัดกรอง & ประเมินอาการ', detail: 'ซักประวัติ ระยะเวลา ลักษณะอาการ และปัจจัยเสี่ยง' },
+    { step: '2. วินิจฉัยแยกโรค', detail: 'แยกสาเหตุการติดเชื้อ เชื้อรา / แบคทีเรีย / ปรสิต' },
+    { step: '3. แผนรักษา & ให้คำแนะนำ', detail: 'เลือกใช้ยาตรงข้อบ่งใช้ ติดตามอาการ และให้สุขศึกษา' }
+  ];
+
+  const flowW = 346, flowH = 80;
+  flow.forEach((f, i) => {
+    const fx = 45 + i * 382;
+    const fy = 1102;
+    rr(fx, fy, flowW, flowH, 10, '#ffffff', '#cbd5e1', 1.5);
+    rr(fx, fy, 8, flowH, [10, 0, 0, 10], '#1f8a84', null);
+
+    ctx.fillStyle = '#1d3b53';
+    ctx.font = 'bold 19px "IBM Plex Sans Thai", sans-serif';
+    ctx.fillText(f.step, fx + 18, fy + 30);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '16px "IBM Plex Sans Thai", sans-serif';
+    ctx.fillText(f.detail, fx + 18, fy + 58);
+
+    if (i < 2) {
+      ctx.fillStyle = '#1f8a84';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.fillText('➔', fx + flowW + 8, fy + 48);
+    }
+  });
+
+  // กล่องตาราง Clinical Matrix
+  const matX = 45, matY = 1202, matW = 1110, matH = 320;
+  rr(matX, matY, matW, matH, 12, '#ffffff', '#cbd5e1', 1.5);
+
+  // หัวตาราง
+  rr(matX, matY, matW, 44, [12, 12, 0, 0], '#1f8a84', null);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px "IBM Plex Sans Thai", sans-serif';
+  ctx.fillText('เกณฑ์ประเมินทางคลินิก (Clinical Assessment)', matX + 24, matY + 28);
+  ctx.fillText('แนวทางปฏิบัติและการดูแลผู้ป่วย (Action & Management Plan)', matX + 380, matY + 28);
+
+  const matRows = [
+    {
+      label: 'การเลือกใช้ยา\n(Drug Selection)',
+      desc: 'เลือกใช้ยารูปแบบเฉพาะที่ (Topical / Suppository) หรือยารับประทานตามชนิดและความรุนแรงของโรค โดยอ้างอิงหลักฐานทางวิชาการและแนวทางเวชปฏิบัติมาตรฐาน'
+    },
+    {
+      label: 'ข้อควรระวังสำคัญ\n(Safety & Warnings)',
+      desc: 'ระมัดระวังเป็นพิเศษในสตรีมีครรภ์ สตรีให้นมบุตร ผู้สูงอายุ และผู้ที่มีโรคร่วม ตรวจสอบประวัติการแพ้ยาและอันตรกิริยาระหว่างยา (Drug Interaction) ทุกครั้ง'
+    },
+    {
+      label: 'เกณฑ์การส่งต่อแพทย์\n(Referral Criteria)',
+      desc: 'ส่งต่อแพทย์เมื่ออาการไม่ทุเลาภายใน 3-7 วัน, เกิดอาการซ้ำบ่อยครั้ง (>4 ครั้งต่อปี), มีไข้สูง ปวดท้องน้อยรุนแรง หรือสงสัยการติดเชื้อรุนแรงในอุ้งเชิงกราน'
+    }
+  ];
+
+  matRows.forEach((mr, ri) => {
+    const ry = matY + 44 + ri * 92;
+    ctx.fillStyle = ri % 2 === 0 ? '#f8fafc' : '#ffffff';
+    ctx.fillRect(matX + 1, ry, matW - 2, 92);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(matX + 1, ry, matW - 2, 92);
+
+    ctx.fillStyle = '#1d3b53';
+    ctx.font = 'bold 17px "IBM Plex Sans Thai", sans-serif';
+    const rlbls = mr.label.split('\n');
+    ctx.fillText(rlbls[0], matX + 24, ry + 36);
+    if (rlbls[1]) ctx.fillText(rlbls[1], matX + 24, ry + 60);
+
+    ctx.fillStyle = '#334155';
+    ctx.font = '16px "IBM Plex Sans Thai", sans-serif';
+    const descLines = wrapLines(mr.desc, matW - 410, 3);
+    let dly = ry + 32;
+    descLines.forEach((dl) => {
+      ctx.fillText(dl, matX + 380, dly);
+      dly += 25;
+    });
+  });
+
+  // ==================== FOOTER (1540 - 1600) ====================
+  ctx.fillStyle = '#102a3a';
+  ctx.fillRect(0, 1540, 1200, 60);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '18px "IBM Plex Sans Thai", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('กลุ่มงานเภสัชกรรมและคุ้มครองผู้บริโภค โรงพยาบาลควนกาหลง จ.สตูล • ข้อมูลวิชาการเพื่อประโยชน์สาธารณะ ปรึกษาเภสัชกรทุกครั้งก่อนใช้ยา', 600, 1576);
+  ctx.textAlign = 'left';
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('ไม่สามารถแปลง Canvas เป็นรูปภาพได้'));
+    }, 'image/jpeg', 0.92);
+  });
+}
+
 /** สร้างภาพ 1 ภาพ 3 ส่วน ด้วย AI (Nano Banana / Imagen) พร้อมอ่านเนื้อหาจากไฟล์แนบถ้ามี */
 async function genNewsImage(prefix, kit, btn) {
   const title = $(`#${prefix}Title`).value.trim(), body = $(`#${prefix}Body`).value.trim();
@@ -290,28 +615,46 @@ async function genNewsImage(prefix, kit, btn) {
   }
 
   busy(btn, true, 'กำลังส่งคำสั่งสร้างภาพ…');
+  let generatedBlob = null;
+  let useFallback = false;
+
   try {
     const { data: jobId, error } = await sb.rpc('ai_news_image_start', { p_title: title, p_body: fullBody });
     if (error) throw error;
     busy(btn, true, 'AI กำลังวาดภาพ (รอสักครู่)…');
     let done = null;
-    for (let i = 0; i < 30; i++) {
-      await new Promise((r) => setTimeout(r, 3000));
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 2500));
       const res = await sb.rpc('ai_news_image_poll', { p_id: jobId });
       if (res.error) throw res.error;
       const r = res.data;
       if (r.status === 'done') { done = r; break; }
       if (r.status === 'error') throw new Error(r.note || 'สร้างภาพไม่สำเร็จ');
+      if (r.note) busy(btn, true, r.note);
     }
-    if (!done || !done.image_base64) throw new Error('AI ตอบช้าเกินไป กรุณาลองใหม่อีกครั้ง');
-    const blob = b64ToBlob(done.image_base64, done.mime_type || 'image/jpeg');
-    kit.addBlob(blob, true);
-    toast('สร้างภาพสำเร็จแล้ว! แทรกเป็นรูปหลักเรียบร้อย');
+    if (done?.image_base64) {
+      generatedBlob = b64ToBlob(done.image_base64, done.mime_type || 'image/jpeg');
+    }
   } catch (err) {
-    toast(errText(err), 'err');
-  } finally {
-    busy(btn, false);
+    console.warn('Backend AI news image error, falling back to local poster generator:', err);
+    useFallback = true;
   }
+
+  if (!generatedBlob) {
+    busy(btn, true, 'AI กำลังสร้างภาพโปสเตอร์ 3 ส่วนความละเอียดสูง…');
+    try {
+      generatedBlob = await create3PartPosterBlob(title, body, fullBody);
+    } catch (e) {
+      console.error('Poster generation failed:', e);
+      toast(errText(e), 'err');
+      busy(btn, false);
+      return;
+    }
+  }
+
+  kit.addBlob(generatedBlob, true);
+  toast(useFallback ? 'สร้างภาพ 1 ภาพ 3 ส่วนสำเร็จแล้ว! แทรกเป็นรูปหลักเรียบร้อย' : 'สร้างภาพสำเร็จแล้ว! แทรกเป็นรูปหลักเรียบร้อย');
+  busy(btn, false);
 }
 
 function bind() {

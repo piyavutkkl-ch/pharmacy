@@ -1,0 +1,238 @@
+-- =====================================================================
+--  ขั้นที่ 98: ปรับปรุงความเสถียรของฟังก์ชันสร้างภาพข่าว AI ให้มีโมเดลสำรองอัตโนมัติ
+--   - เพิ่มคอลัมน์ models และ try ใน ai_image_jobs
+--   - หากโมเดลหลักติดโควตา (429) หรือเกิดปัญหาชั่วคราว ให้วนลองโมเดลสำรองถัดไปอัตโนมัติ
+--   - แสดงข้อความสถานะที่ชัดเจนเพื่อไม่ให้ระบบค้าง
+-- =====================================================================
+
+alter table public.ai_image_jobs add column if not exists models text[];
+alter table public.ai_image_jobs add column if not exists try smallint not null default 1;
+
+/** ลำดับโมเดลสร้างภาพ AI (โมเดลหลักก่อน แล้วตามด้วยโมเดลสำรอง) */
+create or replace function public.ai_image_models(p_first text)
+returns text[] language sql stable security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(m order by o), '{}') from (
+    select m, min(o) o from unnest(
+      array[p_first]
+      || coalesce(string_to_array((select replace(t.body, ' ', '') from public.site_texts t where t.key = 'ai_image_models'), ','), '{}')
+      || array['gemini-2.5-flash-image', 'gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'imagen-3.0-generate-002', 'imagen-3.0-generate-001']
+    ) with ordinality u(m, o)
+    where m ~ '^[a-z0-9][a-z0-9.\-]{1,60}$'
+    group by m order by min(o) limit 4) x
+$$;
+revoke execute on function public.ai_image_models(text) from public, anon, authenticated;
+
+/** เริ่มสร้างภาพ (เฉพาะผู้ดูแล) */
+create or replace function public.ai_news_image_start(p_title text, p_body text)
+returns bigint language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  k text;
+  palette text;
+  full_prompt text;
+  first_model text;
+  model_list text[];
+  req bigint;
+  new_id bigint;
+begin
+  if not public.is_admin() then raise exception 'ไม่มีสิทธิ์ เฉพาะผู้ดูแลเท่านั้น'; end if;
+  k := public.ai_key();
+
+  p_title := btrim(coalesce(p_title, ''));
+  p_body := btrim(coalesce(p_body, ''));
+  if char_length(p_title) < 3 then raise exception 'กรุณากรอกหัวข้อข่าวก่อน'; end if;
+
+  if (select count(*) from public.ai_image_jobs j where j.user_id = auth.uid() and j.created_at > now() - interval '1 day') >= 30 then
+    raise exception 'คุณสร้างภาพครบ 30 ครั้งของวันนี้แล้ว กรุณาลองใหม่พรุ่งนี้';
+  end if;
+
+  palette := public.ai_random_vibrant_palette();
+  full_prompt := 'Create ONLY ONE single tall portrait poster divided into 3 clearly separated sections stacked from top to bottom, with thin subtle divider lines. Flat modern vector graphic design, highly aesthetic and professional medical illustration. Tone: Random bright vibrant colors featuring ' || palette || '.' || E'\n\n'
+    || 'TOPIC: ' || p_title || E'\n'
+    || 'CONTENT SUMMARY: ' || left(p_body, 3500) || E'\n\n'
+    || 'SECTION 1 (top - Executive Summary for patients & clinic front): An informative medical infographic poster. Clean minimalist layout, clear visual hierarchy, modern healthcare vector icons, core mechanism, and key tips.' || E'\n'
+    || 'SECTION 2 (middle - Humorous 3-panel comic): A funny 3-panel comic strip in 2D hand-drawn editorial cartoon style with speech bubbles. Panel 1: Cute organ or pill character dealing with health stress. Panel 2: Discovering new medication/lifestyle solution with energetic spark. Panel 3: Happy healthy outcome with smiling patient. Humorous and lighthearted.' || E'\n'
+    || 'SECTION 3 (bottom - Clinical Guideline & Matrix for healthcare staff): A professional clinical flowchart and structured decision matrix. Step-by-step decision tree, dosage/management comparison tables, color-coded sections, crisp and readable typography.' || E'\n\n'
+    || 'Important: Use short, correctly spelled English keywords and labels only. Highly organized, vibrant, zero visual clutter.';
+
+  first_model := coalesce((select nullif(btrim(t.body), '') from public.site_texts t where t.key = 'ai_image_model'), 'gemini-2.5-flash-image');
+  model_list := public.ai_image_models(first_model);
+
+  if model_list[1] like 'imagen-%' then
+    req := net.http_post(
+      url := 'https://generativelanguage.googleapis.com/v1beta/models/' || model_list[1] || ':predict',
+      body := jsonb_build_object(
+        'instances', jsonb_build_array(jsonb_build_object('prompt', full_prompt)),
+        'parameters', jsonb_build_object('sampleCount', 1, 'aspectRatio', '3:4', 'outputMimeType', 'image/jpeg')
+      ),
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-goog-api-key', k),
+      timeout_milliseconds := 120000
+    );
+  else
+    req := net.http_post(
+      url := 'https://generativelanguage.googleapis.com/v1beta/models/' || model_list[1] || ':generateContent',
+      body := jsonb_build_object(
+        'contents', jsonb_build_array(
+          jsonb_build_object(
+            'parts', jsonb_build_array(
+              jsonb_build_object('text', full_prompt)
+            )
+          )
+        ),
+        'generationConfig', jsonb_build_object(
+          'responseModalities', jsonb_build_array('IMAGE'),
+          'imageConfig', jsonb_build_object('aspectRatio', '3:4')
+        )
+      ),
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-goog-api-key', k),
+      timeout_milliseconds := 120000
+    );
+  end if;
+
+  insert into public.ai_image_jobs (user_id, title, prompt, request_id, models, try)
+  values (auth.uid(), p_title, full_prompt, req, model_list, 1)
+  returning id into new_id;
+
+  return new_id;
+end $$;
+
+revoke execute on function public.ai_news_image_start(text, text) from public, anon, authenticated;
+grant execute on function public.ai_news_image_start(text, text) to authenticated;
+
+/** อ่านผลการสร้างภาพ พร้อมระบบลองโมเดลสำรองอัตโนมัติ */
+create or replace function public.ai_news_image_poll(p_id bigint)
+returns jsonb language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  r public.ai_image_jobs;
+  res record;
+  b64 text;
+  mime text;
+  k text;
+  next_model text;
+  new_req bigint;
+begin
+  select * into r from public.ai_image_jobs where id = p_id;
+  if r.id is null or not (public.is_admin() and r.user_id = auth.uid()) then
+    raise exception 'ไม่พบรายการนี้ หรือไม่มีสิทธิ์';
+  end if;
+
+  if r.status = 'pending' then
+    select h.status_code, h.content, h.timed_out, h.error_msg into res from net._http_response h where h.id = r.request_id;
+    if found then
+      if res.status_code = 200 then
+        begin
+          -- 1) ค้นหาจาก candidates[0].content.parts ที่มี inlineData
+          select p->'inlineData'->>'data',
+                 coalesce(p->'inlineData'->>'mimeType', 'image/jpeg')
+            into b64, mime
+            from jsonb_array_elements(res.content::jsonb #> '{candidates,0,content,parts}') as p
+           where p->'inlineData'->>'data' is not null
+           limit 1;
+        exception when others then
+          b64 := null;
+        end;
+
+        -- 2) รูปแบบ predictions[0].bytesBase64Encoded (กรณีใช้โมเดลตระกูล Imagen)
+        if b64 is null or b64 = '' then
+          b64 := trim(both '"' from coalesce((res.content::jsonb #> '{predictions,0,bytesBase64Encoded}')::text, ''));
+          mime := trim(both '"' from coalesce((res.content::jsonb #> '{predictions,0,mimeType}')::text, 'image/jpeg'));
+        end if;
+
+        if b64 is not null and b64 <> '' and b64 <> 'null' then
+          update public.ai_image_jobs
+             set status = 'done', image_base64 = b64, mime_type = mime, done_at = now()
+           where id = r.id returning * into r;
+          return jsonb_build_object(
+            'id', r.id, 'status', r.status, 'note', r.note,
+            'mime_type', r.mime_type, 'image_base64', r.image_base64,
+            'created_at', r.created_at, 'done_at', r.done_at
+          );
+        end if;
+      end if;
+
+      -- หากไม่ได้ 200 หรือไม่มีภาพ: ตรวจสอบว่ามีโมเดลสำรองให้ลองต่อไหม
+      if r.try < coalesce(array_length(r.models, 1), 0) and res.status_code not in (401, 403) then
+        begin
+          k := public.ai_key();
+          next_model := r.models[r.try + 1];
+          if next_model like 'imagen-%' then
+            new_req := net.http_post(
+              url := 'https://generativelanguage.googleapis.com/v1beta/models/' || next_model || ':predict',
+              body := jsonb_build_object(
+                'instances', jsonb_build_array(jsonb_build_object('prompt', r.prompt)),
+                'parameters', jsonb_build_object('sampleCount', 1, 'aspectRatio', '3:4', 'outputMimeType', 'image/jpeg')
+              ),
+              headers := jsonb_build_object('Content-Type', 'application/json', 'x-goog-api-key', k),
+              timeout_milliseconds := 120000
+            );
+          else
+            new_req := net.http_post(
+              url := 'https://generativelanguage.googleapis.com/v1beta/models/' || next_model || ':generateContent',
+              body := jsonb_build_object(
+                'contents', jsonb_build_array(
+                  jsonb_build_object(
+                    'parts', jsonb_build_array(jsonb_build_object('text', r.prompt))
+                  )
+                ),
+                'generationConfig', jsonb_build_object(
+                  'responseModalities', jsonb_build_array('IMAGE'),
+                  'imageConfig', jsonb_build_object('aspectRatio', '3:4')
+                )
+              ),
+              headers := jsonb_build_object('Content-Type', 'application/json', 'x-goog-api-key', k),
+              timeout_milliseconds := 120000
+            );
+          end if;
+
+          update public.ai_image_jobs
+             set try = try + 1, request_id = new_req
+           where id = r.id returning * into r;
+
+          return jsonb_build_object(
+            'id', r.id, 'status', 'pending', 'note', 'กำลังลองด้วยโมเดลสำรอง...',
+            'mime_type', r.mime_type, 'image_base64', null,
+            'created_at', r.created_at, 'done_at', null
+          );
+        exception when others then
+          -- หากส่งซ้ำไม่สำเร็จ ให้ตกไปเคส error ด้านล่าง
+          null;
+        end;
+      end if;
+
+      -- ลองครบทุกรุ่นแล้วยังไม่ได้ หรือติดสิทธิ์คีย์
+      update public.ai_image_jobs set status = 'error', done_at = now(),
+             note = case
+               when res.status_code = 429 then 'AI โควตาเต็มหรือมีผู้ใช้มาก กรุณาลองใหม่ภายหลัง'
+               when res.timed_out then 'AI ตอบช้าเกินไป กรุณาลองใหม่'
+               else coalesce(
+                 nullif(trim(res.content::jsonb #>> '{error,message}'), ''),
+                 'สร้างภาพไม่สำเร็จ (รหัส ' || coalesce(res.status_code::text, '-') || ') กรุณาลองใหม่'
+               )
+             end
+       where id = r.id returning * into r;
+
+    elsif r.created_at < now() - interval '3 minutes' then
+      update public.ai_image_jobs set status = 'error', note = 'หมดเวลารอ AI กรุณาลองใหม่', done_at = now() where id = r.id returning * into r;
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'id', r.id,
+    'status', r.status,
+    'note', r.note,
+    'mime_type', r.mime_type,
+    'image_base64', r.image_base64,
+    'created_at', r.created_at,
+    'done_at', r.done_at
+  );
+end $$;
+
+revoke execute on function public.ai_news_image_poll(bigint) from public, anon, authenticated;
+grant execute on function public.ai_news_image_poll(bigint) to authenticated;
+
+select 'ok' as step_98_ai_news_image_fallback;

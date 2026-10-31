@@ -910,6 +910,13 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผู้ดูแล: กดปุ่ม Gen ภาพด้วย AI → สกัดเนื้อหาจากไฟล์แนบมาสร้างภาพสำเร็จและแทรกเป็นรูปหลักในฟอร์ม', (await count(p, '#anImagePreview .img-item')) >= 1 && await visible(p, '#anImagePreview .img-item.main img'));
       check('สร้างภาพด้วย AI: มีการอ่านเนื้อหาจากไฟล์แนบส่งให้ AI', await p.evaluate(() => window.__db.ai_image_jobs.some((j) => (j.body || '').includes('เนื้อหาจาก'))));
 
+      // ทดสอบกรณี AI ฝั่งเซิร์ฟเวอร์ติดโควตา (429) → สลับไปสร้างภาพโปสเตอร์ 3 ส่วนอัตโนมัติสำเร็จ
+      await p.evaluate(() => { window.__rpcFailImage = true; });
+      await p.click('#anImagePreview [data-rmimg="0"]');
+      await p.click('#anGenAiBtn'); await p.waitForTimeout(3000);
+      check('ผู้ดูแล: AI ฝั่งเซิร์ฟเวอร์ติดโควตา → สลับไปสร้างภาพโปสเตอร์ 3 ส่วนอัตโนมัติสำเร็จ', (await count(p, '#anImagePreview .img-item')) >= 1 && await visible(p, '#anImagePreview .img-item.main img'));
+      await p.evaluate(() => { delete window.__rpcFailImage; });
+
       await (await p.$('.ai-panel')).screenshot({ path: path.join(SHOTS, 'admin-news-review-box.png') });
       await p.fill('#aqBody', 'แก้โดยเภสัชกรแล้ว'); await p.click('#anReview [data-decide="save"]'); await p.waitForTimeout(600);
       const ue = (await calls(p, (c) => c.table === 'news' && c.op === 'update')).map((c) => c.payload).find((x) => x.body === 'แก้โดยเภสัชกรแล้ว') || {};
