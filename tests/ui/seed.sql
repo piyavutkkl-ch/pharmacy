@@ -47,7 +47,7 @@ insert into public.item_status(item_id, unit_id, status, detail, submitted_at, r
 insert into public.patients(id, unit_id, first_name, last_name, national_id, birth_date, hn_hospital, hn_unit, coverage) values
   ('00000000-0000-0000-0000-0000000d0001', 2, 'ประยูร', 'ทดสอบ', '1234567890123', '1950-05-01', '001', '77', 'บัตรทอง (สปสช.)');
 insert into public.visits(patient_id, unit_id, visit_date, subjective, med_list, med_excess, drps, drp_resolved)
-  values ('00000000-0000-0000-0000-0000000d0001', 2, current_date - 30, 'ปวดเข่า',
+  values ('00000000-0000-0000-0000-0000000d0001', 2, current_date - 5, 'ปวดเข่า',
           '[{"name":"Metformin","qty":30,"unit":"เม็ด"}]', true, array['ขนาดยาต่ำเกินไป (Dosage too low)'], false);
 insert into public.feedback(body) values ('อยากให้มีแจ้งเตือนวันนัด');
 commit;

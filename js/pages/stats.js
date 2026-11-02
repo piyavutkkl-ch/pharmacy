@@ -12,20 +12,23 @@ import { auth } from '../auth.js?v=4.4';
 const CUR_FY = fiscalYearOf();
 
 /* ---------- ผลการดำเนินงาน ---------- */
-let trkUnit = 'all', trkYear = CUR_FY, trkBound = false;
+let trkUnit = 'all', trkYear = CUR_FY, trkBound = false, trkYears = [];
 
 export async function initTracking() {
-  const [units, years] = await Promise.all([loadUnits(), loadYears()]);
+  const [units, allYears] = await Promise.all([loadUnits(), loadYears()]);
+  trkYears = allYears.filter((y) => y >= 2570);
+  if (!trkYears.length) trkYears.push(CUR_FY);
+  if (!trkYears.includes(trkYear)) trkYear = trkYears[trkYears.length - 1] || CUR_FY;
   if (!trkBound) {
     trkBound = true;
-    $('#trkUnitTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-u]'); if (!b) return; trkUnit = b.dataset.u === 'all' ? 'all' : +b.dataset.u; trkDaySel = null; renderTracking(units, years); });
-    $('#trkYearTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (!b) return; trkYear = +b.dataset.y; trkMonth = defaultMonth(); trkDaySel = null; renderTracking(units, years); });
+    $('#trkUnitTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-u]'); if (!b) return; trkUnit = b.dataset.u === 'all' ? 'all' : +b.dataset.u; trkDaySel = null; renderTracking(units, trkYears); });
+    $('#trkYearTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (!b) return; trkYear = +b.dataset.y; trkMonth = defaultMonth(); trkDaySel = null; renderTracking(units, trkYears); });
     document.querySelectorAll('[data-trk]').forEach((b) => b.addEventListener('click', () => { trkOpen = trkOpen === b.dataset.trk ? null : b.dataset.trk; renderTrkDetail(); }));
-    $('#trkMonthTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; trkMonth = trkMonth === b.dataset.m ? null : b.dataset.m; trkDaySel = null; renderMonths(); loadCal(); });
+    $('#trkMonthTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; trkMonth = trkMonth === b.dataset.m ? null : b.dataset.m; renderMonths(); loadCal(); });
     $('#trkCal').addEventListener('click', (e) => { const b = e.target.closest('[data-day]'); if (!b) return; trkDaySel = trkDaySel === b.dataset.day ? null : b.dataset.day; paintCal(); renderDay(); });
   }
-  renderTracking(units, years);
-  initLeaderboard(years);   // ใต้ "ผลงานด้านเภสัชกรรมปฐมภูมิ" = อันดับผลการประเมินเกณฑ์มาตรฐาน (เลือกปีงบของตัวเอง)
+  renderTracking(units, trkYears);
+  initLeaderboard(trkYears);   // ใต้ "ผลงานด้านเภสัชกรรมปฐมภูมิ" = อันดับผลการประเมินเกณฑ์มาตรฐาน (เลือกปีงบของตัวเอง)
 }
 
 async function renderTracking(units, years) {
@@ -217,7 +220,7 @@ export async function initAchievements() {
 let lbYear = null, lbBound = false;
 function initLeaderboard(years) {
   const critYears = years.filter((y) => y <= CUR_FY);
-  if (lbYear === null) lbYear = critYears.includes(CUR_FY) ? CUR_FY : critYears[critYears.length - 1];
+  if (lbYear === null || !critYears.includes(lbYear)) lbYear = critYears.includes(CUR_FY) ? CUR_FY : critYears[critYears.length - 1];
   if (!lbBound) {
     lbBound = true;
     $('#lbYearTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (!b) return; lbYear = +b.dataset.y; renderLeaderboard(critYears); });

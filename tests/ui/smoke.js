@@ -2051,6 +2051,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     // ผลการดำเนินงาน: กดตัวเลข → DRPs แยกชนิด (ทุกคน · ตัวเลขรวม) / รายการเยี่ยม (เจ้าหน้าที่/ผู้ดูแลเท่านั้น)
     const visitFy = await p.evaluate(() => window.__db.visits.find((v) => (v.drps || []).length)?.fiscal_year);
     { const q = await open(null, '#/tracking'); await q.waitForTimeout(700);
+      check('ผลการดำเนินงาน: ไม่แสดงปีงบ 2569 ที่ไม่มีข้อมูล แสดงเฉพาะปี 2570 ขึ้นไป', !(await q.$('#trkYearTabs [data-y="2569"]')) && !!(await q.$('#trkYearTabs [data-y="2570"]')));
       await q.click(`#trkYearTabs [data-y="${visitFy}"]`); await q.waitForTimeout(400);
       await q.click('#trkDrpsBtn'); await q.waitForTimeout(400);
       const rows = await q.$$eval('#trkDetail .drp-row', (rs) => rs.map((r) => +(r.textContent.match(/พบ (\d+)/) || [])[1]));
@@ -2077,7 +2078,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.click(`#trkYearTabs [data-y="${visitFy}"]`); await q.waitForTimeout(300);
       check('ปฏิทินผลงาน: มีปุ่มเลือกเดือนครบ 12 เดือนของปีงบ (ต.ค. → ก.ย.) ใต้ปีงบประมาณ', await count(q, '#trkMonthTabs [data-m]') === 12 && (await text(q, '#trkMonthTabs [data-m]')).startsWith('ต.ค.')
         && await q.evaluate(() => document.getElementById('trkYearTabs').compareDocumentPosition(document.getElementById('trkMonthTabs')) & Node.DOCUMENT_POSITION_FOLLOWING));
-      if (!(await q.isVisible('#trkCalPanel'))) { await q.click(`#trkMonthTabs [data-m="${vm}"]`); await q.waitForTimeout(500); }
+      const isCurQ = await q.$eval(`#trkMonthTabs [data-m="${vm}"]`, (b) => b.getAttribute('aria-current') === 'true');
+      if (!isCurQ || !(await q.isVisible('#trkCalPanel'))) { await q.click(`#trkMonthTabs [data-m="${vm}"]`); await q.waitForTimeout(500); }
       const day = `#trkCal [data-day="${vd}"]`;
       check('ปฏิทินผลงาน: เลือกเดือน → ปฏิทินเดือนนั้น + วงกลมในวันที่มีการเยี่ยม (ตัวเลข = จำนวน · จุด = มีสรุปผลงาน)', await visible(q, '#trkCalPanel') && await count(q, '#trkCal .tc-d') >= 28
         && await q.$eval(day, (b) => b.classList.contains('has') && !b.disabled && !!b.querySelector('.tc-c') && !!b.querySelector('.tc-dot')) && await count(q, '#trkCal .tc-d.has') >= 1 && await count(q, '#trkCal .tc-d:disabled') > 20);
@@ -2094,7 +2096,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await q.close();
       const r = await open('staff', '#/'); await seedSum(r); await go(r, '#/tracking'); await r.waitForTimeout(600);
       await r.click(`#trkYearTabs [data-y="${visitFy}"]`); await r.waitForTimeout(300);
-      if (!(await r.isVisible('#trkCalPanel'))) { await r.click(`#trkMonthTabs [data-m="${vm}"]`); await r.waitForTimeout(500); }
+      const isCurR = await r.$eval(`#trkMonthTabs [data-m="${vm}"]`, (b) => b.getAttribute('aria-current') === 'true');
+      if (!isCurR || !(await r.isVisible('#trkCalPanel'))) { await r.click(`#trkMonthTabs [data-m="${vm}"]`); await r.waitForTimeout(500); }
       const before = (await calls(r, (c) => c.rpc === 'log_patient_access')).length;
       await r.click(day); await r.waitForTimeout(500);
       check('ปฏิทินผลงาน: เจ้าหน้าที่กดวัน → เห็นรายชื่อการเยี่ยมวันนั้น + ลิงก์บันทึก + บันทึกการเปิดดู (PDPA)', await count(r, '#trkDay .trk-visits a.li') >= 1 && (await r.getAttribute('#trkDay .trk-visits a.li', 'href')).startsWith('#/staff/visits/')
