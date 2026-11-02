@@ -1510,5 +1510,15 @@ check("97: citizen cannot poll image", "c1", f"select ai_news_image_poll({jid})"
 check("98: anon cannot execute ai_image_models", "anon", "select ai_image_models('gemini-2.5-flash-image')", "deny")
 check("98: ai_image_jobs records models list and try count", "admin", f"select array_length(models, 1) >= 2 and try = 1 from ai_image_jobs where id = {jid}", eq("t"))
 
+# ---------- 99: ai_rider_summary ----------
+check("99: anon cannot call ai_rider_summary_start", "anon", "select ai_rider_summary_start(2570, '[]'::jsonb)", "deny")
+check("99: citizen cannot call ai_rider_summary_start", "c1", "select ai_rider_summary_start(2570, '[]'::jsonb)", "deny")
+check("99: staff cannot call ai_rider_summary_start", "s2", "select ai_rider_summary_start(2570, '[]'::jsonb)", "deny")
+check("99: anon cannot call ai_rider_summary_poll", "anon", "select ai_rider_summary_poll(1)", "deny")
+check("99: citizen cannot call ai_rider_summary_poll", "c1", "select ai_rider_summary_poll(1)", "deny")
+check("99: staff cannot call ai_rider_summary_poll", "s2", "select ai_rider_summary_poll(1)", "deny")
+j99 = check("99: admin can call ai_rider_summary_start", "admin", """select ai_rider_summary_start(2570, '[{"tambon":"ควนกาหลง","delivered":5}]'::jsonb)""", lambda o: o.strip().isdigit())
+check("99: admin can poll ai_rider_summary_poll", "admin", f"select ai_rider_summary_poll({j99})->>'status' in ('pending','done','error')", eq("t"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

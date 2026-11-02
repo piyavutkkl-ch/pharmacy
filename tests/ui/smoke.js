@@ -1213,6 +1213,19 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('บันทึกทุกปีงบจากไฟล์: เก็บเฉพาะตัวเลขรวม (ไม่มีชื่อ/HN)', up.length === 3 && !/ชื่อสมมติ|000000001/.test(JSON.stringify(up)), JSON.stringify(up)); }
     await p.fill('#hrNewTambon', 'ตำบล กระทูน'); await p.click('#hrAddTambon'); await p.waitForTimeout(100);
     check('เพิ่มตำบลเองได้ (ตัดคำว่า "ตำบล")', await count(p, '#hrStats [data-tambon="กระทูน"]') === 1);
+    { // นำเข้าจาก Google Sheets + หัวคอลัมน์แบบยืดหยุ่น + ให้ AI สรุปข้อมูลขึ้นนำเสนอ
+      await p.route('**/spreadsheets/d/**/gviz/tq*', (r) => {
+        const gvizRes = '/*O_o*/\ngoogle.visualization.Query.setResponse({"version":"0.6","status":"ok","sig":"123","table":{"cols":[{"id":"A","label":"สถานะการจัดส่ง","type":"string"},{"id":"B","label":"ช่องทางจัดส่ง","type":"string"},{"id":"C","label":"HN","type":"string"},{"id":"D","label":"วันเวลาที่สร้างออเดอร์","type":"string"},{"id":"E","label":"ค่าจัดส่ง","type":"string"},{"id":"F","label":"ที่อยู่จัดส่งยา","type":"string"}],"rows":[{"c":[{"v":"จัดส่งสำเร็จ"},{"v":"ไรเดอร์"},{"v":"000000888"},{"v":"วันที่ 15/10/2569 เวลา 10:00 น."},{"v":"0"},{"v":"ต.ควนกาหลง"}]}]}});';
+        r.fulfill({ status: 200, contentType: 'application/json', body: gvizRes });
+      });
+      await p.fill('#hrSheetUrl', 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0');
+      await p.click('#hrSheetBtn');
+      await p.waitForTimeout(600);
+      check('นำเข้าผลงานจาก Google Sheets: ดึงข้อมูลและอ่านตารางสำเร็จ (หัวตารางยืดหยุ่น)', (await text(p, '#hrImportMsg')).includes('นับแล้ว ปีงบ 2570') && (await p.inputValue('#hrYear')) === '2570');
+      await p.click('#hrAiSummaryBtn');
+      await p.waitForTimeout(600);
+      check('ปุ่ม ✨ ให้ AI สรุปข้อมูลขึ้นนำเสนอ: สรุปผลงานและใส่ลงช่องข้อความนำเสนอ', (await p.inputValue('#hrInfoEdit')).includes('จัดส่งยาถึงบ้านสำเร็จ') && (await p.inputValue('#hrInfoEdit')).includes('ตำบล'));
+    }
     await p.fill('#hrInfoEdit', 'ไรเดอร์สุขภาพ ส่งยาถึงบ้าน'); await p.click('#hrInfoSave'); await p.waitForTimeout(300);
     await go(p, '#/rider'); await p.waitForTimeout(500);
     check('ลิงก์ #/rider เดิม: เปิดช่องบริการจัดส่งยาถึงบ้านที่ผลงาน Health Rider', await visible(p, '[data-panel="delivery"] #hrBlock'));

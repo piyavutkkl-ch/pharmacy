@@ -8,10 +8,35 @@ import { $, esc, toast, errText, busy, thaiDate, fiscalYearOf } from '../util.js
 
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
 const TH_MONTH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-const COLS = {   // หัวตาราง (ตามไฟล์ของระบบจัดส่งยา) → ชื่อในโค้ด · หาจากชื่อหัว ไม่ยึดลำดับคอลัมน์
+export const COLS = {   // หัวตาราง (ตามไฟล์ของระบบจัดส่งยา) → ชื่อในโค้ด · หาจากชื่อหัว ไม่ยึดลำดับคอลัมน์
   status: 'สถานะ', service: 'บริการขนส่ง', hn: 'HN', created: ['วันเวลาที่สร้างออเดอร์', 'วันเวลาที่ลงทะเบียน'], done: 'วัน-เวลา จัดส่งพัสดุสำเร็จ',   // ไฟล์บางรุ่นใช้ "วันเวลาที่ลงทะเบียน" แทน
   cover: 'ประเภทสิทธิการรักษา', rights: 'รายละเอียดสิทธิการรักษา', fee: 'ค่าจัดส่ง', address: 'ที่อยู่จัดส่งยา',
 };
+
+// รูปแบบค้นหาหัวคอลัมน์แบบยืดหยุ่น (รองรับชื่อหัวตารางหลายแบบจากระบบจัดส่งยา / Google Sheets)
+export const COL_PATTERNS = {
+  status: /(?:สถานะ|status)/i,
+  service: /(?:บริการขนส่ง|ประเภทขนส่ง|บริการ|ช่องทางจัดส่ง|ช่องทาง|ขนส่ง|service|channel)/i,
+  hn: /^(?:hn|เลข\s*hn|รหัสผู้ป่วย)$/i,
+  created: /(?:วัน(?:เวลา)?(?:ที่)?(?:สร้าง(?:ออเดอร์)?|ลงทะเบียน|สั่ง)|created|date)/i,
+  done: /(?:จัดส่ง(?:พัสดุ)?สำเร็จ|ส่งมอบสำเร็จ|วันที่ส่งมอบ|วันที่สำเร็จ|delivery_date|done)/i,
+  cover: /(?:ประเภทสิทธิ(?:การรักษา)?|สิทธิหลัก|cover)/i,
+  rights: /(?:รายละเอียดสิทธิ(?:การรักษา)?|สิทธิการรักษา|สิทธิ|rights)/i,
+  fee: /(?:ค่าจัดส่ง|ค่าส่ง|fee|shipping)/i,
+  address: /(?:ที่อยู่(?:จัดส่ง(?:ยา)?)?|ที่อยู่ผู้รับ|ตำบล|address)/i,
+};
+
+export function matchCol(text, key) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  const exact = COLS[key];
+  if (exact) {
+    if (Array.isArray(exact) ? exact.includes(t) : exact === t) return true;
+  }
+  const pat = COL_PATTERNS[key];
+  if (pat && pat.test(t)) return true;
+  return false;
+}
 
 /** วันที่จากไฟล์ → Date: "วันที่ 01/05/2569 เวลา 9:17 น." · "1/5/69" · "01-05-2026" · "2026-05-01 09:17" · เลขวันที่ของ Excel (45778.38)
  *  ปี พ.ศ. → ค.ศ. · ปี 2 หลัก: ≥ 50 = พ.ศ. 25xx (69 = 2569) · < 50 = ค.ศ. 20xx */
@@ -43,15 +68,35 @@ function serviceName(s) {
   return clean(t) || 'ไม่ระบุ';
 }
 
-/** หาแถวหัวตาราง + ฟังก์ชันอ่านช่องตามชื่อหัว */
-function tableCols(rows) {
-  const hi = rows.findIndex((r) => r.some((c) => String(c).trim() === COLS.status) && r.some((c) => String(c).trim() === COLS.service));
-  if (hi < 0) throw new Error('ไม่พบหัวตาราง "สถานะ" และ "บริการขนส่ง" — ใช้ไฟล์ประวัติรายการจัดส่งยาจากระบบจัดส่งยา');
+/** หาแถวหัวตาราง + ฟังก์ชันอ่านช่องตามชื่อหัว (รองรับชื่อหัวคอลัมน์หลายแบบ) */
+export function tableCols(rows) {
+  const hi = rows.findIndex((r) => r.some((c) => matchCol(c, 'status')) && (
+    r.some((c) => matchCol(c, 'service')) ||
+    r.some((c) => matchCol(c, 'created')) ||
+    r.some((c) => matchCol(c, 'address')) ||
+    r.some((c) => matchCol(c, 'hn'))
+  ));
+  if (hi < 0) throw new Error('ไม่พบหัวตาราง "สถานะ" และหัวข้อที่เกี่ยวข้อง (บริการขนส่ง วันเวลาสร้างออเดอร์ ที่อยู่) — ใช้ไฟล์หรือชีตประวัติรายการจัดส่งยา');
   const head = rows[hi].map((c) => String(c).trim()), col = {};
-  for (const [k, name] of Object.entries(COLS)) col[k] = [].concat(name).map((x) => head.indexOf(x)).find((i) => i >= 0) ?? -1;
+  for (const [k, name] of Object.entries(COLS)) {
+    let idx = [].concat(name).map((x) => head.indexOf(x)).find((i) => i >= 0) ?? -1;
+    if (idx < 0 && COL_PATTERNS[k]) {
+      idx = head.findIndex((c) => COL_PATTERNS[k].test(c));
+    }
+    col[k] = idx;
+  }
   return { hi, col };
 }
-const tambonOf = (addr) => clean(String(addr || '').match(/ตำบล\s*([^\s]+)/)?.[1]) || 'ไม่ระบุ';
+export const tambonOf = (addr) => {
+  const t = String(addr || '').trim();
+  if (!t) return 'ไม่ระบุ';
+  const m = t.match(/(?:ตำบล|ต\.)\s*([^\s,]+)/);
+  if (m) return clean(m[1].replace(/^[.\s]+/, '')) || 'ไม่ระบุ';
+  if (!/[0-9]/.test(t) && !/(?:อำเภอ|อ\.|จังหวัด|จ\.|หมู่|ม\.)/.test(t) && t.length <= 40) {
+    return clean(t.replace(/^ต(?:ำบล|\.)\s*/, '')) || 'ไม่ระบุ';
+  }
+  return 'ไม่ระบุ';
+};
 
 /* ---- ส่งออกเป็น Excel (ผู้ดูแลเลือกหัวข้อ/รายการเอง) · ทำในเครื่องนี้ ไม่อัปโหลด ไม่บันทึกในระบบ (มีข้อมูลส่วนบุคคล) ---- */
 /** หัวข้อทั้งหมดในไฟล์ (แถวหัวตาราง) ตามลำดับในไฟล์ */
@@ -86,15 +131,18 @@ export async function downloadXlsx(aoa, name) {
 }
 
 /** Health Rider (55_rider_tambon.sql): เฉพาะบริการขนส่ง "rider" → ราย ปีงบ (จากวันที่สร้างออเดอร์) × ตำบล · HN ใช้นับคนในเครื่องแล้วทิ้ง
+ *  ถ้าไม่มีคอลัมน์บริการขนส่ง จะนับทุกรายการเป็นบริการ rider
  *  → { [ปีงบ]: [{ tambon, delivered, clients, cancelled, free }] } */
 export function riderByTambon(rows) {
   const { hi, col } = tableCols(rows);
   const get = (r, k) => (col[k] >= 0 ? String(r[col[k]] ?? '').trim() : '');
+  const hasServiceCol = col.service >= 0;
   const out = new Map(), diag = { rows: 0, riders: 0, badDate: 0, sample: '', services: new Map() };
   for (const r of rows.slice(hi + 1)) {
     const st = get(r, 'status'); if (!st) continue;
-    diag.rows++; add(diag.services, serviceName(get(r, 'service')));
-    if (!isRider(get(r, 'service'))) continue;
+    diag.rows++;
+    if (hasServiceCol) add(diag.services, serviceName(get(r, 'service')));
+    if (hasServiceCol && !isRider(get(r, 'service'))) continue;
     diag.riders++;
     const c = thDate(get(r, 'created')); if (!c) { diag.badDate++; diag.sample ||= get(r, 'created').slice(0, 40); continue; }
     const fy = fiscalYearOf(c), tam = tambonOf(get(r, 'address'));
@@ -178,6 +226,66 @@ export async function readTable(f) {
     .map((r) => r.map((c) => (c instanceof Date ? `${pad(c.getDate())}/${pad(c.getMonth() + 1)}/${c.getFullYear()} ${pad(c.getHours())}:${pad(c.getMinutes())}` : c)));
 }
 
+/** ดึง Sheet ID และ GID จากลิงก์ Google Sheets ทุกรูปแบบ */
+export function parseGoogleSheetUrl(url) {
+  const u = String(url || '').trim();
+  const mId = u.match(/\/spreadsheets\/(?:d|e)\/([a-zA-Z0-9-_]+)/);
+  if (!mId) return null;
+  const id = mId[1];
+  const mGid = u.match(/[#&?]gid=([0-9]+)/);
+  const gid = mGid ? mGid[1] : null;
+  return { id, gid };
+}
+
+/** ดึงข้อมูลจาก Google Sheets (เปิดสิทธิ์ "ทุกคนที่มีลิงก์มีสิทธิ์อ่าน" หรือ เผยแพร่ไปยังเว็บ) → ตาราง 2 มิติ */
+export async function fetchGoogleSheet(url) {
+  const parsed = parseGoogleSheetUrl(url);
+  if (!parsed) throw new Error('ลิงก์ Google Sheets ไม่ถูกต้อง — กรุณาคัดลอกลิงก์จากแถบที่อยู่ของเบราว์เซอร์');
+  const { id, gid } = parsed;
+  const gvizUrl = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json${gid ? `&gid=${gid}` : ''}`;
+  let res;
+  try {
+    res = await fetch(gvizUrl);
+  } catch (err) {
+    throw new Error('เชื่อมต่อ Google Sheets ไม่ได้ — ตรวจสอบอินเทอร์เน็ต');
+  }
+  if (!res.ok) {
+    throw new Error(`Google Sheets ตอบกลับสถานะ ${res.status} — ตรวจสอบว่าแชร์เป็น "ทุกคนที่มีลิงก์มีสิทธิ์อ่าน" หรือไม่`);
+  }
+  const text = await res.text();
+  const start = text.indexOf('{'), end = text.lastIndexOf('}');
+  if (start < 0 || end < 0) {
+    throw new Error('รูปแบบข้อมูล Google Sheets ไม่ถูกต้อง — ตรวจสอบว่าแชร์สิทธิ์ถูกต้อง');
+  }
+  let json;
+  try {
+    json = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    throw new Error('อ่านข้อมูล JSON จาก Google Sheets ไม่สำเร็จ');
+  }
+  if (json.status === 'error') {
+    const msg = json.errors?.[0]?.message || 'เกิดข้อผิดพลาดในการอ่านชีต';
+    throw new Error(`Google Sheets: ${msg}`);
+  }
+  const table = json.table;
+  if (!table) throw new Error('ไม่พบตารางข้อมูลใน Google Sheets');
+  const rows = [];
+  const head = (table.cols || []).map((c) => (c ? String(c.label || '').trim() : ''));
+  if (head.some(Boolean)) rows.push(head);
+  for (const r of table.rows || []) {
+    if (!r || !r.c) continue;
+    const row = r.c.map((cell) => {
+      if (!cell) return '';
+      if (cell.f != null) return String(cell.f).trim();
+      if (cell.v != null) return String(cell.v).trim();
+      return '';
+    });
+    if (row.some(Boolean)) rows.push(row);
+  }
+  if (!rows.length) throw new Error('ไม่พบข้อมูลใน Google Sheet นี้');
+  return rows;
+}
+
 /* ======================= แสดงผล (ใช้ทั้งหน้าหลักและตัวอย่างของผู้ดูแล) ======================= */
 const monthLabel = (k) => { const [y, m] = k.split('-'); return `${TH_MONTH[+m - 1]} ${String(+y + 543).slice(2)}`; };
 function bars(title, list, label = (k) => k, unit = 'ครั้ง') {
@@ -227,10 +335,30 @@ export async function initDeliveryReportAdmin() {
   if (!adminBound) {
     adminBound = true;
     $('#drFile').addEventListener('change', onFile);
+    $('#drSheetBtn')?.addEventListener('click', onSheet);
+    $('#drSheetUrl')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onSheet(); } });
     $('#drSave').addEventListener('click', saveDraft);
     $('#drList').addEventListener('click', onList);
   }
   await loadAdminList();
+}
+async function onSheet() {
+  const url = ($('#drSheetUrl')?.value || '').trim();
+  if (!url) { toast('กรุณาวางลิงก์ Google Sheets ก่อน', 'err'); $('#drSheetUrl')?.focus(); return; }
+  const msg = $('#drMsg'); msg.style.color = ''; msg.textContent = 'กำลังดึงข้อมูลจาก Google Sheets…';
+  const btn = $('#drSheetBtn'); busy(btn, true, 'กำลังดึง…');
+  try {
+    const table = await fetchGoogleSheet(url);
+    draft = summarizeDelivery(table);
+    $('#drTitle').value = draft.title;
+    renderDeliveryReport($('#drPreview'), { title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
+    $('#drPreviewWrap').hidden = false;
+    msg.style.color = 'var(--success)';
+    msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ · ตรวจตัวอย่างด้านล่างแล้วกด "บันทึกและแสดงที่หน้าจัดส่งยา"`;
+  } catch (err) {
+    draft = null; $('#drPreviewWrap').hidden = true;
+    msg.style.color = 'var(--error)'; msg.textContent = 'อ่าน Google Sheets ไม่สำเร็จ: ' + errText(err);
+  } finally { busy(btn, false); }
 }
 async function onFile(e) {
   const f = e.target.files[0]; if (!f) return;

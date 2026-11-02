@@ -459,6 +459,17 @@ function rpc(name, a = {}) {
       }
       return { data: { id: r.id, status: r.status, image_base64: r.image_base64, mime_type: r.mime_type, note: r.note }, error: null };
     }
+    case 'ai_rider_summary_start': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์ เฉพาะผู้ดูแลเท่านั้น', '42501');
+      const reqId = Date.now();
+      (db.ai_rider_summary_jobs ||= []).push({ id: reqId, year: a.p_year, stats: a.p_stats, polls: 0 });
+      return { data: reqId, error: null };
+    }
+    case 'ai_rider_summary_poll': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
+      const text = '• จัดส่งยาถึงบ้านสำเร็จรวม 5 ครั้ง ครอบคลุมผู้รับบริการ 5 คน\n• ตำบลตัวอย่างมีจำนวนการจัดส่งมากที่สุด (3 ครั้ง)\n• สิทธิประโยชน์จัดส่งยาฟรีให้ผู้ป่วยรวม 5 ครั้ง (100% ของการจัดส่งทั้งหมด)\n• ช่วยให้ผู้ป่วยได้รับยาตรงเวลา ต่อเนื่อง ปลอดภัย และลดความแออัดที่โรงพยาบาล';
+      return { data: { status: 'done', text }, error: null };
+    }
 
     case 'ai_match_start': {
       if (!isStaff() && !isAdmin()) return err('ไม่มีสิทธิ์', '42501');

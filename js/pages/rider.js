@@ -7,7 +7,7 @@ import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { paras } from './delivery.js?v=4.4';
-import { readTable, riderByTambon, exportHeads, exportRows, downloadXlsx } from './delivery-report.js?v=4.4';
+import { readTable, fetchGoogleSheet, riderByTambon, exportHeads, exportRows, downloadXlsx } from './delivery-report.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
@@ -72,12 +72,23 @@ const TEMPLATE = `
     <div class="hr-tam" id="hrStats"></div>
     <div class="nt-add"><input id="hrNewTambon" class="input" maxlength="60" placeholder="ชื่อตำบล" aria-label="ชื่อตำบลที่จะเพิ่ม"><button type="button" class="btn btn-o btn-sm" id="hrAddTambon">+ เพิ่มตำบล</button></div>
     <details class="hr-import" open>
-      <summary>นำเข้าจากไฟล์ประวัติรายการจัดส่งยา</summary>
-      <p class="small muted">เลือกไฟล์ .xlsx หรือ .csv จากระบบจัดส่งยา · ระบบนับในเครื่องนี้ <b>ไม่อัปโหลดไฟล์</b> และเก็บเฉพาะตัวเลขรวม · แยกปีงบจากวันที่สร้างออเดอร์</p>
-      <div class="field"><label for="hrFile">เลือกไฟล์</label><input id="hrFile" class="input" type="file" accept=".xlsx,.xls,.csv,text/csv"></div>
+      <summary>นำเข้าจาก Google Sheets หรือไฟล์ประวัติรายการจัดส่งยา</summary>
+      <p class="small muted">วางลิงก์ Google Sheets หรือเลือกไฟล์ (.xlsx, .csv) · ระบบนับในเครื่องนี้ <b>ไม่อัปโหลดข้อมูลส่วนบุคคล</b> และเก็บเฉพาะตัวเลขรวม</p>
+      <div class="field">
+        <label for="hrSheetUrl">วางลิงก์ Google Sheets</label>
+        <div class="row-btns" style="align-items:center;gap:.5rem">
+          <input id="hrSheetUrl" class="input" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" style="flex:1" aria-label="ลิงก์ Google Sheets">
+          <button type="button" class="btn btn-p btn-sm" id="hrSheetBtn">ดึงข้อมูลจาก Google Sheets</button>
+        </div>
+        <span class="small muted">ตั้งค่าแชร์ใน Google Sheets เป็น <b>"ทุกคนที่มีลิงก์มีสิทธิ์อ่าน"</b> หรือ เผยแพร่ไปยังเว็บ</span>
+      </div>
+      <div class="field" style="margin-top:.75rem">
+        <label for="hrFile">หรือเลือกไฟล์ในเครื่อง (.xlsx, .csv)</label>
+        <input id="hrFile" class="input" type="file" accept=".xlsx,.xls,.csv,text/csv">
+      </div>
       <span class="small" id="hrImportMsg" aria-live="polite"></span>
       <div class="hr-export" id="hrExport" hidden>
-        <h3>ส่งออกข้อมูลจากไฟล์นี้เป็น Excel</h3>
+        <h3>ส่งออกข้อมูลจากไฟล์/ชีตนี้เป็น Excel</h3>
         <p class="small fx-warn">ไฟล์ที่ส่งออกมีข้อมูลส่วนบุคคล (PDPA) · ทำในเครื่องนี้ ไม่อัปโหลดและไม่บันทึกในระบบ · เก็บไฟล์ให้ปลอดภัย</p>
         <div class="field"><label for="hrExRows">รายการที่ส่งออก</label><select id="hrExRows" class="input">
           <option value="ok">เฉพาะรายการที่จัดส่งสำเร็จ</option><option value="all">ทุกรายการ</option>
@@ -89,9 +100,12 @@ const TEMPLATE = `
     <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="hrStatSave">บันทึกและแสดงผลงาน</button><button type="button" class="btn btn-o btn-sm" id="hrSaveAll" hidden>บันทึกทุกปีงบจากไฟล์</button></div>
   </div>
   <div class="panel">
-    <h2>ข้อความแนะนำ Health Rider</h2>
-    <label for="hrInfoEdit" class="small muted">แสดงเหนือผลงานที่หน้าหลัก · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่</label>
-    <textarea id="hrInfoEdit" rows="4" maxlength="5000"></textarea>
+    <div class="panel-head">
+      <h2>ข้อความแนะนำ Health Rider</h2>
+      <button type="button" class="btn btn-o btn-sm" id="hrAiSummaryBtn">✨ ให้ AI สรุปข้อมูลขึ้นนำเสนอ</button>
+    </div>
+    <label for="hrInfoEdit" class="small muted">แสดงเหนือผลงานที่หน้าหลัก · สรุปโดย AI หรือแก้ไขเองได้ · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่</label>
+    <textarea id="hrInfoEdit" rows="5" maxlength="5000"></textarea>
     <div><button type="button" class="btn btn-p btn-sm" id="hrInfoSave">บันทึกข้อความ</button></div>
   </div>`;
 
@@ -110,6 +124,9 @@ export async function mountRiderEditor(slot) {
   $('#hrStatSave').addEventListener('click', saveStats);
   $('#hrSaveAll').addEventListener('click', saveAll);
   $('#hrFile').addEventListener('change', importFile);
+  $('#hrSheetBtn').addEventListener('click', importSheet);
+  $('#hrSheetUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); importSheet(); } });
+  $('#hrAiSummaryBtn').addEventListener('click', onAiSummary);
   $('#hrExCols').addEventListener('change', onExPick);
   $('#hrExBtn').addEventListener('click', doExport);
   $('#hrAddTambon').addEventListener('click', addTambon);
@@ -194,29 +211,131 @@ async function saveAll() {
   E.draft = {}; $('#hrSaveAll').hidden = true; loadStats();
 }
 
-/** นำเข้าไฟล์ประวัติรายการจัดส่งยา → นับเฉพาะ rider ราย ปีงบ × ตำบล → ใส่ช่องกรอก (ยังไม่บันทึก) */
+/** ประมวลผลตารางข้อมูล → นับเฉพาะ rider ราย ปีงบ × ตำบล → ใส่ช่องกรอก (ยังไม่บันทึก) */
+async function processTable(table, sourceLabel = 'ไฟล์') {
+  const msg = $('#hrImportMsg');
+  showExport(table);   // ส่งออกได้แม้ไม่มีบริการ rider (เลือกรายการ "ทุกรายการ")
+  const res = riderByTambon(table), ys = Object.keys(res).map(Number).sort((a, b) => a - b);
+  if (!ys.length) {   // บอกเหตุผลให้ชัด: ไม่มีบริการ rider / อ่านวันที่สร้างออเดอร์ไม่ได้
+    const d = res.diag || {};
+    throw new Error(!d.rows ? `ไม่พบรายการใน${sourceLabel} (มีแต่หัวตาราง)`
+      : !d.riders ? `ไม่พบบริการขนส่ง rider ใน${sourceLabel} (พบ ${d.rows} รายการ · บริการที่พบ: ${d.services.join(', ')})`
+      : `พบบริการ rider ${d.riders} รายการ แต่อ่าน "วันเวลาที่สร้างออเดอร์" ไม่ได้ (ตัวอย่างใน${sourceLabel}: "${d.sample}")`);
+  }
+  E.draft = res;
+  const cur = +$('#hrYear').value, show = ys.includes(cur) ? cur : ys[ys.length - 1];
+  if (![...$('#hrYear').options].some((o) => +o.value === show)) $('#hrYear').insertAdjacentHTML('beforeend', `<option value="${show}">ปีงบประมาณ ${show}</option>`);
+  $('#hrYear').value = String(show); await loadStats();
+  $('#hrSaveAll').hidden = ys.length < 2;
+  msg.style.color = 'var(--success)';
+  msg.textContent = `นับแล้ว ปีงบ ${ys.join(', ')} · ${ys.map((y) => `${y}: ${res[y].reduce((a, r) => a + r.delivered, 0)} ครั้ง ${res[y].length} ตำบล`).join(' · ')} — ตรวจตัวเลขแล้วกดบันทึก${ys.length > 1 ? ' (หรือ "บันทึกทุกปีงบจากไฟล์")' : ''}`;
+}
+
+/** นำเข้าไฟล์ประวัติรายการจัดส่งยา */
 async function importFile(e) {
   const f = e.target.files[0]; if (!f) return;
   const msg = $('#hrImportMsg'); msg.style.color = ''; msg.textContent = 'กำลังอ่านไฟล์ในเครื่อง…';
   try {
     const table = await readTable(f);
-    showExport(table);   // ส่งออกได้แม้ไม่มีบริการ rider (เลือกรายการ "ทุกรายการ")
-    const res = riderByTambon(table), ys = Object.keys(res).map(Number).sort((a, b) => a - b);
-    if (!ys.length) {   // บอกเหตุผลให้ชัด: ไม่มีบริการ rider / อ่านวันที่สร้างออเดอร์ไม่ได้
-      const d = res.diag || {};
-      throw new Error(!d.rows ? 'ไม่พบรายการในไฟล์ (มีแต่หัวตาราง)'
-        : !d.riders ? `ไม่พบบริการขนส่ง rider ในไฟล์ (พบ ${d.rows} รายการ · บริการที่พบ: ${d.services.join(', ')})`
-        : `พบบริการ rider ${d.riders} รายการ แต่อ่าน "วันเวลาที่สร้างออเดอร์" ไม่ได้ (ตัวอย่างในไฟล์: "${d.sample}")`);
-    }
-    E.draft = res;
-    const cur = +$('#hrYear').value, show = ys.includes(cur) ? cur : ys[ys.length - 1];
-    if (![...$('#hrYear').options].some((o) => +o.value === show)) $('#hrYear').insertAdjacentHTML('beforeend', `<option value="${show}">ปีงบประมาณ ${show}</option>`);
-    $('#hrYear').value = String(show); await loadStats();
-    $('#hrSaveAll').hidden = ys.length < 2;
-    msg.style.color = 'var(--success)';
-    msg.textContent = `นับแล้ว ปีงบ ${ys.join(', ')} · ${ys.map((y) => `${y}: ${res[y].reduce((a, r) => a + r.delivered, 0)} ครั้ง ${res[y].length} ตำบล`).join(' · ')} — ตรวจตัวเลขแล้วกดบันทึก${ys.length > 1 ? ' (หรือ "บันทึกทุกปีงบจากไฟล์")' : ''}`;
+    await processTable(table, 'ไฟล์');
   } catch (err) { msg.style.color = 'var(--error)'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + errText(err); }
   finally { e.target.value = ''; }
+}
+
+/** นำเข้าจาก Google Sheets */
+async function importSheet() {
+  const url = ($('#hrSheetUrl').value || '').trim();
+  if (!url) { toast('กรุณาวางลิงก์ Google Sheets ก่อน', 'err'); $('#hrSheetUrl').focus(); return; }
+  const msg = $('#hrImportMsg'); msg.style.color = ''; msg.textContent = 'กำลังดึงข้อมูลจาก Google Sheets…';
+  const btn = $('#hrSheetBtn'); busy(btn, true, 'กำลังดึงข้อมูล…');
+  try {
+    const table = await fetchGoogleSheet(url);
+    await processTable(table, 'Google Sheets');
+    // ดึงสำเร็จแล้วสร้างข้อความสรุปนำเสนอให้ทันที
+    const cur = +$('#hrYear').value;
+    if (E.draft[cur]) generateAiSummary(cur, E.draft[cur], false);
+  } catch (err) {
+    msg.style.color = 'var(--error)';
+    msg.textContent = 'อ่าน Google Sheets ไม่สำเร็จ: ' + errText(err);
+  } finally {
+    busy(btn, false);
+  }
+}
+
+/** เรียบเรียงสรุปผลงานในเครื่อง (กรณีออฟไลน์หรือไม่มีโควตา AI) */
+function localRiderSummary(y, list) {
+  const totDelivered = list.reduce((a, r) => a + (r.delivered || 0), 0);
+  const totClients = list.reduce((a, r) => a + (r.clients || 0), 0);
+  const totFree = list.reduce((a, r) => a + (r.free || 0), 0);
+  const topTambon = [...list].sort((a, b) => (b.delivered || 0) - (a.delivered || 0))[0];
+  const lines = [];
+  lines.push(`• บริการจัดส่งยาถึงบ้านสำเร็จรวม ${n(totDelivered)} ครั้ง ครอบคลุมผู้รับบริการ ${n(totClients)} คน`);
+  if (topTambon && topTambon.delivered > 0) {
+    lines.push(`• ตำบลที่มีการจัดส่งมากที่สุดคือ ต.${topTambon.tambon} จำนวน ${n(topTambon.delivered)} ครั้ง`);
+  }
+  if (totDelivered > 0) {
+    const pct = Math.round((totFree / totDelivered) * 100);
+    lines.push(`• บริการจัดส่งยาฟรีให้ผู้ป่วยรวม ${n(totFree)} ครั้ง (${pct}% ของการจัดส่งทั้งหมด)`);
+  }
+  lines.push('• ช่วยให้ผู้ป่วยโรคเรื้อรังได้รับยาตรงเวลา ต่อเนื่อง ปลอดภัย และลดความแออัดในการมารับยาที่โรงพยาบาล');
+  return lines.join('\n');
+}
+
+/** ให้ AI สรุปข้อมูลตัวเลขเป็นข้อความนำเสนอ (ไม่มีข้อมูลส่วนบุคคล PDPA) */
+async function generateAiSummary(year, list, notify = true) {
+  const btn = $('#hrAiSummaryBtn');
+  if (btn) busy(btn, true, 'AI กำลังสรุป…');
+  try {
+    const statsPayload = (list || []).map((r) => ({
+      tambon: r.tambon,
+      delivered: r.delivered || 0,
+      clients: r.clients || 0,
+      cancelled: r.cancelled || 0,
+      free: r.free || 0,
+    }));
+    if (!statsPayload.length) {
+      if (notify) toast(`ยังไม่มีข้อมูลผลงานปีงบ ${year}`, 'err');
+      return;
+    }
+    let summaryText = '';
+    try {
+      const { data: reqId, error: eStart } = await sb.rpc('ai_rider_summary_start', { p_year: year, p_stats: statsPayload });
+      if (eStart) throw eStart;
+      let pollRes = { status: 'pending' };
+      for (let i = 0; pollRes.status === 'pending' && i < 60; i++) {
+        await new Promise((ok) => setTimeout(ok, 2000));
+        const { data, error: ePoll } = await sb.rpc('ai_rider_summary_poll', { p_req: reqId });
+        if (ePoll) throw ePoll;
+        pollRes = data || {};
+      }
+      if (pollRes.status === 'done' && pollRes.text) {
+        summaryText = pollRes.text.trim();
+      } else {
+        summaryText = localRiderSummary(year, statsPayload);
+      }
+    } catch {
+      summaryText = localRiderSummary(year, statsPayload);
+    }
+    if (summaryText) {
+      $('#hrInfoEdit').value = summaryText;
+      if (notify) toast('AI สรุปข้อมูลขึ้นนำเสนอแล้ว (ตรวจข้อความแล้วกดบันทึก)');
+    }
+  } finally {
+    if (btn) busy(btn, false);
+  }
+}
+
+async function onAiSummary() {
+  const y = +$('#hrYear').value;
+  let rows = E.draft[y];
+  if (!rows || !rows.length) {
+    try { rows = readRows(y); } catch { rows = []; }
+  }
+  if (!rows || !rows.length) {
+    toast(`ยังไม่มีข้อมูลผลงานปีงบ ${y} กรุณานำเข้าหรือกรอกตัวเลขก่อน`, 'err');
+    return;
+  }
+  await generateAiSummary(y, rows, true);
 }
 
 /* ---- ส่งออกจากไฟล์ที่เลือก (อยู่ในหน่วยความจำของหน้านี้เท่านั้น) ---- */
