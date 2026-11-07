@@ -29,7 +29,7 @@ import { mountAch, visitTabs } from './staff.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'เยี่ยมบ้าน', achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.', rider: 'จัดส่งยาถึงบ้าน · Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', drugs: 'ข้อมูลยา', settings: 'ตั้งค่า' };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'นำเสนอผลงาน', achievements: 'นำเสนอผลงาน', rider: 'จัดส่งยาถึงบ้าน · Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', drugs: 'ข้อมูลยา', settings: 'ตั้งค่า' };
 const SUBS = { contacts: initContactsAdmin, staff: initRoster, audit: initAudit, feedback: () => initFeedback() };
 // ย้ายจากตั้งค่า: ข้อมูลยา (คำนวณขนาดยา/ฐานข้อมูลยา) → เมนูข้อมูลยา · จัดส่งยาถึงบ้าน → เมนู Health Rider
 const DB_PARTS = ['rpst', 'local', 'outside', 'nlem', 'fda', 'ddi', 'mims'];
@@ -39,10 +39,14 @@ export async function showAdmin(tab, sub) {
   if (tab === 'staff') { location.replace('#/admin/settings/staff'); return; }   // ลิงก์เดิมจากขั้น 4.1
   if (tab === 'feedback') { location.replace('#/admin/settings/feedback'); return; }   // ย้ายไปอยู่ในตั้งค่า
   if (tab === 'settings' && MOVED[sub]) { location.replace(MOVED[sub]); return; }
+  if (tab === 'visits' && sub === 'achievements') { tab = 'achievements'; sub = null; }
   if (!ADMIN_TABS[tab]) tab = 'news';
+  const isVp = tab === 'visits' || tab === 'achievements';
   adminHead();
   $('#adminViewTitle').textContent = ADMIN_TABS[tab];
-  setCurrent('data-admin-tab', tab);
+  setCurrent('data-admin-tab', isVp ? 'visits' : tab);
+  $('#vpAdminTabs').hidden = !isVp;
+  if (isVp) subTabs('#vpAdminTabs', tab);
   $$('[data-admin-view]').forEach((v) => { v.hidden = v.dataset.adminView !== tab; });
   refreshAdminBadges();
   if (tab === 'news') return initAdminNews();

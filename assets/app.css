@@ -352,7 +352,7 @@ span.ci-folder{cursor:default}
 .badge{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--primary);color:var(--on-primary);font-size:11.5px;font-weight:700;line-height:20px;text-align:center}
 .badge:empty{display:none}
 @media (max-width:1023px){
-  .app-body{grid-template-columns:1fr;gap:20px}
+  .app-body{grid-template-columns:minmax(0,1fr);gap:20px}
   .sidenav{position:static;flex-direction:row;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
   .sidenav::-webkit-scrollbar{display:none}
   .sidenav a{flex-shrink:0;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px}
@@ -393,7 +393,7 @@ span.ci-folder{cursor:default}
 .chat-form .input{flex:1}
 .li-btn .l{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .conv-last{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-@media (max-width:819px){.citizen-split,.inbox{grid-template-columns:1fr}.chat-log{height:300px}}
+@media (max-width:819px){.citizen-split,.inbox{grid-template-columns:minmax(0,1fr)}.chat-log{height:300px}}
 /* mobile "เพิ่มเติม" sheet: extra menu items flow inline on desktop/tablet */
 .more-group{display:contents}
 .more-btn{display:none}

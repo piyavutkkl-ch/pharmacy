@@ -13,23 +13,26 @@ import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 import { setCurrent } from '../nav.js?v=4.4';
 
-export const STAFF_TABS = {   // เรียงตามเมนู: ข่าว › ข้อความ › เยี่ยมบ้าน › ผลงาน › มาตรฐาน › เอกสาร › ข้อเสนอแนะ (Health Rider ผู้ดูแลกรอกให้)
+export const STAFF_TABS = {   // เรียงตามเมนู: ข่าว › ข้อความ › นำเสนอผลงาน (เยี่ยมบ้าน / ผลงาน) › มาตรฐาน › ข้อเสนอแนะ (Health Rider ผู้ดูแลกรอกให้)
   news: 'ข่าวประชาสัมพันธ์',
   messages: 'ข้อความ',
-  visits: 'เยี่ยมบ้าน',
-  achievements: 'ผลงานมาตรฐานความปลอดภัยด้านยา ในรพ.สต.',
+  visits: 'นำเสนอผลงาน',
+  achievements: 'นำเสนอผลงาน',
   criteria: 'ประเมินมาตรฐานด้านยา รพ.สต.',
   feedback: 'ข้อเสนอแนะถึงทีมพัฒนา',
 };
 let bound = false;
 
 export function showStaff(tab, sub) {
+  if (tab === 'visits' && sub === 'achievements') { tab = 'achievements'; sub = null; }
   if (!STAFF_TABS[tab]) tab = 'news';
-  const p = auth.profile;
+  const p = auth.profile, isVp = tab === 'visits' || tab === 'achievements';
   $('#staffHello').textContent = 'สวัสดี ' + (p.full_name || '');
   $('#staffUnit').textContent = (p.position ? p.position + ' · ' : '') + 'รพ.สต. ' + (p.unit?.name || '');
   $('#staffViewTitle').textContent = STAFF_TABS[tab];
-  setCurrent('data-staff-tab', tab);
+  setCurrent('data-staff-tab', isVp ? 'visits' : tab);
+  $('#vpStaffTabs').hidden = !isVp;
+  if (isVp) $$('#vpStaffTabs [data-sub]').forEach((a) => { if (a.dataset.sub === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindFeedback(); }
   ({ news: loadNews, achievements: () => mountAch($('#staffAchSlot'), auth.profile.unit_id), criteria: initCriteria, visits: () => showVisitTab(sub), messages: () => showMessages(sub), feedback: loadFeedback })[tab]();

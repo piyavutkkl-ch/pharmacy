@@ -559,13 +559,19 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
 
     /* ================= เจ้าหน้าที่ รพ.สต. ================= */
     p = await open('staff', '#/staff');
-    check('เมนูเจ้าหน้าที่: เรียง ข่าว › ข้อความ › เยี่ยมบ้าน › ผลงาน › มาตรฐาน › ข้อเสนอแนะ (เอกสาร = ปุ่มท้ายเว็บ · ไม่มี Health Rider)', (await p.$$eval('.sidenav [data-staff-tab]', (a) => a.map((x) => x.dataset.staffTab).join(','))) === 'news,messages,visits,achievements,criteria,feedback');
+    check('เมนูเจ้าหน้าที่: เรียง ข่าว › ข้อความ › นำเสนอผลงาน › มาตรฐาน › ข้อเสนอแนะ (รวมเยี่ยมบ้านกับผลงานในแท็บเดียว · เอกสาร = ปุ่มท้ายเว็บ · ไม่มี Health Rider)', (await p.$$eval('.sidenav [data-staff-tab]', (a) => a.map((x) => x.dataset.staffTab).join(','))) === 'news,messages,visits,criteria,feedback' && (await text(p, '.sidenav [data-staff-tab="visits"]')).trim() === 'นำเสนอผลงาน');
     check('เจ้าหน้าที่ล็อกอิน: ปุ่ม "ดาวน์โหลดเอกสาร" ท้ายเว็บยังแสดง (ช่องทางติดต่อซ่อน)', await visible(p, '[data-fc="docs"]') && !(await visible(p, '[data-fc="contact"]')));
     for (const tab of ['news', 'messages', 'visits', 'achievements', 'criteria', 'feedback']) {
       await go(p, '#/staff/' + tab); await p.waitForTimeout(250);
       const shown = await p.$eval(`[data-staff-view="${tab}"]`, (e) => !e.hidden && e.innerText.trim().length > 0).catch(() => false);
       check(`เจ้าหน้าที่: เมนู ${tab} เปิดได้`, shown && (await text(p, '#staffViewTitle')));
     }
+    await go(p, '#/staff/visits'); await p.waitForTimeout(200);
+    check('เจ้าหน้าที่ › นำเสนอผลงาน: มีแท็บย่อย เยี่ยมบ้าน / ผลงาน และกดสลับได้', await visible(p, '#vpStaffTabs') && (await p.$$eval('#vpStaffTabs [data-sub]', (a) => a.map((x) => `${x.dataset.sub}:${x.textContent.trim()}`).join(','))) === 'visits:เยี่ยมบ้าน,achievements:ผลงาน' && (await p.getAttribute('.sidenav [data-staff-tab="visits"]', 'aria-current')) === 'page' && (await p.getAttribute('#vpStaffTabs [data-sub="visits"]', 'aria-current')) === 'page');
+    await p.click('#vpStaffTabs [data-sub="achievements"]'); await p.waitForTimeout(250);
+    check('เจ้าหน้าที่ › นำเสนอผลงาน: กดแท็บย่อย "ผลงาน" เปิดหน้าผลงานโดยเมนูนำเสนอผลงานยังถูกเลือก', await visible(p, '[data-staff-view="achievements"]') && !(await visible(p, '[data-staff-view="visits"]')) && (await p.getAttribute('.sidenav [data-staff-tab="visits"]', 'aria-current')) === 'page' && (await p.getAttribute('#vpStaffTabs [data-sub="achievements"]', 'aria-current')) === 'page');
+    await go(p, '#/staff/feedback'); await p.waitForTimeout(200);
+    check('เจ้าหน้าที่: ออกจากเมนูนำเสนอผลงานแล้วแถบย่อยซ่อน', !(await visible(p, '#vpStaffTabs')));
     check('เจ้าหน้าที่: ชื่อบนแถบเมนู = ลิงก์ไประบบเจ้าหน้าที่ (ไม่เปิดหน้าต่างแก้ข้อมูล)', (await p.getAttribute('#profileBtn', 'href')) === '#/staff' && (await p.getAttribute('#profileBtn', 'aria-label')).includes('ระบบเจ้าหน้าที่'));
     check('เจ้าหน้าที่: รูปวงกลมหน้าชื่อ (ไม่มีรูป = ตัวอักษรย่อ) ด้านบนซ้าย', await visible(p, '#staffAvatar') && (await text(p, '#staffAvatar')).trim().length > 0
       && await p.evaluate(() => { const a = document.getElementById('staffAvatar').getBoundingClientRect(), h = document.getElementById('staffHello').getBoundingClientRect(); return a.right <= h.left + 1 && Math.round(a.width) === Math.round(a.height); }));
@@ -808,7 +814,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('แชท: กู้คืนแล้วกลับเข้ากล่องข้อความ', (await calls(p, (c) => c.rpc === 'trash_conversation' && c.args.p_trash === false)).length === 1 && await count(p, '#adminInboxSlot .ib-list [data-conv]') === 1);
     await p.evaluate(() => { const c = window.__db.conversations.find((x) => x.target_unit == null); c.trashed_at = new Date(Date.now() - 31 * 86400000).toISOString(); });
     { const q = await open('admin', '#/admin/achievements'); await q.waitForTimeout(600);
-      check('ผู้ดูแล: เมนู "ผลงาน" แสดงผลงานทุก รพ.สต. (ไม่มีแถบเลือกหน่วยด้านบน) + ช่องเลือก รพ.สต. ในฟอร์ม', await visible(q, '[data-admin-tab="achievements"]') && !(await q.$('#aaUnits')) && await visible(q, '#adminAchSlot #saUnit')
+      check('ผู้ดูแล › นำเสนอผลงาน › ผลงาน: แสดงผลงานทุก รพ.สต. (ไม่มีแถบเลือกหน่วยด้านบน) + ช่องเลือก รพ.สต. ในฟอร์ม + แท็บย่อย เยี่ยมบ้าน/ผลงาน', await visible(q, '#vpAdminTabs') && (await q.$$eval('#vpAdminTabs [data-sub]', (a) => a.map((x) => `${x.dataset.sub}:${x.textContent.trim()}`).join(','))) === 'visits:เยี่ยมบ้าน,achievements:ผลงาน' && (await q.getAttribute('.sidenav [data-admin-tab="visits"]', 'aria-current')) === 'page' && (await q.getAttribute('#vpAdminTabs [data-sub="achievements"]', 'aria-current')) === 'page' && !(await q.$('#aaUnits')) && await visible(q, '#adminAchSlot #saUnit')
         && (await text(q, '#saList')).includes('FEFO') && (await text(q, '#saList')).includes('ตู้เย็นเก็บยา') && (await text(q, '#saListTitle')).includes('ทุกแห่ง'));
       await q.fill('#saTitle', 'ผลงานที่ผู้ดูแลเพิ่ม'); await q.click('#saSubmit'); await q.waitForTimeout(300);
       check('ผู้ดูแล › ผลงาน: ต้องเลือก รพ.สต. ก่อนบันทึก', (await text(q, '#saMsg')).includes('เลือก รพ.สต.'));
@@ -975,7 +981,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('เอกสาร (ผู้ดูแล): บันทึก is_public + for_unit null + item_ids', ins.is_public === true && ins.for_unit === null && ins.item_ids?.length === 1, JSON.stringify(ins)); }
     await p.selectOption('#adWho', 'staff');
     check('เอกสาร (ผู้ดูแล): กลับเป็นเจ้าหน้าที่ → เลือก รพ.สต. ได้อีก', !(await p.$eval('#adFor', (e) => e.disabled)));
-    check('เมนูผู้ดูแล: Health Rider อยู่ใต้ตรวจประเมิน · ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,achievements,review,rider,docs,drugs,settings' && await count(p, '#afList .li') > 0);
+    check('เมนูผู้ดูแล: รวมเยี่ยมบ้านกับผลงานเป็น "นำเสนอผลงาน" · Health Rider อยู่ใต้ตรวจประเมิน · ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,review,rider,docs,drugs,settings' && (await text(p, '.sidenav [data-admin-tab="visits"]')).trim() === 'นำเสนอผลงาน' && await count(p, '#afList .li') > 0);
     await go(p, '#/admin/feedback'); await p.waitForTimeout(250);
     check('ลิงก์เดิม #/admin/feedback ยังเปิดได้ (พาไปตั้งค่า)', (await p.evaluate(() => location.hash)) === '#/admin/settings/feedback');
     await go(p, '#/admin/news');
