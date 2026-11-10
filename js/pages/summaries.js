@@ -14,17 +14,17 @@ import { paras } from './delivery.js?v=4.4';
 import { fileLink, imageList } from './news-form.js?v=4.4';
 import { imageCarousel } from '../lightbox.js?v=4.4';
 
-const CUR_FY = fiscalYearOf();
-const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others,participant_positions,achievement_id';
-const MAX_IMGS = 7;   // ภาพแรก + gallery ไม่เกิน 6 (visit_summaries_gallery_check)
-const imgsOf = (s) => [s.image_path, ...(s.gallery || [])].filter(Boolean);
-const HINT_IMG = `ภาพสรุป 1 หน้า (เช่น อินโฟกราฟิกจาก Canva) · เลือกได้หลายภาพ ไม่เกิน ${MAX_IMGS} ภาพ · ย่อไม่เกิน A4 อัตโนมัติ · ภาพแรกเป็นภาพหลัก`;
-const label = (s) => `รพ.สต.${unitName(s.unit_id)} · ปีงบประมาณ ${s.fiscal_year}`;
-const dateOf = (s) => thaiDate(s.summary_date || s.created_at);   // วันที่ของผลงาน (ก่อนมีช่องนี้ = วันที่บันทึก)
-const peopleOf = (s) => [...(s.participant_names || []), ...(s.participant_others || [])].join(', ');   // ในระบบ + กรอกเอง
+export const CUR_FY = fiscalYearOf();
+export const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others,participant_positions,achievement_id';
+export const MAX_IMGS = 7;   // ภาพแรก + gallery ไม่เกิน 6 (visit_summaries_gallery_check)
+export const imgsOf = (s) => [s.image_path, ...(s.gallery || [])].filter(Boolean);
+export const HINT_IMG = `ภาพสรุป 1 หน้า (เช่น อินโฟกราฟิกจาก Canva) · เลือกได้หลายภาพ ไม่เกิน ${MAX_IMGS} ภาพ · ย่อไม่เกิน A4 อัตโนมัติ · ภาพแรกเป็นภาพหลัก`;
+export const label = (s) => `รพ.สต.${unitName(s.unit_id)} · ปีงบประมาณ ${s.fiscal_year}`;
+export const dateOf = (s) => thaiDate(s.summary_date || s.created_at);   // วันที่ของผลงาน (ก่อนมีช่องนี้ = วันที่บันทึก)
+export const peopleOf = (s) => [...(s.participant_names || []), ...(s.participant_others || [])].join(', ');   // ในระบบ + กรอกเอง
 /** นับผู้ลงเยี่ยมตามตำแหน่ง + ผู้ป่วยที่เยี่ยม → "เภสัชกร 1 ราย · พยาบาลวิชาชีพ 1 ราย · เยี่ยมผู้ป่วย 5 ราย"
  *  ตำแหน่ง: ผู้ร่วมลงในระบบ = จากบัญชีเจ้าหน้าที่ (positions) · กรอกเอง = ข้อความในวงเล็บท้ายชื่อ "ชื่อ นามสกุล (ตำแหน่ง)" */
-const posOf = (txt) => (String(txt).match(/\(([^()]+)\)\s*$/)?.[1] || '').trim();
+export const posOf = (txt) => (String(txt).match(/\(([^()]+)\)\s*$/)?.[1] || '').trim();
 export function countLine(positions, patients) {
   const m = new Map();
   positions.forEach((p) => { const k = String(p || '').trim() || 'ไม่ระบุตำแหน่ง'; m.set(k, (m.get(k) || 0) + 1); });
@@ -32,7 +32,7 @@ export function countLine(positions, patients) {
   if (patients) parts.push(`เยี่ยมผู้ป่วย ${patients} ราย`);
   return parts.join(' · ');
 }
-const positionsOf = (s) => [...(s.participant_ids || []).map((_, i) => s.participant_positions?.[i] || ''), ...(s.participant_others || []).map(posOf)];
+export const positionsOf = (s) => [...(s.participant_ids || []).map((_, i) => s.participant_positions?.[i] || ''), ...(s.participant_others || []).map(posOf)];
 const todayIso = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 
 /* ======================= หน้าหลัก ======================= */
@@ -108,9 +108,9 @@ export async function showSummary(id) {
 }
 
 /* ---------- รายการเยี่ยมที่เชื่อมโยง (PDPA: เฉพาะเจ้าหน้าที่/ผู้ดูแลที่มีสิทธิ์เห็นบันทึกนั้น · RLS กรองให้) ---------- */
-const audit = (u, pid = null) => sb.rpc('log_patient_access', { p_unit: u, p_patient: pid }).then(() => {}, () => {});
+export const audit = (u, pid = null) => sb.rpc('log_patient_access', { p_unit: u, p_patient: pid }).then(() => {}, () => {});
 /** บันทึกเยี่ยมตาม id → [{ id, visit_date, unit_id, patient_id, name }] เรียงวันที่ใหม่ก่อน (เห็นเฉพาะที่มีสิทธิ์) */
-async function visitRows(ids) {
+export async function visitRows(ids) {
   if (!ids.length) return [];
   const { data: vs } = await sb.from('visits').select('id,visit_date,unit_id,patient_id').in('id', ids);
   const pids = [...new Set((vs || []).map((v) => v.patient_id))];
@@ -356,8 +356,10 @@ function renderLinks() {
   peopleCount();
 }
 /** หลังบันทึกสรุป: เพิ่ม/ลบลิงก์ให้ตรงกับที่เลือก */
-async function syncLinks(summaryId) {
-  const add = [...S.links.keys()].filter((id) => !S.linksOrig.has(id)), del = [...S.linksOrig].filter((id) => !S.links.has(id));
+export async function syncLinks(summaryId, linksMap, origSet) {
+  const links = linksMap || S?.links || new Map();
+  const orig = origSet || S?.linksOrig || new Set();
+  const add = [...links.keys()].filter((id) => !orig.has(id)), del = [...orig].filter((id) => !links.has(id));
   if (add.length) { const { error } = await sb.from('summary_visits').insert(add.map((visit_id) => ({ summary_id: summaryId, visit_id }))); if (error) throw error; }
   if (del.length) { const { error } = await sb.from('summary_visits').delete().eq('summary_id', summaryId).in('visit_id', del); if (error) throw error; }
 }
@@ -415,8 +417,8 @@ function setCrit(ids) {
   if (S.items.size) loadCrit(); else critN();
 }
 /** บันทึก/แก้ผลงาน (achievements) จากสรุปนี้ · ไม่ติ๊กข้อ = ผลงานเดิม (ถ้ามี) เอาข้อออก */
-async function syncAchievement(sid, row, old) {
-  const items = $('#vsCritOn').checked ? [...S.items] : [];
+export async function syncAchievement(sid, row, old, items) {
+  if (items === undefined) items = $('#vsCritOn')?.checked ? [...(S?.items || [])] : [];
   const achId = old?.achievement_id || null;
   if (!items.length && !achId) return;
   if (!achId && auth.profile.role === 'staff' && row.unit_id !== auth.profile.unit_id) throw new Error('บันทึกเป็นผลงานได้เฉพาะ รพ.สต. ของตัวเอง');
@@ -429,7 +431,39 @@ async function syncAchievement(sid, row, old) {
 }
 
 /** คนในบัญชีเจ้าหน้าที่ที่ยังไม่เคยเข้าระบบ → เก็บเป็นข้อความ "ชื่อ (ตำแหน่ง)" ใน participant_others */
-const pendingKey = (p) => (p.position ? `${p.full_name} (${p.position})` : p.full_name);
+export const pendingKey = (p) => (p.position ? `${p.full_name} (${p.position})` : p.full_name);
+
+/** ดึงข้อมูลสรุปผลงานเยี่ยมบ้าน (visit_summaries) สำหรับหน้านำเสนอผลงาน */
+export async function loadSummariesData(unit, unitFilter) {
+  const order = (q) => q.order('fiscal_year', { ascending: false }).order('summary_date', { ascending: false }).order('created_at', { ascending: false });
+  const base = sb.from('visit_summaries').select(COLS);
+  let q;
+  if (unit === 'all') {
+    q = (unitFilter && unitFilter !== 'all') ? base.eq('unit_id', unitFilter) : base;
+  } else {
+    q = base.eq('unit_id', unit);
+  }
+  const [a, mine] = await Promise.all([
+    order(q),
+    unit === 'all' || !auth.profile ? Promise.resolve({ data: [] }) : order(sb.from('visit_summaries').select(COLS).eq('author_id', auth.profile.id)),
+  ]);
+  if (a.error) throw a.error;
+  const seen = new Set(), data = [...(a.data || []), ...(mine.data || [])].filter((x) => !seen.has(x.id) && seen.add(x.id));
+  const ptCount = new Map((await Promise.all(data.map(async (x) => [x.id, (await sb.rpc('summary_patient_count', { p_summary: x.id })).data || 0]))));
+  const linkCount = new Map();
+  if (data.length) {
+    const { data: ls } = await sb.from('summary_visits').select('summary_id').in('summary_id', data.map((x) => x.id));
+    (ls || []).forEach((l) => linkCount.set(l.summary_id, (linkCount.get(l.summary_id) || 0) + 1));
+  }
+  return { data, ptCount, linkCount };
+}
+
+export async function deleteSummaryData(s) {
+  const { error } = await sb.from('visit_summaries').delete().eq('id', s.id);
+  if (error) throw error;
+  removeFiles('public-images', imgsOf(s).filter((p) => !(s.achievement_id && p === s.image_path)));
+  if (s.file_path) removeFiles('news-files', [s.file_path]);
+}
 function peopleCount() {
   const sys = (S.people || []).filter((p) => p.id && S.picked.has(p.id));
   const positions = peopleOn() ? [...sys.map((p) => p.position || ''), ...[...(S.pickedNames || []), ...(S.others || [])].map(posOf)] : [];

@@ -26,6 +26,7 @@ import { initDeliveryReportAdmin } from './delivery-report.js?v=4.4';
 import { mountRiderEditor } from './rider.js?v=4.4';
 import { mountSummaries } from './summaries.js?v=4.4';
 import { mountAch, visitTabs } from './staff.js?v=4.4';
+import { mountPost } from './post.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
@@ -39,21 +40,42 @@ export async function showAdmin(tab, sub) {
   if (tab === 'staff') { location.replace('#/admin/settings/staff'); return; }   // ลิงก์เดิมจากขั้น 4.1
   if (tab === 'feedback') { location.replace('#/admin/settings/feedback'); return; }   // ย้ายไปอยู่ในตั้งค่า
   if (tab === 'settings' && MOVED[sub]) { location.replace(MOVED[sub]); return; }
-  if (tab === 'visits' && sub === 'achievements') { tab = 'achievements'; sub = null; }
-  if (!ADMIN_TABS[tab]) tab = 'news';
+
   const isVp = tab === 'visits' || tab === 'achievements';
+  let isPatients = false;
+  let postFilter = 'all';
+
+  if (tab === 'achievements') {
+    tab = 'visits';
+    postFilter = 'achievement';
+  } else if (tab === 'visits') {
+    if (sub === 'achievements') {
+      postFilter = 'achievement';
+      sub = null;
+    } else if (sub === 'summary' || !sub) {
+      postFilter = 'visit';
+    } else if (sub === 'posts') {
+      postFilter = 'all';
+    } else if (sub === 'patients') {
+      isPatients = true;
+    } else {
+      isPatients = true;   // visit ID เช่น #/admin/visits/<id>
+    }
+  }
+
+  if (!ADMIN_TABS[tab]) tab = 'news';
   adminHead();
   $('#adminViewTitle').textContent = ADMIN_TABS[tab];
   setCurrent('data-admin-tab', isVp ? 'visits' : tab);
   $('#vpAdminTabs').hidden = !isVp;
-  if (isVp) subTabs('#vpAdminTabs', tab);
+  if (isVp) subTabs('#vpAdminTabs', isPatients ? 'patients' : 'posts');
   $$('[data-admin-view]').forEach((v) => { v.hidden = v.dataset.adminView !== tab; });
   refreshAdminBadges();
   if (tab === 'news') return initAdminNews();
   if (tab === 'review') return initReview();
   if (tab === 'messages') return showMessages(sub);
-  if (tab === 'visits') return showVisits(sub || null);
-  if (tab === 'achievements') return showAch();
+  if (tab === 'visits') return showVisits(isPatients, postFilter, sub);
+  if (tab === 'achievements') return showVisits(false, 'achievement', null);
   if (tab === 'rider') {   // Health Rider + จัดส่งยาถึงบ้าน
     const d = sub === 'delivery';
     subTabs('#arTabs', d ? 'delivery' : 'rider');
@@ -128,22 +150,40 @@ async function showMessages(sub) {
   mountInbox($('#adminInboxSlot'), msgTarget);
 }
 
-/* ---------- เยี่ยมบ้าน: โรงพยาบาล (รวมทุกชื่อ) หรือเลือก รพ.สต. ---------- */
-let visitUnit = ALL, visitSub = null;
-async function showVisits(sub) {
-  const units = await loadUnits();
-  visitSub = sub;
-  const openVisit = sub && sub !== 'summary' ? sub : null;
-  if (openVisit) visitUnit = ALL;   // ลิงก์จากสรุปผลงาน → เปิดจากรายชื่อรวม (ผู้ป่วยอยู่หน่วยไหนก็เจอ)
-  $('#avUnits').innerHTML = `<button type="button" data-u="${ALL}" aria-current="${visitUnit === ALL}">โรงพยาบาลควนกาหลง (รวมทุกชื่อ)</button>`
-    + units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === visitUnit}">${esc(u.name)}</button>`).join('');
-  $('#avUnits').onclick = (e) => { const b = e.target.closest('[data-u]'); if (!b) return; visitUnit = b.dataset.u === ALL ? ALL : +b.dataset.u; showVisits(visitSub === 'summary' ? 'summary' : null); };
-  if (visitTabs($('#vtAdminSwitch'), $('#adminVisitsSlot'), $('#adminSumSlot'), sub)) mountSummaries($('#adminSumSlot'), visitUnit === ALL ? 'all' : visitUnit);
-  else mountVisits($('#adminVisitsSlot'), visitUnit, openVisit);   // ผู้ดูแลเพิ่ม/แก้สรุปผลงานได้ทุกหน่วย (เลือก รพ.สต. ในฟอร์ม)
+/* ---------- นำเสนอผลงาน: โพสต์ผลงาน (post.js) หรือ รายชื่อผู้ป่วยเยี่ยมบ้าน (visits.js) ---------- */
+let visitUnit = ALL;
+async function showVisits(isPatients, postFilter, sub) {
+  const postSlot = $('#adminPostSlot');
+  const avUnits = $('#avUnits');
+  const visitsSlot = $('#adminVisitsSlot');
+
+  if (isPatients) {
+    if (postSlot) postSlot.hidden = true;
+    if (avUnits) avUnits.hidden = false;
+    if (visitsSlot) visitsSlot.hidden = false;
+
+    const units = await loadUnits();
+    const openVisit = sub && sub !== 'patients' && sub !== 'summary' ? sub : null;
+    if (openVisit) visitUnit = ALL;
+
+    avUnits.innerHTML = `<button type="button" data-u="${ALL}" aria-current="${visitUnit === ALL}">โรงพยาบาลควนกาหลง (รวมทุกชื่อ)</button>`
+      + units.map((u) => `<button type="button" data-u="${u.id}" aria-current="${u.id === visitUnit}">${esc(u.name)}</button>`).join('');
+    avUnits.onclick = (e) => {
+      const b = e.target.closest('[data-u]');
+      if (!b) return;
+      visitUnit = b.dataset.u === ALL ? ALL : +b.dataset.u;
+      showVisits(true, postFilter, null);
+    };
+    mountVisits(visitsSlot, visitUnit, openVisit);
+  } else {
+    if (postSlot) postSlot.hidden = false;
+    if (avUnits) avUnits.hidden = true;
+    if (visitsSlot) visitsSlot.hidden = true;
+    mountPost(postSlot, 'all', { filter: postFilter });
+  }
 }
 
-/* ---------- ผลงาน รพ.สต. (ผู้ดูแล: ผลงานทุกหน่วย · เลือก/เปลี่ยน รพ.สต. ในฟอร์ม · ใช้หน้าเดียวกับเจ้าหน้าที่ staff.js mountAch) ---------- */
-const showAch = () => mountAch($('#adminAchSlot'), 'all');
+const showAch = () => showVisits(false, 'achievement', null);
 
 /* ---------- ข้อเสนอแนะ ---------- */
 let fbFilter = 'all';

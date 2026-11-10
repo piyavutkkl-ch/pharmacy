@@ -418,7 +418,7 @@
     <nav class="sidenav" aria-label="เมนูเจ้าหน้าที่">
       <a href="#/staff/news" data-staff-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="stfNewsBadge" class="badge num"></span></a>
       <a href="#/staff/messages" data-staff-tab="messages" title="ข้อความ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">ข้อความ</span><span id="stfMsgBadge" class="badge num"></span></a>
-      <a href="#/staff/visits" data-staff-tab="visits" title="นำเสนอผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">นำเสนอผลงาน</span></a>
+      <a href="#/staff/visits/posts" data-staff-tab="visits" title="นำเสนอผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">นำเสนอผลงาน</span></a>
       <div class="more-group" id="staffMore">
         <a href="#/staff/criteria" data-staff-tab="criteria" title="มาตรฐาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">มาตรฐาน</span><span id="stfCritBadge" class="badge num"></span></a>
         <a href="#/staff/feedback" data-staff-tab="feedback" title="ข้อเสนอแนะ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg><span class="lbl">ข้อเสนอแนะ</span></a>
@@ -428,8 +428,8 @@
     <div class="app-main">
       <h2 class="view-title" id="staffViewTitle"></h2>
       <div class="unit-tabs" id="vpStaffTabs" aria-label="เลือกหมวดนำเสนอผลงาน" hidden>
-        <a class="tab-link" href="#/staff/visits" data-sub="visits">เยี่ยมบ้าน</a>
-        <a class="tab-link" href="#/staff/achievements" data-sub="achievements">ผลงาน</a>
+        <a class="tab-link" href="#/staff/visits/posts" data-sub="posts">โพสต์ผลงาน</a>
+        <a class="tab-link" href="#/staff/visits/patients" data-sub="patients">รายชื่อผู้ป่วยเยี่ยมบ้าน</a>
       </div>
 
       <!-- ข่าว: เจ้าหน้าที่ส่ง → ผู้ดูแลตรวจก่อนเผยแพร่ -->
@@ -449,24 +449,6 @@
         <div class="panel"><h2>ข่าวที่ฉันส่ง</h2><div class="list" id="snList"></div></div>
       </div>
 
-      <!-- ผลงาน: เผยแพร่ได้ทันที -->
-      <div data-staff-view="achievements" hidden><div id="staffAchSlot"><div id="achWs">
-        <div class="panel">
-          <h2 id="saFormTitle">เพิ่มผลงาน</h2>
-          <p class="small muted">ผลงานของ รพ.สต. จะขึ้นหน้าหลักทันที ไม่ต้องรอผู้ดูแลตรวจ</p>
-          <form id="saForm" class="form-grid" novalidate>
-            <div class="field full" id="saUnitWrap" hidden><label for="saUnit">รพ.สต. ที่ทำผลงานนี้ <span class="req">*</span></label><select id="saUnit" class="input"></select><span class="small muted">ผู้ดูแลเปลี่ยน รพ.สต. ภายหลังได้ (กด "แก้ไข" ที่รายการ) · หลักฐานมาตรฐานย้ายไปหน่วยใหม่ด้วย</span></div>
-            <div class="field full"><label for="saTitle">ชื่อผลงาน <span class="req">*</span></label><input id="saTitle" class="input" maxlength="200"></div>
-            <div class="field"><label for="saDate">วันที่ทำ / นำเสนอผลงาน <span class="req">*</span></label><input id="saDate" class="input" type="date"><span class="small muted">ผลงานจะขึ้นในปฏิทินผลการดำเนินงานตามวันที่นี้ (ไม่ใช่วันที่โพสต์)</span></div>
-            <div class="field full"><label for="saBody">รายละเอียด</label><textarea id="saBody" maxlength="10000" rows="4"></textarea></div>
-            <div class="field full"><label for="saImage">รูปผลงาน (ถ้ามี)</label><input id="saImage" class="input" type="file" accept="image/*"><span class="small muted" id="saImageNote"></span></div>
-            <div class="field full"><details class="vs-pfold" id="saCritFold"><summary><span class="lbl-t">สอดคล้องกับมาตรฐานข้อ (เลือกได้มากกว่า 1 ข้อ)</span><span class="small vs-people-n" id="saCritN" aria-live="polite"></span></summary><p class="small muted" id="saCritHint">ผลงานจะแนบเป็นหลักฐานของข้อที่เลือกโดยอัตโนมัติ ไม่ต้องส่งให้ผู้ดูแลตรวจ</p><div class="ai-box" id="saAi"><p class="small"><b>✨ ให้ AI ช่วยแนะนำ</b> — พิมพ์ "รายละเอียด" ผลงานด้านบนให้ครบก่อน แล้วกดปุ่มนี้ AI จะเทียบกับหัวข้อมาตรฐานทุกข้อที่ผู้ดูแลกำหนด แล้วติ๊กข้อที่ตรงให้ (ใช้เวลาสักครู่ ประมาณ 10–30 วินาที · ห้ามใส่ชื่อหรือข้อมูลผู้ป่วย)</p><button type="button" class="btn btn-o btn-sm" id="saAiBtn">ให้ AI วิเคราะห์รายละเอียด</button><div class="ai-out" id="saAiOut" aria-live="polite"></div></div><input id="saCritQ" class="input" type="search" maxlength="60" placeholder="ค้นหาเลขข้อหรือข้อความ เช่น 1.1"><div class="crit-pick" id="saCrit" role="group" aria-label="ข้อมาตรฐานที่สอดคล้อง"></div></details></div>
-            <div class="full row-btns" style="align-items:center"><button class="btn btn-p btn-sm" type="submit" id="saSubmit">เผยแพร่ผลงาน</button><button class="btn btn-o btn-sm" type="button" id="saCancel" hidden>ยกเลิกการแก้ไข</button><span class="small" id="saMsg" aria-live="polite"></span></div>
-          </form>
-        </div>
-        <div class="panel"><h2 id="saListTitle">ผลงานของ รพ.สต.</h2><div class="list" id="saList"></div></div>
-      </div></div></div>
-
       <!-- มาตรฐาน: ส่งหลักฐานรายข้อ -->
       <div data-staff-view="criteria" hidden>
         <div class="unit-tabs" id="scYears" aria-label="เลือกปีงบประมาณ"></div>
@@ -478,13 +460,11 @@
         </div>
       </div>
 
-      <!-- เยี่ยมบ้าน (หน้าจอจาก visits.js ใช้ร่วมกับผู้ดูแล) -->
+      <!-- นำเสนอผลงาน (โพสต์ผลงาน + รายชื่อผู้ป่วยเยี่ยมบ้าน) -->
+      <div data-staff-view="achievements" hidden></div>
       <div data-staff-view="visits" hidden>
-        <div class="unit-tabs uc-switch" id="vtStaffSwitch" aria-label="เลือกหน้าเยี่ยมบ้าน">
-          <a class="tab-link" href="#/staff/visits/summary" data-vt="summary">One page summary</a>
-          <a class="tab-link" href="#/staff/visits" data-vt="list">รายชื่อผู้ป่วยเยี่ยมบ้าน</a>
-        </div>
-        <div id="staffVisitsSlot"></div><div id="staffSumSlot" data-sum-slot hidden></div>
+        <div id="staffPostSlot"></div>
+        <div id="staffVisitsSlot" hidden></div>
       </div>
 
       <!-- เอกสารดาวน์โหลด -->
@@ -521,7 +501,7 @@
     <nav class="sidenav" aria-label="เมนูผู้ดูแล">
       <a href="#/admin/news" data-admin-tab="news" title="ข่าว"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span class="lbl">ข่าว</span><span id="admNewsBadge" class="badge num"></span></a>
       <a href="#/admin/messages" data-admin-tab="messages" title="ข้อความ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">ข้อความ</span><span id="admMsgBadge" class="badge num"></span></a>
-      <a href="#/admin/visits" data-admin-tab="visits" title="นำเสนอผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">นำเสนอผลงาน</span></a>
+      <a href="#/admin/visits/posts" data-admin-tab="visits" title="นำเสนอผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">นำเสนอผลงาน</span></a>
       <div class="more-group" id="adminMore">
         <a href="#/admin/review" data-admin-tab="review" title="ตรวจประเมิน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">ตรวจประเมิน</span><span id="admReviewBadge" class="badge num"></span></a>
         <a href="#/admin/rider" data-admin-tab="rider" title="จัดส่งยา · Health Rider"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg><span class="lbl">Health Rider</span></a>
@@ -534,8 +514,8 @@
     <div class="app-main">
       <h2 class="view-title" id="adminViewTitle"></h2>
       <div class="unit-tabs" id="vpAdminTabs" aria-label="เลือกหมวดนำเสนอผลงาน" hidden>
-        <a class="tab-link" href="#/admin/visits" data-sub="visits">เยี่ยมบ้าน</a>
-        <a class="tab-link" href="#/admin/achievements" data-sub="achievements">ผลงาน</a>
+        <a class="tab-link" href="#/admin/visits/posts" data-sub="posts">โพสต์ผลงาน</a>
+        <a class="tab-link" href="#/admin/visits/patients" data-sub="patients">รายชื่อผู้ป่วยเยี่ยมบ้าน</a>
       </div>
 
       <!-- ข่าว: ตรวจข่าวจากเจ้าหน้าที่ + เขียน/จัดการข่าว -->
@@ -634,18 +614,12 @@
         <div id="adminUnitChatSlot" hidden></div>
       </div>
 
-      <!-- เยี่ยมบ้าน: ดูแทน รพ.สต. ใดก็ได้ -->
-      <div data-admin-view="achievements" hidden>
-        <div id="adminAchSlot"></div>
-      </div>
+      <!-- นำเสนอผลงาน (โพสต์ผลงาน + รายชื่อผู้ป่วยเยี่ยมบ้าน) -->
+      <div data-admin-view="achievements" hidden></div>
       <div data-admin-view="visits" hidden>
-        <div class="unit-tabs" id="avUnits" aria-label="เลือก รพ.สต."></div>
-        <div class="unit-tabs uc-switch" id="vtAdminSwitch" aria-label="เลือกหน้าเยี่ยมบ้าน">
-          <a class="tab-link" href="#/admin/visits/summary" data-vt="summary">One page summary</a>
-          <a class="tab-link" href="#/admin/visits" data-vt="list">รายชื่อผู้ป่วยเยี่ยมบ้าน</a>
-        </div>
-        <div id="adminVisitsSlot"></div>
-        <div id="adminSumSlot" data-sum-slot hidden></div>
+        <div id="adminPostSlot"></div>
+        <div class="unit-tabs" id="avUnits" aria-label="เลือก รพ.สต." hidden></div>
+        <div id="adminVisitsSlot" hidden></div>
       </div>
 
       <!-- Health Rider: กรอก/นำเข้าตัวเลขผลงานทุก รพ.สต. + ข้อความแนะนำ (rider.js) -->

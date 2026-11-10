@@ -9,6 +9,7 @@ import { newsForm, removeNewsFiles } from './news-form.js?v=4.4';
 import { initCriteria } from './criteria.js?v=4.4';
 import { initVisits } from './visits.js?v=4.4';
 import { mountSummaries } from './summaries.js?v=4.4';
+import { mountPost } from './post.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 import { setCurrent } from '../nav.js?v=4.4';
@@ -24,31 +25,77 @@ export const STAFF_TABS = {   // เรียงตามเมนู: ข่า
 let bound = false;
 
 export function showStaff(tab, sub) {
-  if (tab === 'visits' && sub === 'achievements') { tab = 'achievements'; sub = null; }
+  const isVp = tab === 'visits' || tab === 'achievements';
+  let isPatients = false;
+  let postFilter = 'all';
+
+  if (tab === 'achievements') {
+    tab = 'visits';
+    postFilter = 'achievement';
+  } else if (tab === 'visits') {
+    if (sub === 'achievements') {
+      postFilter = 'achievement';
+      sub = null;
+    } else if (sub === 'summary' || !sub) {
+      postFilter = 'visit';
+    } else if (sub === 'posts') {
+      postFilter = 'all';
+    } else if (sub === 'patients') {
+      isPatients = true;
+    } else {
+      isPatients = true;   // visit ID เช่น #/staff/visits/<id>
+    }
+  }
+
   if (!STAFF_TABS[tab]) tab = 'news';
-  const p = auth.profile, isVp = tab === 'visits' || tab === 'achievements';
+  const p = auth.profile;
   $('#staffHello').textContent = 'สวัสดี ' + (p.full_name || '');
   $('#staffUnit').textContent = (p.position ? p.position + ' · ' : '') + 'รพ.สต. ' + (p.unit?.name || '');
   $('#staffViewTitle').textContent = STAFF_TABS[tab];
   setCurrent('data-staff-tab', isVp ? 'visits' : tab);
   $('#vpStaffTabs').hidden = !isVp;
-  if (isVp) $$('#vpStaffTabs [data-sub]').forEach((a) => { if (a.dataset.sub === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (isVp) {
+    const activeSub = isPatients ? 'patients' : 'posts';
+    $$('#vpStaffTabs [data-sub]').forEach((a) => {
+      if (a.dataset.sub === activeSub) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+  }
   $$('[data-staff-view]').forEach((v) => { v.hidden = v.dataset.staffView !== tab; });
   if (!bound) { bound = true; bindNews(); bindFeedback(); }
-  ({ news: loadNews, achievements: () => mountAch($('#staffAchSlot'), auth.profile.unit_id), criteria: initCriteria, visits: () => showVisitTab(sub), messages: () => showMessages(sub), feedback: loadFeedback })[tab]();
+  ({
+    news: loadNews,
+    achievements: () => showVisitTab(false, 'achievement', null),
+    criteria: initCriteria,
+    visits: () => showVisitTab(isPatients, postFilter, sub),
+    messages: () => showMessages(sub),
+    feedback: loadFeedback,
+  })[tab]();
   refreshBadges();
 }
 
-/** เยี่ยมบ้าน: รายชื่อผู้ป่วย (#/staff/visits[/<visit id>]) หรือ One page summary (#/staff/visits/summary) — แยกช่องกัน */
+/** นำเสนอผลงาน: โพสต์ผลงาน (post.js) หรือ รายชื่อผู้ป่วยเยี่ยมบ้าน (visits.js) */
+function showVisitTab(isPatients, postFilter, sub) {
+  const postSlot = $('#staffPostSlot');
+  const visitsSlot = $('#staffVisitsSlot');
+  if (isPatients) {
+    if (postSlot) postSlot.hidden = true;
+    if (visitsSlot) visitsSlot.hidden = false;
+    initVisits(sub === 'patients' ? null : sub);
+  } else {
+    if (postSlot) postSlot.hidden = false;
+    if (visitsSlot) visitsSlot.hidden = true;
+    mountPost(postSlot, auth.profile.unit_id, { filter: postFilter });
+  }
+}
+
+/** เยี่ยมบ้าน: รายชื่อผู้ป่วย หรือ One page summary — เก็บไว้เพื่อความเข้ากันได้ย้อนหลัง */
 export function visitTabs(sw, listSlot, sumSlot, sub) {
   const sum = sub === 'summary';
-  sw.querySelectorAll('[data-vt]').forEach((a) => { if ((a.dataset.vt === 'summary') === sum) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
-  listSlot.hidden = sum; sumSlot.hidden = !sum;
+  if (sw) sw.querySelectorAll('[data-vt]').forEach((a) => { if ((a.dataset.vt === 'summary') === sum) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (listSlot) listSlot.hidden = sum;
+  if (sumSlot) sumSlot.hidden = !sum;
   return sum;
-}
-function showVisitTab(sub) {
-  if (visitTabs($('#vtStaffSwitch'), $('#staffVisitsSlot'), $('#staffSumSlot'), sub)) mountSummaries($('#staffSumSlot'), auth.profile.unit_id);
-  else initVisits(sub);
 }
 
 /** ข้อความ: จากประชาชน (#/staff/messages) หรือ คุยกับผู้ดูแล (#/staff/messages/admin) */
@@ -151,18 +198,63 @@ function bindNews() {
 let unitAch = [], editingAch = null, achUnit = null, achBound = false;
 
 /** วันนี้ตามเวลาในเครื่อง (yyyy-mm-dd) · ค่าเริ่มของวันที่ทำผลงาน */
-const todayYmd = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+/** วันนี้ตามเวลาในเครื่อง (yyyy-mm-dd) · ค่าเริ่มของวันที่ทำผลงาน */
+export const todayYmd = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 /** หน้าผลงานลงใน slot — เจ้าหน้าที่: unit = หน่วยตัวเอง · ผู้ดูแล: unit = 'all' (ทุกหน่วย + ช่องเลือก/เปลี่ยน รพ.สต. ในฟอร์ม) */
 const ALL_UNITS = 'all';
+
+export async function loadAchievementsData(unit, unitFilter) {
+  const q = sb.from('achievements').select('id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date');
+  let filteredQ = q;
+  if (unit === 'all') {
+    if (unitFilter && unitFilter !== 'all') filteredQ = q.eq('unit_id', unitFilter);
+  } else {
+    filteredQ = q.eq('unit_id', unit);
+  }
+  const { data, error } = await filteredQ.order('work_date', { ascending: false }).order('created_at', { ascending: false });
+  if (error) throw error;
+  const aiMap = new Map();
+  if (data?.length) {
+    const { data: ms } = await sb.from('ai_matches').select('id,achievement_id,status,matches,note,created_at').in('achievement_id', data.map((a) => a.id)).order('created_at', { ascending: false });
+    (ms || []).forEach((m) => { if (!aiMap.has(m.achievement_id)) aiMap.set(m.achievement_id, m); });
+  }
+  return { data: data || [], aiOf: aiMap };
+}
+
+export async function deleteAchievementData(a) {
+  const { error } = await sb.from('achievements').delete().eq('id', a.id);
+  if (error) throw error;
+  removeFiles('public-images', a.image_path ? [a.image_path] : []);
+}
+
+export async function toggleHideAchievement(a) {
+  const { error } = await sb.from('achievements').update({ hidden: !a.hidden }).eq('id', a.id);
+  if (error) throw error;
+  return !a.hidden;
+}
+
+export async function runAchievementAi(a) {
+  const text = achText(a.title, a.body);
+  const { data: id, error } = await sb.rpc('ai_match_start', { p_text: text, p_achievement: a.id });
+  if (error) throw error;
+  return id;
+}
+
+export async function applyAchievementAi(a, m) {
+  const ids = [...new Set([...(a.item_ids || []), ...m.matches.map((x) => x.item_id)])];
+  const { error } = await sb.from('achievements').update({ item_ids: ids }).eq('id', a.id);
+  if (error) throw error;
+  return ids;
+}
 export async function mountAch(slot, unit) {
   const units = await loadUnits();
   $('#saUnitWrap').hidden = unit !== ALL_UNITS;
   $('#saUnit').innerHTML = '<option value="">— เลือก รพ.สต. —</option>' + units.map((u) => `<option value="${u.id}">รพ.สต.${esc(u.name)}</option>`).join('');
   const ws = $('#achWs');
-  if (ws.parentNode !== slot) slot.appendChild(ws);
+  if (ws && ws.parentNode !== slot) slot.appendChild(ws);
   if (!achBound) { achBound = true; bindAch(); }
   if (achUnit !== unit) { achUnit = unit; resetAch(); }
-  $('#saListTitle').textContent = unit === ALL_UNITS ? 'ผลงานของ รพ.สต. ทุกแห่ง' : `ผลงานของ รพ.สต.${unitName(unit)}`;
+  if ($('#saListTitle')) $('#saListTitle').textContent = unit === ALL_UNITS ? 'ผลงานของ รพ.สต. ทุกแห่ง' : `ผลงานของ รพ.สต.${unitName(unit)}`;
   return loadAch();
 }
 
@@ -196,10 +288,11 @@ function renderAchList() {
 /* ---- AI แนะนำข้อมาตรฐาน (37_ai_match.sql · Gemini ผ่านฐานข้อมูล ไม่มีคีย์ในหน้าเว็บ): เริ่ม → รอผลสักครู่ ---- */
 let aiOf = new Map(), aiTimer = 0, formAi = null;   // aiOf: ผลงาน → ผลวิเคราะห์ล่าสุด · formAi: ผลในฟอร์ม { id, text } → ผูกกับผลงานตอนบันทึก
 const SPIN = '<span class="spin" aria-hidden="true"></span>';
-const achText = (title, body) => [String(title || '').trim(), String(body || '').trim()].filter(Boolean).join('\n');
-const aiNos = (m) => m.matches.map((x) => x.item_no).join(', ');
-function aiStatus(a) {
-  const m = aiOf.get(a.id), run = (t) => `<button type="button" class="btn btn-o btn-sm" data-ai-run="${a.id}">${t}</button>`;
+export const achText = (title, body) => [String(title || '').trim(), String(body || '').trim()].filter(Boolean).join('\n');
+export const aiNos = (m) => m.matches.map((x) => x.item_no).join(', ');
+export function aiStatus(a, aiOfMap) {
+  const map = aiOfMap || aiOf;
+  const m = map.get(a.id), run = (t) => `<button type="button" class="btn btn-o btn-sm" data-ai-run="${a.id}">${t}</button>`;
   let h;
   if (!m) h = `<span class="chip c-off">AI ยังไม่วิเคราะห์</span>${run('ให้ AI วิเคราะห์')}`;
   else if (m.status === 'pending') h = `<span class="chip c-rev">${SPIN}AI กำลังวิเคราะห์…</span>`;
@@ -212,13 +305,13 @@ function aiStatus(a) {
   }
   return `<div class="ai-st" aria-live="polite">${h}</div>`;
 }
-async function pollAi(id) {
+export async function pollAi(id) {
   const { data, error } = await sb.rpc('ai_match_poll', { p_id: id });
   if (error) throw error;
   return data;
 }
 async function pollAchAi() {
-  if ($('#achWs').closest('[hidden]')) return;   // ออกจากหน้าแล้ว (เจ้าหน้าที่/ผู้ดูแล) — หยุดรอ
+  if ($('#achWs')?.closest('[hidden]')) return;   // ออกจากหน้าแล้ว (เจ้าหน้าที่/ผู้ดูแล) — หยุดรอ
   for (const [aid, m] of aiOf) if (m.status === 'pending') { try { aiOf.set(aid, { ...m, ...await pollAi(m.id) }); } catch { /* ลองรอบหน้า */ } }
   renderAchList();
 }
@@ -249,10 +342,11 @@ function showFormAi(r) {
     + r.matches.map((m) => `<li><b>ข้อ ${esc(m.item_no)}</b> ${esc(m.reason)}</li>`).join('') + '</ul>';
 }
 /** หลังบันทึก: ผูกผลวิเคราะห์ในฟอร์ม หรือให้ AI วิเคราะห์ผลงานนี้ (ถ้าข้อความใหม่/เปลี่ยน) → สถานะขึ้นในรายการ */
-async function aiAfterSave(saved, before) {
+export async function aiAfterSave(saved, before, formAiObj) {
+  const fai = formAiObj !== undefined ? formAiObj : formAi;
   const text = achText(saved.title, saved.body);
   try {
-    if (formAi && formAi.text === text) await sb.rpc('ai_match_link', { p_id: formAi.id, p_achievement: saved.id });
+    if (fai && fai.text === text) await sb.rpc('ai_match_link', { p_id: fai.id, p_achievement: saved.id });
     else if (text.length >= 10 && (!before || text !== achText(before.title, before.body))) await sb.rpc('ai_match_start', { p_text: text, p_achievement: saved.id });
   } catch { /* AI ไม่พร้อม/ครบโควตา — ผลงานบันทึกแล้ว กด "ให้ AI วิเคราะห์" ในรายการภายหลังได้ */ }
 }
@@ -260,7 +354,7 @@ async function aiAfterSave(saved, before) {
 /* ผลงาน ↔ ข้อมาตรฐานปีงบปัจจุบัน (achievements.item_ids) — แนบเป็นหลักฐานของข้อนั้นอัตโนมัติ ไม่ต้องส่งตรวจ */
 let critItems = null;
 const critPicked = new Set();   // id ข้อที่เลือก (รวมข้อของปีงบก่อนที่ผูกไว้เดิม — เก็บไว้ตามเดิม)
-const critLabel = (ids) => (critItems || []).filter((it) => ids?.includes(it.id)).map((it) => it.item_no).join(', ');
+export const critLabel = (ids, items) => (items || critItems || []).filter((it) => ids?.includes(it.id)).map((it) => it.item_no).join(', ');
 async function loadCritPick() {
   if (!critItems) {
     $('#saCrit').innerHTML = '<div class="skeleton"></div>';
