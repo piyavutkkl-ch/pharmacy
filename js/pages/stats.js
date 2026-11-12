@@ -1,6 +1,6 @@
 // ผลการดำเนินงาน (ตัวเลขสรุป), ผลงาน รพ.สต., อันดับเกณฑ์มาตรฐาน, ช่องทางติดต่อ — ข้อมูลสาธารณะ ไม่มีข้อมูลรายบุคคล
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, esc, art, thaiDate, fiscalYearOf, errText, toast } from '../util.js?v=4.4';
+import { $, esc, art, thaiDate, fiscalYearOf, errText, toast, busy, deviceToken } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { loadSummaryList, renderSummaryPoster } from './summaries.js?v=4.4';
 import { bindPosterNav } from './delivery.js?v=4.4';
@@ -180,13 +180,123 @@ async function renderAchRow(unit, year) {
   row.parentNode.querySelectorAll('[data-poster-nav]').forEach((b) => { b.hidden = achRows.length < 2; });
 }
 
-/* ---------- หน้าอ่านผลงาน #/achievement/<id> (แบบหน้าข่าว) ---------- */
+/* ---------- หน้าอ่านผลงาน #/achievement/<id> (แบบหน้าข่าว: ถูกใจ / ผู้เข้าชม / แชร์ / ความคิดเห็น) ---------- */
+let currentAch = null;
+const viewedAch = new Set();
+const ANON_MAX = 15;
+const chars = (t) => [...t].length;
+
+export function renderAchCommentState() {
+  if (!currentAch) return;
+  const signedIn = !!auth.session;
+  $('#acCommentsClosed').hidden = !currentAch.comments_closed;
+  $('#acCommentLogin').hidden = currentAch.comments_closed || signedIn;
+  $('#acCommentForm').hidden = currentAch.comments_closed;
+}
+
+async function loadAchLikes() {
+  if (!currentAch) return;
+  const id = currentAch.id;
+  const { data } = await sb.rpc('achievement_like_state', { p_achievement: id, p_token: auth.session ? null : deviceToken() });
+  const st = (Array.isArray(data) ? data[0] : data) || { total: 0, mine: false };
+  const mine = !!st.mine;
+  if (currentAch?.id !== id) return;
+  $('#acLikeCount').textContent = st.total || 0;
+  $('#acLikeBtn').classList.toggle('liked', mine);
+  $('#acLikeBtn').setAttribute('aria-pressed', mine ? 'true' : 'false');
+}
+
+async function loadAchComments() {
+  if (!currentAch) return;
+  const id = currentAch.id;
+  const { data, error } = await sb.from('achievement_comments')
+    .select('id,author_name,body,created_at')
+    .eq('achievement_id', id)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (currentAch?.id !== id) return;
+  const list = error ? [] : data;
+  $('#acCommentCount').textContent = list.length;
+  $('#acComments').innerHTML = list.length
+    ? list.map((c) => `<div class="li"><div class="l"><b>${esc(c.author_name || 'ผู้ใช้')}</b><span class="small">${esc(c.body)}</span><span class="small muted">${esc(thaiDate(c.created_at))}</span></div>`
+      + (auth.profile?.role === 'admin' ? `<button type="button" class="btn btn-no btn-sm" data-del-comment="${c.id}">ลบ</button>` : '') + '</div>').join('')
+    : '<p class="small muted">ยังไม่มีความคิดเห็น</p>';
+}
+
+export function bindAchievement() {
+  $('#acLikeBtn').addEventListener('click', async () => {
+    if (!currentAch) return;
+    const btn = $('#acLikeBtn');
+    const liked = btn.classList.contains('liked');
+    btn.disabled = true;
+    const q = !auth.session
+      ? sb.rpc('like_achievement_anon', { p_achievement: currentAch.id, p_token: deviceToken(), p_on: !liked })
+      : liked
+      ? sb.from('achievement_likes').delete().eq('achievement_id', currentAch.id).eq('user_id', auth.session.user.id)
+      : sb.from('achievement_likes').insert({ achievement_id: currentAch.id });
+    const { error } = await q;
+    btn.disabled = false;
+    if (error) toast(errText(error), 'err');
+    loadAchLikes();
+  });
+
+  $('#acComments').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-del-comment]');
+    if (!b || !confirm('ลบความคิดเห็นนี้?')) return;
+    busy(b, true, '…');
+    const { error } = await sb.from('achievement_comments').delete().eq('id', +b.dataset.delComment);
+    busy(b, false);
+    if (error) { toast(errText(error), 'err'); return; }
+    toast('ลบความคิดเห็นแล้ว');
+    loadAchComments();
+  });
+
+  $('#acCommentText').addEventListener('input', () => {
+    if (auth.session) return;
+    const n = chars($('#acCommentText').value.trim()), m = $('#acCommentMsg');
+    m.classList.toggle('err-text', n > ANON_MAX);
+    m.innerHTML = n > ANON_MAX ? `เกิน ${ANON_MAX} ตัวอักษร — กรุณา<a href="#/login">เข้าสู่ระบบ</a>เพื่อเขียนแสดงความเห็นมากขึ้น` : (n ? `${n}/${ANON_MAX} ตัวอักษร` : '');
+  });
+
+  $('#acShareBtn').addEventListener('click', () => {
+    const url = location.href;
+    if (navigator.share) navigator.share({ title: currentAch?.title || document.title, url }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { $('#acShareMsg').textContent = 'คัดลอกลิงก์แล้ว'; });
+    else $('#acShareMsg').textContent = url;
+  });
+
+  $('#acCommentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const inp = $('#acCommentText'), text = inp.value.trim(), msg = $('#acCommentMsg');
+    if (!text || !currentAch) return;
+    if (!auth.session && chars(text) > ANON_MAX) {
+      msg.innerHTML = `กรุณา<a href="#/login">เข้าสู่ระบบ</a>เพื่อเขียนแสดงความเห็นมากขึ้น (ตอนนี้ ${chars(text)} ตัวอักษร · ไม่ได้เข้าสู่ระบบ พิมพ์ได้ไม่เกิน ${ANON_MAX})`;
+      msg.classList.add('err-text'); return;
+    }
+    msg.classList.remove('err-text');
+    const btn = e.target.querySelector('button');
+    busy(btn, true, 'กำลังส่ง…');
+    const { error } = auth.session
+      ? await sb.from('achievement_comments').insert({ achievement_id: currentAch.id, body: text })
+      : await sb.rpc('comment_achievement_anon', { p_achievement: currentAch.id, p_body: text, p_token: deviceToken() });
+    busy(btn, false);
+    if (error) { msg.textContent = errText(error); msg.classList.add('err-text'); return; }
+    inp.value = ''; $('#acCommentMsg').textContent = '';
+    loadAchComments();
+  });
+}
+
 export async function showAchievement(id) {
+  currentAch = null;
   ['#acTag', '#acTitle', '#acDate'].forEach((s) => { $(s).textContent = ''; });
   $('#acTitle').textContent = 'กำลังโหลด…'; $('#acBody').innerHTML = ''; $('#acCover').innerHTML = ''; $('#acCover').className = 'cover'; $('#acCrit').hidden = true; $('#acHidden').hidden = true;
+  $('#acComments').innerHTML = ''; $('#acCommentMsg').textContent = ''; $('#acShareMsg').textContent = '';
   await loadUnits();
-  const { data: a, error } = await sb.from('achievements').select('id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date').eq('id', id).maybeSingle();
+  const { data: a, error } = await sb.from('achievements')
+    .select('id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date,view_count,comments_closed')
+    .eq('id', id).maybeSingle();
   if (error || !a) { $('#acTitle').textContent = 'ไม่พบผลงานนี้'; $('#acBody').innerHTML = '<p class="muted">อาจถูกลบหรือระงับการแสดงแล้ว</p>'; return; }
+  currentAch = a;
   document.title = a.title + ' · Primary Care Pharmacy Services';
   $('#acTag').textContent = `ผลงาน รพ.สต.${unitName(a.unit_id)}`;
   $('#acTitle').textContent = a.title;
@@ -202,6 +312,15 @@ export async function showAchievement(id) {
       $('#acCrit').hidden = false;
     }
   }
+  if (!viewedAch.has(a.id)) {
+    viewedAch.add(a.id);
+    sb.rpc('bump_achievement_view', { p_achievement: a.id }).then(() => {});
+    a.view_count = (+a.view_count || 0) + 1;
+  }
+  $('#acViewCount').textContent = (+a.view_count || 0).toLocaleString('th-TH') + ' ผู้เข้าชม';
+  renderAchCommentState();
+  loadAchLikes();
+  loadAchComments();
 }
 
 /* ---------- ผลงาน รพ.สต. (#/achievements) ---------- */

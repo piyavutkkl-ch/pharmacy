@@ -1520,5 +1520,32 @@ check("99: staff cannot call ai_rider_summary_poll", "s2", "select ai_rider_summ
 j99 = check("99: admin can call ai_rider_summary_start", "admin", """select ai_rider_summary_start(2570, '[{"tambon":"ควนกาหลง","delivered":5}]'::jsonb)""", lambda o: o.strip().isdigit())
 check("99: admin can poll ai_rider_summary_poll", "admin", f"select ai_rider_summary_poll({j99})->>'status' in ('pending','done','error')", eq("t"))
 
+# ---------- 100: achievement social (likes/views/comments) ----------
+print("== step 100: achievement social interactions ==")
+ach_id = check("100: staff posts achievement for test", "s2", "insert into achievements(unit_id,title,body) values (2,'ผลงานทดสอบถูกใจ','เนื้อหา') returning id", rows(1))
+check("100: anon can bump view count", "anon", f"select bump_achievement_view('{ach_id}'); select view_count from achievements where id='{ach_id}'", eq(1))
+AT1, AT2 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+check("100: anon likes achievement without login", "anon", f"select like_achievement_anon('{ach_id}','{AT1}',true)", eq(1))
+check("100: same token liking again does not double count", "anon", f"select like_achievement_anon('{ach_id}','{AT1}',true)", eq(1))
+check("100: another device likes achievement", "anon", f"select like_achievement_anon('{ach_id}','{AT2}',true)", eq(2))
+check("100: logged-in user likes achievement", "c1", f"insert into achievement_likes(achievement_id) values ('{ach_id}'); select total from achievement_like_state('{ach_id}')", eq(3))
+check("100: anon state shows mine for own token", "anon", f"select total||':'||mine from achievement_like_state('{ach_id}','{AT1}')", eq("3:true"))
+check("100: anon unlike achievement (toggle off)", "anon", f"select like_achievement_anon('{ach_id}','{AT1}',false)", eq(2))
+check("100: anon cannot read raw achievement_anon_likes", "anon", "select count(*) from achievement_anon_likes", "deny")
+check("100: anon cannot read achievement_likes directly", "anon", "select user_id from achievement_likes limit 1", "deny")
+
+ach_hid = check("100: staff creates hidden achievement", "s2", "insert into achievements(unit_id,title,body,hidden) values (2,'ผลงานซ่อน','x',true) returning id", rows(1))
+check("100: cannot like hidden achievement", "anon", f"select like_achievement_anon('{ach_hid}','{AT1}',true)", "deny")
+check("100: token required for like", "anon", f"select like_achievement_anon('{ach_id}',null,true)", "deny")
+
+check("100: anon comments <= 15 chars", "anon", f"select comment_achievement_anon('{ach_id}','ยอดเยี่ยมมาก','{AT1}') is not null; select author_name from achievement_comments where achievement_id='{ach_id}' order by id desc limit 1", eq("ผู้เยี่ยมชม"))
+check("100: anon comment > 15 chars denied", "anon", f"select comment_achievement_anon('{ach_id}','ข้อความนี้ยาวเกินสิบห้าตัวอักษรแน่นอนครับ','{AT1}')", "deny")
+check("100: anon cannot insert achievement_comments directly", "anon", f"insert into achievement_comments(achievement_id,body) values ('{ach_id}','x')", "deny")
+check("100: logged-in comment keeps author profile name", "c1", f"insert into achievement_comments(achievement_id,body) values ('{ach_id}','ผลงานดีมากๆ ครับ') returning author_name <> 'ผู้เยี่ยมชม'", eq("t"))
+check("100: admin can delete comment", "admin", f"delete from achievement_comments where achievement_id='{ach_id}' and author_id is null returning id; select count(*) from achievement_comments where achievement_id='{ach_id}' and author_id is null", eq(0))
+check("100: cannot comment on hidden achievement", "anon", f"select comment_achievement_anon('{ach_hid}','ดีมาก','{AT1}')", "deny")
+run(f"update achievements set comments_closed=true where id='{ach_hid}'")
+check("100: cannot comment when comments_closed", "anon", f"select comment_achievement_anon('{ach_hid}','ดีมาก','{AT1}')", "deny")
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

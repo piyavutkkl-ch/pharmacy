@@ -14,9 +14,9 @@ export PGOPTIONS="-c client_min_messages=warning"
 dry=${1:-}
 
 files=()
-for f in "$root"/supabase/[0-9]*.sql; do
+while IFS= read -r f; do
   b=$(basename "$f"); [[ "$b" == 02_* ]] && continue; files+=("$b")
-done
+done < <(printf '%s\n' "$root"/supabase/[0-9]*.sql | sort -V)
 new_files() { for b in "${files[@]}"; do n=$((10#${b%%_*})); [ "$n" -gt "$BASELINE_MAX" ] && echo "$b"; done; }
 
 if [ -z "${SUPABASE_DB_URL:-}" ]; then

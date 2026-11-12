@@ -2085,8 +2085,22 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     { const q = await open(null, '#/tracking'); await q.waitForTimeout(700);
       await q.click('#trkSums a.ach-poster:has-text("ตู้เย็นเก็บยา")'); await q.waitForTimeout(600);
       check('ผลงาน: กดจากแถวผลงาน → หน้าอ่านแบบข่าว (ชื่อ · รพ.สต. · วันที่ · รายละเอียด · ข้อมาตรฐานที่สอดคล้อง)', await visible(q, '[data-view="achievement"]') && (await text(q, '#acTitle')).includes('ตู้เย็นเก็บยา') && (await text(q, '#acTag')).includes('รพ.สต.') && (await text(q, '#acBody')).includes('2–8') && (await text(q, '#acCrit')).includes('ข้อ 1.3'));
+      check('หน้าผลงาน: มีปุ่มถูกใจ + ผู้เข้าชม + แชร์ + ช่องความคิดเห็น', await visible(q, '#acLikeBtn') && await visible(q, '#acShareBtn') && await visible(q, '#acCommentForm') && (await text(q, '#acCommentLogin')).includes('15 ตัวอักษร'));
+      const beforeAchLike = +(await text(q, '#acLikeCount'));
+      await q.click('#acLikeBtn'); await q.waitForTimeout(300);
+      const achLk = (await calls(q, (c) => c.rpc === 'like_achievement_anon'))[0]?.args;
+      check('หน้าผลงาน: ถูกใจแบบไม่ login ได้ (ยอด +1 + aria-pressed=true)', achLk?.p_on === true && /^[0-9a-f-]{36}$/.test(achLk?.p_token) && +(await text(q, '#acLikeCount')) === beforeAchLike + 1 && (await q.getAttribute('#acLikeBtn', 'aria-pressed')) === 'true');
+      await q.click('#acLikeBtn'); await q.waitForTimeout(300);
+      check('หน้าผลงาน: กดถูกใจอีกครั้งเพื่อยกเลิกได้', (await calls(q, (c) => c.rpc === 'like_achievement_anon')).some((c) => c.args.p_on === false && c.args.p_token === achLk?.p_token) && +(await text(q, '#acLikeCount')) === beforeAchLike);
+      await q.click('#acShareBtn'); await q.waitForTimeout(200);
+      check('หน้าผลงาน: กดแชร์แล้วแสดงข้อความคัดลอกลิงก์', (await text(q, '#acShareMsg')).includes('คัดลอกลิงก์แล้ว') || (await text(q, '#acShareMsg')).includes('#/achievement/'));
+      await q.fill('#acCommentText', 'ดีมากครับ'); await q.click('#acCommentForm button'); await q.waitForTimeout(400);
       await q.screenshot({ path: path.join(SHOTS, 'achievement-1280.png'), fullPage: true });
       await q.close(); }
+    { const m = await open(null, '#/tracking', 390, 844); await m.waitForTimeout(600);
+      await m.click('#trkSums a.ach-poster:has-text("ตู้เย็นเก็บยา")'); await m.waitForTimeout(600);
+      await m.screenshot({ path: path.join(SHOTS, 'achievement-390.png'), fullPage: true });
+      await m.close(); }
     { const q = await open('staff', '#/staff/achievements'); await q.waitForTimeout(500);
       const aid = await q.evaluate(() => window.__db.achievements.find((a) => a.title.includes('ตู้เย็นเก็บยา')).id);
       await q.click(`[data-hide="${aid}"]`); await q.waitForTimeout(400);

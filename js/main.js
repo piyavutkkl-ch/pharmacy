@@ -14,7 +14,7 @@ import { $, $$, esc, toast, errText, busy } from './util.js?v=4.4';
 import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.4';
 import { loadNews, loadAchSlides, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState, showAllNews } from './pages/news.js?v=4.4';
 import { initDose } from './pages/dose.js?v=4.4';
-import { initTracking, initAchievements, initContacts, showAchievement } from './pages/stats.js?v=4.4';
+import { initTracking, initAchievements, initContacts, showAchievement, bindAchievement, renderAchCommentState } from './pages/stats.js?v=4.4';
 import { initDocs } from './pages/docs.js?v=4.4';
 import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
@@ -183,7 +183,7 @@ function checkVersion() {
 async function boot() {
   checkVersion();
   showAuthErrorFromUrl();
-  bindSlider(); bindArticle(); bindFooter(); bindMoreSheets(); bindTheme();
+  bindSlider(); bindArticle(); bindAchievement(); bindFooter(); bindMoreSheets(); bindTheme();
   $('#googleBtn').addEventListener('click', async () => {
     const btn = $('#googleBtn'); busy(btn, true, 'กำลังไปที่ Google…');
     const { error } = await signIn();
@@ -204,6 +204,7 @@ async function boot() {
     stopChatWatch();
     if (auth.profile) startChatWatch();                      // ตัวเลขข้อความใหม่แบบ real-time
     renderCommentState();
+    renderAchCommentState();
     if (location.search.includes('code=')) history.replaceState(null, '', location.pathname + location.hash);
     const dest = takePostLoginRedirect();
     if (dest && location.hash !== dest) location.hash = dest; else route();

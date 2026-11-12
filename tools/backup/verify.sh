@@ -7,10 +7,10 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 P=(psql "$url" -X -q -v ON_ERROR_STOP=1)
 quiet() { local out; out=$("$@" 2>&1 >/dev/null) || { echo "$out" | grep -v -e NOTICE -e WARNING -e HINT >&2; return 1; }; }
 quiet "${P[@]}" -f "$root/tests/stub_new_default.sql"
-for f in "$root"/supabase/[0-9]*.sql; do
+while IFS= read -r f; do
   case "$(basename "$f")" in 02_*) continue ;; esac          # 02 = ผู้ดูแลคนแรก (ข้อมูลจริงมาจากไฟล์สำรอง)
   quiet "${P[@]}" -f "$f" || { echo "ERROR: รัน $(basename "$f") ในฐานข้อมูลทดสอบไม่ผ่าน" >&2; exit 1; }
-done
+done < <(printf '%s\n' "$root"/supabase/[0-9]*.sql | sort -V)
 bash "$(dirname "$0")/load_public.sh" "$url" "$dir/data_public.sql"
 python3 "$(dirname "$0")/counts.py" "$dir/data_public.sql" > "$dir/expected.txt"
 "${P[@]}" -At -F $'\t' -c "select 'public.' || c.relname, (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from public.%I', c.relname), false, true, '')))[1]::text

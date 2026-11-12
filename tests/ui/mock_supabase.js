@@ -97,7 +97,7 @@ function bumpUnitChat(m) {
 }
 function beforeInsert(table, row) {
   const rows = db[table] || (db[table] = []);
-  if (!['news_likes', 'site_stats', 'staff_roster', 'criteria_years'].includes(table) && row.id == null) row.id = newId(table);
+  if (!['news_likes', 'achievement_likes', 'site_stats', 'staff_roster', 'criteria_years'].includes(table) && row.id == null) row.id = newId(table);
   row.created_at ??= now(); row.updated_at ??= now();
   switch (table) {
     case 'news':
@@ -105,15 +105,16 @@ function beforeInsert(table, row) {
       if (isStaff()) { row.status = 'pending'; row.unit_id = ME.unit_id; } else row.status ??= 'pending';
       if (row.status === 'published') row.published_at = now();
       break;
-    case 'achievements': row.author_id = ME.id; row.hidden ??= false; row.item_ids ??= []; break;
+    case 'achievements': row.author_id = ME.id; row.hidden ??= false; row.item_ids ??= []; row.view_count ??= 0; row.comments_closed ??= false; break;
     case 'item_status': row.submitted_by = ME.id; row.submitted_at = now(); if (isStaff()) row.status = 'submitted'; row.evidence_paths ??= []; break;
     case 'feedback': row.author_id = ME?.id; row.source = isStaff() ? 'staff' : 'public'; row.unit_id = isStaff() ? ME.unit_id : null; break;
-    case 'news_comments': row.author_id = ME.id; row.author_name = ME.full_name; break;
+    case 'news_comments': case 'achievement_comments': row.author_id = ME.id; row.author_name = ME.full_name; break;
     case 'staff_requests':
       if (ME.role !== 'citizen') return 'new row violates row-level security policy for table "staff_requests"';
       if (rows.some((r) => r.user_id === ME.id && r.status === 'pending')) return 'duplicate key value violates unique constraint "staff_requests_one_pending"';
       Object.assign(row, { user_id: ME.id, email: ME.email, status: 'pending', review_note: null }); break;
     case 'news_likes': row.user_id = ME.id; if (rows.some((l) => l.news_id === row.news_id && l.user_id === ME.id)) return 'duplicate key value violates unique constraint'; break;
+    case 'achievement_likes': row.user_id = ME.id; if (rows.some((l) => l.achievement_id === row.achievement_id && l.user_id === ME.id)) return 'duplicate key value violates unique constraint'; break;
     case 'documents': row.created_by = ME.id; row.version ??= 1; break;
     case 'local_drugs': if (row.code != null && rows.some((r) => r.code === row.code)) return 'duplicate key value violates unique constraint "local_drugs_code_key"'; break;   // แทน unique (58)
     case 'patients': row.created_by = ME.id; break;
@@ -290,6 +291,7 @@ function rpc(name, a = {}) {
     }
     case 'bump_home_views': { const s = db.site_stats.find((x) => x.key === 'home_views'); s.count = (+s.count || 0) + 1; return { data: s.count, error: null }; }
     case 'bump_news_view': { const n = db.news.find((x) => x.id === a.p_news); if (n) n.view_count++; return { data: null, error: null }; }
+    case 'bump_achievement_view': { const ac = db.achievements.find((x) => x.id === a.p_achievement); if (ac) ac.view_count = (+ac.view_count || 0) + 1; return { data: null, error: null }; }
     case 'start_fiscal_year': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์', '42501');
       if (db.criteria_items.some((i) => i.fiscal_year === a.p_year)) return err(`ปีงบ ${a.p_year} มีเกณฑ์อยู่แล้ว`, 'P0001');
@@ -360,6 +362,28 @@ function rpc(name, a = {}) {
       if (!n) return err('ข่าวนี้ปิดรับความคิดเห็นแล้ว', 'P0001');
       const row = { id: newId('news_comments'), news_id: a.p_news, author_id: null, author_name: 'ผู้เยี่ยมชม', body: b, created_at: now() };
       db.news_comments.push(row);
+      return { data: row.id, error: null };
+    }
+    case 'achievement_like_state': {
+      const anon = (db.achievement_anon_likes || []).filter((x) => x.achievement_id === a.p_achievement && x.liked);
+      const logged = (db.achievement_likes || []).filter((x) => x.achievement_id === a.p_achievement);
+      return { data: [{ total: anon.length + logged.length, mine: logged.some((x) => x.user_id === ME?.id) || anon.some((x) => x.token === a.p_token) }], error: null };
+    }
+    case 'like_achievement_anon': {
+      const ac = db.achievements.find((x) => x.id === a.p_achievement && !x.hidden);
+      if (!ac || !a.p_token) return err('ไม่พบผลงานนี้', 'P0001');
+      const L = db.achievement_anon_likes || (db.achievement_anon_likes = []);
+      const r = L.find((x) => x.achievement_id === a.p_achievement && x.token === a.p_token);
+      if (r) r.liked = a.p_on; else L.push({ achievement_id: a.p_achievement, token: a.p_token, liked: a.p_on });
+      return { data: L.filter((x) => x.achievement_id === a.p_achievement && x.liked).length + (db.achievement_likes || []).filter((x) => x.achievement_id === a.p_achievement).length, error: null };
+    }
+    case 'comment_achievement_anon': {
+      const b = String(a.p_body || '').trim(), ac = db.achievements.find((x) => x.id === a.p_achievement && !x.hidden && !x.comments_closed);
+      if (!b) return err('กรุณาพิมพ์ความคิดเห็น', 'P0001');
+      if ([...b].length > 15) return err('กรุณาเข้าสู่ระบบเพื่อเขียนแสดงความเห็นมากขึ้น (ไม่ได้เข้าสู่ระบบ พิมพ์ได้ไม่เกิน 15 ตัวอักษร)', 'P0001');
+      if (!ac) return err('ผลงานนี้ปิดรับความคิดเห็นแล้ว', 'P0001');
+      const row = { id: newId('achievement_comments'), achievement_id: a.p_achievement, author_id: null, author_name: 'ผู้เยี่ยมชม', body: b, created_at: now() };
+      (db.achievement_comments || (db.achievement_comments = [])).push(row);
       return { data: row.id, error: null };
     }
     case 'purge_guest_chats': return { data: 0, error: null };

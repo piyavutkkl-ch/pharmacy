@@ -294,6 +294,27 @@
   <div class="cover" id="acCover"></div>
   <div class="article-body" id="acBody"></div>
   <section class="panel ac-crit" id="acCrit" hidden></section>
+  <div class="row-btns" style="align-items:center">
+    <button type="button" class="btn btn-o btn-sm" id="acLikeBtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+      ถูกใจ <span class="num" id="acLikeCount">0</span>
+    </button>
+    <span class="small muted num" id="acViewCount"></span>
+    <button type="button" class="btn btn-o btn-sm" id="acShareBtn">แชร์</button>
+    <span class="small muted" id="acShareMsg" aria-live="polite"></span>
+  </div>
+  <div class="panel">
+    <h2>ความคิดเห็น (<span class="num" id="acCommentCount">0</span>)</h2>
+    <p class="small muted" id="acCommentsClosed" hidden>ผู้ดูแลปิดรับความคิดเห็นสำหรับผลงานนี้แล้ว</p>
+    <p class="small muted" id="acCommentLogin" hidden>ยังไม่ได้เข้าสู่ระบบ: แสดงความคิดเห็นได้ไม่เกิน 15 ตัวอักษร · <a href="#/login">เข้าสู่ระบบด้วย Google</a> เพื่อเขียนได้ยาวขึ้น</p>
+    <form id="acCommentForm" class="chat-form" hidden>
+      <label for="acCommentText" class="sr-only">แสดงความคิดเห็น</label>
+      <input id="acCommentText" class="input" maxlength="1000" placeholder="แสดงความคิดเห็น" autocomplete="off">
+      <button class="btn btn-p btn-sm" type="submit">ส่ง</button>
+    </form>
+    <p class="small" id="acCommentMsg" aria-live="polite"></p>
+    <div class="list" id="acComments"></div>
+  </div>
 </section>
 
 <section data-view="allnews" class="article" hidden>

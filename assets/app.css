@@ -434,9 +434,9 @@ span.ci-folder{cursor:default}
 .crit-editbox{background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:2px 0 12px;display:flex;flex-direction:column;gap:10px}
 .crit-editbox h3{font-size:14px}
 .newsrow-editbox{background:var(--sunken);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 4px;display:flex;flex-direction:column;gap:10px;width:100%}
-#arLikeBtn svg{width:16px;height:16px}
-#arLikeBtn.liked{color:var(--error);border-color:var(--error)}
-#arLikeBtn.liked svg{fill:var(--error)}
+#arLikeBtn svg,#acLikeBtn svg{width:16px;height:16px}
+#arLikeBtn.liked,#acLikeBtn.liked{color:var(--error);border-color:var(--error)}
+#arLikeBtn.liked svg,#acLikeBtn.liked svg{fill:var(--error)}
 @media (max-width:480px){
   .crit-item{flex-wrap:wrap}
   .ci-text{flex:1 1 100%;order:1}
