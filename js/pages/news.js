@@ -271,7 +271,7 @@ export function bindArticle() {
   $('#arShareBtn').addEventListener('click', () => {
     const url = location.href;
     if (navigator.share) navigator.share({ title: current?.title || document.title, url }).catch(() => {});
-    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { $('#arShareMsg').textContent = 'คัดลอกลิงก์แล้ว'; });
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { $('#arShareMsg').textContent = 'คัดลอกลิงก์แล้ว'; }, () => { $('#arShareMsg').textContent = url; });
     else $('#arShareMsg').textContent = url;
   });
   $('#arCommentForm').addEventListener('submit', async (e) => {

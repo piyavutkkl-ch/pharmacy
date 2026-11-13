@@ -261,7 +261,7 @@ export function bindAchievement() {
   $('#acShareBtn').addEventListener('click', () => {
     const url = location.href;
     if (navigator.share) navigator.share({ title: currentAch?.title || document.title, url }).catch(() => {});
-    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { $('#acShareMsg').textContent = 'คัดลอกลิงก์แล้ว'; });
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { $('#acShareMsg').textContent = 'คัดลอกลิงก์แล้ว'; }, () => { $('#acShareMsg').textContent = url; });
     else $('#acShareMsg').textContent = url;
   });
 
