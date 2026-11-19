@@ -675,13 +675,14 @@
           </div>
           <div class="panel">
             <h2>สรุปจาก Google Sheets หรือไฟล์ประวัติการจัดส่งยา</h2>
-            <p class="small muted">วางลิงก์ Google Sheets หรือเลือกไฟล์ (.xlsx, .csv) จากระบบจัดส่งยา · ระบบสรุปตัวเลขในเครื่องนี้ <b>ไม่อัปโหลดข้อมูลส่วนบุคคล</b> และเก็บเฉพาะตัวเลขสรุป</p>
+            <p class="small muted">วางลิงก์ Google Sheets หรือเลือกไฟล์ (.xlsx, .csv) จากระบบจัดส่งยา · ระบบสรุปตัวเลขแยกแต่ละเดือนในเครื่องนี้ <b>ไม่อัปโหลดข้อมูลส่วนบุคคล</b> และเก็บเฉพาะตัวเลขสรุป</p>
             <div class="field">
               <label for="drSheetUrl">วางลิงก์ Google Sheets</label>
               <div class="row-btns" style="align-items:center;gap:.5rem">
                 <input id="drSheetUrl" class="input" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" style="flex:1" aria-label="ลิงก์ Google Sheets">
                 <button type="button" class="btn btn-p btn-sm" id="drSheetBtn">ดึงข้อมูลจาก Google Sheets</button>
               </div>
+              <span class="small muted">เมื่อวางลิงก์หรือกดปุ่ม ระบบจะดึงข้อมูล สรุปแยกในแต่ละเดือน และให้ AI สรุปแสดงผลลงหน้าเว็บอัตโนมัติ (ตั้งค่าแชร์ชีตเป็น "ทุกคนที่มีลิงก์มีสิทธิ์อ่าน")</span>
             </div>
             <div class="field" style="margin-top:.75rem"><label for="drFile">หรือเลือกไฟล์ในเครื่อง (.xlsx, .csv)</label><input id="drFile" class="input" type="file" accept=".xlsx,.xls,.csv,text/csv"><span class="small" id="drMsg" aria-live="polite"></span></div>
             <div id="drPreviewWrap" class="dr-preview" hidden>

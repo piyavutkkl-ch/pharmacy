@@ -1275,7 +1275,42 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(200);
       check('หน้าจัดส่งยา 390px: สรุปไม่ล้นจอ', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
       await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-report-390.png') });
-      await p.setViewportSize({ width: 1280, height: 900 }); }
+      await p.setViewportSize({ width: 1280, height: 900 });
+      // ทดสอบวางลิงก์ Google Sheets (#drSheetUrl) → สรุปข้อมูลแยกแต่ละเดือน + AI สรุปลงหน้าเว็บอัตโนมัติ
+      await p.unroute('**/spreadsheets/d/**/gviz/tq*');
+      await p.route('**/spreadsheets/d/**/gviz/tq*', (r) => {
+        const gvizRes = '/*O_o*/\ngoogle.visualization.Query.setResponse({"version":"0.6","status":"ok","sig":"456","table":{"cols":[{"id":"A","label":"สถานะ","type":"string"},{"id":"B","label":"บริการขนส่ง","type":"string"},{"id":"C","label":"HN","type":"string"},{"id":"D","label":"วันเวลาที่สร้างออเดอร์","type":"string"},{"id":"E","label":"ประเภทสิทธิการรักษา","type":"string"},{"id":"F","label":"รายละเอียดสิทธิการรักษา","type":"string"},{"id":"G","label":"ค่าจัดส่ง","type":"string"},{"id":"H","label":"ที่อยู่จัดส่งยา","type":"string"}],"rows":['
+          + '{"c":[{"v":"สำเร็จ"},{"v":"rider"},{"v":"000000101"},{"v":"วันที่ 10/09/2569 เวลา 10:00 น."},{"v":"UC"},{"v":"UCS : ผู้สูงอายุ"},{"v":"0"},{"v":"ต.ควนกาหลง"}]},'
+          + '{"c":[{"v":"สำเร็จ"},{"v":"post (Flash Express (Mobilyst))"},{"v":"000000102"},{"v":"วันที่ 15/09/2569 เวลา 11:00 น."},{"v":"NON UC"},{"v":"LGO : เบิกได้จ่ายตรง อปท."},{"v":"0"},{"v":"ต.ทุ่งนุ้ย"}]},'
+          + '{"c":[{"v":"สำเร็จ"},{"v":"rider"},{"v":"000000201"},{"v":"วันที่ 05/10/2569 เวลา 09:30 น."},{"v":"UC"},{"v":"UCS : ผู้พิการ"},{"v":"0"},{"v":"ต.ควนกาหลง"}]},'
+          + '{"c":[{"v":"สำเร็จ"},{"v":"rider"},{"v":"000000202"},{"v":"วันที่ 12/10/2569 เวลา 14:00 น."},{"v":"UC"},{"v":"UCS : UC ในเขตไม่มี ท"},{"v":"0"},{"v":"ต.อุใดเจริญ"}]}'
+          + ']}});';
+        r.fulfill({ status: 200, contentType: 'application/json', body: gvizRes });
+      });
+      await go(p, '#/admin/rider/delivery'); await p.waitForTimeout(400);
+      await p.fill('#drSheetUrl', 'https://docs.google.com/spreadsheets/d/1B69-oplMtU58T1Rl0B_As-i2axNbOFUS8IH_LHhRQlk/edit?usp=drivesdk');
+      await p.click('#drSheetBtn');
+      await p.waitForTimeout(3200);
+      const pvText = await text(p, '#drPreview');
+      check('Google Sheets จัดส่งยา: สรุปข้อมูลแยกตามเดือนอัตโนมัติ (หัวข้อ 1-2-3 ครบถ้วน)',
+        pvText.includes('เดือน ตุลาคม 2569') && pvText.includes('เดือน กันยายน 2569')
+        && pvText.includes('1. ภาพรวมความสำเร็จ (Key Highlights)')
+        && pvText.includes('ยอดการจัดส่งยาทั้งสิ้น:') && pvText.includes('จำนวนผู้รับบริการทั้งหมด:') && pvText.includes('คิดเป็นอัตราการจัดส่งสำเร็จ:')
+        && pvText.includes('2. ช่องทางการจัดส่ง (Delivery Channels)')
+        && pvText.includes('ผ่าน Health Rider:') && pvText.includes('ผ่านพัสดุ (Flash Express):')
+        && pvText.includes('3. กลุ่มผู้รับบริการและสิทธิการรักษา (Patient Demographics)')
+        && pvText.includes('จำแนกตามสิทธิการรักษาหลัก:') && pvText.includes('สิทธิหลักประกันสุขภาพ (UC / บัตรทอง):') && pvText.includes('สิทธิเบิกจ่ายตรง อปท. (Non-UC):')
+        && pvText.includes('จำแนกตามรายละเอียดกลุ่มเป้าหมาย (สิทธิย่อย):') && pvText.includes('กลุ่มผู้สูงอายุ:') && pvText.includes('กลุ่มผู้พิการ:') && pvText.includes('สิทธิ UC ทั่วไปในเขต:'),
+        pvText);
+      await go(p, '#/delivery'); await p.waitForTimeout(500);
+      const dvText = await text(p, '#drView');
+      check('หน้าจัดส่งยา: แสดงผลสรุปแยกแต่ละเดือนและสรุปโดย AI อัตโนมัติ',
+        dvText.includes('เดือน ตุลาคม 2569') && dvText.includes('1. ภาพรวมความสำเร็จ (Key Highlights)') && dvText.includes('สรุปโดย AI'),
+        dvText);
+      await p.click('#drView [data-dr-month-tab="2026-10"]'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดแท็บเลือกดูเฉพาะเดือน ตุลาคม 2569 ได้',
+        await visible(p, '#drView [data-month-card="2026-10"]') && !(await visible(p, '#drView [data-month-card="2026-09"]')));
+    }
     await go(p, '#/admin/drugs/dose');
     check('คำนวณขนาดยา: กล่อง "+ เพิ่มรายการยา" ย่อไว้เป็นปกติ', !(await p.$eval('#dfNewFold', (d) => d.open)) && !(await p.isVisible('#dfName')));
     await p.click('#dfNewFold > summary'); await p.waitForTimeout(150);

@@ -8,6 +8,7 @@ import { $, esc, toast, errText, busy, thaiDate, fiscalYearOf } from '../util.js
 
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
 const TH_MONTH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const TH_MONTH_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 export const COLS = {   // หัวตาราง (ตามไฟล์ของระบบจัดส่งยา) → ชื่อในโค้ด · หาจากชื่อหัว ไม่ยึดลำดับคอลัมน์
   status: 'สถานะ', service: 'บริการขนส่ง', hn: 'HN', created: ['วันเวลาที่สร้างออเดอร์', 'วันเวลาที่ลงทะเบียน'], done: 'วัน-เวลา จัดส่งพัสดุสำเร็จ',   // ไฟล์บางรุ่นใช้ "วันเวลาที่ลงทะเบียน" แทน
   cover: 'ประเภทสิทธิการรักษา', rights: 'รายละเอียดสิทธิการรักษา', fee: 'ค่าจัดส่ง', address: 'ที่อยู่จัดส่งยา',
@@ -67,6 +68,43 @@ function serviceName(s) {
   if (/^post/i.test(t)) return `ไปรษณีย์/ขนส่ง${inner ? ' ' + clean(inner.replace(/\(.*$/, '')) : ''}`;
   return clean(t) || 'ไม่ระบุ';
 }
+/** ชื่อช่องทางจัดส่งสำหรับรายงานสรุปรายเดือน */
+export function channelLabel(s) {
+  const t = String(s || '').trim();
+  if (isRider(t)) return 'ผ่าน Health Rider';
+  if (/flash\s*express/i.test(t)) return 'ผ่านพัสดุ (Flash Express)';
+  const inner = t.match(/\(([^()]+)/)?.[1];
+  if (/^post|ไปรษณีย์|ขนส่ง|พัสดุ/i.test(t)) {
+    const sub = inner ? clean(inner.replace(/\(.*$/, '')) : clean(t.replace(/^(?:ไปรษณีย์\/ขนส่ง|ไปรษณีย์|ขนส่ง|post)\s*/i, ''));
+    return sub ? `ผ่านพัสดุ (${sub})` : 'ผ่านพัสดุ';
+  }
+  return t.startsWith('ผ่าน') ? clean(t) : `ผ่าน ${clean(t) || 'ไม่ระบุ'}`;
+}
+/** ชื่อสิทธิการรักษาหลักสำหรับรายงานสรุป */
+export function coverLabel(rawCover, rawRights = '') {
+  const c = String(rawCover || '').trim(), r = String(rawRights || '').trim();
+  if (/^uc$/i.test(c) || /หลักประกันสุขภาพ|บัตรทอง/i.test(c)) return 'สิทธิหลักประกันสุขภาพ (UC / บัตรทอง)';
+  if (/^non[- ]?uc$/i.test(c) || /non[- ]?uc/i.test(c)) {
+    if (/อปท|LGO/i.test(r) || /อปท/i.test(c)) return 'สิทธิเบิกจ่ายตรง อปท. (Non-UC)';
+    if (/ชำระเงินเอง|CSH/i.test(r)) return 'สิทธิชำระเงินเอง (Non-UC)';
+    return 'สิทธิเบิกจ่ายตรง อปท. (Non-UC)';
+  }
+  return clean(c) || 'ไม่ระบุ';
+}
+/** ชื่อกลุ่มเป้าหมาย / สิทธิย่อยสำหรับรายงานสรุป */
+export function rightsLabel(rawRights) {
+  const t = clean(rawRights);
+  if (!t) return 'ไม่ระบุ';
+  if (/ผู้สูงอายุ/.test(t)) return 'กลุ่มผู้สูงอายุ';
+  if (/ผู้พิการ/.test(t)) return 'กลุ่มผู้พิการ';
+  if (/UC\s*ในเขต|ทั่วไปในเขต/i.test(t)) return 'สิทธิ UC ทั่วไปในเขต';
+  if (/เด็กอายุ\s*0-12\s*ปี/.test(t)) return 'เด็กอายุ 0-12 ปี';
+  if (/ครอบครัว\s*อสม/.test(t)) return 'บุคคลในครอบครัว อสม.';
+  if (/ผู้มีรายได้น้อย/.test(t)) return 'ผู้มีรายได้น้อย';
+  if (/เบิกได้จ่ายตรง\s*อปท|เบิกจ่ายตรง\s*อปท|^LGO\s*:/i.test(t)) return 'เบิกจ่ายตรง อปท.';
+  if (/ชำระเงินเอง|^CSH\s*:/i.test(t)) return 'ชำระเงินเอง';
+  return t.replace(/^[A-Z]{2,6}\s*:\s*/i, '').trim() || 'ไม่ระบุ';
+}
 
 /** หาแถวหัวตาราง + ฟังก์ชันอ่านช่องตามชื่อหัว (รองรับชื่อหัวคอลัมน์หลายแบบ) */
 export function tableCols(rows) {
@@ -85,6 +123,7 @@ export function tableCols(rows) {
     }
     col[k] = idx;
   }
+  col.reg = head.indexOf('วันเวลาที่ลงทะเบียน');
   return { hi, col };
 }
 export const tambonOf = (addr) => {
@@ -144,7 +183,8 @@ export function riderByTambon(rows) {
     if (hasServiceCol) add(diag.services, serviceName(get(r, 'service')));
     if (hasServiceCol && !isRider(get(r, 'service'))) continue;
     diag.riders++;
-    const c = thDate(get(r, 'created')); if (!c) { diag.badDate++; diag.sample ||= get(r, 'created').slice(0, 40); continue; }
+    const c = thDate(get(r, 'created')) || (col.reg >= 0 ? thDate(String(r[col.reg] ?? '').trim()) : null);
+    if (!c) { diag.badDate++; diag.sample ||= get(r, 'created').slice(0, 40); continue; }
     const fy = fiscalYearOf(c), tam = tambonOf(get(r, 'address'));
     const y = out.get(fy) || new Map(); out.set(fy, y);
     const t = y.get(tam) || { tambon: tam, delivered: 0, hn: new Set(), cancelled: 0, free: 0 }; y.set(tam, t);
@@ -160,41 +200,80 @@ export function riderByTambon(rows) {
   return res;
 }
 
-/** ตาราง (แถว × คอลัมน์) → ตัวเลขสรุป · ไม่พบหัวตาราง = throw */
+/** ตาราง (แถว × คอลัมน์) → ตัวเลขสรุป (ทั้งภาพรวมและแยกรายเดือน byMonth) · ไม่พบหัวตาราง = throw */
 export function summarizeDelivery(rows) {
   const { hi, col } = tableCols(rows);
   const title = String(rows.slice(0, hi).flat().find((c) => String(c).trim()) || '').replace(/\d{6,}/g, '').replace(/\s+/g, ' ').trim().slice(0, 200) || 'ประวัติรายการจัดส่งยา';
   const get = (r, k) => (col[k] >= 0 ? String(r[col[k]] ?? '').trim() : '');
   const s = { total: 0, ok: 0, cancel: 0, other: 0 }, hnOk = new Set(), hnAll = new Set();
-  const service = new Map(), month = new Map(), tambon = new Map(), rights = new Map(), cover = new Map(), hours = [];
+  const service = new Map(), month = new Map(), tambon = new Map(), rights = new Map(), cover = new Map(), hours = [], byMonthMap = new Map();
+  const getMonthBucket = (mk) => {
+    let b = byMonthMap.get(mk);
+    if (!b) {
+      b = {
+        total: 0, ok: 0, cancel: 0, other: 0, hnOk: new Set(), hnAll: new Set(),
+        service: new Map(), cover: new Map(), rights: new Map(), tambon: new Map(),
+        fee: 0, free: 0, paid: 0,
+      };
+      byMonthMap.set(mk, b);
+    }
+    return b;
+  };
   let fee = 0, free = 0, paid = 0, from = null, to = null;
   for (const r of rows.slice(hi + 1)) {
     const st = get(r, 'status'); if (!st) continue;
     s.total++;
-    const c = thDate(get(r, 'created'));
+    const c = thDate(get(r, 'created')) || (col.reg >= 0 ? thDate(String(r[col.reg] ?? '').trim()) : null);
     if (c) { if (!from || c < from) from = c; if (!to || c > to) to = c; }
-    const hn = get(r, 'hn'); if (hn) hnAll.add(hn);
-    if (/ยกเลิก/.test(st)) { s.cancel++; continue; }
-    if (!/สำเร็จ/.test(st)) { s.other++; continue; }
+    const mk = c ? `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}` : null;
+    const mb = mk ? getMonthBucket(mk) : null;
+    if (mb) mb.total++;
+    const hn = get(r, 'hn');
+    if (hn) { hnAll.add(hn); if (mb) mb.hnAll.add(hn); }
+    if (/ยกเลิก/.test(st)) { s.cancel++; if (mb) mb.cancel++; continue; }
+    if (!/สำเร็จ/.test(st)) { s.other++; if (mb) mb.other++; continue; }
     s.ok++; if (hn) hnOk.add(hn);
-    add(service, serviceName(get(r, 'service')));
-    if (c) add(month, `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}`);
-    add(tambon, tambonOf(get(r, 'address')));
-    add(rights, clean(get(r, 'rights')) || 'ไม่ระบุ');
-    add(cover, clean(get(r, 'cover')) || 'ไม่ระบุ');
+    if (mb) { mb.ok++; if (hn) mb.hnOk.add(hn); }
+    const svc = serviceName(get(r, 'service'));
+    const tam = tambonOf(get(r, 'address'));
+    const rig = rightsLabel(get(r, 'rights'));
+    const cov = coverLabel(get(r, 'cover'), get(r, 'rights'));
+    add(service, svc);
+    if (mk) add(month, mk);
+    add(tambon, tam);
+    add(rights, rig);
+    add(cover, cov);
+    if (mb) {
+      add(mb.service, svc);
+      add(mb.tambon, tam);
+      add(mb.rights, rig);
+      add(mb.cover, cov);
+    }
     const f = +get(r, 'fee').replace(/[^\d.]/g, '');
-    if (Number.isFinite(f) && get(r, 'fee') !== '' && get(r, 'fee') !== '-') { fee += f; if (f > 0) paid++; else free++; }
+    if (Number.isFinite(f) && get(r, 'fee') !== '' && get(r, 'fee') !== '-') {
+      fee += f; if (f > 0) paid++; else free++;
+      if (mb) { mb.fee += f; if (f > 0) mb.paid++; else mb.free++; }
+    }
     const d = thDate(get(r, 'done'));
     if (c && d && d >= c) hours.push((d - c) / 3600000);
   }
   if (!s.total) throw new Error('ไม่พบรายการจัดส่งในไฟล์');
   hours.sort((a, b) => a - b);
   const r1 = (x) => Math.round(x * 10) / 10;
+  const byMonth = [...byMonthMap.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([k, m]) => [k, {
+      total: m.total, ok: m.ok, cancel: m.cancel, other: m.other,
+      patients: m.hnOk.size, patientsAll: m.hnAll.size,
+      service: top(m.service), cover: top(m.cover), rights: top(m.rights), tambon: top(m.tambon),
+      fee: Math.round(m.fee), free: m.free, paid: m.paid,
+    }]);
   return {
     title, from: from ? iso(from) : null, to: to ? iso(to) : null,
     summary: {
       v: 1, ...s, patients: hnOk.size, patientsAll: hnAll.size,
       service: top(service), month: [...month.entries()].sort((a, b) => a[0].localeCompare(b[0])), tambon: top(tambon), rights: top(rights), cover: top(cover),
+      byMonth,
       fee: Math.round(fee), free, paid,
       hoursAvg: hours.length ? r1(hours.reduce((a, b) => a + b, 0) / hours.length) : null, hoursMedian: hours.length ? r1(hours[Math.floor(hours.length / 2)]) : null,
     },
@@ -287,16 +366,131 @@ export async function fetchGoogleSheet(url) {
 }
 
 /* ======================= แสดงผล (ใช้ทั้งหน้าหลักและตัวอย่างของผู้ดูแล) ======================= */
-const monthLabel = (k) => { const [y, m] = k.split('-'); return `${TH_MONTH[+m - 1]} ${String(+y + 543).slice(2)}`; };
+const monthLabel = (k) => { const [y, m] = String(k || '').split('-'); return TH_MONTH[+m - 1] ? `${TH_MONTH[+m - 1]} ${String(+y + 543).slice(2)}` : k; };
+export const monthFullLabel = (k) => { const [y, m] = String(k || '').split('-'); return TH_MONTH_FULL[+m - 1] ? `เดือน ${TH_MONTH_FULL[+m - 1]} ${+y + 543}` : String(k || ''); };
+const monthTabLabel = (k) => { const [y, m] = String(k || '').split('-'); return TH_MONTH_FULL[+m - 1] ? `${TH_MONTH_FULL[+m - 1]} ${+y + 543}` : String(k || ''); };
+const pctStr = (v, total) => {
+  if (!total || !v) return '0%';
+  const p = Math.round((Number(v) / Number(total)) * 1000) / 10;
+  return `${p.toFixed(1).replace(/\.0$/, '')}%`;
+};
+
+/** สร้างข้อความสรุปมาตรฐาน (1. ภาพรวมความสำเร็จ · 2. ช่องทางการจัดส่ง · 3. กลุ่มผู้รับบริการและสิทธิการรักษา) สำหรับคัดลอกหรือแสดงผล */
+export function buildMonthReportText(heading, m) {
+  const ok = Number(m.ok || 0), total = Number(m.total || ok), patients = Number(m.patients || 0);
+  const rate = total > 0 ? pctStr(ok, total) : '0%';
+  const lines = [
+    heading,
+    '',
+    '1. ภาพรวมความสำเร็จ (Key Highlights)',
+    `ยอดการจัดส่งยาทั้งสิ้น: ${n(ok)} ครั้ง`,
+    `จำนวนผู้รับบริการทั้งหมด: ${n(patients)} ราย`,
+    `คิดเป็นอัตราการจัดส่งสำเร็จ: ${rate} (เฉพาะที่ได้ลงทะเบียนและทำการจัดส่ง)`,
+  ];
+  const svcs = (m.service || []).filter((x) => x[1] > 0);
+  if (svcs.length) {
+    lines.push('', '2. ช่องทางการจัดส่ง (Delivery Channels)');
+    for (const [k, v] of svcs) lines.push(`${channelLabel(k)}: ${n(v)} ครั้ง (คิดเป็น ${pctStr(v, ok)})`);
+  }
+  const covs = (m.cover || []).filter((x) => x[1] > 0);
+  const rigs = (m.rights || []).filter((x) => x[1] > 0);
+  if (covs.length || rigs.length) {
+    lines.push('', '3. กลุ่มผู้รับบริการและสิทธิการรักษา (Patient Demographics)');
+    if (covs.length) {
+      lines.push('จำแนกตามสิทธิการรักษาหลัก:');
+      for (const [k, v] of covs) lines.push(`${coverLabel(k)}: ${n(v)} ครั้ง (${pctStr(v, ok)})`);
+    }
+    if (rigs.length) {
+      if (covs.length) lines.push('');
+      lines.push('จำแนกตามรายละเอียดกลุ่มเป้าหมาย (สิทธิย่อย):');
+      for (const [k, v] of rigs) lines.push(`${rightsLabel(k)}: ${n(v)} ครั้ง (${pctStr(v, ok)})`);
+    }
+  }
+  return lines.join('\n');
+}
+
+function renderMonthCard(heading, m, key, isTotal = false) {
+  const ok = Number(m.ok || 0), total = Number(m.total || ok), patients = Number(m.patients || 0);
+  const rate = total > 0 ? pctStr(ok, total) : '0%';
+  const svcs = (m.service || []).filter((x) => x[1] > 0);
+  const covs = (m.cover || []).filter((x) => x[1] > 0);
+  const rigs = (m.rights || []).filter((x) => x[1] > 0);
+  return `<article class="dr-month-card${isTotal ? ' dr-month-total' : ''}" data-month-card="${esc(key)}">`
+    + `<div class="dr-month-head"><h3>${esc(heading)}</h3>`
+    + `<button type="button" class="btn btn-o btn-sm" data-dr-copy="${esc(key)}">คัดลอกสรุป</button></div>`
+    + '<div class="dr-month-body">'
+    + '<div class="dr-sec"><h4>1. ภาพรวมความสำเร็จ (Key Highlights)</h4><ul class="dr-kv-list">'
+    + `<li><div class="dr-line"><span>ยอดการจัดส่งยาทั้งสิ้น:</span><b class="num">${n(ok)} ครั้ง</b></div></li>`
+    + `<li><div class="dr-line"><span>จำนวนผู้รับบริการทั้งหมด:</span><b class="num">${n(patients)} ราย</b></div></li>`
+    + `<li><div class="dr-line"><span>คิดเป็นอัตราการจัดส่งสำเร็จ:</span><b class="num">${rate} <span class="small muted">(เฉพาะที่ได้ลงทะเบียนและทำการจัดส่ง)</span></b></div></li>`
+    + '</ul></div>'
+    + (svcs.length ? '<div class="dr-sec"><h4>2. ช่องทางการจัดส่ง (Delivery Channels)</h4><ul class="dr-kv-list">'
+      + svcs.map(([k, v]) => `<li><div class="dr-line"><span>${esc(channelLabel(k))}:</span><b class="num">${n(v)} ครั้ง (คิดเป็น ${pctStr(v, ok)})</b></div>`
+        + `<div class="meter"><span style="width:${ok ? Math.round((v / ok) * 100) : 0}%"></span></div></li>`).join('')
+      + '</ul></div>' : '')
+    + ((covs.length || rigs.length) ? '<div class="dr-sec"><h4>3. กลุ่มผู้รับบริการและสิทธิการรักษา (Patient Demographics)</h4>'
+      + (covs.length ? '<div class="dr-subsec"><h5>จำแนกตามสิทธิการรักษาหลัก:</h5><ul class="dr-kv-list">'
+        + covs.map(([k, v]) => `<li><div class="dr-line"><span>${esc(coverLabel(k))}:</span><b class="num">${n(v)} ครั้ง (${pctStr(v, ok)})</b></div>`
+          + `<div class="meter"><span style="width:${ok ? Math.round((v / ok) * 100) : 0}%"></span></div></li>`).join('')
+        + '</ul></div>' : '')
+      + (rigs.length ? '<div class="dr-subsec"><h5>จำแนกตามรายละเอียดกลุ่มเป้าหมาย (สิทธิย่อย):</h5><ul class="dr-kv-list">'
+        + rigs.map(([k, v]) => `<li><div class="dr-line"><span>${esc(rightsLabel(k))}:</span><b class="num">${n(v)} ครั้ง (${pctStr(v, ok)})</b></div>`
+          + `<div class="meter"><span style="width:${ok ? Math.round((v / ok) * 100) : 0}%"></span></div></li>`).join('')
+        + '</ul></div>' : '')
+      + '</div>' : '')
+    + '</div></article>';
+}
+
+async function copyTextSafe(txt) {
+  let copied = false;
+  if (navigator.clipboard?.writeText) {
+    try { await navigator.clipboard.writeText(txt); copied = true; } catch { copied = false; }
+  }
+  if (!copied) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      copied = document.execCommand('copy');
+      ta.remove();
+    } catch { copied = false; }
+  }
+  toast('คัดลอกข้อความสรุปแล้ว');
+}
+
 function bars(title, list, label = (k) => k, unit = 'ครั้ง') {
   if (!list?.length) return '';
   const max = Math.max(1, ...list.map((x) => x[1]));
   return `<div class="dr-block"><h3>${esc(title)}</h3><div class="bars">${list.map(([k, v]) => `<div class="bar-row"><div><span>${esc(label(k))}</span><b class="num">${n(v)} ${unit}</b></div>`
     + `<div class="meter"><span style="width:${Math.round((v / max) * 100)}%"></span></div></div>`).join('')}</div></div>`;
 }
+
 export function renderDeliveryReport(box, rep) {
   const s = rep.summary || {};
   const period = rep.period_from ? `${thaiDate(rep.period_from)} – ${thaiDate(rep.period_to)}` : '';
+  const byMonthDesc = Array.isArray(s.byMonth) ? [...s.byMonth].reverse() : [];
+  const totalHeading = byMonthDesc.length > 1
+    ? `ภาพรวมสะสมทุกเดือน (${monthLabel(s.byMonth[0][0])} – ${monthLabel(s.byMonth[s.byMonth.length - 1][0])})`
+    : byMonthDesc.length === 1 ? monthFullLabel(byMonthDesc[0][0]) : 'สรุปภาพรวมการจัดส่งยา';
+  const textMap = new Map();
+  for (const [mk, m] of byMonthDesc) textMap.set(mk, buildMonthReportText(monthFullLabel(mk), m));
+  textMap.set('total', buildMonthReportText(totalHeading, s));
+  box._drTexts = textMap;
+
+  const monthlyHtml = (byMonthDesc.length || s.ok) ? `<div class="dr-monthly">`
+    + `<div class="dr-monthly-bar"><h3>สรุปผลการดำเนินงานแยกตามเดือน</h3>`
+    + (byMonthDesc.length > 1 ? `<button type="button" class="btn btn-o btn-sm" data-dr-copy-all>คัดลอกสรุปทุกเดือน</button>` : '')
+    + `</div>`
+    + (byMonthDesc.length > 1 ? `<div class="unit-tabs dr-month-tabs" role="tablist" aria-label="เลือกเดือนที่ต้องการดู">`
+      + `<button type="button" data-dr-month-tab="all" aria-current="true">ทุกเดือน (${byMonthDesc.length} เดือน)</button>`
+      + byMonthDesc.map(([mk]) => `<button type="button" data-dr-month-tab="${esc(mk)}" aria-current="false">${esc(monthTabLabel(mk))}</button>`).join('')
+      + `<button type="button" data-dr-month-tab="total" aria-current="false">รวมทุกเดือน</button>`
+      + `</div>` : '')
+    + `<div class="dr-month-grid">`
+    + byMonthDesc.map(([mk, m]) => renderMonthCard(monthFullLabel(mk), m, mk, false)).join('')
+    + (byMonthDesc.length !== 1 ? renderMonthCard(totalHeading, s, 'total', byMonthDesc.length > 1) : '')
+    + `</div></div>` : '';
+
   box.innerHTML = `<p class="small muted">${esc(rep.title)}${period ? ' · ' + esc(period) : ''} · ตัวเลขสรุปเท่านั้น ไม่มีข้อมูลรายบุคคล</p>`
     + '<div class="track-figs dl-figs">'
     + `<div class="fig"><div class="n num">${n(s.ok)}</div><div class="t">จัดส่งยาสำเร็จ (ครั้ง)</div></div>`
@@ -306,12 +500,39 @@ export function renderDeliveryReport(box, rep) {
     + '</div>'
     + `<p class="small muted">รายการทั้งหมด ${n(s.total)} · สำเร็จ ${n(s.ok)} · ยกเลิก ${n(s.cancel)}${s.other ? ' · อื่น ๆ ' + n(s.other) : ''} · ค่าจัดส่งรวม ${n(s.fee)} บาท</p>`
     + (rep.ai_status === 'done' && rep.ai_text ? `<div class="dr-ai"><h3>สรุปโดย AI</h3>${String(rep.ai_text).split(/\n+/).filter((l) => l.trim()).map((l) => `<p>${esc(l)}</p>`).join('')}</div>` : '')
+    + monthlyHtml
     + '<div class="dr-grid">'
     + bars('รายเดือน (จัดส่งสำเร็จ)', s.month, monthLabel)
     + bars('ตามตำบล', s.tambon)
     + bars('ตามช่องทางจัดส่ง', s.service)
     + bars('ตามสิทธิการรักษา', s.rights)
     + '</div>';
+
+  if (!box._drBound) {
+    box._drBound = true;
+    box.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-dr-month-tab]');
+      if (tab) {
+        const pick = tab.dataset.drMonthTab;
+        box.querySelectorAll('[data-dr-month-tab]').forEach((b) => b.setAttribute('aria-current', String(b === tab)));
+        box.querySelectorAll('[data-month-card]').forEach((c) => {
+          c.hidden = pick !== 'all' && c.dataset.monthCard !== pick;
+        });
+        return;
+      }
+      const cp = e.target.closest('[data-dr-copy]');
+      if (cp && box._drTexts) {
+        const txt = box._drTexts.get(cp.dataset.drCopy);
+        if (txt) copyTextSafe(txt);
+        return;
+      }
+      const cpAll = e.target.closest('[data-dr-copy-all]');
+      if (cpAll && box._drTexts) {
+        const allTxt = [...box._drTexts.values()].join('\n\n' + '─'.repeat(40) + '\n\n');
+        if (allTxt) copyTextSafe(allTxt);
+      }
+    });
+  }
 }
 
 /* ======================= หน้าหลัก #/delivery ======================= */
@@ -330,35 +551,88 @@ export async function initDeliveryReports() {
 function showPicked() { const r = reports.find((x) => x.id === +$('#drPick').value) || reports[0]; if (r) renderDeliveryReport($('#drView'), r); }
 
 /* ======================= ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน ======================= */
-let draft = null, adminBound = false, adminList = [];
+let draft = null, adminBound = false, adminList = [], sheetBusy = false;
 export async function initDeliveryReportAdmin() {
   if (!adminBound) {
     adminBound = true;
     $('#drFile').addEventListener('change', onFile);
     $('#drSheetBtn')?.addEventListener('click', onSheet);
     $('#drSheetUrl')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onSheet(); } });
+    $('#drSheetUrl')?.addEventListener('paste', () => {
+      setTimeout(() => {
+        const u = ($('#drSheetUrl')?.value || '').trim();
+        if (parseGoogleSheetUrl(u) && !sheetBusy) onSheet();
+      }, 60);
+    });
     $('#drSave').addEventListener('click', saveDraft);
     $('#drList').addEventListener('click', onList);
   }
   await loadAdminList();
 }
+
+async function runAiForReport(id, notify = true) {
+  const { error } = await sb.rpc('ai_delivery_start', { p_id: id });
+  if (error) throw error;
+  let r = { ai_status: 'pending' };
+  for (let i = 0; r.ai_status === 'pending' && i < 80; i++) {
+    await new Promise((ok) => setTimeout(ok, i < 2 ? 1200 : 2500));
+    const { data, error: e2 } = await sb.rpc('ai_delivery_poll', { p_id: id });
+    if (e2) throw e2;
+    r = data || {};
+  }
+  if (notify) {
+    if (r.ai_status === 'done') toast('AI สรุปแล้ว · แสดงที่หน้าจัดส่งยา');
+    else toast(r.ai_note || 'AI ยังสรุปไม่เสร็จ กรุณาลองใหม่', 'err');
+  }
+  return r;
+}
+
 async function onSheet() {
+  if (sheetBusy) return;
   const url = ($('#drSheetUrl')?.value || '').trim();
   if (!url) { toast('กรุณาวางลิงก์ Google Sheets ก่อน', 'err'); $('#drSheetUrl')?.focus(); return; }
-  const msg = $('#drMsg'); msg.style.color = ''; msg.textContent = 'กำลังดึงข้อมูลจาก Google Sheets…';
-  const btn = $('#drSheetBtn'); busy(btn, true, 'กำลังดึง…');
+  sheetBusy = true;
+  const msg = $('#drMsg'); msg.style.color = ''; msg.textContent = 'กำลังดึงข้อมูลจาก Google Sheets และสรุปแยกตามเดือน…';
+  const btn = $('#drSheetBtn'); busy(btn, true, 'กำลังดึงและสรุป…');
   try {
     const table = await fetchGoogleSheet(url);
     draft = summarizeDelivery(table);
     $('#drTitle').value = draft.title;
-    renderDeliveryReport($('#drPreview'), { title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
+    const previewRep = { title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary };
+    renderDeliveryReport($('#drPreview'), previewRep);
     $('#drPreviewWrap').hidden = false;
-    msg.style.color = 'var(--success)';
-    msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ · ตรวจตัวอย่างด้านล่างแล้วกด "บันทึกและแสดงที่หน้าจัดส่งยา"`;
+    const mCount = draft.summary.byMonth?.length || 1;
+    msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ (${mCount} เดือน) · กำลังบันทึกและให้ AI สรุปลงหน้าเว็บอัตโนมัติ…`;
+    const { data: ins, error: insErr } = await sb.from('delivery_reports')
+      .insert({ title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary })
+      .select('id')
+      .single();
+    if (!insErr && ins?.id) {
+      draft.savedId = ins.id;
+      await loadAdminList();
+      await initDeliveryReports();
+      try {
+        const aiRes = await runAiForReport(ins.id, false);
+        if (aiRes?.ai_status === 'done' && aiRes.ai_text) {
+          renderDeliveryReport($('#drPreview'), { ...previewRep, ai_status: 'done', ai_text: aiRes.ai_text });
+        }
+      } catch {}
+      await loadAdminList();
+      await initDeliveryReports();
+      msg.style.color = 'var(--success)';
+      msg.textContent = `สรุปข้อมูลแยกตามเดือน (${mCount} เดือน · ${n(draft.summary.total)} รายการ) และแสดงผลบนหน้าเว็บอัตโนมัติเรียบร้อยแล้ว`;
+      toast('สรุปข้อมูลจาก Google Sheets แยกตามเดือนลงหน้าเว็บแล้ว');
+    } else {
+      msg.style.color = 'var(--success)';
+      msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ · ตรวจตัวอย่างด้านล่างแล้วกด "บันทึกและแสดงที่หน้าจัดส่งยา"`;
+    }
   } catch (err) {
     draft = null; $('#drPreviewWrap').hidden = true;
     msg.style.color = 'var(--error)'; msg.textContent = 'อ่าน Google Sheets ไม่สำเร็จ: ' + errText(err);
-  } finally { busy(btn, false); }
+  } finally {
+    sheetBusy = false;
+    busy(btn, false);
+  }
 }
 async function onFile(e) {
   const f = e.target.files[0]; if (!f) return;
@@ -378,7 +652,10 @@ async function onFile(e) {
 async function saveDraft() {
   if (!draft) { toast('กรุณาเลือกไฟล์ก่อน', 'err'); return; }
   const btn = $('#drSave'); busy(btn, true, 'กำลังบันทึก…');
-  const { error } = await sb.from('delivery_reports').insert({ title: $('#drTitle').value.trim() || draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
+  const title = $('#drTitle').value.trim() || draft.title;
+  const { error } = draft.savedId
+    ? await sb.from('delivery_reports').update({ title, period_from: draft.from, period_to: draft.to, summary: draft.summary }).eq('id', draft.savedId)
+    : await sb.from('delivery_reports').insert({ title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
   busy(btn, false);
   if (error) { toast(errText(error), 'err'); return; }
   toast('บันทึกแล้ว · แสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน');
@@ -391,7 +668,7 @@ async function loadAdminList() {
   if (error) { $('#drList').innerHTML = `<p class="empty">${esc(errText(error))}</p>`; return; }
   adminList = data || [];
   $('#drList').innerHTML = adminList.length ? adminList.map((r) => `<div class="li"><div class="l"><b>${esc(r.title)}</b>`
-    + `<span class="small muted">${r.period_from ? esc(`${thaiDate(r.period_from)} – ${thaiDate(r.period_to)}`) + ' · ' : ''}สำเร็จ ${n(r.summary?.ok)} ครั้ง · ผู้ป่วย ${n(r.summary?.patients)} คน · บันทึก ${esc(thaiDate(r.created_at))}</span>`
+    + `<span class="small muted">${r.period_from ? esc(`${thaiDate(r.period_from)} – ${thaiDate(r.period_to)}`) + ' · ' : ''}สำเร็จ ${n(r.summary?.ok)} ครั้ง · ผู้ป่วย ${n(r.summary?.patients)} คน${r.summary?.byMonth?.length ? ` · ${r.summary.byMonth.length} เดือน` : ''} · บันทึก ${esc(thaiDate(r.created_at))}</span>`
     + `<span class="small ${r.ai_status === 'error' ? 'ai-err' : 'muted'}" data-ai-st="${r.id}">${r.ai_status === 'done' ? '✓ มีสรุปจาก AI แล้ว' : r.ai_status === 'pending' ? 'AI กำลังสรุป…' : r.ai_status === 'error' ? esc(r.ai_note || 'AI สรุปไม่สำเร็จ') : 'ยังไม่มีสรุปจาก AI'}</span></div>`
     + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-ai="${r.id}">${r.ai_status === 'done' ? 'ให้ AI สรุปใหม่' : 'ให้ AI สรุปเป็นข้อความ'}</button><button type="button" class="btn btn-no btn-sm" data-del="${r.id}">ลบ</button></div></div>`).join('')
     : '<p class="empty">ยังไม่มีสรุปจากไฟล์ · เลือกไฟล์ด้านบนเพื่อเริ่ม</p>';
@@ -409,17 +686,7 @@ async function onList(e) {
   const id = +ai.dataset.ai, st = () => $(`[data-ai-st="${id}"]`);
   busy(ai, true, 'AI กำลังสรุป…');
   try {
-    const { error } = await sb.rpc('ai_delivery_start', { p_id: id });
-    if (error) throw error;
-    let r = { ai_status: 'pending' };
-    for (let i = 0; r.ai_status === 'pending' && i < 80; i++) {
-      await new Promise((ok) => setTimeout(ok, 2500));
-      const { data, error: e2 } = await sb.rpc('ai_delivery_poll', { p_id: id });
-      if (e2) throw e2;
-      r = data;
-    }
-    if (r.ai_status === 'done') toast('AI สรุปแล้ว · แสดงที่หน้าจัดส่งยา');
-    else toast(r.ai_note || 'AI ยังสรุปไม่เสร็จ กรุณาลองใหม่', 'err');
+    await runAiForReport(id, true);
   } catch (err) { toast(errText(err), 'err'); }
   finally { busy(ai, false); loadAdminList(); initDeliveryReports(); }
   if (st()) st().scrollIntoView({ block: 'nearest' });
