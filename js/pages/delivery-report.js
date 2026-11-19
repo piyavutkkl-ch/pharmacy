@@ -551,19 +551,13 @@ export async function initDeliveryReports() {
 function showPicked() { const r = reports.find((x) => x.id === +$('#drPick').value) || reports[0]; if (r) renderDeliveryReport($('#drView'), r); }
 
 /* ======================= ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน ======================= */
-let draft = null, adminBound = false, adminList = [], sheetBusy = false;
+let draft = null, adminBound = false, adminList = [];
 export async function initDeliveryReportAdmin() {
   if (!adminBound) {
     adminBound = true;
     $('#drFile').addEventListener('change', onFile);
     $('#drSheetBtn')?.addEventListener('click', onSheet);
     $('#drSheetUrl')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onSheet(); } });
-    $('#drSheetUrl')?.addEventListener('paste', () => {
-      setTimeout(() => {
-        const u = ($('#drSheetUrl')?.value || '').trim();
-        if (parseGoogleSheetUrl(u) && !sheetBusy) onSheet();
-      }, 60);
-    });
     $('#drSave').addEventListener('click', saveDraft);
     $('#drList').addEventListener('click', onList);
   }
@@ -588,49 +582,23 @@ async function runAiForReport(id, notify = true) {
 }
 
 async function onSheet() {
-  if (sheetBusy) return;
   const url = ($('#drSheetUrl')?.value || '').trim();
   if (!url) { toast('กรุณาวางลิงก์ Google Sheets ก่อน', 'err'); $('#drSheetUrl')?.focus(); return; }
-  sheetBusy = true;
   const msg = $('#drMsg'); msg.style.color = ''; msg.textContent = 'กำลังดึงข้อมูลจาก Google Sheets และสรุปแยกตามเดือน…';
-  const btn = $('#drSheetBtn'); busy(btn, true, 'กำลังดึงและสรุป…');
+  const btn = $('#drSheetBtn'); busy(btn, true, 'กำลังดึง…');
   try {
     const table = await fetchGoogleSheet(url);
     draft = summarizeDelivery(table);
     $('#drTitle').value = draft.title;
-    const previewRep = { title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary };
-    renderDeliveryReport($('#drPreview'), previewRep);
+    renderDeliveryReport($('#drPreview'), { title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
     $('#drPreviewWrap').hidden = false;
     const mCount = draft.summary.byMonth?.length || 1;
-    msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ (${mCount} เดือน) · กำลังบันทึกและให้ AI สรุปลงหน้าเว็บอัตโนมัติ…`;
-    const { data: ins, error: insErr } = await sb.from('delivery_reports')
-      .insert({ title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary })
-      .select('id')
-      .single();
-    if (!insErr && ins?.id) {
-      draft.savedId = ins.id;
-      await loadAdminList();
-      await initDeliveryReports();
-      try {
-        const aiRes = await runAiForReport(ins.id, false);
-        if (aiRes?.ai_status === 'done' && aiRes.ai_text) {
-          renderDeliveryReport($('#drPreview'), { ...previewRep, ai_status: 'done', ai_text: aiRes.ai_text });
-        }
-      } catch {}
-      await loadAdminList();
-      await initDeliveryReports();
-      msg.style.color = 'var(--success)';
-      msg.textContent = `สรุปข้อมูลแยกตามเดือน (${mCount} เดือน · ${n(draft.summary.total)} รายการ) และแสดงผลบนหน้าเว็บอัตโนมัติเรียบร้อยแล้ว`;
-      toast('สรุปข้อมูลจาก Google Sheets แยกตามเดือนลงหน้าเว็บแล้ว');
-    } else {
-      msg.style.color = 'var(--success)';
-      msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ · ตรวจตัวอย่างด้านล่างแล้วกด "บันทึกและแสดงที่หน้าจัดส่งยา"`;
-    }
+    msg.style.color = 'var(--success)';
+    msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ (แยก ${mCount} เดือน) · ตรวจตัวอย่างด้านล่างแล้วกด "บันทึกและแสดงที่หน้าจัดส่งยา"`;
   } catch (err) {
     draft = null; $('#drPreviewWrap').hidden = true;
     msg.style.color = 'var(--error)'; msg.textContent = 'อ่าน Google Sheets ไม่สำเร็จ: ' + errText(err);
   } finally {
-    sheetBusy = false;
     busy(btn, false);
   }
 }
@@ -642,8 +610,9 @@ async function onFile(e) {
     $('#drTitle').value = draft.title;
     renderDeliveryReport($('#drPreview'), { title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
     $('#drPreviewWrap').hidden = false;
+    const mCount = draft.summary.byMonth?.length || 1;
     msg.style.color = 'var(--success)';
-    msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ · ตรวจตัวอย่างด้านล่างแล้วกด "บันทึกและแสดงที่หน้าจัดส่งยา"`;
+    msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ (แยก ${mCount} เดือน) · ตรวจตัวอย่างด้านล่างแล้วกด "บันทึกและแสดงที่หน้าจัดส่งยา"`;
   } catch (err) {
     draft = null; $('#drPreviewWrap').hidden = true;
     msg.style.color = 'var(--error)'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + errText(err) + ' · ลองบันทึกเป็น .csv แล้วเลือกใหม่';
@@ -653,9 +622,7 @@ async function saveDraft() {
   if (!draft) { toast('กรุณาเลือกไฟล์ก่อน', 'err'); return; }
   const btn = $('#drSave'); busy(btn, true, 'กำลังบันทึก…');
   const title = $('#drTitle').value.trim() || draft.title;
-  const { error } = draft.savedId
-    ? await sb.from('delivery_reports').update({ title, period_from: draft.from, period_to: draft.to, summary: draft.summary }).eq('id', draft.savedId)
-    : await sb.from('delivery_reports').insert({ title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
+  const { error } = await sb.from('delivery_reports').insert({ title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
   busy(btn, false);
   if (error) { toast(errText(error), 'err'); return; }
   toast('บันทึกแล้ว · แสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน');
