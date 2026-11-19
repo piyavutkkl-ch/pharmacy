@@ -1179,40 +1179,55 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('หน้าหลัก: โปสเตอร์แสดง + ข้อความใหม่ + สถิติอัปเดต', await count(p, '#dlPosters .poster img') === 1 && (await text(p, '#dlInfo')).includes('บริการใหม่') && (await text(p, '#dlFigs')).includes('117'));
     await p.screenshot({ path: path.join(SHOTS, 'home-delivery-1280.png'), fullPage: true });
     await go(p, '#/admin/rider'); await p.waitForTimeout(400);
-    check('ผู้ดูแล: Health Rider แยกตามตำบล (หัวข้อตามไฟล์ประวัติการจัดส่งยา) + ข้อความแนะนำ', await count(p, '#hrStats .hr-trow') === 0 && (await text(p, '#hrStats')).includes('นำเข้าไฟล์') && (await p.inputValue('#hrInfoEdit')).includes('Health Rider'));
-    { const H = 'ลำดับ,บริการขนส่ง,สถานะ,HN,ชื่อผู้ใช้บริการ,วันเวลาที่สร้างออเดอร์,ค่าจัดส่ง,ที่อยู่จัดส่งยา';
-      const r = (i, svc, st, hn, d, fee, tam) => [i, svc, st, hn, 'ชื่อสมมติ' + i, `วันที่ ${d} เวลา 9:00 น.`, fee, `"ตำบล ${tam} อำเภอ ตัวอย่าง"`].join(',');
-      const csv = ['ประวัติรายการจัดส่งยา', H, r(1, 'rider', 'สำเร็จ', '000000001', '01/09/2569', 0, 'ควนกาหลง'), r(2, 'rider', 'สำเร็จ', '000000001', '02/09/2569', 0, 'ควนกาหลง'),
+    check('ผู้ดูแล: Health Rider แยกตามตำบล (เฉพาะ Google Sheets · ไม่มีช่องเลือกไฟล์ในเครื่อง) + ข้อความแนะนำ', await count(p, '#hrStats .hr-trow') === 0 && !(await p.$('#hrFile')) && (await text(p, '#hrStats')).includes('Google Sheets') && (await p.inputValue('#hrInfoEdit')).includes('Health Rider'));
+    { const gvizFromRows = (rows) => {
+        const w = Math.max(1, ...rows.map((r) => r.length));
+        const cols = Array.from({ length: w }, (_, i) => ({ id: 'C' + i, label: String(rows[0]?.[i] ?? ''), type: 'string' }));
+        const gRows = rows.slice(1).map((r) => ({ c: Array.from({ length: w }, (_, i) => ({ v: String(r[i] ?? '') })) }));
+        return '/*O_o*/\ngoogle.visualization.Query.setResponse(' + JSON.stringify({ version: '0.6', status: 'ok', sig: '123', table: { cols, rows: gRows } }) + ');';
+      };
+      let sheetRows = [];
+      await p.route('**/spreadsheets/d/**/gviz/tq*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: gvizFromRows(sheetRows) }));
+      const fetchSheet = async (selUrl, selBtn, rows, wait = 500) => {
+        sheetRows = rows;
+        await p.fill(selUrl, 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0');
+        await p.click(selBtn);
+        await p.waitForTimeout(wait);
+      };
+      const H = ['ลำดับ', 'บริการขนส่ง', 'สถานะ', 'HN', 'ชื่อผู้ใช้บริการ', 'วันเวลาที่สร้างออเดอร์', 'ค่าจัดส่ง', 'ที่อยู่จัดส่งยา'];
+      const r = (i, svc, st, hn, d, fee, tam) => [i, svc, st, hn, 'ชื่อสมมติ' + i, `วันที่ ${d} เวลา 9:00 น.`, fee, `ตำบล ${tam} อำเภอ ตัวอย่าง`];
+      const rows1 = [['ประวัติรายการจัดส่งยา'], H, r(1, 'rider', 'สำเร็จ', '000000001', '01/09/2569', 0, 'ควนกาหลง'), r(2, 'rider', 'สำเร็จ', '000000001', '02/09/2569', 0, 'ควนกาหลง'),
         r(3, 'rider', 'ยกเลิก', '000000002', '03/09/2569', 65, 'ทุ่งนุ้ย'), r(4, 'post (Flash Express)', 'สำเร็จ', '000000003', '04/09/2569', 55, 'ทุ่งนุ้ย'),
-        r(5, 'rider', 'สำเร็จ', '000000004', '05/10/2569', 65, 'อุใดเจริญ')].join('\n');
-      await p.setInputFiles('#hrFile', { name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('\uFEFF' + csv) }); await p.waitForTimeout(500);
+        r(5, 'rider', 'สำเร็จ', '000000004', '05/10/2569', 65, 'อุใดเจริญ')];
+      await fetchSheet('#hrSheetUrl', '#hrSheetBtn', rows1);
       const v = async (t, k) => p.inputValue(`#hrStats [data-tambon="${t}"] [data-k="${k}"]`);
-      check('นำเข้าไฟล์ประวัติการจัดส่งยา: นับเฉพาะ rider แยกปีงบ × ตำบล (สำเร็จ 2 · คน 1 · ส่งฟรี 2 · ยกเลิก 1)', (await text(p, '#hrImportMsg')).includes('2569') && (await text(p, '#hrImportMsg')).includes('2570') && await visible(p, '#hrSaveAll')
+      check('ดึงจาก Google Sheets ประวัติการจัดส่งยา: นับเฉพาะ rider แยกปีงบ × ตำบล (สำเร็จ 2 · คน 1 · ส่งฟรี 2 · ยกเลิก 1)', (await text(p, '#hrImportMsg')).includes('2569') && (await text(p, '#hrImportMsg')).includes('2570') && await visible(p, '#hrSaveAll')
         && (await p.inputValue('#hrYear')) === '2570' && (await v('อุใดเจริญ', 'delivered')) === '1' && (await text(p, '#hrStats')).includes('ส่งฟรี'), await text(p, '#hrImportMsg'));
-      // ไฟล์ที่วันที่ไม่ใช่รูปแบบ "วันที่ 01/09/2569 เวลา …" (บันทึกจาก Excel: วันที่จริง / ค.ศ. / ปี 2 หลัก) + ชื่อบริการ "Health Rider"
-      { const r2 = (i, svc, d) => [i, svc, 'สำเร็จ', '00000009' + i, 'ชื่อสมมติ', d, 0, '"ตำบล ทุ่งนุ้ย อำเภอ ตัวอย่าง"'].join(',');
-        const csv2 = [H, r2(1, 'Health Rider', '2026-10-05 09:00'), r2(2, 'RIDER', '6/10/69 10:15'), r2(3, 'rider', '07-10-2026'), r2(4, 'rider', '46302.4')].join('\n');
-        await p.setInputFiles('#hrFile', { name: 'h2.csv', mimeType: 'text/csv', buffer: Buffer.from(csv2) }); await p.waitForTimeout(500);
-        check('นำเข้าไฟล์ Health Rider: อ่านวันที่ได้หลายรูปแบบ (ค.ศ./ปี 2 หลัก/เลขวันที่ Excel) + ชื่อบริการ "Health Rider"', (await text(p, '#hrImportMsg')).includes('2570: 4 ครั้ง'), await text(p, '#hrImportMsg'));
-        // ไฟล์อีกรุ่น (ส่งออกจากหน้าลงทะเบียน): ไม่มี "วันเวลาที่สร้างออเดอร์"/"ค่าจัดส่ง" · ใช้ "วันเวลาที่ลงทะเบียน" แทน
-        const H5 = 'ลำดับ,รหัสโรงพยาบาล,โรงพยาบาล,บริการขนส่ง,สถานะ,HN,ชื่อผู้ใช้บริการ,วันเวลาที่ลงทะเบียน,ที่อยู่จัดส่งยา';
-        const r5 = (i, st, d, tam) => [i, '10000', 'รพ.ตัวอย่าง', 'rider', st, '0000005' + i, 'ชื่อสมมติ', `วันที่ ${d} เวลา 10:00 น.`, `"ตำบล ${tam} อำเภอ ตัวอย่าง"`].join(',');
-        const csv5 = ['รายการลงทะเบียน', H5, r5(1, 'สำเร็จ', '01/09/2569', 'ทุ่งนุ้ย'), r5(2, 'สำเร็จ', '02/10/2569', 'ทุ่งนุ้ย'), r5(3, 'ยกเลิก', '03/10/2569', 'ควนกาหลง')].join('\n');
-        await p.setInputFiles('#hrFile', { name: 'reg.csv', mimeType: 'text/csv', buffer: Buffer.from(csv5) }); await p.waitForTimeout(500);
-        check('นำเข้าไฟล์ Health Rider: ไฟล์ที่ใช้ "วันเวลาที่ลงทะเบียน" (ไม่มีวันสร้างออเดอร์/ค่าจัดส่ง) อ่านได้', /2569: 1 ครั้ง/.test(await text(p, '#hrImportMsg')) && /2570: 1 ครั้ง/.test(await text(p, '#hrImportMsg')), await text(p, '#hrImportMsg'));
-        const csv3 = [H, r2(1, 'post (Flash Express)', '2026-10-05'), r2(2, 'post (ไปรษณีย์ไทย)', '2026-10-06')].join('\n');
-        await p.setInputFiles('#hrFile', { name: 'h3.csv', mimeType: 'text/csv', buffer: Buffer.from(csv3) }); await p.waitForTimeout(400);
-        check('นำเข้าไฟล์ Health Rider: ไม่มีบริการ rider → บอกเหตุผล + บริการที่พบในไฟล์', (await text(p, '#hrImportMsg')).includes('ไม่พบบริการขนส่ง rider') && (await text(p, '#hrImportMsg')).includes('ไปรษณีย์'), await text(p, '#hrImportMsg'));
-        const csv4 = [H, r2(1, 'rider', 'ไม่ระบุ')].join('\n');
-        await p.setInputFiles('#hrFile', { name: 'h4.csv', mimeType: 'text/csv', buffer: Buffer.from(csv4) }); await p.waitForTimeout(400);
-        check('นำเข้าไฟล์ Health Rider: อ่านวันที่ไม่ได้ → บอกตัวอย่างวันที่ในไฟล์', (await text(p, '#hrImportMsg')).includes('อ่าน "วันเวลาที่สร้างออเดอร์" ไม่ได้'), await text(p, '#hrImportMsg'));
-        await p.setInputFiles('#hrFile', { name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('\uFEFF' + csv) }); await p.waitForTimeout(500); }
-      { // ส่งออกข้อมูลจากไฟล์ที่เลือกเป็น Excel (เลือกหัวข้อ/รายการเอง · ทำในเครื่อง ไม่อัปโหลด) — แทน SheetJS ด้วยตัวจำลองที่จำสิ่งที่จะเขียน
+      // ชีตที่วันที่ไม่ใช่รูปแบบ "วันที่ 01/09/2569 เวลา …" (วันที่จริง / ค.ศ. / ปี 2 หลัก) + ชื่อบริการ "Health Rider"
+      { const r2 = (i, svc, d) => [i, svc, 'สำเร็จ', '00000009' + i, 'ชื่อสมมติ', d, 0, 'ตำบล ทุ่งนุ้ย อำเภอ ตัวอย่าง'];
+        const rows2 = [H, r2(1, 'Health Rider', '2026-10-05 09:00'), r2(2, 'RIDER', '6/10/69 10:15'), r2(3, 'rider', '07-10-2026'), r2(4, 'rider', '46302.4')];
+        await fetchSheet('#hrSheetUrl', '#hrSheetBtn', rows2);
+        check('ดึงข้อมูล Health Rider: อ่านวันที่ได้หลายรูปแบบ (ค.ศ./ปี 2 หลัก/เลขวันที่ Excel) + ชื่อบริการ "Health Rider"', (await text(p, '#hrImportMsg')).includes('2570: 4 ครั้ง'), await text(p, '#hrImportMsg'));
+        // ชีตอีกรุ่น (ส่งออกจากหน้าลงทะเบียน): ไม่มี "วันเวลาที่สร้างออเดอร์"/"ค่าจัดส่ง" · ใช้ "วันเวลาที่ลงทะเบียน" แทน
+        const H5 = ['ลำดับ', 'รหัสโรงพยาบาล', 'โรงพยาบาล', 'บริการขนส่ง', 'สถานะ', 'HN', 'ชื่อผู้ใช้บริการ', 'วันเวลาที่ลงทะเบียน', 'ที่อยู่จัดส่งยา'];
+        const r5 = (i, st, d, tam) => [i, '10000', 'รพ.ตัวอย่าง', 'rider', st, '0000005' + i, 'ชื่อสมมติ', `วันที่ ${d} เวลา 10:00 น.`, `ตำบล ${tam} อำเภอ ตัวอย่าง`];
+        const rows5 = [['รายการลงทะเบียน'], H5, r5(1, 'สำเร็จ', '01/09/2569', 'ทุ่งนุ้ย'), r5(2, 'สำเร็จ', '02/10/2569', 'ทุ่งนุ้ย'), r5(3, 'ยกเลิก', '03/10/2569', 'ควนกาหลง')];
+        await fetchSheet('#hrSheetUrl', '#hrSheetBtn', rows5);
+        check('ดึงข้อมูล Health Rider: ชีตที่ใช้ "วันเวลาที่ลงทะเบียน" (ไม่มีวันสร้างออเดอร์/ค่าจัดส่ง) อ่านได้', /2569: 1 ครั้ง/.test(await text(p, '#hrImportMsg')) && /2570: 1 ครั้ง/.test(await text(p, '#hrImportMsg')), await text(p, '#hrImportMsg'));
+        const rows3 = [H, r2(1, 'post (Flash Express)', '2026-10-05'), r2(2, 'post (ไปรษณีย์ไทย)', '2026-10-06')];
+        await fetchSheet('#hrSheetUrl', '#hrSheetBtn', rows3, 400);
+        check('ดึงข้อมูล Health Rider: ไม่มีบริการ rider → บอกเหตุผล + บริการที่พบในชีต', (await text(p, '#hrImportMsg')).includes('ไม่พบบริการขนส่ง rider') && (await text(p, '#hrImportMsg')).includes('ไปรษณีย์'), await text(p, '#hrImportMsg'));
+        const rows4 = [H, r2(1, 'rider', 'ไม่ระบุ')];
+        await fetchSheet('#hrSheetUrl', '#hrSheetBtn', rows4, 400);
+        check('ดึงข้อมูล Health Rider: อ่านวันที่ไม่ได้ → บอกตัวอย่างวันที่ในชีต', (await text(p, '#hrImportMsg')).includes('อ่าน "วันเวลาที่สร้างออเดอร์" ไม่ได้'), await text(p, '#hrImportMsg'));
+        await fetchSheet('#hrSheetUrl', '#hrSheetBtn', rows1); }
+      { // ส่งออกข้อมูลจาก Google Sheets ที่ดึงมาเป็น Excel (เลือกหัวข้อ/รายการเอง · ทำในเครื่อง ไม่อัปโหลด) — แทน SheetJS ด้วยตัวจำลองที่จำสิ่งที่จะเขียน
         await p.route('**/xlsx-0.20.3/package/xlsx.mjs', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body:
           'export const utils = { book_new: () => ({ s: [] }), aoa_to_sheet: (a) => ({ a }), book_append_sheet: (wb, ws, n) => wb.s.push({ n, a: ws.a }) };'
           + 'export function writeFile(wb, name) { window.__xlsxOut = { name, sheet: wb.s[0].n, aoa: wb.s[0].a }; }' }));
         const heads = await p.$$eval('#hrExCols input', (x) => x.map((i) => i.value));
-        check('ส่งออก Excel: เลือกไฟล์แล้วมีกล่องส่งออก + หัวข้อตามไฟล์ + คำเตือน PDPA', await visible(p, '#hrExport') && heads.includes('HN') && heads.includes('ชื่อผู้ใช้บริการ') && (await text(p, '#hrExport')).includes('ไม่อัปโหลด'), heads.join(','));
+        check('ส่งออก Excel: ดึงชีตแล้วมีกล่องส่งออก + หัวข้อตามชีต + คำเตือน PDPA', await visible(p, '#hrExport') && heads.includes('HN') && heads.includes('ชื่อผู้ใช้บริการ') && (await text(p, '#hrExport')).includes('ไม่อัปโหลด'), heads.join(','));
+        await p.waitForFunction(() => !document.querySelector('#hrAiSummaryBtn')?.disabled);
         const nCalls = await p.evaluate(() => (window.__calls || []).length);
         await p.click('#hrExBtn'); await p.waitForTimeout(200);
         check('ส่งออก Excel: ยังไม่เลือกหัวข้อ → บอกให้เลือก', (await text(p, '#hrExMsg')).includes('อย่างน้อย 1 หัวข้อ'));
@@ -1226,20 +1241,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         check('ส่งออก Excel: Health Rider ที่ส่งสำเร็จ = 3 รายการ (ไม่รวมไปรษณีย์/ยกเลิก)', (await p.evaluate(() => window.__xlsxOut.aoa.length)) === 4);
         check('ส่งออก Excel: ไม่เรียกฐานข้อมูล/ไม่อัปโหลด', (await p.evaluate(() => (window.__calls || []).length)) === nCalls); }
       await p.selectOption('#hrYear', '2569'); await p.waitForTimeout(400);
-      check('นำเข้าไฟล์: ปีงบ 2569 ต.ควนกาหลง สำเร็จ 2 ผู้รับบริการ 1 ส่งฟรี 2 · ต.ทุ่งนุ้ย ยกเลิก 1 (ไปรษณีย์ไม่นับ)', (await v('ควนกาหลง', 'delivered')) === '2' && (await v('ควนกาหลง', 'clients')) === '1' && (await v('ควนกาหลง', 'free')) === '2' && (await v('ทุ่งนุ้ย', 'cancelled')) === '1' && (await v('ทุ่งนุ้ย', 'delivered')) === '0'); }
+      check('ดึงข้อมูลจากชีต: ปีงบ 2569 ต.ควนกาหลง สำเร็จ 2 ผู้รับบริการ 1 ส่งฟรี 2 · ต.ทุ่งนุ้ย ยกเลิก 1 (ไปรษณีย์ไม่นับ)', (await v('ควนกาหลง', 'delivered')) === '2' && (await v('ควนกาหลง', 'clients')) === '1' && (await v('ควนกาหลง', 'free')) === '2' && (await v('ทุ่งนุ้ย', 'cancelled')) === '1' && (await v('ทุ่งนุ้ย', 'delivered')) === '0');
     await p.click('#hrSaveAll'); await p.waitForTimeout(400);
     { const up = (await calls(p, (c) => c.table === 'rider_tambon_stats' && c.op === 'upsert')).pop()?.payload || [];
-      check('บันทึกทุกปีงบจากไฟล์: เก็บเฉพาะตัวเลขรวม (ไม่มีชื่อ/HN)', up.length === 3 && !/ชื่อสมมติ|000000001/.test(JSON.stringify(up)), JSON.stringify(up)); }
+      check('บันทึกทุกปีงบจาก Google Sheets: เก็บเฉพาะตัวเลขรวม (ไม่มีชื่อ/HN)', up.length === 3 && !/ชื่อสมมติ|000000001/.test(JSON.stringify(up)), JSON.stringify(up)); }
     await p.fill('#hrNewTambon', 'ตำบล กระทูน'); await p.click('#hrAddTambon'); await p.waitForTimeout(100);
     check('เพิ่มตำบลเองได้ (ตัดคำว่า "ตำบล")', await count(p, '#hrStats [data-tambon="กระทูน"]') === 1);
-    { // นำเข้าจาก Google Sheets + หัวคอลัมน์แบบยืดหยุ่น + ให้ AI สรุปข้อมูลขึ้นนำเสนอ
-      await p.route('**/spreadsheets/d/**/gviz/tq*', (r) => {
-        const gvizRes = '/*O_o*/\ngoogle.visualization.Query.setResponse({"version":"0.6","status":"ok","sig":"123","table":{"cols":[{"id":"A","label":"สถานะการจัดส่ง","type":"string"},{"id":"B","label":"ช่องทางจัดส่ง","type":"string"},{"id":"C","label":"HN","type":"string"},{"id":"D","label":"วันเวลาที่สร้างออเดอร์","type":"string"},{"id":"E","label":"ค่าจัดส่ง","type":"string"},{"id":"F","label":"ที่อยู่จัดส่งยา","type":"string"}],"rows":[{"c":[{"v":"จัดส่งสำเร็จ"},{"v":"ไรเดอร์"},{"v":"000000888"},{"v":"วันที่ 15/10/2569 เวลา 10:00 น."},{"v":"0"},{"v":"ต.ควนกาหลง"}]}]}});';
-        r.fulfill({ status: 200, contentType: 'application/json', body: gvizRes });
-      });
-      await p.fill('#hrSheetUrl', 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0');
-      await p.click('#hrSheetBtn');
-      await p.waitForTimeout(600);
+    { // นำเข้าจาก Google Sheets หัวคอลัมน์แบบยืดหยุ่น + ให้ AI สรุปข้อมูลขึ้นนำเสนอ
+      const flexRows = [
+        ['สถานะการจัดส่ง', 'ช่องทางจัดส่ง', 'HN', 'วันเวลาที่สร้างออเดอร์', 'ค่าจัดส่ง', 'ที่อยู่จัดส่งยา'],
+        ['จัดส่งสำเร็จ', 'ไรเดอร์', '000000888', 'วันที่ 15/10/2569 เวลา 10:00 น.', '0', 'ต.ควนกาหลง'],
+      ];
+      await fetchSheet('#hrSheetUrl', '#hrSheetBtn', flexRows, 600);
       check('นำเข้าผลงานจาก Google Sheets: ดึงข้อมูลและอ่านตารางสำเร็จ (หัวตารางยืดหยุ่น)', (await text(p, '#hrImportMsg')).includes('นับแล้ว ปีงบ 2570') && (await p.inputValue('#hrYear')) === '2570');
       await p.click('#hrAiSummaryBtn');
       await p.waitForTimeout(600);
@@ -1250,33 +1263,34 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     check('ลิงก์ #/rider เดิม: เปิดช่องบริการจัดส่งยาถึงบ้านที่ผลงาน Health Rider', await visible(p, '[data-panel="delivery"] #hrBlock'));
     check('หน้าหลัก Health Rider: ข้อความใหม่ + ผลงานแยกตามตำบล', (await text(p, '#hrInfo')).includes('ไรเดอร์สุขภาพ') && (await text(p, '#hrFigs')).includes('ตำบลที่ให้บริการ') && (await text(p, '#hrBars')).includes('ต.อุใดเจริญ'), await text(p, '#hrFigs'));
     await p.screenshot({ path: path.join(SHOTS, 'home-rider-1280.png'), fullPage: true });
-    // ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน: สรุปจากไฟล์ประวัติการจัดส่งยา (อ่านในเครื่อง · เก็บเฉพาะตัวเลขสรุป) + ปุ่ม AI
-    { const head = 'ลำดับ,รหัสโรงพยาบาล,โรงพยาบาล,บริการขนส่ง,น้ำหนัก (กรัม),ขนาด (กว้าง x ยาว x สูง),สถานะ,รายละเอียดการขนส่ง,สถานะเดิม,เวลาที่อัปเดตสถานะ,เลขที่การจัดส่ง,ชื่อผู้ขับ,เบอร์โทรผู้ขับ,เลขออเดอร์,HN,VN,ชื่อผู้ใช้บริการ,หมายเลขบัตรประชาชน,เบอร์โทร,วันเวลาที่ลงทะเบียน,วันเวลาที่สร้างออเดอร์,ประเภทสิทธิการรักษา,รายละเอียดสิทธิการรักษา,ค่าจัดส่ง,วัน-เวลา จัดส่งพัสดุสำเร็จ,ที่อยู่จัดส่งยา,แพทย์/เจ้าหน้าที่,บริการ';
+    // ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน: สรุปจาก Google Sheets ประวัติการจัดส่งยา (อ่านในเครื่อง · เก็บเฉพาะตัวเลขสรุป) + ปุ่ม AI
+    { const head = ['ลำดับ', 'รหัสโรงพยาบาล', 'โรงพยาบาล', 'บริการขนส่ง', 'น้ำหนัก (กรัม)', 'ขนาด (กว้าง x ยาว x สูง)', 'สถานะ', 'รายละเอียดการขนส่ง', 'สถานะเดิม', 'เวลาที่อัปเดตสถานะ', 'เลขที่การจัดส่ง', 'ชื่อผู้ขับ', 'เบอร์โทรผู้ขับ', 'เลขออเดอร์', 'HN', 'VN', 'ชื่อผู้ใช้บริการ', 'หมายเลขบัตรประชาชน', 'เบอร์โทร', 'วันเวลาที่ลงทะเบียน', 'วันเวลาที่สร้างออเดอร์', 'ประเภทสิทธิการรักษา', 'รายละเอียดสิทธิการรักษา', 'ค่าจัดส่ง', 'วัน-เวลา จัดส่งพัสดุสำเร็จ', 'ที่อยู่จัดส่งยา', 'แพทย์/เจ้าหน้าที่', 'บริการ'];
       const row = (i, svc, st, hn, mo, tam, rights, fee, done) => [i, '99999', 'โรงพยาบาลตัวอย่าง', svc, '-', '-', st, st, '-', '-', 'DX' + i, '-', '-', 'ORD' + i, hn, '690000000' + i, 'ชื่อสมมติ ทดสอบ' + i, '1100000000' + String(i).padStart(3, '0'), '0800000000',
         `วันที่ 01/${mo}/2569 เวลา 9:00 น.`, `วันที่ 01/${mo}/2569 เวลา 9:10 น.`, rights.startsWith('CSH') ? 'NON UC' : 'UC', rights, fee, done ? `วันที่ 01/${mo}/2569 เวลา 15:10 น.` : '-',
-        `"บ้านเลขที่ 1 หมู่ 1 ตำบล ${tam} อำเภอ ตัวอย่าง จังหวัด สตูล รหัสไปรษณีย์ 91130"`, 'หมอสมมติ', 'hosxp'].join(',');
-      const csv = ['ประวัติรายการจัดส่งยา วันที่ 01 พฤษภาคม 2569 - 30 มิถุนายน 2569', head,
+        `บ้านเลขที่ 1 หมู่ 1 ตำบล ${tam} อำเภอ ตัวอย่าง จังหวัด สตูล รหัสไปรษณีย์ 91130`, 'หมอสมมติ', 'hosxp'];
+      const drRows = [['ประวัติรายการจัดส่งยา วันที่ 01 พฤษภาคม 2569 - 30 มิถุนายน 2569'], head,
         row(1, 'rider', 'สำเร็จ', '000000001', '05', 'ควนกาหลง', 'UCS : ผู้สูงอายุ', 0, true), row(2, 'rider', 'สำเร็จ', '000000002', '05', 'ควนกาหลง', 'UCS : ผู้สูงอายุ', 0, true),
-        row(3, 'post (Flash Express (Mobilyst))', 'สำเร็จ', '000000001', '06', 'ทุ่งนุ้ย', 'CSH : ชำระเงินเอง', 55, true), row(4, 'rider', 'ยกเลิก', '000000003', '06', 'อุใดเจริญ', 'UCS : ผู้พิการ', 65, false)].join('\n');
+        row(3, 'post (Flash Express (Mobilyst))', 'สำเร็จ', '000000001', '06', 'ทุ่งนุ้ย', 'CSH : ชำระเงินเอง', 55, true), row(4, 'rider', 'ยกเลิก', '000000003', '06', 'อุใดเจริญ', 'UCS : ผู้พิการ', 65, false)];
       await go(p, '#/admin/rider/delivery'); await p.waitForTimeout(500);
+      check('จัดส่งยาถึงบ้าน: ไม่มีช่องเลือกไฟล์ในเครื่อง (เหลือเฉพาะวางลิงก์ Google Sheets)', !(await p.$('#drFile')) && await visible(p, '#drSheetUrl') && await visible(p, '#drSheetBtn'));
       const up0 = (await calls(p, (c) => c.upload)).length;
-      await p.setInputFiles('#drFile', { name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('\uFEFF' + csv) }); await p.waitForTimeout(500);
-      check('จัดส่งยา Excel: อ่านไฟล์ในเครื่อง → ตัวอย่างสรุป (สำเร็จ 3 · ผู้ป่วย 2 คน · ยกเลิก 1)', await visible(p, '#drPreviewWrap') && (await text(p, '#drPreview')).includes('สำเร็จ 3') && (await text(p, '#drPreview')).includes('ยกเลิก 1') && (await p.$$eval('#drPreview .fig .n', (f) => f.map((x) => x.textContent))).slice(0, 2).join('|') === '3|2', await text(p, '#drPreview'));
-      check('จัดส่งยา Excel: แยกตามเดือน/ตำบล/ช่องทาง/สิทธิ', (await text(p, '#drPreview')).includes('ไรเดอร์') && (await text(p, '#drPreview')).includes('พ.ค. 69') && (await text(p, '#drPreview')).includes('ทุ่งนุ้ย') && (await text(p, '#drPreview')).includes('Flash Express') && (await text(p, '#drPreview')).includes('ผู้สูงอายุ'));
+      await fetchSheet('#drSheetUrl', '#drSheetBtn', drRows);
+      check('จัดส่งยา Google Sheets: ดึงข้อมูล → ตัวอย่างสรุป (สำเร็จ 3 · ผู้ป่วย 2 คน · ยกเลิก 1)', await visible(p, '#drPreviewWrap') && (await text(p, '#drPreview')).includes('สำเร็จ 3') && (await text(p, '#drPreview')).includes('ยกเลิก 1') && (await p.$$eval('#drPreview .fig .n', (f) => f.map((x) => x.textContent))).slice(0, 2).join('|') === '3|2', await text(p, '#drPreview'));
+      check('จัดส่งยา Google Sheets: แยกตามเดือน/ตำบล/ช่องทาง/สิทธิ', (await text(p, '#drPreview')).includes('ไรเดอร์') && (await text(p, '#drPreview')).includes('พ.ค. 69') && (await text(p, '#drPreview')).includes('ทุ่งนุ้ย') && (await text(p, '#drPreview')).includes('Flash Express') && (await text(p, '#drPreview')).includes('ผู้สูงอายุ'));
       await p.click('#drSave'); await p.waitForTimeout(500);
       const ins = (await calls(p, (c) => c.table === 'delivery_reports' && c.op === 'insert')).pop()?.payload || {};
       const raw = JSON.stringify(ins);
-      check('จัดส่งยา Excel: บันทึกเฉพาะตัวเลขสรุป (ไม่มีชื่อ/เลขบัตร/HN/เบอร์/ที่อยู่ · ไม่อัปโหลดไฟล์)', ins.summary?.ok === 3 && ins.summary?.patients === 2 && ins.period_from === '2026-05-01' && !/ชื่อสมมติ|1100000000|000000001|0800000000|บ้านเลขที่|หมอสมมติ|\d{9,}/.test(raw) && (await calls(p, (c) => c.upload)).length === up0, raw);
-      check('จัดส่งยา Excel: รายการที่บันทึก + ปุ่มให้ AI สรุป', (await text(p, '#drList')).includes('สำเร็จ 3 ครั้ง') && await count(p, '#drList [data-ai]') === 1);
+      check('จัดส่งยา Google Sheets: บันทึกเฉพาะตัวเลขสรุป (ไม่มีชื่อ/เลขบัตร/HN/เบอร์/ที่อยู่ · ไม่อัปโหลดไฟล์)', ins.summary?.ok === 3 && ins.summary?.patients === 2 && ins.period_from === '2026-05-01' && !/ชื่อสมมติ|1100000000|000000001|0800000000|บ้านเลขที่|หมอสมมติ|\d{9,}/.test(raw) && (await calls(p, (c) => c.upload)).length === up0, raw);
+      check('จัดส่งยา Google Sheets: รายการที่บันทึก + ปุ่มให้ AI สรุป', (await text(p, '#drList')).includes('สำเร็จ 3 ครั้ง') && await count(p, '#drList [data-ai]') === 1);
       await p.click('#drList [data-ai]'); await p.waitForTimeout(6500);
-      check('จัดส่งยา Excel: กดให้ AI สรุป → มีข้อความสรุป', (await text(p, '#drList')).includes('มีสรุปจาก AI แล้ว'));
+      check('จัดส่งยา Google Sheets: กดให้ AI สรุป → มีข้อความสรุป', (await text(p, '#drList')).includes('มีสรุปจาก AI แล้ว'));
       await go(p, '#/delivery'); await p.waitForTimeout(700);
       check('หน้าจัดส่งยา: แสดงสรุปจากประวัติการจัดส่งยา + ข้อความจาก AI', await visible(p, '#drPanel') && (await text(p, '#drView')).includes('จัดส่งยาสำเร็จ') && (await text(p, '#drView')).includes('สรุปโดย AI') && !(await text(p, '#drView')).includes('ชื่อสมมติ'));
       await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(200);
       check('หน้าจัดส่งยา 390px: สรุปไม่ล้นจอ', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
       await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-report-390.png') });
       await p.setViewportSize({ width: 1280, height: 900 });
-      // ทดสอบวางลิงก์ Google Sheets (#drSheetUrl) → สรุปข้อมูลแยกแต่ละเดือน + AI สรุปลงหน้าเว็บอัตโนมัติ
+      // ทดสอบวางลิงก์ Google Sheets (#drSheetUrl) → สรุปข้อมูลแยกแต่ละเดือน
       await p.unroute('**/spreadsheets/d/**/gviz/tq*');
       await p.route('**/spreadsheets/d/**/gviz/tq*', (r) => {
         const gvizRes = '/*O_o*/\ngoogle.visualization.Query.setResponse({"version":"0.6","status":"ok","sig":"456","table":{"cols":[{"id":"A","label":"สถานะ","type":"string"},{"id":"B","label":"บริการขนส่ง","type":"string"},{"id":"C","label":"HN","type":"string"},{"id":"D","label":"วันเวลาที่สร้างออเดอร์","type":"string"},{"id":"E","label":"ประเภทสิทธิการรักษา","type":"string"},{"id":"F","label":"รายละเอียดสิทธิการรักษา","type":"string"},{"id":"G","label":"ค่าจัดส่ง","type":"string"},{"id":"H","label":"ที่อยู่จัดส่งยา","type":"string"}],"rows":['
@@ -1311,7 +1325,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#drView [data-dr-month-tab="2026-10"]'); await p.waitForTimeout(150);
       check('หน้าจัดส่งยา: กดแท็บเลือกดูเฉพาะเดือน ตุลาคม 2569 ได้',
         await visible(p, '#drView [data-month-card="2026-10"]') && !(await visible(p, '#drView [data-month-card="2026-09"]')));
-    }
+      await p.setViewportSize({ width: 1280, height: 900 });
+    } }
     await go(p, '#/admin/drugs/dose');
     check('คำนวณขนาดยา: กล่อง "+ เพิ่มรายการยา" ย่อไว้เป็นปกติ', !(await p.$eval('#dfNewFold', (d) => d.open)) && !(await p.isVisible('#dfName')));
     await p.click('#dfNewFold > summary'); await p.waitForTimeout(150);
