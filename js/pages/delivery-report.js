@@ -1,5 +1,5 @@
-// สรุปจากไฟล์ "ประวัติรายการจัดส่งยา" (Excel/CSV จากระบบจัดส่งยา) → หน้าบริการจัดส่งยาถึงบ้าน (53_delivery_reports.sql)
-//   ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน: เลือกไฟล์ → อ่านในเครื่อง (ไม่อัปโหลดไฟล์) → summarizeDelivery() = ตัวเลขสรุปเท่านั้น
+// สรุปจาก Google Sheets "ประวัติรายการจัดส่งยา" → หน้าบริการจัดส่งยาถึงบ้าน (53_delivery_reports.sql)
+//   ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน: วางลิงก์ Google Sheets → อ่านในเครื่อง (ไม่อัปโหลดไฟล์) → summarizeDelivery() = ตัวเลขสรุปเท่านั้น
 //     (ไม่มีชื่อ/เลขบัตร/HN/เบอร์/ที่อยู่ · HN ใช้นับจำนวนผู้ป่วยในเครื่องแล้วทิ้ง) → ตรวจตัวอย่าง → บันทึก delivery_reports
 //   ปุ่ม "ให้ AI สรุปเป็นข้อความ" (ไม่บังคับ): ส่งเฉพาะตัวเลขสรุปให้ Gemini → ai_text
 //   หน้าหลัก #/delivery: เลือกช่วงข้อมูล → ตัวเลข + กราฟแท่ง (เดือน/ตำบล/ช่องทาง/สิทธิ) + ข้อความจาก AI (ถ้ามี)
@@ -334,7 +334,6 @@ let draft = null, adminBound = false, adminList = [];
 export async function initDeliveryReportAdmin() {
   if (!adminBound) {
     adminBound = true;
-    $('#drFile').addEventListener('change', onFile);
     $('#drSheetBtn')?.addEventListener('click', onSheet);
     $('#drSheetUrl')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onSheet(); } });
     $('#drSave').addEventListener('click', saveDraft);
@@ -360,23 +359,8 @@ async function onSheet() {
     msg.style.color = 'var(--error)'; msg.textContent = 'อ่าน Google Sheets ไม่สำเร็จ: ' + errText(err);
   } finally { busy(btn, false); }
 }
-async function onFile(e) {
-  const f = e.target.files[0]; if (!f) return;
-  const msg = $('#drMsg'); msg.style.color = ''; msg.textContent = 'กำลังอ่านไฟล์ในเครื่อง…';
-  try {
-    draft = summarizeDelivery(await readTable(f));
-    $('#drTitle').value = draft.title;
-    renderDeliveryReport($('#drPreview'), { title: draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
-    $('#drPreviewWrap').hidden = false;
-    msg.style.color = 'var(--success)';
-    msg.textContent = `อ่านแล้ว ${n(draft.summary.total)} รายการ · ตรวจตัวอย่างด้านล่างแล้วกด "บันทึกและแสดงที่หน้าจัดส่งยา"`;
-  } catch (err) {
-    draft = null; $('#drPreviewWrap').hidden = true;
-    msg.style.color = 'var(--error)'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + errText(err) + ' · ลองบันทึกเป็น .csv แล้วเลือกใหม่';
-  } finally { e.target.value = ''; }
-}
 async function saveDraft() {
-  if (!draft) { toast('กรุณาเลือกไฟล์ก่อน', 'err'); return; }
+  if (!draft) { toast('กรุณาดึงข้อมูลจาก Google Sheets ก่อน', 'err'); return; }
   const btn = $('#drSave'); busy(btn, true, 'กำลังบันทึก…');
   const { error } = await sb.from('delivery_reports').insert({ title: $('#drTitle').value.trim() || draft.title, period_from: draft.from, period_to: draft.to, summary: draft.summary });
   busy(btn, false);
@@ -394,7 +378,7 @@ async function loadAdminList() {
     + `<span class="small muted">${r.period_from ? esc(`${thaiDate(r.period_from)} – ${thaiDate(r.period_to)}`) + ' · ' : ''}สำเร็จ ${n(r.summary?.ok)} ครั้ง · ผู้ป่วย ${n(r.summary?.patients)} คน · บันทึก ${esc(thaiDate(r.created_at))}</span>`
     + `<span class="small ${r.ai_status === 'error' ? 'ai-err' : 'muted'}" data-ai-st="${r.id}">${r.ai_status === 'done' ? '✓ มีสรุปจาก AI แล้ว' : r.ai_status === 'pending' ? 'AI กำลังสรุป…' : r.ai_status === 'error' ? esc(r.ai_note || 'AI สรุปไม่สำเร็จ') : 'ยังไม่มีสรุปจาก AI'}</span></div>`
     + `<div class="row-btns"><button type="button" class="btn btn-o btn-sm" data-ai="${r.id}">${r.ai_status === 'done' ? 'ให้ AI สรุปใหม่' : 'ให้ AI สรุปเป็นข้อความ'}</button><button type="button" class="btn btn-no btn-sm" data-del="${r.id}">ลบ</button></div></div>`).join('')
-    : '<p class="empty">ยังไม่มีสรุปจากไฟล์ · เลือกไฟล์ด้านบนเพื่อเริ่ม</p>';
+    : '<p class="empty">ยังไม่มีสรุปจาก Google Sheets · วางลิงก์ด้านบนเพื่อเริ่ม</p>';
 }
 async function onList(e) {
   const ai = e.target.closest('[data-ai]'), del = e.target.closest('[data-del]');

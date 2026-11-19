@@ -1,13 +1,13 @@
 // Health Rider — หน้าแสดงผลงาน (ตัวเลขรวม ไม่มีข้อมูลรายบุคคล)
 //   หน้าหลัก (ช่องบริการจัดส่งยาถึงบ้าน #hrBlock): ข้อความแนะนำ + ผลงานรายปีงบ แยกตามตำบล (rider_tambon_stats · 55_rider_tambon.sql)
 //     ปีงบที่ยังไม่มีข้อมูลรายตำบล = แสดงแบบเดิมราย รพ.สต. (rider_stats)
-//   ผู้ดูแล › Health Rider (#/admin/rider) → mountRiderEditor(slot): ตามหัวข้อไฟล์ "ประวัติรายการจัดส่งยา" (นับเฉพาะบริการ rider)
-//     ส่งสำเร็จ (ครั้ง) · ผู้รับบริการ (คน) · ยกเลิก (ครั้ง) · ส่งฟรี (ครั้ง) ราย ตำบล · กรอกเอง หรือนำเข้าไฟล์ (อ่านในเครื่อง ไม่อัปโหลด)
+//   ผู้ดูแล › Health Rider (#/admin/rider) → mountRiderEditor(slot): ตามหัวข้อ "ประวัติรายการจัดส่งยา" (นับเฉพาะบริการ rider)
+//     ส่งสำเร็จ (ครั้ง) · ผู้รับบริการ (คน) · ยกเลิก (ครั้ง) · ส่งฟรี (ครั้ง) ราย ตำบล · กรอกเอง หรือดึงจาก Google Sheets (อ่านในเครื่อง ไม่อัปโหลด)
 import { sb } from '../supabase.js?v=4.4';
 import { $, esc, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
 import { paras } from './delivery.js?v=4.4';
-import { readTable, fetchGoogleSheet, riderByTambon, exportHeads, exportRows, downloadXlsx } from './delivery-report.js?v=4.4';
+import { fetchGoogleSheet, riderByTambon, exportHeads, exportRows, downloadXlsx } from './delivery-report.js?v=4.4';
 
 const CUR_FY = fiscalYearOf();
 const n = (x) => Number(x || 0).toLocaleString('th-TH');
@@ -61,34 +61,30 @@ function renderStats(years) {
 }
 
 /* ======================= ผู้ดูแล › Health Rider (แยกตามตำบล) ======================= */
-let E = null;   // { draft: { [ปีงบ]: [{ tambon, … }] } จากไฟล์ที่นำเข้า (ยังไม่บันทึก) }
+let E = null;   // { draft: { [ปีงบ]: [{ tambon, … }] } จาก Google Sheets ที่ดึงมา (ยังไม่บันทึก) }
 
 const TEMPLATE = `
   <p class="small muted">ตัวเลขที่บันทึกแสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน (Health Rider) ทันที · <a href="#/rider">ดูหน้าผลงาน Health Rider</a></p>
   <div class="panel">
     <div class="panel-head"><h2>ผลงาน Health Rider แยกตามตำบล</h2><label class="small" for="hrYear">ปีงบประมาณ</label></div>
     <select id="hrYear" class="input"></select>
-    <p class="small muted">ตามหัวข้อไฟล์ "ประวัติรายการจัดส่งยา" · นับเฉพาะบริการขนส่ง rider · ส่งยาสำเร็จ / ผู้รับบริการ (คน ไม่นับซ้ำ) / ยกเลิก / ส่งฟรี (ค่าจัดส่ง 0 บาท)</p>
+    <p class="small muted">ตามหัวข้อตาราง "ประวัติรายการจัดส่งยา" · นับเฉพาะบริการขนส่ง rider · ส่งยาสำเร็จ / ผู้รับบริการ (คน ไม่นับซ้ำ) / ยกเลิก / ส่งฟรี (ค่าจัดส่ง 0 บาท)</p>
     <div class="hr-tam" id="hrStats"></div>
     <div class="nt-add"><input id="hrNewTambon" class="input" maxlength="60" placeholder="ชื่อตำบล" aria-label="ชื่อตำบลที่จะเพิ่ม"><button type="button" class="btn btn-o btn-sm" id="hrAddTambon">+ เพิ่มตำบล</button></div>
     <details class="hr-import" open>
-      <summary>นำเข้าจาก Google Sheets หรือไฟล์ประวัติรายการจัดส่งยา</summary>
-      <p class="small muted">วางลิงก์ Google Sheets หรือเลือกไฟล์ (.xlsx, .csv) · ระบบนับในเครื่องนี้ <b>ไม่อัปโหลดข้อมูลส่วนบุคคล</b> และเก็บเฉพาะตัวเลขรวม</p>
+      <summary>นำเข้าจาก Google Sheets ประวัติรายการจัดส่งยา</summary>
+      <p class="small muted">วางลิงก์ Google Sheets · ระบบนับในเครื่องนี้ <b>ไม่อัปโหลดข้อมูลส่วนบุคคล</b> และเก็บเฉพาะตัวเลขรวม</p>
       <div class="field">
         <label for="hrSheetUrl">วางลิงก์ Google Sheets</label>
         <div class="row-btns" style="align-items:center;gap:.5rem">
-          <input id="hrSheetUrl" class="input" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" style="flex:1" aria-label="ลิงก์ Google Sheets">
+          <input id="hrSheetUrl" class="input" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" style="flex:1 1 14rem" aria-label="ลิงก์ Google Sheets">
           <button type="button" class="btn btn-p btn-sm" id="hrSheetBtn">ดึงข้อมูลจาก Google Sheets</button>
         </div>
         <span class="small muted">ตั้งค่าแชร์ใน Google Sheets เป็น <b>"ทุกคนที่มีลิงก์มีสิทธิ์อ่าน"</b> หรือ เผยแพร่ไปยังเว็บ</span>
       </div>
-      <div class="field" style="margin-top:.75rem">
-        <label for="hrFile">หรือเลือกไฟล์ในเครื่อง (.xlsx, .csv)</label>
-        <input id="hrFile" class="input" type="file" accept=".xlsx,.xls,.csv,text/csv">
-      </div>
       <span class="small" id="hrImportMsg" aria-live="polite"></span>
       <div class="hr-export" id="hrExport" hidden>
-        <h3>ส่งออกข้อมูลจากไฟล์/ชีตนี้เป็น Excel</h3>
+        <h3>ส่งออกข้อมูลจาก Google Sheets นี้เป็น Excel</h3>
         <p class="small fx-warn">ไฟล์ที่ส่งออกมีข้อมูลส่วนบุคคล (PDPA) · ทำในเครื่องนี้ ไม่อัปโหลดและไม่บันทึกในระบบ · เก็บไฟล์ให้ปลอดภัย</p>
         <div class="field"><label for="hrExRows">รายการที่ส่งออก</label><select id="hrExRows" class="input">
           <option value="ok">เฉพาะรายการที่จัดส่งสำเร็จ</option><option value="all">ทุกรายการ</option>
@@ -97,7 +93,7 @@ const TEMPLATE = `
         <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="hrExBtn">ส่งออก Excel</button><span class="small" id="hrExMsg" aria-live="polite"></span></div>
       </div>
     </details>
-    <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="hrStatSave">บันทึกและแสดงผลงาน</button><button type="button" class="btn btn-o btn-sm" id="hrSaveAll" hidden>บันทึกทุกปีงบจากไฟล์</button></div>
+    <div class="row-btns"><button type="button" class="btn btn-p btn-sm" id="hrStatSave">บันทึกและแสดงผลงาน</button><button type="button" class="btn btn-o btn-sm" id="hrSaveAll" hidden>บันทึกทุกปีงบจาก Google Sheets</button></div>
   </div>
   <div class="panel">
     <div class="panel-head">
@@ -123,7 +119,6 @@ export async function mountRiderEditor(slot) {
   $('#hrYear').addEventListener('change', loadStats);
   $('#hrStatSave').addEventListener('click', saveStats);
   $('#hrSaveAll').addEventListener('click', saveAll);
-  $('#hrFile').addEventListener('change', importFile);
   $('#hrSheetBtn').addEventListener('click', importSheet);
   $('#hrSheetUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); importSheet(); } });
   $('#hrAiSummaryBtn').addEventListener('click', onAiSummary);
@@ -149,7 +144,7 @@ async function loadStats() {
   const draft = E.draft[y] || [];
   const names = [...new Set([...draft.map((r) => r.tambon), ...saved.keys()])];
   $('#hrStats').innerHTML = names.map((t) => rowHtml(draft.find((r) => r.tambon === t) || saved.get(t) || { tambon: t }, saved.has(t))).join('')
-    || `<p class="empty">ยังไม่มีผลงานของปีงบ ${y} · นำเข้าไฟล์ด้านล่าง หรือเพิ่มตำบลแล้วกรอกเอง</p>`;
+    || `<p class="empty">ยังไม่มีผลงานของปีงบ ${y} · นำเข้าจาก Google Sheets ด้านล่าง หรือเพิ่มตำบลแล้วกรอกเอง</p>`;
 }
 
 function addTambon() {
@@ -228,18 +223,7 @@ async function processTable(table, sourceLabel = 'ไฟล์') {
   $('#hrYear').value = String(show); await loadStats();
   $('#hrSaveAll').hidden = ys.length < 2;
   msg.style.color = 'var(--success)';
-  msg.textContent = `นับแล้ว ปีงบ ${ys.join(', ')} · ${ys.map((y) => `${y}: ${res[y].reduce((a, r) => a + r.delivered, 0)} ครั้ง ${res[y].length} ตำบล`).join(' · ')} — ตรวจตัวเลขแล้วกดบันทึก${ys.length > 1 ? ' (หรือ "บันทึกทุกปีงบจากไฟล์")' : ''}`;
-}
-
-/** นำเข้าไฟล์ประวัติรายการจัดส่งยา */
-async function importFile(e) {
-  const f = e.target.files[0]; if (!f) return;
-  const msg = $('#hrImportMsg'); msg.style.color = ''; msg.textContent = 'กำลังอ่านไฟล์ในเครื่อง…';
-  try {
-    const table = await readTable(f);
-    await processTable(table, 'ไฟล์');
-  } catch (err) { msg.style.color = 'var(--error)'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + errText(err); }
-  finally { e.target.value = ''; }
+  msg.textContent = `นับแล้ว ปีงบ ${ys.join(', ')} · ${ys.map((y) => `${y}: ${res[y].reduce((a, r) => a + r.delivered, 0)} ครั้ง ${res[y].length} ตำบล`).join(' · ')} — ตรวจตัวเลขแล้วกดบันทึก${ys.length > 1 ? ' (หรือ "บันทึกทุกปีงบจาก Google Sheets")' : ''}`;
 }
 
 /** นำเข้าจาก Google Sheets */
@@ -338,7 +322,7 @@ async function onAiSummary() {
   await generateAiSummary(y, rows, true);
 }
 
-/* ---- ส่งออกจากไฟล์ที่เลือก (อยู่ในหน่วยความจำของหน้านี้เท่านั้น) ---- */
+/* ---- ส่งออกจาก Google Sheets ที่ดึงมา (อยู่ในหน่วยความจำของหน้านี้เท่านั้น) ---- */
 let exTable = null, exPick = [];
 function showExport(table) {
   let heads;
@@ -354,7 +338,7 @@ function onExPick(e) {
 }
 async function doExport() {
   const msg = $('#hrExMsg'); msg.style.color = '';
-  if (!exTable) { msg.textContent = 'กรุณาเลือกไฟล์ก่อน'; return; }
+  if (!exTable) { msg.textContent = 'กรุณาดึงข้อมูลจาก Google Sheets ก่อน'; return; }
   if (!exPick.length) { msg.style.color = 'var(--error)'; msg.textContent = 'กรุณาติ๊กข้อมูลที่ต้องการส่งออกอย่างน้อย 1 หัวข้อ'; return; }
   const aoa = exportRows(exTable, exPick, $('#hrExRows').value);
   if (aoa.length < 2) { msg.style.color = 'var(--error)'; msg.textContent = 'ไม่มีรายการตามที่เลือก'; return; }
