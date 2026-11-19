@@ -107,6 +107,7 @@ const TEMPLATE = `
 
 /** หน้าแก้ไขผลงาน Health Rider (ผู้ดูแล) ใน slot */
 export async function mountRiderEditor(slot) {
+  ++aiSeq;
   slot.innerHTML = '<div class="skeleton"></div>';
   let years;
   try { years = await loadYears({ includeHidden: true }); }
@@ -266,7 +267,9 @@ function localRiderSummary(y, list) {
 }
 
 /** ให้ AI สรุปข้อมูลตัวเลขเป็นข้อความนำเสนอ (ไม่มีข้อมูลส่วนบุคคล PDPA) */
+let aiSeq = 0;
 async function generateAiSummary(year, list, notify = true) {
+  const seq = ++aiSeq;
   const btn = $('#hrAiSummaryBtn');
   if (btn) busy(btn, true, 'AI กำลังสรุป…');
   try {
@@ -284,11 +287,14 @@ async function generateAiSummary(year, list, notify = true) {
     let summaryText = '';
     try {
       const { data: reqId, error: eStart } = await sb.rpc('ai_rider_summary_start', { p_year: year, p_stats: statsPayload });
+      if (seq !== aiSeq) return;
       if (eStart) throw eStart;
       let pollRes = { status: 'pending' };
       for (let i = 0; pollRes.status === 'pending' && i < 60; i++) {
         await new Promise((ok) => setTimeout(ok, 2000));
+        if (seq !== aiSeq || !$('#hrAiSummaryBtn')) return;
         const { data, error: ePoll } = await sb.rpc('ai_rider_summary_poll', { p_req: reqId });
+        if (seq !== aiSeq) return;
         if (ePoll) throw ePoll;
         pollRes = data || {};
       }
@@ -300,12 +306,12 @@ async function generateAiSummary(year, list, notify = true) {
     } catch {
       summaryText = localRiderSummary(year, statsPayload);
     }
-    if (summaryText) {
+    if (seq === aiSeq && summaryText && $('#hrInfoEdit')) {
       $('#hrInfoEdit').value = summaryText;
       if (notify) toast('AI สรุปข้อมูลขึ้นนำเสนอแล้ว (ตรวจข้อความแล้วกดบันทึก)');
     }
   } finally {
-    if (btn) busy(btn, false);
+    if (seq === aiSeq && btn) busy(btn, false);
   }
 }
 

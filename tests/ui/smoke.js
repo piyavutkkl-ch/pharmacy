@@ -1227,6 +1227,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
           + 'export function writeFile(wb, name) { window.__xlsxOut = { name, sheet: wb.s[0].n, aoa: wb.s[0].a }; }' }));
         const heads = await p.$$eval('#hrExCols input', (x) => x.map((i) => i.value));
         check('ส่งออก Excel: ดึงชีตแล้วมีกล่องส่งออก + หัวข้อตามชีต + คำเตือน PDPA', await visible(p, '#hrExport') && heads.includes('HN') && heads.includes('ชื่อผู้ใช้บริการ') && (await text(p, '#hrExport')).includes('ไม่อัปโหลด'), heads.join(','));
+        await p.waitForFunction(() => !document.querySelector('#hrAiSummaryBtn')?.disabled);
         const nCalls = await p.evaluate(() => (window.__calls || []).length);
         await p.click('#hrExBtn'); await p.waitForTimeout(200);
         check('ส่งออก Excel: ยังไม่เลือกหัวข้อ → บอกให้เลือก', (await text(p, '#hrExMsg')).includes('อย่างน้อย 1 หัวข้อ'));
