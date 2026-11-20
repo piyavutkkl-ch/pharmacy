@@ -702,6 +702,10 @@ run("update staff_roster set position='เภสัชกร' where role='admin'
 check("directory shows position", "s2", "select count(*) from staff_directory() where position='เภสัชกร'", lambda o: int(o.strip() or 0) >= 1)
 check("summary stores participant positions from roster", "s2", f"update visit_summaries set participant_ids=array['{U['admin']}','{U['s2']}']::uuid[] where id={sid2} returning participant_positions[1]", eq("เภสัชกร"))
 check("anon reads patient count only (number)", "anon", f"select summary_patient_count({sid2})", eq(1))
+check("staff can set manual patient_count override", "s2", f"update visit_summaries set patient_count=5 where id={sid2} returning patient_count", eq(5))
+check("summary_patient_count returns manual patient_count when set", "anon", f"select summary_patient_count({sid2})", eq(5))
+check("clearing manual patient_count falls back to linked visits count", "s2", f"update visit_summaries set patient_count=null where id={sid2} returning coalesce(patient_count,0)", eq(0))
+check("summary_patient_count falls back to linked visits count (1)", "anon", f"select summary_patient_count({sid2})", eq(1))
 check("staff cannot set own position in roster", "s2", "update staff_roster set position='ผอ.' returning email", lambda o: True)
 check("…position unchanged for staff", None, f"select count(*) from staff_roster where position='ผอ.'", eq(0))
 

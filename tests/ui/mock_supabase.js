@@ -121,7 +121,7 @@ function beforeInsert(table, row) {
     case 'visits': row.unit_id = db.patients.find((p) => p.id === row.patient_id)?.unit_id; row.fiscal_year = fiscalYear(row.visit_date); row.created_by = ME.id; break;
     case 'dose_drugs': row.active ??= true; row.concs ??= []; row.sort ??= 0; row.ai_draft ??= false;   // แทน trigger dose_drugs_approve (90): แสดง = อนุมัติโดยผู้บันทึก
       Object.assign(row, row.active && !row.ai_draft ? { approved_at: now(), approved_by: ME?.id } : { approved_at: null, approved_by: null }, { audit_flags: [] }); break;
-    case 'visit_summaries': row.author_id = ME.id; row.gallery ??= []; row.created_at ??= now(); row.summary_date ??= now().slice(0, 10); summaryPeople(row); break;
+    case 'visit_summaries': row.author_id = ME.id; row.gallery ??= []; row.created_at ??= now(); row.summary_date ??= now().slice(0, 10); row.patient_count ??= null; summaryPeople(row); break;
     case 'staff_roster':
       row.email = String(row.email).trim().toLowerCase(); row.active ??= true;
       if (rows.some((r) => r.email === row.email)) return 'duplicate key value violates unique constraint "staff_roster_pkey"';
@@ -239,7 +239,16 @@ function run(st) {
   }
   if (st.op === 'delete') {
     if (table === 'staff_roster' && rows.some((r) => match(r) && r.email === ME?.email)) return err('ไม่สามารถลบบัญชีของตัวเองได้', 'P0001');
-    rows.filter((r) => match(r) && visible(table, r)).forEach((r) => audit('delete', table, r, table === 'patients' ? `ชื่อ ${r.first_name} ${r.last_name}` : null));
+    const delRows = rows.filter((r) => match(r) && visible(table, r));
+    delRows.forEach((r) => audit('delete', table, r, table === 'patients' ? `ชื่อ ${r.first_name} ${r.last_name}` : null));
+    if (table === 'visit_summaries' && delRows.length) {
+      const goneIds = new Set(delRows.map((r) => r.id));
+      db.summary_visits = (db.summary_visits || []).filter((l) => !goneIds.has(l.summary_id));
+    }
+    if (table === 'achievements' && delRows.length) {
+      const goneIds = new Set(delRows.map((r) => r.id));
+      (db.visit_summaries || []).forEach((s) => { if (goneIds.has(s.achievement_id)) s.achievement_id = null; });
+    }
     db[table] = rows.filter((r) => !(match(r) && visible(table, r)));
     return { data: null, error: null };
   }
@@ -588,6 +597,8 @@ function rpc(name, a = {}) {
       }).filter(Boolean).sort((x, y) => String(y.visit_date).localeCompare(String(x.visit_date))), error: null };
     }
     case 'summary_patient_count': {
+      const s = db.visit_summaries.find((x) => x.id === a.p_summary);
+      if (s?.patient_count != null && s.patient_count > 0) return { data: +s.patient_count, error: null };
       const vs = (db.summary_visits || []).filter((l) => l.summary_id === a.p_summary).map((l) => db.visits.find((v) => v.id === l.visit_id)?.patient_id).filter(Boolean);
       return { data: new Set(vs).size, error: null };
     }
