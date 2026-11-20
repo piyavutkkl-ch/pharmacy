@@ -415,9 +415,13 @@ function renderMonthCard(heading, m, key, isTotal = false) {
   const svcs = (m.service || []).filter((x) => x[1] > 0);
   const covs = (m.cover || []).filter((x) => x[1] > 0);
   const rigs = (m.rights || []).filter((x) => x[1] > 0);
-  return `<article class="dr-month-card${isTotal ? ' dr-month-total' : ''}" data-month-card="${esc(key)}">`
-    + `<div class="dr-month-head"><h3>${esc(heading)}</h3>`
-    + `<button type="button" class="btn btn-o btn-sm" data-dr-copy="${esc(key)}">คัดลอกสรุป</button></div>`
+  return `<details class="dr-month-card${isTotal ? ' dr-month-total' : ''}" data-month-card="${esc(key)}" open>`
+    + `<summary class="dr-month-head">`
+    + `<span class="dr-month-title"><h3>${esc(heading)}</h3>`
+    + `<span class="small muted dr-month-badge">${n(ok)} ครั้ง (${rate})</span></span>`
+    + `<div class="dr-month-actions">`
+    + `<button type="button" class="btn btn-o btn-sm" data-dr-copy="${esc(key)}" title="คัดลอกสรุป">คัดลอกสรุป</button>`
+    + `</div></summary>`
     + '<div class="dr-month-body">'
     + '<div class="dr-sec"><h4>1. ภาพรวมความสำเร็จ (Key Highlights)</h4><ul class="dr-kv-list">'
     + `<li><div class="dr-line"><span>ยอดการจัดส่งยาทั้งสิ้น:</span><b class="num">${n(ok)} ครั้ง</b></div></li>`
@@ -438,7 +442,7 @@ function renderMonthCard(heading, m, key, isTotal = false) {
           + `<div class="meter"><span style="width:${ok ? Math.round((v / ok) * 100) : 0}%"></span></div></li>`).join('')
         + '</ul></div>' : '')
       + '</div>' : '')
-    + '</div></article>';
+    + '</div></details>';
 }
 
 async function copyTextSafe(txt) {
@@ -479,8 +483,10 @@ export function renderDeliveryReport(box, rep) {
 
   const monthlyHtml = (byMonthDesc.length || s.ok) ? `<div class="dr-monthly">`
     + `<div class="dr-monthly-bar"><h3>สรุปผลการดำเนินงานแยกตามเดือน</h3>`
+    + `<div class="row-btns dr-monthly-bar-btns" style="align-items:center;gap:6px">`
+    + `<button type="button" class="btn btn-o btn-sm" data-dr-toggle-all>ย่อทั้งหมด</button>`
     + (byMonthDesc.length > 1 ? `<button type="button" class="btn btn-o btn-sm" data-dr-copy-all>คัดลอกสรุปทุกเดือน</button>` : '')
-    + `</div>`
+    + `</div></div>`
     + (byMonthDesc.length > 1 ? `<div class="unit-tabs dr-month-tabs" role="tablist" aria-label="เลือกเดือนที่ต้องการดู">`
       + `<button type="button" data-dr-month-tab="all" aria-current="true">ทุกเดือน (${byMonthDesc.length} เดือน)</button>`
       + byMonthDesc.map(([mk]) => `<button type="button" data-dr-month-tab="${esc(mk)}" aria-current="false">${esc(monthTabLabel(mk))}</button>`).join('')
@@ -510,18 +516,38 @@ export function renderDeliveryReport(box, rep) {
 
   if (!box._drBound) {
     box._drBound = true;
+    const syncToggleAll = () => {
+      const tgAll = box.querySelector('[data-dr-toggle-all]');
+      if (!tgAll) return;
+      const cards = box.querySelectorAll('details.dr-month-card');
+      const anyOpen = [...cards].some((c) => c.open);
+      tgAll.textContent = anyOpen ? 'ย่อทั้งหมด' : 'ขยายทั้งหมด';
+    };
+    box.addEventListener('toggle', syncToggleAll, true);
     box.addEventListener('click', (e) => {
+      const tgAll = e.target.closest('[data-dr-toggle-all]');
+      if (tgAll) {
+        const cards = box.querySelectorAll('details.dr-month-card');
+        const anyOpen = [...cards].some((c) => c.open);
+        cards.forEach((c) => { c.open = !anyOpen; });
+        tgAll.textContent = anyOpen ? 'ขยายทั้งหมด' : 'ย่อทั้งหมด';
+        return;
+      }
       const tab = e.target.closest('[data-dr-month-tab]');
       if (tab) {
         const pick = tab.dataset.drMonthTab;
         box.querySelectorAll('[data-dr-month-tab]').forEach((b) => b.setAttribute('aria-current', String(b === tab)));
         box.querySelectorAll('[data-month-card]').forEach((c) => {
           c.hidden = pick !== 'all' && c.dataset.monthCard !== pick;
+          if (pick !== 'all' && c.dataset.monthCard === pick) c.open = true;
         });
+        syncToggleAll();
         return;
       }
       const cp = e.target.closest('[data-dr-copy]');
       if (cp && box._drTexts) {
+        e.preventDefault();
+        e.stopPropagation();
         const txt = box._drTexts.get(cp.dataset.drCopy);
         if (txt) copyTextSafe(txt);
         return;

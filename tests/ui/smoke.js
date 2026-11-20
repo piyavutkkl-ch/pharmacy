@@ -1343,6 +1343,28 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('หน้าจัดส่งยา: แสดงผลสรุปแยกแต่ละเดือน',
         dvText.includes('เดือน ตุลาคม 2569') && dvText.includes('1. ภาพรวมความสำเร็จ (Key Highlights)'),
         dvText);
+      await p.click('#drView [data-dr-month-tab="all"]'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: การ์ดแต่ละเดือนเริ่มต้นเป็นแบบขยาย (open)',
+        await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open));
+      await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-expanded-1280.png') });
+      await p.click('#drView [data-month-card="2026-10"] > summary'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดย่อการ์ดเดือน ตุลาคม 2569 ได้',
+        !(await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open)));
+      await p.click('#drView [data-month-card="2026-10"] > summary'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดขยายการ์ดเดือน ตุลาคม 2569 กลับมาได้',
+        await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open));
+      await p.click('#drView [data-dr-toggle-all]'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดปุ่ม "ย่อทั้งหมด" ทำให้ทุกการ์ดย่อพร้อมกัน + ปุ่มเปลี่ยนเป็น "ขยายทั้งหมด"',
+        !(await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open))
+        && (await text(p, '#drView [data-dr-toggle-all]')).includes('ขยายทั้งหมด'));
+      await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-collapsed-1280.png') });
+      await p.click('#drView [data-dr-toggle-all]'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดปุ่ม "ขยายทั้งหมด" ทำให้ทุกการ์ดขยายพร้อมกัน',
+        await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open)
+        && (await text(p, '#drView [data-dr-toggle-all]')).includes('ย่อทั้งหมด'));
+      await p.click('#drView [data-month-card="2026-10"] [data-dr-copy]'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดปุ่มคัดลอกสรุปไม่ทำให้การ์ดย่อ (open ยังคงเดิม)',
+        await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open));
       await p.click('#drView [data-dr-month-tab="2026-10"]'); await p.waitForTimeout(150);
       check('หน้าจัดส่งยา: กดแท็บเลือกดูเฉพาะเดือน ตุลาคม 2569 ได้',
         await visible(p, '#drView [data-month-card="2026-10"]') && !(await visible(p, '#drView [data-month-card="2026-09"]')));
