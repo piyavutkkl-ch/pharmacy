@@ -809,6 +809,7 @@ async function saveVisit(title, unitId, dateVal, imgs) {
 
     busy(btn, false);
     toast((old || oldAch) ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่สรุปผลงานแล้ว — แสดงที่หน้าหลัก › ผลการดำเนินงาน');
+    if (P.typeFilter !== 'all' && P.typeFilter !== 'visit') setTypeFilter('all', false);
     resetForm();
     $('#ppFold').open = false;
     await loadCombinedList();
@@ -866,6 +867,7 @@ async function saveAchievement(title, unitId, dateVal, imgs) {
     const linked = critLabel(row.item_ids, [...P.critCache.values()].flat());
     toast(((old || oldSum) ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่ผลงานแล้ว') + (linked ? ` · แนบเป็นหลักฐานมาตรฐานข้อ ${linked}` : ''));
     busy(btn, false);
+    if (P.typeFilter !== 'all' && P.typeFilter !== 'achievement') setTypeFilter('all', false);
     resetForm();
     $('#ppFold').open = false;
     await loadCombinedList();
