@@ -838,10 +838,24 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('ผู้ดูแล › ผลงาน: เพิ่มผลงานให้ รพ.สต. ที่เลือก (รูปอยู่โฟลเดอร์หน่วยนั้น)', ins.unit_id === 3 && ins.image_path?.startsWith('achievements/3/') && (await text(q, '#ppList')).includes('ผลงานที่ผู้ดูแลเพิ่ม'), JSON.stringify(ins));
       const aid = await q.evaluate(() => window.__db.achievements.find((a) => a.title === 'ผลงานที่ผู้ดูแลเพิ่ม').id);
       await q.click(`[data-edit="${aid}"]`); await q.waitForTimeout(200);
-      check('ผู้ดูแล › ผลงาน: กดแก้ไขแล้วประเภทถูกล็อก + ช่อง รพ.สต. ขึ้นหน่วยเดิม', await q.$eval('#ppTypeSeg [data-type="achievement"]', (b) => b.disabled) && (await q.inputValue('#ppUnit')) === '3');
+      check('ผู้ดูแล › ผลงาน: กดแก้ไขแล้วเปลี่ยนประเภทได้ + ช่อง รพ.สต. ขึ้นหน่วยเดิม', !(await q.$eval('#ppTypeSeg [data-type="achievement"]', (b) => b.disabled)) && !(await q.$eval('#ppTypeSeg [data-type="visit"]', (b) => b.disabled)) && (await q.inputValue('#ppUnit')) === '3');
       await q.selectOption('#ppUnit', '5'); await q.click('#ppSubmit'); await q.waitForTimeout(700);
       const up = (await calls(q, (c) => c.table === 'achievements' && c.op === 'update')).pop()?.payload || {};
       check('ผู้ดูแล › ผลงาน: เปลี่ยน รพ.สต. ที่ทำผลงานภายหลังได้', up.unit_id === 5 && await q.evaluate((id) => window.__db.achievements.find((a) => a.id === id).unit_id === 5, aid), JSON.stringify(up));
+      // ทดสอบเปลี่ยนประเภทจาก "ผลงาน" -> "เยี่ยมบ้าน" และบันทึก
+      await q.click(`[data-edit="${aid}"]`); await q.waitForTimeout(200);
+      await q.click('#ppTypeSeg [data-type="visit"]'); await q.waitForTimeout(100);
+      await q.fill('#ppPatientCount', '7');
+      await q.click('#ppSubmit'); await q.waitForTimeout(700);
+      const vsConv = (await calls(q, (c) => c.table === 'visit_summaries' && c.op === 'insert')).pop()?.payload || {};
+      const newSid = await q.evaluate(() => window.__db.visit_summaries.find((s) => s.title === 'ผลงานที่ผู้ดูแลเพิ่ม')?.id);
+      check('ผู้ดูแล › โพสต์ผลงาน: แก้ไขเปลี่ยนประเภทจาก "ผลงาน" เป็น "เยี่ยมบ้าน" + กรอกจำนวนผู้ป่วย 7 รายได้', !!newSid && vsConv.patient_count === 7 && vsConv.unit_id === 5 && !(await q.evaluate((id) => window.__db.achievements.some((a) => a.id === id), aid)) && (await text(q, '#ppList')).includes('เยี่ยมผู้ป่วย 7 ราย'), JSON.stringify(vsConv));
+      // ทดสอบเปลี่ยนประเภทกลับจาก "เยี่ยมบ้าน" -> "ผลงาน" และบันทึก
+      await q.click(`#ppList [data-edit="${newSid}"][data-type="visit"]`); await q.waitForTimeout(200);
+      check('ผู้ดูแล › โพสต์ผลงาน: กดแก้ไขเยี่ยมบ้านแล้วช่องจำนวนผู้ป่วยขึ้นค่าเดิม (7)', (await q.inputValue('#ppPatientCount')) === '7');
+      await q.click('#ppTypeSeg [data-type="achievement"]'); await q.waitForTimeout(100);
+      await q.click('#ppSubmit'); await q.waitForTimeout(700);
+      check('ผู้ดูแล › โพสต์ผลงาน: แก้ไขเปลี่ยนประเภทจาก "เยี่ยมบ้าน" กลับเป็น "ผลงาน" ได้', !(await q.evaluate((id) => window.__db.visit_summaries.some((s) => s.id === id), newSid)) && await q.evaluate(() => window.__db.achievements.some((a) => a.title === 'ผลงานที่ผู้ดูแลเพิ่ม')));
       await q.setViewportSize({ width: 390, height: 844 }); await q.waitForTimeout(200);
       check('ผู้ดูแล › ผลงาน 390px: ไม่ล้นจอ', await overflow(q) <= 0);
       await q.screenshot({ path: path.join(SHOTS, 'admin-ach-390.png') });
