@@ -1383,8 +1383,23 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('หน้าจัดส่งยา: กดปุ่มคัดลอกสรุปไม่ทำให้การ์ดย่อ (open ยังคงเดิม)',
         await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open));
       await p.click('#drView [data-dr-month-tab="2026-10"]'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: กดแท็บเลือกดูเฉพาะเดือน ตุลาคม 2569 ได้',
-        await visible(p, '#drView [data-month-card="2026-10"]') && !(await visible(p, '#drView [data-month-card="2026-09"]')));
+      check('หน้าจัดส่งยา: กดแท็บเลือกดูเฉพาะเดือน ตุลาคม 2569 ได้ และส่วนรวมทุกเดือนซ่อนอยู่',
+        await visible(p, '#drView [data-month-card="2026-10"]') && !(await visible(p, '#drView [data-month-card="2026-09"]'))
+        && !(await visible(p, '#drView .dr-total-section')));
+      await p.click('#drView [data-dr-month-tab="total"]'); await p.waitForTimeout(150);
+      const totalText = await text(p, '#drView .dr-total-section');
+      check('หน้าจัดส่งยา: แท็บ "รวมทุกเดือน" แสดงการ์ดสรุปสะสมและกราฟ 4 ด้าน (รายเดือน/ตำบล/ช่องทาง/สิทธิ)',
+        await visible(p, '#drView .dr-total-section')
+        && !(await visible(p, '#drView [data-month-card="2026-10"]'))
+        && totalText.includes('ภาพรวมสะสมทุกเดือน')
+        && totalText.includes('รายเดือน (จัดส่งสำเร็จ)')
+        && totalText.includes('ตามตำบล')
+        && totalText.includes('ตามช่องทางจัดส่ง')
+        && totalText.includes('ตามสิทธิการรักษา'));
+      await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-total-tab-1280.png') });
+      await p.click('#drView [data-dr-month-tab="all"]'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: แท็บ "ทุกเดือน" ไม่แสดงส่วนรวมทุกเดือน (กราฟไปรวมอยู่ในแท็บรวมทุกเดือน)',
+        await visible(p, '#drView [data-month-card="2026-10"]') && !(await visible(p, '#drView .dr-total-section')));
       await p.setViewportSize({ width: 1280, height: 900 });
     } }
     await go(p, '#/admin/drugs/dose');

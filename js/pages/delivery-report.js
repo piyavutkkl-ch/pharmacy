@@ -493,9 +493,17 @@ export function renderDeliveryReport(box, rep) {
       + `<button type="button" data-dr-month-tab="total" aria-current="false">รวมทุกเดือน</button>`
       + `</div>` : '')
     + `<div class="dr-month-grid">`
-    + byMonthDesc.map(([mk, m]) => renderMonthCard(monthFullLabel(mk), m, mk, false)).join('')
-    + (byMonthDesc.length !== 1 ? renderMonthCard(totalHeading, s, 'total', byMonthDesc.length > 1) : '')
-    + `</div></div>` : '';
+    + (byMonthDesc.length ? byMonthDesc.map(([mk, m]) => renderMonthCard(monthFullLabel(mk), m, mk, false)).join('') : renderMonthCard(totalHeading, s, 'total', false))
+    + `</div>`
+    + (byMonthDesc.length > 1 ? `<div class="dr-total-section" data-month-card="total" hidden>`
+      + renderMonthCard(totalHeading, s, 'total', true)
+      + `<div class="dr-grid" style="margin-top:14px">`
+      + bars('รายเดือน (จัดส่งสำเร็จ)', s.month, monthLabel)
+      + bars('ตามตำบล', s.tambon)
+      + bars('ตามช่องทางจัดส่ง', s.service)
+      + bars('ตามสิทธิการรักษา', s.rights)
+      + `</div></div>` : '')
+    + `</div>` : '';
 
   box.innerHTML = `<p class="small muted">${esc(rep.title)}${period ? ' · ' + esc(period) : ''} · ตัวเลขสรุปเท่านั้น ไม่มีข้อมูลรายบุคคล</p>`
     + '<div class="track-figs dl-figs">'
@@ -507,28 +515,29 @@ export function renderDeliveryReport(box, rep) {
     + `<p class="small muted">รายการทั้งหมด ${n(s.total)} · สำเร็จ ${n(s.ok)} · ยกเลิก ${n(s.cancel)}${s.other ? ' · อื่น ๆ ' + n(s.other) : ''} · ค่าจัดส่งรวม ${n(s.fee)} บาท</p>`
     + (rep.ai_status === 'done' && rep.ai_text ? `<div class="dr-ai"><h3>สรุปโดย AI</h3>${String(rep.ai_text).split(/\n+/).filter((l) => l.trim()).map((l) => `<p>${esc(l)}</p>`).join('')}</div>` : '')
     + monthlyHtml
-    + '<div class="dr-grid">'
-    + bars('รายเดือน (จัดส่งสำเร็จ)', s.month, monthLabel)
-    + bars('ตามตำบล', s.tambon)
-    + bars('ตามช่องทางจัดส่ง', s.service)
-    + bars('ตามสิทธิการรักษา', s.rights)
-    + '</div>';
+    + (byMonthDesc.length <= 1 ? '<div class="dr-grid">'
+      + bars('รายเดือน (จัดส่งสำเร็จ)', s.month, monthLabel)
+      + bars('ตามตำบล', s.tambon)
+      + bars('ตามช่องทางจัดส่ง', s.service)
+      + bars('ตามสิทธิการรักษา', s.rights)
+      + '</div>' : '');
 
   if (!box._drBound) {
     box._drBound = true;
     const syncToggleAll = () => {
       const tgAll = box.querySelector('[data-dr-toggle-all]');
       if (!tgAll) return;
-      const cards = box.querySelectorAll('details.dr-month-card');
-      const anyOpen = [...cards].some((c) => c.open);
+      const cards = [...box.querySelectorAll('details.dr-month-card')].filter((c) => !c.hidden && !c.closest('[hidden]'));
+      if (!cards.length) return;
+      const anyOpen = cards.some((c) => c.open);
       tgAll.textContent = anyOpen ? 'ย่อทั้งหมด' : 'ขยายทั้งหมด';
     };
     box.addEventListener('toggle', syncToggleAll, true);
     box.addEventListener('click', (e) => {
       const tgAll = e.target.closest('[data-dr-toggle-all]');
       if (tgAll) {
-        const cards = box.querySelectorAll('details.dr-month-card');
-        const anyOpen = [...cards].some((c) => c.open);
+        const cards = [...box.querySelectorAll('details.dr-month-card')].filter((c) => !c.hidden && !c.closest('[hidden]'));
+        const anyOpen = cards.some((c) => c.open);
         cards.forEach((c) => { c.open = !anyOpen; });
         tgAll.textContent = anyOpen ? 'ขยายทั้งหมด' : 'ย่อทั้งหมด';
         return;
@@ -538,8 +547,12 @@ export function renderDeliveryReport(box, rep) {
         const pick = tab.dataset.drMonthTab;
         box.querySelectorAll('[data-dr-month-tab]').forEach((b) => b.setAttribute('aria-current', String(b === tab)));
         box.querySelectorAll('[data-month-card]').forEach((c) => {
-          c.hidden = pick !== 'all' && c.dataset.monthCard !== pick;
-          if (pick !== 'all' && c.dataset.monthCard === pick) c.open = true;
+          const isMatch = pick === 'all' ? (c.dataset.monthCard !== 'total') : (c.dataset.monthCard === pick);
+          c.hidden = !isMatch;
+          if (isMatch) {
+            const dt = c.matches('details') ? c : c.querySelector('details.dr-month-card');
+            if (dt) dt.open = true;
+          }
         });
         syncToggleAll();
         return;
