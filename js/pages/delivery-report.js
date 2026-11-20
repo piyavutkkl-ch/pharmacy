@@ -206,7 +206,7 @@ export function summarizeDelivery(rows) {
   const title = String(rows.slice(0, hi).flat().find((c) => String(c).trim()) || '').replace(/\d{6,}/g, '').replace(/\s+/g, ' ').trim().slice(0, 200) || 'ประวัติรายการจัดส่งยา';
   const get = (r, k) => (col[k] >= 0 ? String(r[col[k]] ?? '').trim() : '');
   const s = { total: 0, ok: 0, cancel: 0, other: 0 }, hnOk = new Set(), hnAll = new Set();
-  const service = new Map(), month = new Map(), tambon = new Map(), rights = new Map(), cover = new Map(), hours = [], byMonthMap = new Map();
+  const service = new Map(), month = new Map(), tambon = new Map(), rights = new Map(), cover = new Map(), hours = [], byMonthMap = new Map(), byYearMap = new Map();
   const getMonthBucket = (mk) => {
     let b = byMonthMap.get(mk);
     if (!b) {
@@ -219,6 +219,18 @@ export function summarizeDelivery(rows) {
     }
     return b;
   };
+  const getYearBucket = (fy) => {
+    let b = byYearMap.get(fy);
+    if (!b) {
+      b = {
+        total: 0, ok: 0, cancel: 0, other: 0, hnOk: new Set(), hnAll: new Set(),
+        service: new Map(), cover: new Map(), rights: new Map(), tambon: new Map(), month: new Map(),
+        fee: 0, free: 0, paid: 0,
+      };
+      byYearMap.set(fy, b);
+    }
+    return b;
+  };
   let fee = 0, free = 0, paid = 0, from = null, to = null;
   for (const r of rows.slice(hi + 1)) {
     const st = get(r, 'status'); if (!st) continue;
@@ -228,12 +240,31 @@ export function summarizeDelivery(rows) {
     const mk = c ? `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}` : null;
     const mb = mk ? getMonthBucket(mk) : null;
     if (mb) mb.total++;
+    const fy = c ? fiscalYearOf(c) : null;
+    const yb = fy ? getYearBucket(fy) : null;
+    if (yb) yb.total++;
     const hn = get(r, 'hn');
-    if (hn) { hnAll.add(hn); if (mb) mb.hnAll.add(hn); }
-    if (/ยกเลิก/.test(st)) { s.cancel++; if (mb) mb.cancel++; continue; }
-    if (!/สำเร็จ/.test(st)) { s.other++; if (mb) mb.other++; continue; }
-    s.ok++; if (hn) hnOk.add(hn);
-    if (mb) { mb.ok++; if (hn) mb.hnOk.add(hn); }
+    if (hn) { hnAll.add(hn); if (mb) mb.hnAll.add(hn); if (yb) yb.hnAll.add(hn); }
+    if (/ยกเลิก/.test(st)) {
+      s.cancel++;
+      if (mb) mb.cancel++;
+      if (yb) yb.cancel++;
+      continue;
+    }
+    if (!/สำเร็จ/.test(st)) {
+      s.other++;
+      if (mb) mb.other++;
+      if (yb) yb.other++;
+      continue;
+    }
+    s.ok++;
+    if (hn) {
+      hnOk.add(hn);
+      if (mb) mb.hnOk.add(hn);
+      if (yb) yb.hnOk.add(hn);
+    }
+    if (mb) mb.ok++;
+    if (yb) yb.ok++;
     const svc = serviceName(get(r, 'service'));
     const tam = tambonOf(get(r, 'address'));
     const rig = rightsLabel(get(r, 'rights'));
@@ -249,10 +280,18 @@ export function summarizeDelivery(rows) {
       add(mb.rights, rig);
       add(mb.cover, cov);
     }
+    if (yb) {
+      add(yb.service, svc);
+      if (mk) add(yb.month, mk);
+      add(yb.tambon, tam);
+      add(yb.rights, rig);
+      add(yb.cover, cov);
+    }
     const f = +get(r, 'fee').replace(/[^\d.]/g, '');
     if (Number.isFinite(f) && get(r, 'fee') !== '' && get(r, 'fee') !== '-') {
       fee += f; if (f > 0) paid++; else free++;
       if (mb) { mb.fee += f; if (f > 0) mb.paid++; else mb.free++; }
+      if (yb) { yb.fee += f; if (f > 0) yb.paid++; else yb.free++; }
     }
     const d = thDate(get(r, 'done'));
     if (c && d && d >= c) hours.push((d - c) / 3600000);
@@ -268,12 +307,21 @@ export function summarizeDelivery(rows) {
       service: top(m.service), cover: top(m.cover), rights: top(m.rights), tambon: top(m.tambon),
       fee: Math.round(m.fee), free: m.free, paid: m.paid,
     }]);
+  const byYear = [...byYearMap.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([fy, y]) => [fy, {
+      total: y.total, ok: y.ok, cancel: y.cancel, other: y.other,
+      patients: y.hnOk.size, patientsAll: y.hnAll.size,
+      service: top(y.service), cover: top(y.cover), rights: top(y.rights), tambon: top(y.tambon),
+      month: [...y.month.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+      fee: Math.round(y.fee), free: y.free, paid: y.paid,
+    }]);
   return {
     title, from: from ? iso(from) : null, to: to ? iso(to) : null,
     summary: {
       v: 1, ...s, patients: hnOk.size, patientsAll: hnAll.size,
       service: top(service), month: [...month.entries()].sort((a, b) => a[0].localeCompare(b[0])), tambon: top(tambon), rights: top(rights), cover: top(cover),
-      byMonth,
+      byMonth, byYear,
       fee: Math.round(fee), free, paid,
       hoursAvg: hours.length ? r1(hours.reduce((a, b) => a + b, 0) / hours.length) : null, hoursMedian: hours.length ? r1(hours[Math.floor(hours.length / 2)]) : null,
     },
@@ -375,7 +423,7 @@ const pctStr = (v, total) => {
   return `${p.toFixed(1).replace(/\.0$/, '')}%`;
 };
 
-/** สร้างข้อความสรุปมาตรฐาน (1. ภาพรวมความสำเร็จ · 2. ช่องทางการจัดส่ง · 3. กลุ่มผู้รับบริการและสิทธิการรักษา) สำหรับคัดลอกหรือแสดงผล */
+/** สร้างข้อความสรุปมาตรฐาน (1. ภาพรวมความสำเร็จ · 2. ช่องทางการจัดส่ง · 3. กลุ่มผู้รับบริการและสิทธิการรักษา · 4. สรุปรายเดือน · 5. ตามตำบล) สำหรับคัดลอกหรือแสดงผล */
 export function buildMonthReportText(heading, m) {
   const ok = Number(m.ok || 0), total = Number(m.total || ok), patients = Number(m.patients || 0);
   const rate = total > 0 ? pctStr(ok, total) : '0%';
@@ -406,7 +454,76 @@ export function buildMonthReportText(heading, m) {
       for (const [k, v] of rigs) lines.push(`${rightsLabel(k)}: ${n(v)} ครั้ง (${pctStr(v, ok)})`);
     }
   }
+  const months = (m.month || []).filter((x) => x[1] > 0);
+  if (months.length) {
+    lines.push('', '4. สรุปรายเดือน (จัดส่งสำเร็จ)');
+    for (const [k, v] of months) lines.push(`${monthLabel(k)}: ${n(v)} ครั้ง (${pctStr(v, ok)})`);
+  }
+  const tams = (m.tambon || []).filter((x) => x[1] > 0);
+  if (tams.length) {
+    const secNum = months.length ? '5' : '4';
+    lines.push('', `${secNum}. ตามตำบล`);
+    for (const [k, v] of tams) {
+      const lbl = k.startsWith('ต.') || k === 'ไม่ระบุ' ? k : `ต.${k}`;
+      lines.push(`${lbl}: ${n(v)} ครั้ง (${pctStr(v, ok)})`);
+    }
+  }
   return lines.join('\n');
+}
+
+/** ดึงข้อมูลสรุปแยกรายปีงบประมาณ [[fy, yData], ...] — ถ้าบันทึกรุ่นเก่าไม่มี byYear จะแปลงจาก byMonth ให้ */
+export function getFiscalYearData(summary) {
+  if (Array.isArray(summary?.byYear) && summary.byYear.length) {
+    return [...summary.byYear].sort((a, b) => b[0] - a[0]);
+  }
+  if (Array.isArray(summary?.byMonth) && summary.byMonth.length) {
+    const map = new Map();
+    for (const [mk, m] of summary.byMonth) {
+      const [y, mo] = String(mk).split('-');
+      const fy = (+y + 543) + (+mo >= 10 ? 1 : 0);
+      let yb = map.get(fy);
+      if (!yb) {
+        yb = {
+          total: 0, ok: 0, cancel: 0, other: 0, patients: 0, patientsAll: 0,
+          service: new Map(), cover: new Map(), rights: new Map(), tambon: new Map(), month: new Map(),
+          fee: 0, free: 0, paid: 0,
+        };
+        map.set(fy, yb);
+      }
+      yb.total += Number(m.total || 0);
+      yb.ok += Number(m.ok || 0);
+      yb.cancel += Number(m.cancel || 0);
+      yb.other += Number(m.other || 0);
+      yb.patients += Number(m.patients || 0);
+      yb.patientsAll += Number(m.patientsAll || 0);
+      yb.fee += Number(m.fee || 0);
+      yb.free += Number(m.free || 0);
+      yb.paid += Number(m.paid || 0);
+      add(yb.month, mk, Number(m.ok || 0));
+      for (const [k, v] of (m.service || [])) add(yb.service, k, v);
+      for (const [k, v] of (m.cover || [])) add(yb.cover, k, v);
+      for (const [k, v] of (m.rights || [])) add(yb.rights, k, v);
+      for (const [k, v] of (m.tambon || [])) add(yb.tambon, k, v);
+    }
+    return [...map.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([fy, yb]) => [fy, {
+        total: yb.total, ok: yb.ok, cancel: yb.cancel, other: yb.other,
+        patients: yb.patients, patientsAll: yb.patientsAll,
+        service: top(yb.service), cover: top(yb.cover), rights: top(yb.rights), tambon: top(yb.tambon),
+        month: [...yb.month.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+        fee: Math.round(yb.fee), free: yb.free, paid: yb.paid,
+      }]);
+  }
+  return [];
+}
+
+export function yearHeading(fy, y) {
+  const months = (y?.month || []).filter((x) => x[1] > 0);
+  const range = months.length > 1
+    ? ` (${monthLabel(months[0][0])} – ${monthLabel(months[months.length - 1][0])})`
+    : months.length === 1 ? ` (${monthLabel(months[0][0])})` : '';
+  return `ภาพรวมปีงบประมาณ ${fy}${range}`;
 }
 
 function renderMonthCard(heading, m, key, isTotal = false) {
@@ -415,6 +532,12 @@ function renderMonthCard(heading, m, key, isTotal = false) {
   const svcs = (m.service || []).filter((x) => x[1] > 0);
   const covs = (m.cover || []).filter((x) => x[1] > 0);
   const rigs = (m.rights || []).filter((x) => x[1] > 0);
+  const months = (m.month || []).filter((x) => x[1] > 0);
+  const tams = (m.tambon || []).filter((x) => x[1] > 0);
+  const hasExtra = isTotal && (months.length > 0 || tams.length > 0);
+  const monthSec = 4;
+  const tamSec = months.length > 0 ? 5 : 4;
+
   return `<details class="dr-month-card${isTotal ? ' dr-month-total' : ''}" data-month-card="${esc(key)}" open>`
     + `<summary class="dr-month-head">`
     + `<span class="dr-month-title"><h3>${esc(heading)}</h3>`
@@ -442,6 +565,16 @@ function renderMonthCard(heading, m, key, isTotal = false) {
           + `<div class="meter"><span style="width:${ok ? Math.round((v / ok) * 100) : 0}%"></span></div></li>`).join('')
         + '</ul></div>' : '')
       + '</div>' : '')
+    + (hasExtra ? `<div class="dr-grid" style="margin-top:2px">`
+      + (months.length ? `<div class="dr-sec"><h4>${monthSec}. สรุปรายเดือน (จัดส่งสำเร็จ)</h4><ul class="dr-kv-list">`
+        + months.map(([k, v]) => `<li><div class="dr-line"><span>${esc(monthLabel(k))}:</span><b class="num">${n(v)} ครั้ง (${pctStr(v, ok)})</b></div>`
+          + `<div class="meter"><span style="width:${ok ? Math.round((v / ok) * 100) : 0}%"></span></div></li>`).join('')
+        + '</ul></div>' : '')
+      + (tams.length ? `<div class="dr-sec"><h4>${tamSec}. ตามตำบล</h4><ul class="dr-kv-list">`
+        + tams.map(([k, v]) => `<li><div class="dr-line"><span>${esc(k.startsWith('ต.') || k === 'ไม่ระบุ' ? k : 'ต.' + k)}:</span><b class="num">${n(v)} ครั้ง (${pctStr(v, ok)})</b></div>`
+          + `<div class="meter"><span style="width:${ok ? Math.round((v / ok) * 100) : 0}%"></span></div></li>`).join('')
+        + '</ul></div>' : '')
+      + `</div>` : '')
     + '</div></details>';
 }
 
@@ -462,23 +595,23 @@ async function copyTextSafe(txt) {
   toast('คัดลอกข้อความสรุปแล้ว');
 }
 
-function bars(title, list, label = (k) => k, unit = 'ครั้ง') {
-  if (!list?.length) return '';
-  const max = Math.max(1, ...list.map((x) => x[1]));
-  return `<div class="dr-block"><h3>${esc(title)}</h3><div class="bars">${list.map(([k, v]) => `<div class="bar-row"><div><span>${esc(label(k))}</span><b class="num">${n(v)} ${unit}</b></div>`
-    + `<div class="meter"><span style="width:${Math.round((v / max) * 100)}%"></span></div></div>`).join('')}</div></div>`;
-}
-
 export function renderDeliveryReport(box, rep) {
   const s = rep.summary || {};
   const period = rep.period_from ? `${thaiDate(rep.period_from)} – ${thaiDate(rep.period_to)}` : '';
+  const byYears = getFiscalYearData(s);
   const byMonthDesc = Array.isArray(s.byMonth) ? [...s.byMonth].reverse() : [];
-  const totalHeading = byMonthDesc.length > 1
-    ? `ภาพรวมสะสมทุกเดือน (${monthLabel(s.byMonth[0][0])} – ${monthLabel(s.byMonth[s.byMonth.length - 1][0])})`
-    : byMonthDesc.length === 1 ? monthFullLabel(byMonthDesc[0][0]) : 'สรุปภาพรวมการจัดส่งยา';
   const textMap = new Map();
   for (const [mk, m] of byMonthDesc) textMap.set(mk, buildMonthReportText(monthFullLabel(mk), m));
-  textMap.set('total', buildMonthReportText(totalHeading, s));
+  for (const [fy, y] of byYears) {
+    const heading = yearHeading(fy, y);
+    textMap.set('fy-' + fy, buildMonthReportText(heading, y));
+  }
+  if (byYears.length) {
+    const allFyText = byYears.map(([fy, y]) => buildMonthReportText(yearHeading(fy, y), y)).join('\n\n' + '─'.repeat(40) + '\n\n');
+    textMap.set('total', allFyText);
+  } else {
+    textMap.set('total', buildMonthReportText('สรุปภาพรวมการจัดส่งยา', s));
+  }
   box._drTexts = textMap;
 
   const monthlyHtml = (byMonthDesc.length || s.ok) ? `<div class="dr-monthly">`
@@ -490,19 +623,23 @@ export function renderDeliveryReport(box, rep) {
     + (byMonthDesc.length > 1 ? `<div class="unit-tabs dr-month-tabs" role="tablist" aria-label="เลือกเดือนที่ต้องการดู">`
       + `<button type="button" data-dr-month-tab="all" aria-current="true">ทุกเดือน (${byMonthDesc.length} เดือน)</button>`
       + byMonthDesc.map(([mk]) => `<button type="button" data-dr-month-tab="${esc(mk)}" aria-current="false">${esc(monthTabLabel(mk))}</button>`).join('')
-      + `<button type="button" data-dr-month-tab="total" aria-current="false">รวมทุกเดือน</button>`
+      + (byYears.length > 1
+        ? `<button type="button" data-dr-month-tab="total" aria-current="false">ภาพรวมแยกปีงบ</button>`
+          + byYears.map(([fy]) => `<button type="button" data-dr-month-tab="fy-${fy}" aria-current="false">ปีงบ ${fy}</button>`).join('')
+        : `<button type="button" data-dr-month-tab="total" aria-current="false">ภาพรวม${byYears.length ? `ปีงบ ${byYears[0][0]}` : 'ทุกเดือน'}</button>`)
       + `</div>` : '')
     + `<div class="dr-month-grid">`
-    + (byMonthDesc.length ? byMonthDesc.map(([mk, m]) => renderMonthCard(monthFullLabel(mk), m, mk, false)).join('') : renderMonthCard(totalHeading, s, 'total', false))
+    + (byMonthDesc.length
+        ? byMonthDesc.map(([mk, m]) => renderMonthCard(monthFullLabel(mk), m, mk, false)).join('')
+        : (byYears.length
+            ? byYears.map(([fy, y]) => renderMonthCard(yearHeading(fy, y), y, 'fy-' + fy, true)).join('')
+            : renderMonthCard('สรุปภาพรวมการจัดส่งยา', s, 'total', true)))
     + `</div>`
     + (byMonthDesc.length > 1 ? `<div class="dr-total-section" data-month-card="total" hidden>`
-      + renderMonthCard(totalHeading, s, 'total', true)
-      + `<div class="dr-grid" style="margin-top:14px">`
-      + bars('รายเดือน (จัดส่งสำเร็จ)', s.month, monthLabel)
-      + bars('ตามตำบล', s.tambon)
-      + bars('ตามช่องทางจัดส่ง', s.service)
-      + bars('ตามสิทธิการรักษา', s.rights)
-      + `</div></div>` : '')
+      + (byYears.length
+          ? byYears.map(([fy, y]) => renderMonthCard(yearHeading(fy, y), y, 'fy-' + fy, true)).join('')
+          : renderMonthCard('สรุปภาพรวมการจัดส่งยา', s, 'total', true))
+      + `</div>` : '')
     + `</div>` : '';
 
   box.innerHTML = `<p class="small muted">${esc(rep.title)}${period ? ' · ' + esc(period) : ''} · ตัวเลขสรุปเท่านั้น ไม่มีข้อมูลรายบุคคล</p>`
@@ -514,13 +651,7 @@ export function renderDeliveryReport(box, rep) {
     + '</div>'
     + `<p class="small muted">รายการทั้งหมด ${n(s.total)} · สำเร็จ ${n(s.ok)} · ยกเลิก ${n(s.cancel)}${s.other ? ' · อื่น ๆ ' + n(s.other) : ''} · ค่าจัดส่งรวม ${n(s.fee)} บาท</p>`
     + (rep.ai_status === 'done' && rep.ai_text ? `<div class="dr-ai"><h3>สรุปโดย AI</h3>${String(rep.ai_text).split(/\n+/).filter((l) => l.trim()).map((l) => `<p>${esc(l)}</p>`).join('')}</div>` : '')
-    + monthlyHtml
-    + (byMonthDesc.length <= 1 ? '<div class="dr-grid">'
-      + bars('รายเดือน (จัดส่งสำเร็จ)', s.month, monthLabel)
-      + bars('ตามตำบล', s.tambon)
-      + bars('ตามช่องทางจัดส่ง', s.service)
-      + bars('ตามสิทธิการรักษา', s.rights)
-      + '</div>' : '');
+    + monthlyHtml;
 
   if (!box._drBound) {
     box._drBound = true;
@@ -546,14 +677,40 @@ export function renderDeliveryReport(box, rep) {
       if (tab) {
         const pick = tab.dataset.drMonthTab;
         box.querySelectorAll('[data-dr-month-tab]').forEach((b) => b.setAttribute('aria-current', String(b === tab)));
-        box.querySelectorAll('[data-month-card]').forEach((c) => {
-          const isMatch = pick === 'all' ? (c.dataset.monthCard !== 'total') : (c.dataset.monthCard === pick);
-          c.hidden = !isMatch;
-          if (isMatch) {
-            const dt = c.matches('details') ? c : c.querySelector('details.dr-month-card');
-            if (dt) dt.open = true;
+        const totalSec = box.querySelector('.dr-total-section');
+        const monthGrid = box.querySelector('.dr-month-grid');
+        if (pick === 'all') {
+          if (monthGrid) monthGrid.hidden = false;
+          if (totalSec) totalSec.hidden = true;
+          box.querySelectorAll('.dr-month-grid [data-month-card]').forEach((c) => { c.hidden = false; });
+        } else if (pick === 'total') {
+          if (monthGrid) monthGrid.hidden = true;
+          if (totalSec) {
+            totalSec.hidden = false;
+            totalSec.querySelectorAll('[data-month-card]').forEach((c) => {
+              c.hidden = false;
+              c.open = true;
+            });
           }
-        });
+        } else if (pick.startsWith('fy-')) {
+          if (monthGrid) monthGrid.hidden = true;
+          if (totalSec) {
+            totalSec.hidden = false;
+            totalSec.querySelectorAll('[data-month-card]').forEach((c) => {
+              const isMatch = c.dataset.monthCard === pick;
+              c.hidden = !isMatch;
+              if (isMatch) c.open = true;
+            });
+          }
+        } else {
+          if (monthGrid) monthGrid.hidden = false;
+          if (totalSec) totalSec.hidden = true;
+          box.querySelectorAll('.dr-month-grid [data-month-card]').forEach((c) => {
+            const isMatch = c.dataset.monthCard === pick;
+            c.hidden = !isMatch;
+            if (isMatch) c.open = true;
+          });
+        }
         syncToggleAll();
         return;
       }
@@ -567,7 +724,9 @@ export function renderDeliveryReport(box, rep) {
       }
       const cpAll = e.target.closest('[data-dr-copy-all]');
       if (cpAll && box._drTexts) {
-        const allTxt = [...box._drTexts.values()].join('\n\n' + '─'.repeat(40) + '\n\n');
+        const monthsTxt = byMonthDesc.map(([mk]) => box._drTexts.get(mk)).filter(Boolean);
+        const fyTxt = byYears.map(([fy]) => box._drTexts.get('fy-' + fy)).filter(Boolean);
+        const allTxt = [...monthsTxt, ...fyTxt].join('\n\n' + '─'.repeat(40) + '\n\n');
         if (allTxt) copyTextSafe(allTxt);
       }
     });
