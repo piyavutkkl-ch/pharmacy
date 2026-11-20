@@ -65,8 +65,15 @@ const POST_HTML = `
           <select id="ppYear" class="input"></select>
         </div>
 
-        <!-- เยี่ยมบ้าน only: แนบรายชื่อเยี่ยมบ้าน -->
+        <!-- เยี่ยมบ้าน only: ผู้ป่วยที่เยี่ยม & แนบรายชื่อเยี่ยมบ้าน -->
         <div class="field full vs-box pp-visit-only" id="ppVisitBoxWrap" hidden>
+          <div class="vs-pt-row">
+            <label for="ppPatientCount" class="vs-pt-lbl"><b>ผู้ป่วยที่เยี่ยม (จำนวนลงเยี่ยม)</b> <span class="small muted">(กรอกจำนวนเอง หรือเว้นว่างเพื่อนับจากรายชื่อที่ติ๊กด้านล่าง)</span></label>
+            <div class="vs-pt-inp">
+              <input id="ppPatientCount" class="input num" type="number" min="0" max="10000" step="1" inputmode="numeric" placeholder="กรอกจำนวน หรือเว้นว่างเพื่อนับจากรายชื่อที่ติ๊ก">
+              <span class="small muted">ราย</span>
+            </div>
+          </div>
           <label class="vs-box-h"><input type="checkbox" id="ppVisitOn"> <span><b id="ppVisitL">แนบรายชื่อเยี่ยมบ้าน</b> <span class="small muted">(เชื่อมโยงรายการเยี่ยม)</span></span></label>
           <div class="vs-box-b" id="ppVisitBox" hidden>
             <p class="small muted vs-hint">ผูกบันทึกการเยี่ยมของผู้ป่วยแต่ละคนใน one page นี้ · เจ้าหน้าที่/ผู้ดูแลกดจากหน้าสรุปไปดูว่าเยี่ยมแล้วทำอะไร ติดตามอะไร (ประชาชนไม่เห็นส่วนนี้)</p>
@@ -218,6 +225,7 @@ export async function mountPost(slot, unit, options = {}) {
     $('#ppAiBtn').addEventListener('click', onRunAi);
 
     // เยี่ยมบ้าน events
+    $('#ppPatientCount').addEventListener('input', updatePeopleCounts);
     $('#ppVisitOn').addEventListener('change', onBoxesChange);
     $('#ppPeopleOn').addEventListener('change', onBoxesChange);
     $('#ppVisitBtn').addEventListener('click', toggleVisitPick);
@@ -299,19 +307,29 @@ function setType(type) {
     $('#ppImageReq').hidden = false;
     $('#ppImageNote').textContent = HINT_IMG;
     if (!P.editing) {
+      $('#ppFormTitle').textContent = 'โพสต์ผลงาน';
       $('#ppSubmit').textContent = 'เผยแพร่สรุปเยี่ยมบ้าน';
-      if (!$('#ppPeopleOn').checked) {
-        $('#ppPeopleOn').checked = true;
-        $('#ppPeopleBox').hidden = false;
-        updatePeopleCounts();
-      }
+    } else {
+      $('#ppFormTitle').textContent = 'แก้ไขสรุปผลงาน';
+      $('#ppSubmit').textContent = 'บันทึกการแก้ไข';
+    }
+    if (!$('#ppPeopleOn').checked && (!P.editing || P.editing.type === 'achievement')) {
+      $('#ppPeopleOn').checked = true;
+      $('#ppPeopleBox').hidden = false;
+      updatePeopleCounts();
     }
     onDateChange();
   } else {
     $('#ppImageLbl').textContent = 'รูปผลงาน (ถ้ามี)';
     $('#ppImageReq').hidden = true;
     $('#ppImageNote').textContent = 'เลือกรูปภาพผลงาน (ถ้ามี)';
-    if (!P.editing) $('#ppSubmit').textContent = 'เผยแพร่ผลงาน';
+    if (!P.editing) {
+      $('#ppFormTitle').textContent = 'โพสต์ผลงาน';
+      $('#ppSubmit').textContent = 'เผยแพร่ผลงาน';
+    } else {
+      $('#ppFormTitle').textContent = 'แก้ไขผลงาน';
+      $('#ppSubmit').textContent = 'บันทึกการแก้ไข';
+    }
   }
 
   // เจ้าหน้าที่: ถ้าเป็นผลงาน ล็อก รพ.สต. เป็นหน่วยตัวเองเสมอ
@@ -327,7 +345,7 @@ function onDateChange() {
   if (!d) return;
   $('#ppDateTh').textContent = `(ตรงกับ ${thaiDate(d)})`;
   const fy = fiscalYearOf(d);
-  if ($('#ppYear') && !P.editing) {
+  if ($('#ppYear') && (!P.editing || P.editing.type === 'achievement')) {
     $('#ppYear').value = String(fy);
   }
   loadCrit();
@@ -347,6 +365,7 @@ function onBoxesChange() {
 function resetForm() {
   P.editing = null;
   $('#ppForm').reset();
+  if ($('#ppPatientCount')) $('#ppPatientCount').value = '';
   $('#ppDate').value = todayYmd();
   onDateChange();
 
@@ -591,7 +610,13 @@ function onOthersClick(e) {
 function updatePeopleCounts() {
   const sys = (P.people || []).filter((p) => p.id && P.pickedPeople.has(p.id));
   const positions = $('#ppPeopleOn')?.checked ? [...sys.map((p) => p.position || ''), ...[...(P.pickedNames || []), ...(P.otherPeople || [])].map(posOf)] : [];
-  const nPt = $('#ppVisitOn')?.checked ? new Set([...(P.links || new Map()).values()].map((r) => r.patient_id)).size : 0;
+  const linkedPt = $('#ppVisitOn')?.checked ? new Set([...(P.links || new Map()).values()].map((r) => r.patient_id)).size : 0;
+  const rawPt = $('#ppPatientCount')?.value?.trim() || '';
+  const manualPt = rawPt !== '' && +rawPt > 0 ? Math.floor(+rawPt) : 0;
+  if ($('#ppPatientCount')) {
+    $('#ppPatientCount').placeholder = linkedPt > 0 ? `นับจากรายชื่อที่ติ๊ก (${linkedPt} ราย)` : 'กรอกจำนวน หรือเว้นว่างเพื่อนับจากรายชื่อที่ติ๊ก';
+  }
+  const nPt = manualPt > 0 ? manualPt : linkedPt;
   const counts = countLine(positions, nPt);
   $('#ppCounts').textContent = counts ? `ลงเยี่ยม: ${counts}` : '';
   const names = [...sys.map((p) => p.full_name), ...(P.pickedNames || []), ...(P.otherPeople || [])];
@@ -721,6 +746,7 @@ async function onSubmit(e) {
 async function saveVisit(title, unitId, dateVal, imgs) {
   const btn = $('#ppSubmit');
   const old = P.editing?.type === 'visit' ? P.editing.data : null;
+  const oldAch = P.editing?.type === 'achievement' ? P.editing.data : null;
   const done = [];
   const folder = `summaries/${auth.profile?.role === 'staff' ? auth.profile.unit_id : unitId}`;
 
@@ -733,6 +759,9 @@ async function saveVisit(title, unitId, dateVal, imgs) {
       paths.push(p);
     }
 
+    const rawPt = $('#ppPatientCount')?.value?.trim() || '';
+    const manualPt = rawPt !== '' && +rawPt > 0 ? Math.floor(+rawPt) : null;
+
     const row = {
       unit_id: unitId,
       fiscal_year: +$('#ppYear').value || fiscalYearOf(dateVal),
@@ -743,6 +772,7 @@ async function saveVisit(title, unitId, dateVal, imgs) {
       summary_date: dateVal,
       participant_ids: $('#ppPeopleOn').checked ? [...P.pickedPeople] : [],
       participant_others: $('#ppPeopleOn').checked ? [...new Set([...P.pickedNames, ...P.otherPeople])] : [],
+      patient_count: manualPt,
       updated_at: new Date().toISOString(),
     };
 
@@ -756,7 +786,20 @@ async function saveVisit(title, unitId, dateVal, imgs) {
     const sid = saved?.[0]?.id ?? old?.id;
     if (sid) {
       await syncLinks(sid, P.links, P.linksOrig).catch((err) => toast('บันทึกสรุปแล้ว แต่เชื่อมโยงรายการเยี่ยมไม่สำเร็จ: ' + errText(err), 'err'));
-      await syncAchievement(sid, row, old, [...P.critPicked]).catch((err) => toast('บันทึกสรุปแล้ว แต่บันทึกเป็นผลงานมาตรฐานไม่สำเร็จ: ' + errText(err), 'err'));
+      if (oldAch) {
+        if (P.critPicked.size) {
+          await syncAchievement(sid, row, { achievement_id: oldAch.id }, [...P.critPicked])
+            .then(() => sb.from('visit_summaries').update({ achievement_id: oldAch.id }).eq('id', sid))
+            .catch((err) => toast('บันทึกสรุปแล้ว แต่บันทึกเป็นผลงานมาตรฐานไม่สำเร็จ: ' + errText(err), 'err'));
+        } else {
+          await sb.from('achievements').delete().eq('id', oldAch.id);
+        }
+        if (oldAch.image_path && !paths.includes(oldAch.image_path)) {
+          removeFiles('public-images', [oldAch.image_path]);
+        }
+      } else {
+        await syncAchievement(sid, row, old, [...P.critPicked]).catch((err) => toast('บันทึกสรุปแล้ว แต่บันทึกเป็นผลงานมาตรฐานไม่สำเร็จ: ' + errText(err), 'err'));
+      }
     }
 
     if (old) {
@@ -765,7 +808,8 @@ async function saveVisit(title, unitId, dateVal, imgs) {
     }
 
     busy(btn, false);
-    toast(old ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่สรุปผลงานแล้ว — แสดงที่หน้าหลัก › ผลการดำเนินงาน');
+    toast((old || oldAch) ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่สรุปผลงานแล้ว — แสดงที่หน้าหลัก › ผลการดำเนินงาน');
+    if (P.typeFilter !== 'all' && P.typeFilter !== 'visit') setTypeFilter('all', false);
     resetForm();
     $('#ppFold').open = false;
     await loadCombinedList();
@@ -778,6 +822,8 @@ async function saveVisit(title, unitId, dateVal, imgs) {
 async function saveAchievement(title, unitId, dateVal, imgs) {
   const btn = $('#ppSubmit');
   const old = P.editing?.type === 'achievement' ? P.editing.data : null;
+  const oldSum = P.editing?.type === 'visit' ? P.editing.data : null;
+  const targetAchId = old?.id || oldSum?.achievement_id || null;
   let imagePath = null;
   let newUploaded = null;
 
@@ -799,20 +845,29 @@ async function saveAchievement(title, unitId, dateVal, imgs) {
     unit_id: unitId,
     ...(imagePath ? { image_path: imagePath } : {}),
   };
-  if (!imagePath && old?.image_path) row.image_path = null;
+  if (!imagePath && (old?.image_path || oldSum?.image_path)) row.image_path = null;
 
   try {
-    const res = old
-      ? await sb.from('achievements').update(row).eq('id', old.id).select()
+    const res = targetAchId
+      ? await sb.from('achievements').update(row).eq('id', targetAchId).select()
       : await sb.from('achievements').insert(row).select();
     if (res.error) throw res.error;
+
+    if (oldSum) {
+      const { error: delErr } = await sb.from('visit_summaries').delete().eq('id', oldSum.id);
+      if (delErr) throw delErr;
+      const gone = imgsOf(oldSum).filter((p) => p && p !== imagePath);
+      if (gone.length) removeFiles('public-images', gone);
+      if (oldSum.file_path) removeFiles('news-files', [oldSum.file_path]);
+    }
 
     if (res.data?.[0]) await aiAfterSave(res.data[0], old, P.formAi);
     if (newUploaded && old?.image_path) removeFiles('public-images', [old.image_path]);
 
     const linked = critLabel(row.item_ids, [...P.critCache.values()].flat());
-    toast((old ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่ผลงานแล้ว') + (linked ? ` · แนบเป็นหลักฐานมาตรฐานข้อ ${linked}` : ''));
+    toast(((old || oldSum) ? 'บันทึกการแก้ไขแล้ว' : 'เผยแพร่ผลงานแล้ว') + (linked ? ` · แนบเป็นหลักฐานมาตรฐานข้อ ${linked}` : ''));
     busy(btn, false);
+    if (P.typeFilter !== 'all' && P.typeFilter !== 'achievement') setTypeFilter('all', false);
     resetForm();
     $('#ppFold').open = false;
     await loadCombinedList();
@@ -1076,17 +1131,17 @@ async function onListClick(e) {
   }
 }
 
-function lockTypeSeg() {
+function unlockTypeSeg() {
   $$('#ppTypeSeg .pp-seg-btn').forEach((b) => {
-    b.disabled = true;
-    b.style.pointerEvents = 'none';
+    b.disabled = false;
+    b.style.pointerEvents = '';
   });
 }
 
 function editVisit(s) {
   P.editing = { type: 'visit', data: s };
+  unlockTypeSeg();
   setType('visit');
-  lockTypeSeg();
 
   $('#ppTitle').value = s.title;
   $('#ppUnit').value = String(s.unit_id);
@@ -1094,6 +1149,9 @@ function editVisit(s) {
   $('#ppDate').value = s.summary_date || String(s.created_at).slice(0, 10);
   onDateChange();
   $('#ppYear').value = String(s.fiscal_year);
+  if ($('#ppPatientCount')) {
+    $('#ppPatientCount').value = s.patient_count != null && s.patient_count > 0 ? String(s.patient_count) : '';
+  }
 
   // คนที่ร่วมลง
   const pending = new Set((P.people || []).filter((p) => !p.id).map(pendingKey));
@@ -1151,8 +1209,26 @@ function editVisit(s) {
 
 function editAchievement(a) {
   P.editing = { type: 'achievement', data: a };
+  unlockTypeSeg();
+
+  // เตรียมค่าเริ่มต้นของช่องเยี่ยมบ้านเผื่อผู้ใช้สลับประเภทเป็น "เยี่ยมบ้าน"
+  P.pickedPeople = new Set(auth.profile ? [auth.profile.id] : []);
+  P.pickedNames = new Set();
+  P.otherPeople = [];
+  P.links = new Map();
+  P.linksOrig = new Set();
+  if ($('#ppPatientCount')) $('#ppPatientCount').value = '';
+  $('#ppVisitOn').checked = false;
+  $('#ppPeopleOn').checked = false;
+  $('#ppVisitBox').hidden = true;
+  $('#ppPeopleBox').hidden = true;
+  $('#ppVisitPick').hidden = true;
+  renderLinks();
+  renderPeople();
+  renderOthers();
+  updatePeopleCounts();
+
   setType('achievement');
-  lockTypeSeg();
 
   $('#ppTitle').value = a.title;
   $('#ppBody').value = a.body || '';
@@ -1175,3 +1251,4 @@ function editAchievement(a) {
   $('#ppFold').open = true;
   $('#ppForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+

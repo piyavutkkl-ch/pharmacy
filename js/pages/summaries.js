@@ -15,7 +15,7 @@ import { fileLink, imageList } from './news-form.js?v=4.4';
 import { imageCarousel } from '../lightbox.js?v=4.4';
 
 export const CUR_FY = fiscalYearOf();
-export const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others,participant_positions,achievement_id';
+export const COLS = 'id,unit_id,fiscal_year,title,body,image_path,gallery,file_path,file_name,author_id,created_at,updated_at,summary_date,participant_ids,participant_names,participant_others,participant_positions,achievement_id,patient_count';
 export const MAX_IMGS = 7;   // ภาพแรก + gallery ไม่เกิน 6 (visit_summaries_gallery_check)
 export const imgsOf = (s) => [s.image_path, ...(s.gallery || [])].filter(Boolean);
 export const HINT_IMG = `ภาพสรุป 1 หน้า (เช่น อินโฟกราฟิกจาก Canva) · เลือกได้หลายภาพ ไม่เกิน ${MAX_IMGS} ภาพ · ย่อไม่เกิน A4 อัตโนมัติ · ภาพแรกเป็นภาพหลัก`;
@@ -175,7 +175,15 @@ const FORM = `
       <div class="field"><label for="vsUnit">รพ.สต. <span class="req">*</span></label><select id="vsUnit" class="input"></select></div>
       <div class="field"><label for="vsDate">วันที่ <span class="req">*</span></label><input id="vsDate" class="input" type="date"><span class="small muted" id="vsDateTh"></span></div>
       <div class="field"><label for="vsYear">ปีงบประมาณ</label><select id="vsYear" class="input"></select></div>
-      <div class="field full vs-box"><label class="vs-box-h"><input type="checkbox" id="vsVisitOn"> <span><b id="vsVisitL">แนบรายชื่อเยี่ยมบ้าน</b> <span class="small muted">(เชื่อมโยงรายการเยี่ยม)</span></span></label>
+      <div class="field full vs-box">
+        <div class="vs-pt-row">
+          <label for="vsPatientCount" class="vs-pt-lbl"><b>ผู้ป่วยที่เยี่ยม (จำนวนลงเยี่ยม)</b> <span class="small muted">(กรอกจำนวนเอง หรือเว้นว่างเพื่อนับจากรายชื่อที่ติ๊กด้านล่าง)</span></label>
+          <div class="vs-pt-inp">
+            <input id="vsPatientCount" class="input num" type="number" min="0" max="10000" step="1" inputmode="numeric" placeholder="กรอกจำนวน หรือเว้นว่างเพื่อนับจากรายชื่อที่ติ๊ก">
+            <span class="small muted">ราย</span>
+          </div>
+        </div>
+        <label class="vs-box-h"><input type="checkbox" id="vsVisitOn"> <span><b id="vsVisitL">แนบรายชื่อเยี่ยมบ้าน</b> <span class="small muted">(เชื่อมโยงรายการเยี่ยม)</span></span></label>
         <div class="vs-box-b" id="vsVisitBox" hidden><p class="small muted vs-hint">ผูกบันทึกการเยี่ยมของผู้ป่วยแต่ละคนใน one page นี้ · เจ้าหน้าที่/ผู้ดูแลกดจากหน้าสรุปไปดูว่าเยี่ยมแล้วทำอะไร ติดตามอะไร (ประชาชนไม่เห็นส่วนนี้)</p>
         <div class="list vs-other-list" id="vsVisits" aria-labelledby="vsVisitL"></div>
         <div><button type="button" class="btn btn-o btn-sm" id="vsVisitBtn" aria-expanded="false" aria-controls="vsVisitPick">+ เชื่อมโยงรายการเยี่ยม</button></div>
@@ -218,6 +226,7 @@ export async function mountSummaries(slot, unit) {
     $('#vsPeopleQ').addEventListener('input', renderPeople);
     $('#vsPeopleTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-pt]'); if (!b) return; S.ptab = b.dataset.pt; renderPeople(); });
     $('#vsOAdd').addEventListener('click', addOther);
+    $('#vsPatientCount').addEventListener('input', peopleCount);
     ['vsVisitOn', 'vsPeopleOn'].forEach((k) => $('#' + k).addEventListener('change', () => { boxes(); peopleCount(); }));
     $('#vsCritOn').addEventListener('change', () => { $('#vsCritBox').hidden = !$('#vsCritOn').checked; if ($('#vsCritOn').checked) loadCrit().then(jumpVisitItem); });
     $('#vsYear').addEventListener('change', () => { if ($('#vsCritOn').checked) loadCrit(); });
@@ -259,6 +268,7 @@ const defaultUnit = () => (S.unit !== 'all' && S.unit != null ? S.unit : auth.pr
 function reset() {
   if (!S) return;
   S.editing = null; $('#vsForm').reset(); S.img.set([]); $('#vsYear').value = String(CUR_FY); $('#vsUnit').value = String(defaultUnit());
+  if ($('#vsPatientCount')) $('#vsPatientCount').value = '';
   $('#vsDate').value = todayIso(); onDate();
   S.picked = new Set(auth.profile ? [auth.profile.id] : []); S.pickedNames = new Set(); renderPeople();   // ค่าเริ่มต้น = ตัวเองร่วมลง
   S.others = []; renderOthers();
@@ -467,7 +477,13 @@ export async function deleteSummaryData(s) {
 function peopleCount() {
   const sys = (S.people || []).filter((p) => p.id && S.picked.has(p.id));
   const positions = peopleOn() ? [...sys.map((p) => p.position || ''), ...[...(S.pickedNames || []), ...(S.others || [])].map(posOf)] : [];
-  const nPt = visitOn() ? new Set([...(S.links || new Map()).values()].map((r) => r.patient_id)).size : 0;
+  const linkedPt = visitOn() ? new Set([...(S.links || new Map()).values()].map((r) => r.patient_id)).size : 0;
+  const rawPt = $('#vsPatientCount')?.value?.trim() || '';
+  const manualPt = rawPt !== '' && +rawPt > 0 ? Math.floor(+rawPt) : 0;
+  if ($('#vsPatientCount')) {
+    $('#vsPatientCount').placeholder = linkedPt > 0 ? `นับจากรายชื่อที่ติ๊ก (${linkedPt} ราย)` : 'กรอกจำนวน หรือเว้นว่างเพื่อนับจากรายชื่อที่ติ๊ก';
+  }
+  const nPt = manualPt > 0 ? manualPt : linkedPt;
   const counts = countLine(positions, nPt);
   $('#vsCounts').textContent = counts ? `ลงเยี่ยม: ${counts}` : '';
   const names = [...sys.map((p) => p.full_name), ...(S.pickedNames || []), ...(S.others || [])];
@@ -506,6 +522,7 @@ async function onList(e) {
     S.editing = s;
     $('#vsTitle').value = s.title; $('#vsUnit').value = String(s.unit_id); $('#vsBody').value = s.body || '';
     $('#vsDate').value = s.summary_date || String(s.created_at).slice(0, 10); onDate(); $('#vsYear').value = String(s.fiscal_year);
+    if ($('#vsPatientCount')) $('#vsPatientCount').value = s.patient_count != null && s.patient_count > 0 ? String(s.patient_count) : '';
     const pending = new Set((S.people || []).filter((p) => !p.id).map(pendingKey));   // ชื่อที่เลือกจากรายชื่อตอนยังไม่เข้าระบบ → ติ๊กกลับในรายการ
     S.picked = new Set(s.participant_ids || []); S.pickedNames = new Set((s.participant_others || []).filter((n) => pending.has(n)));
     $('#vsPeopleQ').value = ''; renderPeople();
@@ -556,8 +573,11 @@ async function save(e) {
       if (x.path) { paths.push(x.path); continue; }
       const p = await uploadPublicImage(x.blob, folder); done.push(p); paths.push(p);
     }
+    const rawPt = $('#vsPatientCount')?.value?.trim() || '';
+    const manualPt = rawPt !== '' && +rawPt > 0 ? Math.floor(+rawPt) : null;
     const row = { unit_id: unitId, fiscal_year: +$('#vsYear').value, title, body: $('#vsBody').value.trim(), image_path: paths[0], gallery: paths.slice(1),
-      summary_date: $('#vsDate').value, participant_ids: peopleOn() ? [...S.picked] : [], participant_others: peopleOn() ? [...new Set([...S.pickedNames, ...S.others])] : [], updated_at: new Date().toISOString() };
+      summary_date: $('#vsDate').value, participant_ids: peopleOn() ? [...S.picked] : [], participant_others: peopleOn() ? [...new Set([...S.pickedNames, ...S.others])] : [],
+      patient_count: manualPt, updated_at: new Date().toISOString() };
     if (!visitOn()) S.links = new Map();   // ไม่ติ๊กแนบรายชื่อเยี่ยมบ้าน = เอาการเชื่อมโยงออกทั้งหมด
     const { data: saved, error } = old ? await sb.from('visit_summaries').update(row).eq('id', old.id).select('id') : await sb.from('visit_summaries').insert(row).select('id');
     if (error) throw error;

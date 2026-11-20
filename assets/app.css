@@ -542,6 +542,11 @@ a.menu-icon-btn{text-decoration:none}
 .sm-counts{color:var(--ink)}
 .vs-counts{display:block;font-weight:600}
 .vs-box{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--sunken)}
+.vs-pt-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.vs-pt-lbl{font-weight:400;line-height:1.4;flex:1 1 220px}
+.vs-pt-inp{display:flex;align-items:center;gap:6px;flex:0 1 240px}
+.vs-pt-inp .input{min-width:0;flex:1 1 auto;min-height:40px}
+@media (max-width:640px){.vs-pt-inp{flex:1 1 100%}}
 .vs-box-h{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-weight:400}
 .vs-box-h input{width:20px;height:20px;flex:none}
 .vs-box-b{margin-top:6px;display:flex;flex-direction:column;gap:8px}
