@@ -463,12 +463,54 @@ function rpc(name, a = {}) {
       return { data: out.slice(a.p_offset || 0, (a.p_offset || 0) + (a.p_limit || 200)).map((r) => ({ ...r, total: out.length })), error: null };
     }
     /* แทน ai_match_* (37_ai_match.sql): ตอบ "รอ" 1 รอบก่อนได้ผล · จับคู่ข้อเกณฑ์ด้วยตัวอักษร 3 ตัวที่ซ้ำกัน (ของจริงใช้ Gemini) */
+    case 'ai_image_settings_get': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์ เฉพาะผู้ดูแลเท่านั้น', '42501');
+      const defPrompt = 'Create ONLY ONE single tall portrait poster divided into 3 clearly separated sections stacked from top to bottom, with thin subtle divider lines. Flat modern vector graphic design, highly aesthetic and professional medical illustration.\n'
+        + 'SECTION 1 (top - Executive Summary for patients & clinic front): An informative medical infographic poster. Clean minimalist layout, clear visual hierarchy, modern healthcare vector icons, core mechanism, and key tips.\n'
+        + 'SECTION 2 (middle - Humorous 3-panel comic): A funny 3-panel comic strip in 2D hand-drawn editorial cartoon style with speech bubbles. Panel 1: Cute organ or pill character dealing with health stress. Panel 2: Discovering new medication/lifestyle solution with energetic spark. Panel 3: Happy healthy outcome with smiling patient. Humorous and lighthearted.\n'
+        + 'SECTION 3 (bottom - Clinical Guideline & Matrix for healthcare staff): A professional clinical flowchart and structured decision matrix. Step-by-step decision tree, dosage/management comparison tables, color-coded sections, crisp and readable typography.\n'
+        + 'Important: Use short, correctly spelled keywords and labels only. Highly organized, vibrant, zero visual clutter.';
+      const st = (k) => (db.site_texts || []).find((x) => x.key === k)?.body;
+      const cfg = db.ai_image_settings || {};
+      return {
+        data: {
+          api_key: cfg.api_key ?? '',
+          has_default_key: true,
+          model: st('ai_image_model') || cfg.model || 'gemini-2.5-flash-image',
+          prompt: st('ai_image_prompt') || cfg.prompt || defPrompt,
+          locked: (st('ai_image_locked') ?? (cfg.locked === false ? 'off' : 'on')) !== 'off',
+        },
+        error: null,
+      };
+    }
+    case 'ai_image_settings_save': {
+      if (!isAdmin()) return err('ไม่มีสิทธิ์ เฉพาะผู้ดูแลเท่านั้น', '42501');
+      const cur = rpc('ai_image_settings_get').data;
+      const api_key = String(a.p_api_key ?? '').trim();
+      const model = String(a.p_model || 'gemini-2.5-flash-image').trim() || 'gemini-2.5-flash-image';
+      const prompt = String(a.p_prompt ?? '').trim() || cur.prompt;
+      const locked = a.p_locked !== false;
+      db.ai_image_settings = { api_key, model, prompt, locked };
+      const up = (key, body) => {
+        const rows = (db.site_texts ||= []);
+        const i = rows.findIndex((x) => x.key === key);
+        const r = { key, body, updated_at: now() };
+        if (i >= 0) rows[i] = r; else rows.push(r);
+      };
+      up('ai_image_model', model);
+      up('ai_image_prompt', prompt);
+      up('ai_image_locked', locked ? 'on' : 'off');
+      return rpc('ai_image_settings_get');
+    }
     case 'ai_news_image_start': {
       if (!isAdmin()) return err('ไม่มีสิทธิ์ เฉพาะผู้ดูแลเท่านั้น', '42501');
       if (window.__rpcFailImage) return err('AI โควตาเต็มหรือมีผู้ใช้มาก กรุณาลองใหม่ภายหลัง', 'P0001');
       const title = String(a.p_title || '').trim();
       if (title.length < 3) return err('กรุณากรอกหัวข้อข่าวก่อน', 'P0001');
+      const cfg = rpc('ai_image_settings_get').data;
       const L = (db.ai_image_jobs ||= []), row = { id: newId('criteria_items'), user_id: ME.id, title, body: a.p_body,
+        model: cfg.model, prompt: `${cfg.prompt}\n\nTOPIC: ${title}\nCONTENT SUMMARY: ${a.p_body || ''}`,
+        used_key: cfg.api_key || 'default_vault_key',
         status: 'pending', image_base64: null, mime_type: 'image/png', note: null, created_at: now(), polls: 0 };
       L.push(row); return { data: row.id, error: null };
     }

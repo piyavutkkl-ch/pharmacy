@@ -260,7 +260,24 @@ async function backfillSources(db, models, n = 2) {
   } catch (e) { log('ตรวจข้อความ PDF ของข่าวเดิมไม่ได้:', String(e.message).slice(0, 120)); }
 }
 
-/* ---------------- ภาพ ---------------- */
+/* ---------------- ภาพ AI (ข่าวละ 1 ภาพ ตาม API Key · โมเดล · Prompt ที่ตั้งค้างไว้) ---------------- */
+export const DEFAULT_IMAGE_PROMPT = 'Create ONLY ONE single tall portrait poster divided into 3 clearly separated sections stacked from top to bottom, with thin subtle divider lines. Flat modern vector graphic design, highly aesthetic and professional medical illustration.\n'
+  + 'SECTION 1 (top - Executive Summary for patients & clinic front): An informative medical infographic poster. Clean minimalist layout, clear visual hierarchy, modern healthcare vector icons, core mechanism, and key tips.\n'
+  + 'SECTION 2 (middle - Humorous 3-panel comic): A funny 3-panel comic strip in 2D hand-drawn editorial cartoon style with speech bubbles. Panel 1: Cute organ or pill character dealing with health stress. Panel 2: Discovering new medication/lifestyle solution with energetic spark. Panel 3: Happy healthy outcome with smiling patient. Humorous and lighthearted.\n'
+  + 'SECTION 3 (bottom - Clinical Guideline & Matrix for healthcare staff): A professional clinical flowchart and structured decision matrix. Step-by-step decision tree, dosage/management comparison tables, color-coded sections, crisp and readable typography.\n'
+  + 'Important: Use short, correctly spelled keywords and labels only. Highly organized, vibrant, zero visual clutter.';
+const IMAGE_FALLBACK_MODELS = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'imagen-3.0-generate-002', 'imagen-3.0-generate-001'];
+
+export function extractImageBase64(j) {
+  const parts = j?.candidates?.[0]?.content?.parts || [];
+  for (const p of parts) {
+    if (p?.inlineData?.data) return { data: p.inlineData.data, mimeType: p.inlineData.mimeType || 'image/jpeg' };
+  }
+  const b64 = j?.predictions?.[0]?.bytesBase64Encoded;
+  if (b64) return { data: b64, mimeType: j?.predictions?.[0]?.mimeType || 'image/jpeg' };
+  return null;
+}
+
 function loadPlaywright() {
   const req = createRequire(path.join(ROOT, 'tests/ui/package.json'));
   try { return req('playwright'); } catch { return createRequire(import.meta.url)('playwright'); }
@@ -271,7 +288,7 @@ async function render(browser, kind, html) {
   try {
     await p.setContent(html, { waitUntil: 'load', timeout: 30000 });
     await p.evaluate(() => document.fonts?.ready).catch(() => {});
-    if (kind === 'clinical') {   // สูงตามเนื้อหา (ไม่เหลือที่ว่างล่างภาพ) แต่ไม่เตี้ยกว่าจัตุรัส และไม่สูงเกิน A4
+    if (kind === 'clinical') {
       const need = await p.evaluate(() => document.body.scrollHeight);
       await p.setViewportSize({ width: w, height: Math.min(h, Math.max(w, need)) });
     }
@@ -282,6 +299,81 @@ async function render(browser, kind, html) {
     throw new Error(`ภาพ ${kind} ใหญ่เกิน 1 MB`);
   } finally { await p.close(); }
 }
+
+async function normalizeImageToJpeg(browser, b64, mimeType) {
+  const raw = Buffer.from(b64, 'base64');
+  if (mimeType === 'image/jpeg' && raw.length > 200 && raw.length <= MAX_IMG && raw[0] === 0xff && raw[1] === 0xd8) {
+    return raw;
+  }
+  const [w, h] = SIZES.infographic;
+  const p = await browser.newPage({ viewport: { width: w, height: h } });
+  try {
+    const html = `<!doctype html><html><body style="margin:0;background:#fff;display:grid;place-items:center;width:${w}px;height:${h}px"><img src="data:${mimeType};base64,${b64}" style="width:100%;height:100%;object-fit:cover"></body></html>`;
+    await p.setContent(html, { waitUntil: 'load', timeout: 20000 });
+    for (const q of [85, 75, 62, 50]) {
+      const buf = await p.screenshot({ type: 'jpeg', quality: q });
+      if (buf.length <= MAX_IMG) return buf;
+    }
+    throw new Error('ภาพ AI ใหญ่เกิน 1 MB');
+  } finally { await p.close(); }
+}
+
+async function generateAiNewsImage(browser, art, g, imgCfg) {
+  const basePrompt = (imgCfg?.prompt || DEFAULT_IMAGE_PROMPT).trim();
+  const summaryText = buildBody(g).slice(0, 3000);
+  const fullPrompt = `${basePrompt}\n\nTOPIC: ${g.title || art.title}\nCONTENT SUMMARY:\n${summaryText}`;
+  const chosenModel = (imgCfg?.model || 'gemini-2.5-flash-image').trim() || 'gemini-2.5-flash-image';
+  const modelList = [...new Set([chosenModel, ...IMAGE_FALLBACK_MODELS].filter(Boolean))];
+  const customKey = (imgCfg?.api_key || '').trim();
+  const apiKey = customKey || process.env.GEMINI_API_KEY || '';
+
+  if (OFFLINE) {
+    const f = path.join(OFFLINE.dir, 'gemini-image.json');
+    if (fs.existsSync(f)) {
+      const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+      const ext = extractImageBase64(j);
+      if (ext?.data) {
+        const buf = await normalizeImageToJpeg(browser, ext.data, ext.mimeType);
+        return { buf, model: modelList[0], prompt: fullPrompt, used_custom_key: Boolean(customKey), source: 'ai' };
+      }
+    }
+    const buf = await render(browser, 'infographic', infographic(g.infographic || {}));
+    return { buf, model: modelList[0], prompt: fullPrompt, used_custom_key: Boolean(customKey), source: 'ai' };
+  }
+
+  for (const model of modelList) {
+    try {
+      const isImagen = model.startsWith('imagen-');
+      const endpoint = isImagen ? `${GEMINI}/models/${model}:predict` : `${GEMINI}/models/${model}:generateContent`;
+      const reqBody = isImagen
+        ? { instances: [{ prompt: fullPrompt }], parameters: { sampleCount: 1, aspectRatio: '3:4', outputMimeType: 'image/jpeg' } }
+        : { contents: [{ parts: [{ text: fullPrompt }] }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '3:4' } } };
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(reqBody),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) {
+        const ext = extractImageBase64(j);
+        if (ext?.data) {
+          const buf = await normalizeImageToJpeg(browser, ext.data, ext.mimeType);
+          log('สร้างภาพด้วย AI สำเร็จ:', model, buf.length, 'ไบต์');
+          return { buf, model, prompt: fullPrompt, used_custom_key: Boolean(customKey), source: 'ai' };
+        }
+      }
+      log(`สร้างภาพด้วย ${model} ไม่สำเร็จ (HTTP ${r.status}): ${(j?.error?.message || '').slice(0, 120)}`);
+      if (r.status === 401 || r.status === 403) break;
+    } catch (e) {
+      log(`สร้างภาพด้วย ${model} ขัดข้อง:`, String(e.message).slice(0, 120));
+    }
+  }
+
+  log('AI สร้างภาพติดโควตาทุกรุ่น → สร้างภาพโปสเตอร์สำรอง 1 ภาพ');
+  const buf = await render(browser, 'infographic', infographic(g.infographic || {}));
+  return { buf, model: modelList[0], prompt: fullPrompt, used_custom_key: Boolean(customKey), source: 'fallback' };
+}
+
 /* ---------------- ประกอบข่าว ---------------- */
 const clip = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 export function buildBody(g) {
@@ -310,6 +402,23 @@ async function main() {
   const db = OFFLINE ? null : supa();
   const settings = OFFLINE ? { auto: 'off', request: '', ...(fs.existsSync(path.join(OFFLINE.dir, 'settings.json')) ? JSON.parse(fs.readFileSync(path.join(OFFLINE.dir, 'settings.json'), 'utf8')) : {}) }
     : Object.fromEntries((await db.get("site_texts?select=key,body&key=in.(ai_news_auto,ai_news_request)")).map((r) => [r.key === 'ai_news_auto' ? 'auto' : 'request', r.body]));
+  let imgCfg = {
+    api_key: settings.image_api_key || '',
+    model: settings.image_model || 'gemini-2.5-flash-image',
+    prompt: settings.image_prompt || DEFAULT_IMAGE_PROMPT,
+    locked: settings.image_locked !== false,
+  };
+  if (!OFFLINE) {
+    try {
+      const cfg = await db.rpc('ai_image_settings_get');
+      if (cfg && typeof cfg === 'object') imgCfg = { ...imgCfg, ...cfg };
+    } catch (e) {
+      log('อ่านค่าตั้งสร้างภาพจาก rpc ไม่ได้ ใช้ค่าเริ่มต้น:', e.message.slice(0, 120));
+    }
+    if (!process.env.GEMINI_API_KEY && imgCfg.api_key) {
+      process.env.GEMINI_API_KEY = imgCfg.api_key;
+    }
+  }
   const logs = OFFLINE ? JSON.parse(fs.readFileSync(path.join(OFFLINE.dir, 'log.json'), 'utf8'))
     : await db.get('ai_news_log?select=article_id,status,created_at&order=created_at.desc&limit=500');
   const last = logs[0]?.created_at || '';
@@ -326,7 +435,7 @@ async function main() {
     return;
   }
   if (!OFFLINE && !process.env.GEMINI_API_KEY) {
-    await status(db, { status: 'error', note: 'ยังไม่ได้ตั้งค่าคีย์ GEMINI_API_KEY ใน GitHub Secrets' });
+    await status(db, { status: 'error', note: 'ยังไม่ได้ตั้งค่าคีย์ GEMINI_API_KEY หรือ Google AI Studio API Key' });
     console.log('::warning::ยังไม่ได้ตั้ง GEMINI_API_KEY — ข้ามรอบนี้'); return;
   }
 
@@ -346,8 +455,6 @@ async function main() {
 
   const models = await pickModels();
   log('รุ่น AI:', models.text.join(', '));
-  // รุ่น flash ที่ใช้ได้จริงกับคีย์นี้ → ให้ช่อง "AI แนะนำข้อมาตรฐาน" ในฐานข้อมูลใช้ตาม (37_ai_match.sql · ค่าเริ่ม gemini-flash-latest)
-  //   + รุ่นสำรองเมื่อรุ่นแรกไม่ว่าง (503 ฯลฯ) ฐานข้อมูลลองต่อให้เอง (49_ai_retry.sql) · ไม่รวมรุ่นที่รอบนี้พบว่าใช้ไม่ได้ (404/โควตาหมด) → บันทึกซ้ำตอนจบรอบ
   const saveModels = async () => {
     if (OFFLINE) return;
     const live = models.text.filter((n) => !/pro/.test(n) && !deadModels.has(n)), fast = live.find((n) => !/lite/.test(n));
@@ -355,7 +462,7 @@ async function main() {
     if (live.length) await db.upsert('site_texts', { key: 'ai_match_models', body: live.join(',') }).catch((e) => log('บันทึกรุ่นสำรองไม่ได้:', e.message.slice(0, 120)));
   };
   await saveModels();
-  const quick = [...models.text.filter((n) => !/pro/.test(n)), ...models.text.filter((n) => /pro/.test(n))];   // งานเลือกบทความใช้รุ่น flash (เก็บโควตา pro ไว้วิเคราะห์)
+  const quick = [...models.text.filter((n) => !/pro/.test(n)), ...models.text.filter((n) => /pro/.test(n))];
   let art = arts[0];
   if (arts.length > 1) {
     try {
@@ -364,7 +471,6 @@ async function main() {
       log('เลือกบทความ', art.id, '-', clip(pick.reason, 120));
     } catch (e) { log('เลือกบทความไม่ได้ ใช้บทความล่าสุด:', e.message.slice(0, 120)); }
   }
-  // ดาวน์โหลด PDF: บทความที่เลือกก่อน → ไฟล์ว่าง/เสีย = บันทึก "ข้าม" แล้วลองบทความถัดไปในรอบเดียวกัน
   let pdf = null;
   for (const a of [art, ...arts.filter((x) => x !== art)]) {
     try { pdf = checkPdf(OFFLINE ? fs.readFileSync(path.join(OFFLINE.dir, 'article.pdf')) : await downloadPdf(a.pdf)); art = a; break; }
@@ -397,34 +503,38 @@ async function main() {
 
     const pw = loadPlaywright();
     const browser = await pw.chromium.launch(fs.existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {});
-    let imgs;
+    let aiImg;
     try {
-      // ภาพแม่แบบ 3 ภาพ จากข้อมูลที่ตรวจทานแล้ว (ไม่ใช้ AI วาดภาพ · ตัวหนังสือไทยชัด ตรงกับเนื้อข่าว)
-      imgs = {
-        infographic: await render(browser, 'infographic', infographic(g.infographic || {})),
-        comic: await render(browser, 'comic', comic(g.comic || {})),
-        clinical: await render(browser, 'clinical', clinical(g.clinical || {})),
-      };
+      // ④ สร้างภาพประกอบด้วย AI ตาม API Key · โมเดล · Prompt ที่ตั้งค้างไว้ ข่าวละ 1 ภาพ
+      aiImg = await generateAiNewsImage(browser, art, g, imgCfg);
     } finally { await browser.close(); }
 
     const stamp = thaiDay().replace(/-/g, '');
-    const paths = {};
-    for (const [k, buf] of Object.entries(imgs)) {
-      paths[k] = `ai/${art.id}/${stamp}-${k}.jpg`;
-      if (OFFLINE) { fs.mkdirSync(OFFLINE.out, { recursive: true }); fs.writeFileSync(path.join(OFFLINE.out, `${k}.jpg`), buf); } else await db.upload(paths[k], buf, 'image/jpeg');
+    const imgPath = `ai/${art.id}/${stamp}-ai.jpg`;
+    if (OFFLINE) {
+      fs.mkdirSync(OFFLINE.out, { recursive: true });
+      fs.writeFileSync(path.join(OFFLINE.out, 'ai.jpg'), aiImg.buf);
+    } else {
+      await db.upload(imgPath, aiImg.buf, 'image/jpeg');
     }
     row = {
       title: clip(g.title, 200), tag: 'ความรู้', body: buildBody(g), status: settings.auto === 'on' && left === 0 ? 'published' : 'pending',
-      image_path: paths.infographic, gallery: [paths.comic, paths.clinical], ai_generated: true,
+      image_path: imgPath, gallery: [], ai_generated: true,
       source_url: art.url, source_file_url: art.pdf, source_title: clip(`${art.title}${art.authors ? ' — ' + art.authors : ''}`, 300),
     };
-    // ข้อความ PDF เก็บไว้ให้ผู้ดูแลตรวจข่าว/แบบทดสอบ (ไม่สำเร็จ = ข่าวยังสร้างได้ · AI ตรวจจะเปิด PDF จากลิงก์แทน)
     let src = null;
     try { src = await pdfText(pdf, pdfPart, models.text); log('ถอดข้อความ PDF:', src.method, src.pages ?? '-', 'หน้า'); } catch (e) { log('ถอดข้อความ PDF ไม่ได้:', String(e.message).slice(0, 120)); }
-    if (OFFLINE) { fs.writeFileSync(path.join(OFFLINE.out, 'news.json'), JSON.stringify({ article: art, row, facts, check: { rounds, fixed, left }, source: src }, null, 2)); log('offline: บันทึกที่', OFFLINE.out); return; }
+    if (OFFLINE) {
+      fs.writeFileSync(
+        path.join(OFFLINE.out, 'news.json'),
+        JSON.stringify({ article: art, row, facts, check: { rounds, fixed, left }, source: src, image_ai: { model: aiImg.model, prompt: aiImg.prompt, used_custom_key: aiImg.used_custom_key } }, null, 2)
+      );
+      log('offline: บันทึกที่', OFFLINE.out);
+      return;
+    }
     const [news] = await db.insert('news', row);
     if (src) await db.upsert('news_sources', { news_id: news.id, body: src.body, pages: src.pages, method: src.method }).catch((e) => log('บันทึกข้อความ PDF ไม่ได้:', String(e.message).slice(0, 120)));
-    await status(db, { article_id: art.id, title: clip(art.title, 300), news_id: news.id, status: 'done', note: `${row.status === 'published' ? 'เผยแพร่อัตโนมัติ' : 'รอผู้ดูแลตรวจ'} · AI วิเคราะห์ ${facts.facts.length} ข้อเท็จจริง · ตรวจทาน ${rounds} รอบ แก้ ${fixed} จุด${left !== 0 ? ` · ยังมีจุดที่ควรตรวจ ${Math.max(left, 1)} จุด` : ''}` });
+    await status(db, { article_id: art.id, title: clip(art.title, 300), news_id: news.id, status: 'done', note: `${row.status === 'published' ? 'เผยแพร่อัตโนมัติ' : 'รอผู้ดูแลตรวจ'} · AI วิเคราะห์ ${facts.facts.length} ข้อเท็จจริง · ตรวจทาน ${rounds} รอบ แก้ ${fixed} จุด${left !== 0 ? ` · ยังมีจุดที่ควรตรวจ ${Math.max(left, 1)} จุด` : ''} · สร้างภาพ AI (${aiImg.model})` });
     log('สร้างข่าวแล้ว:', news.id, row.status);
     await backfillSources(db, models.text);
   } catch (e) {

@@ -1547,5 +1547,32 @@ check("100: cannot comment on hidden achievement", "anon", f"select comment_achi
 run(f"update achievements set comments_closed=true where id='{ach_hid}'")
 check("100: cannot comment when comments_closed", "anon", f"select comment_achievement_anon('{ach_hid}','ดีมาก','{AT1}')", "deny")
 
+# ---------- 102: ตั้งค่า API Key (Google AI Studio) · โมเดล · Prompt สร้างภาพข่าว AI ----------
+print("== step 102: AI news image settings (Vault API key + model + prompt + lock) ==")
+check("102: anon cannot read AI image settings", "anon", "select ai_image_settings_get()", "deny")
+check("102: citizen cannot read AI image settings", "c1", "select ai_image_settings_get()", "deny")
+check("102: staff cannot read AI image settings", "s2", "select ai_image_settings_get()", "deny")
+check("102: anon cannot save AI image settings", "anon", "select ai_image_settings_save('k','gemini-2.5-flash-image','p',true)", "deny")
+check("102: citizen cannot save AI image settings", "c1", "select ai_image_settings_save('k','gemini-2.5-flash-image','p',true)", "deny")
+check("102: staff cannot save AI image settings", "s2", "select ai_image_settings_save('k','gemini-2.5-flash-image','p',true)", "deny")
+check("102: admin reads default AI image settings (locked by default)", "admin",
+      "select (ai_image_settings_get()->>'model') || ':' || (ai_image_settings_get()->>'locked')",
+      eq("gemini-2.5-flash-image:true"))
+check("102: admin saves custom API key, model, prompt and locks settings", "admin",
+      "select (r->>'api_key') || '|' || (r->>'model') || '|' || (r->>'prompt') || '|' || (r->>'locked') from (select ai_image_settings_save('test-studio-key-999', 'gemini-3.1-flash-image', 'วาดภาพอินโฟกราฟิกเรื่องยาสำหรับประชาชน', true) r) t",
+      eq("test-studio-key-999|gemini-3.1-flash-image|วาดภาพอินโฟกราฟิกเรื่องยาสำหรับประชาชน|true"))
+check("102: API key stored in Vault, never exposed in site_texts to anon", "anon",
+      "select count(*) from site_texts where body like '%test-studio-key-999%' or key like '%key%'",
+      eq(0))
+check("102: service_role (GitHub Actions daily AI news) can read locked settings", "service",
+      "select (ai_image_settings_get()->>'api_key') || ':' || (ai_image_settings_get()->>'model')",
+      eq("test-studio-key-999:gemini-3.1-flash-image"))
+j102 = check("102: ai_news_image_start uses saved API key, model, and prompt", "admin",
+             "select ai_news_image_start('หัวข้อข่าวทดสอบคีย์ใหม่', 'เนื้อหาข่าวทดสอบ')",
+             lambda o: o.strip().isdigit()).strip()
+check("102: pg_net request uses custom API key in header, custom model in URL, and custom prompt in body", None,
+      f"select (q.url like '%/gemini-3.1-flash-image:generateContent' and q.headers->>'x-goog-api-key' = 'test-studio-key-999' and convert_from(q.body,'utf8') like '%วาดภาพอินโฟกราฟิกเรื่องยาสำหรับประชาชน%')::text from net.http_request_queue q where q.id = (select request_id from ai_image_jobs where id = {j102})",
+      eq("true"))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

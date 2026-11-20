@@ -821,6 +821,17 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .ai-fold-t{font-weight:700;font-size:16px}
 .ai-fold[open] .ai-fold-hint{display:none}
 .ai-fold > :not(summary){margin-top:8px}
+.ai-img-cfg{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.ai-img-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.ai-img-title{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ai-img-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.ai-key-row{display:flex;gap:6px;align-items:center}
+.ai-key-row .input{flex:1;min-width:0}
+.ai-lock-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ai-lock-sw{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--sunken);cursor:pointer;font-size:13px;font-weight:600;user-select:none}
+.ai-lock-sw:has(input:checked){border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.ai-lock-sw input{margin:0;accent-color:var(--primary);width:16px;height:16px;cursor:pointer}
+.ai-img-cfg .input:disabled,.ai-img-cfg textarea:disabled{opacity:.85;background:var(--sunken);cursor:not-allowed}
 /* กล่องตรวจข่าว: แบบทดสอบสำหรับผู้อ่าน (news-quiz.js) */
 .aq-tools{border-top:1px solid var(--line);padding-top:4px}
 span.aq-ok{color:var(--success)}span.aq-bad{color:var(--error)}span.aq-warn{color:var(--warning)}

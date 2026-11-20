@@ -7,7 +7,7 @@ import { newsForm, removeNewsFiles, fileLink, extFileLink } from './news-form.js
 import { newsFileUrl } from '../upload.js?v=4.4';
 import { loadNews, renderSlides } from './news.js?v=4.4';
 import { refreshAdminBadges } from './admin.js?v=4.4';
-import { initAiPanel } from './admin-ai.js?v=4.4';
+import { initAiPanel, ensureAiImageSettingsSaved } from './admin-ai.js?v=4.4';
 import { openQuizTools, closeQuizTools, quizProblem, saveQuiz } from './news-quiz.js?v=4.4';
 import { loadTopics, mountTopicAdmin, runAi as topicAi, topicChips, topicOptions, topicMatch, renderTopicPick, pickedTopics, hasTopic } from './news-topics.js?v=4.4';
 
@@ -619,6 +619,7 @@ async function genNewsImage(prefix, kit, btn) {
   let useFallback = false;
 
   try {
+    await ensureAiImageSettingsSaved();
     const { data: jobId, error } = await sb.rpc('ai_news_image_start', { p_title: title, p_body: fullBody });
     if (error) throw error;
     busy(btn, true, 'AI กำลังวาดภาพ (รอสักครู่)…');

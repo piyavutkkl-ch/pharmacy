@@ -571,7 +571,40 @@
           </div>
           <details class="ai-fold" id="aiFold">
             <summary><span class="ai-fold-t">ช่อง AI · ข่าวจากบทความวิชาการ</span><span class="chip c-sub">วันละ 1 ข่าว</span><span class="small muted ai-fold-hint">กดเพื่อดูการตั้งค่าและประวัติ</span></summary>
-            <p class="small muted">ทุกวันหลัง 06:00 น. ระบบเลือกบทความใหม่ 1 เรื่องจาก <a href="https://ccpe.pharmacycouncil.org/index.php?option=article&amp;subpage=article" target="_blank" rel="noopener">ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม</a> → AI วิเคราะห์ไฟล์บทความ (ดึงข้อเท็จจริงพร้อมเลขหน้า) → เขียนข่าวสั้นอ่านง่าย → ตรวจทานเทียบไฟล์ทีละประโยคและแก้จนไม่พบจุดผิด (ยังพบจุดผิด = รอผู้ดูแลตรวจเสมอ) พร้อมภาพสรุป 3 ภาพจากข้อมูลที่ตรวจแล้ว (อินโฟกราฟิก · การ์ตูน 3 ช่อง · แผนภูมิสำหรับบุคลากร · ไม่ใช้ AI วาดภาพ) อ้างอิงและลิงก์ดาวน์โหลดบทความต้นฉบับ</p>
+            <p class="small muted">ทุกวันหลัง 06:00 น. ระบบเลือกบทความใหม่ 1 เรื่องจาก <a href="https://ccpe.pharmacycouncil.org/index.php?option=article&amp;subpage=article" target="_blank" rel="noopener">ศูนย์การศึกษาต่อเนื่องทางเภสัชศาสตร์ สภาเภสัชกรรม</a> → AI วิเคราะห์ไฟล์บทความ (ดึงข้อเท็จจริงพร้อมเลขหน้า) → เขียนข่าวสั้นอ่านง่าย → ตรวจทานเทียบไฟล์ทีละประโยคและแก้จนไม่พบจุดผิด (ยังพบจุดผิด = รอผู้ดูแลตรวจเสมอ) พร้อมสร้างภาพประกอบด้วย AI ตาม Prompt ที่ตั้งค้างไว้อัตโนมัติ ข่าวละ 1 ภาพ อ้างอิงและลิงก์ดาวน์โหลดบทความต้นฉบับ</p>
+            <div class="ai-img-cfg" id="aiImgCfg">
+              <div class="ai-img-head">
+                <div class="ai-img-title"><span>✨ ตั้งค่า AI สร้างภาพประกอบข่าว (ข่าวละ 1 ภาพ · ใช้ร่วมกับปุ่ม "Gen ภาพด้วย AI")</span><span class="chip c-ok" id="aiImgLockChip">ล็อกค่าไว้</span></div>
+                <div class="ai-lock-bar">
+                  <label class="ai-lock-sw" for="aiImgLock"><input type="checkbox" id="aiImgLock" checked><span id="aiImgLockText">ล็อกค้างไว้ (เลื่อนเพื่อแก้ไข)</span></label>
+                  <button type="button" class="btn btn-p btn-sm" id="aiImgSave" hidden>บันทึก &amp; ล็อกค่า</button>
+                </div>
+              </div>
+              <div class="ai-img-grid">
+                <div class="field">
+                  <label for="aiImgKey">Google AI Studio API Key (สำหรับสร้างภาพด้วย AI)</label>
+                  <div class="ai-key-row">
+                    <input id="aiImgKey" class="input" type="password" maxlength="200" placeholder="AIzaSy… (เว้นว่าง = ใช้คีย์หลักของระบบ)" autocomplete="off" disabled>
+                    <button type="button" class="btn btn-o btn-sm" id="aiImgKeyShow" aria-pressed="false">แสดง</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="aiImgModel">AI Model สร้างภาพ (สลับรุ่นสำรองอัตโนมัติเมื่อติดโควตา)</label>
+                  <select id="aiImgModel" class="input" disabled>
+                    <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image (Nano Banana · แนะนำ/ประหยัดโควตา)</option>
+                    <option value="gemini-3.1-flash-image">Gemini 3.1 Flash Image (Nano Banana 2 · คมชัดสูง)</option>
+                    <option value="gemini-3.1-flash-lite-image">Gemini 3.1 Flash Lite Image (เร็ว/ประหยัดที่สุด)</option>
+                    <option value="imagen-3.0-generate-002">Imagen 3.0 Generate 002 (วาดภาพละเอียด)</option>
+                    <option value="imagen-3.0-generate-001">Imagen 3.0 Generate 001 (รุ่นเสถียร)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label for="aiImgPrompt">Prompt สร้างภาพ (ค้างค่านี้ไว้สร้างภาพข่าวอัตโนมัติรายวัน ข่าวละ 1 ภาพ และปุ่ม "✨ Gen ภาพด้วย AI")</label>
+                <textarea id="aiImgPrompt" class="input" rows="4" maxlength="4000" placeholder="กำหนดรูปแบบภาพที่ต้องการให้ AI สร้าง…" disabled></textarea>
+                <span class="small muted" id="aiImgMsg" aria-live="polite">ระบบนำหัวข้อและสรุปเนื้อหาข่าวไปประกอบกับ Prompt นี้อัตโนมัติ ข่าวละ 1 ภาพ</span>
+              </div>
+            </div>
             <label class="small ai-auto"><input type="checkbox" id="aiAuto"> เผยแพร่ทันทีโดยไม่ต้องตรวจ (ไม่แนะนำ · ปิดไว้ = ข่าวเข้าคิว "รอตรวจ" ในกล่องนี้)</label>
             <div class="row-btns" style="align-items:center"><button type="button" class="btn btn-p btn-sm" id="aiNow">สร้างข่าวตอนนี้</button><span class="small" id="aiStatus" aria-live="polite"></span></div>
             <details class="ai-hist" id="aiHist"><summary>ประวัติการทำงาน <span class="num muted" id="aiLogCount"></span></summary><div class="list" id="aiLog"></div></details>

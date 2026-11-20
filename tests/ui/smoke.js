@@ -869,11 +869,30 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#aiFold > summary'); await p.waitForTimeout(150);
       await p.click('#aiHist summary'); await p.waitForTimeout(150);
       check('ช่อง AI: เปิดแล้วเห็นสถานะล่าสุด + ประวัติ (สำเร็จ/ไม่สำเร็จพร้อมสาเหตุ)', await visible(p, '#aiLog') && (await text(p, '#aiStatus')).includes('สร้างข่าวแล้ว') && await count(p, '#aiLog .li') === 2 && (await text(p, '#aiLog')).includes('quota') && (await text(p, '#aiLog')).includes('รอตรวจ'));
+      // ตั้งค่า AI สร้างภาพในช่อง AI: ค่าเริ่มต้นล็อกอยู่ → เลื่อนสวิตช์เป็นแก้ไข → กรอก API Key + เลือก Model + กรอก Prompt → ล็อกค้างไว้
+      check('ช่อง AI: ช่องตั้งค่า API Key · AI Model · Prompt สร้างภาพ เริ่มต้นอยู่ในสถานะล็อกค้างไว้ (disabled)',
+        await visible(p, '#aiImgCfg') && await p.isChecked('#aiImgLock') && await p.isDisabled('#aiImgKey') && await p.isDisabled('#aiImgModel') && await p.isDisabled('#aiImgPrompt') && !(await visible(p, '#aiImgSave')));
+      await p.click('#aiImgLock'); await p.waitForTimeout(150);
+      check('ช่อง AI: กดเลื่อนสวิตช์เป็นแก้ไข → เปิดให้กรอก API Key · เลือก Model · แก้ Prompt ได้',
+        !(await p.isChecked('#aiImgLock')) && !(await p.isDisabled('#aiImgKey')) && !(await p.isDisabled('#aiImgModel')) && !(await p.isDisabled('#aiImgPrompt')) && await visible(p, '#aiImgSave'));
+      await p.fill('#aiImgKey', 'test-studio-key-999');
+      await p.selectOption('#aiImgModel', 'gemini-3.1-flash-image');
+      await p.fill('#aiImgPrompt', 'วาดภาพอินโฟกราฟิกสรุปความรู้เรื่องยาสไตล์โมเดิร์น 1 ภาพ');
+      await p.click('#aiImgLock'); await p.waitForTimeout(250);
+      check('ช่อง AI: เลื่อนสวิตช์กลับเป็นล็อก → บันทึกและล็อกค่า API Key · Model · Prompt ค้างไว้ ไม่เปลี่ยนไปมา',
+        await p.isChecked('#aiImgLock') && await p.isDisabled('#aiImgKey') && await p.isDisabled('#aiImgModel') && await p.isDisabled('#aiImgPrompt')
+        && (await p.inputValue('#aiImgKey')) === 'test-studio-key-999' && (await p.inputValue('#aiImgModel')) === 'gemini-3.1-flash-image'
+        && (await p.inputValue('#aiImgPrompt')) === 'วาดภาพอินโฟกราฟิกสรุปความรู้เรื่องยาสไตล์โมเดิร์น 1 ภาพ');
       await p.click('#aiAuto'); await p.waitForTimeout(300);
-      check('ช่อง AI: เปิด "เผยแพร่ทันที" ได้ (ถามยืนยันก่อน)', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert'))[0]?.payload?.key === 'ai_news_auto' && (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert'))[0]?.payload?.body === 'on');
+      check('ช่อง AI: เปิด "เผยแพร่ทันที" ได้ (ถามยืนยันก่อน)', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert')).some((c) => c.payload?.key === 'ai_news_auto' && c.payload?.body === 'on'));
       await p.click('#aiAuto'); await p.waitForTimeout(300);
       await p.click('#aiNow'); await p.waitForTimeout(500);
-      check('ช่อง AI: กด "สร้างข่าวตอนนี้" → ส่งคำสั่ง + แจ้งว่าจะได้ภายใน 1 ชั่วโมง', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert')).some((c) => c.payload.key === 'ai_news_request') && (await text(p, '#aiStatus')).includes('ภายใน 1 ชั่วโมง'));
+      check('ช่อง AI: กด "สร้างข่าวตอนนี้" → ส่งคำสั่ง + แจ้งว่าจะได้ภายใน 1 ชั่วโมง + ค่า API Key และ Prompt ยังค้างอยู่เหมือนเดิม',
+        (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert')).some((c) => c.payload.key === 'ai_news_request')
+        && (await text(p, '#aiStatus')).includes('ภายใน 1 ชั่วโมง')
+        && (await p.inputValue('#aiImgKey')) === 'test-studio-key-999'
+        && (await p.inputValue('#aiImgPrompt')) === 'วาดภาพอินโฟกราฟิกสรุปความรู้เรื่องยาสไตล์โมเดิร์น 1 ภาพ'
+        && await p.isDisabled('#aiImgKey') && await p.isDisabled('#aiImgPrompt'));
       check('ช่อง AI: ข่าวจาก AI เข้าคิวรอตรวจพร้อมป้าย AI', (await text(p, '#anQueue')).includes('ช่อง AI') && await count(p, '#anQueue .chip') >= 1);
       await p.click(`#anQueue [data-review="${AI}"]`); await p.waitForTimeout(500);
       check('ช่อง AI: กด "ตรวจ" → ข่าวขึ้นในกล่องตรวจ/แก้ไขกล่องเดียว (หัวข้อ เนื้อหา ภาพ 3 ภาพ) + อ้างอิงบทความ + ลิงก์ PDF ต้นฉบับ + เตือนให้ตรวจตัวเลข', (await p.inputValue('#aqTitle')).includes('สแตติน') && (await p.inputValue('#aqBody')).length > 20
@@ -927,6 +946,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#anGenAiBtn'); await p.waitForTimeout(4000);
       check('ผู้ดูแล: กดปุ่ม Gen ภาพด้วย AI → สกัดเนื้อหาจากไฟล์แนบมาสร้างภาพสำเร็จและแทรกเป็นรูปหลักในฟอร์ม', (await count(p, '#anImagePreview .img-item')) >= 1 && await visible(p, '#anImagePreview .img-item.main img'));
       check('สร้างภาพด้วย AI: มีการอ่านเนื้อหาจากไฟล์แนบส่งให้ AI', await p.evaluate(() => window.__db.ai_image_jobs.some((j) => (j.body || '').includes('เนื้อหาจาก'))));
+      check('สร้างภาพด้วย AI: ใช้ API Key · AI Model · Prompt ตามที่กรอกและล็อกค้างไว้ด้านบน',
+        await p.evaluate(() => window.__db.ai_image_jobs.some((j) => j.used_key === 'test-studio-key-999' && j.model === 'gemini-3.1-flash-image' && (j.prompt || '').includes('วาดภาพอินโฟกราฟิกสรุปความรู้เรื่องยาสไตล์โมเดิร์น 1 ภาพ'))));
 
       // ทดสอบกรณี AI ฝั่งเซิร์ฟเวอร์ติดโควตา (429) → สลับไปสร้างภาพโปสเตอร์ 3 ส่วนอัตโนมัติสำเร็จ
       await p.evaluate(() => { window.__rpcFailImage = true; });

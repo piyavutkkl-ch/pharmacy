@@ -13,8 +13,9 @@ node "$root/tools/ai_news/run.mjs" --offline "$root/tests/ai_news/fixtures" "$ou
 fx2="$out/fx-issues"; mkdir -p "$fx2" "$out/issues"; cp "$root/tests/ai_news/fixtures/"* "$fx2/"
 cp "$fx2/gemini-verify1.json" "$fx2/gemini-verify2.json"; cp "$fx2/gemini-verify1.json" "$fx2/gemini-verify3.json"; echo '{"auto":"on"}' > "$fx2/settings.json"
 node "$root/tools/ai_news/run.mjs" --offline "$fx2" "$out/issues" >/dev/null
-# รอบที่ 3: เปิดเผยแพร่อัตโนมัติ + ตรวจทานผ่าน → เผยแพร่ได้
-fx3="$out/fx-auto"; mkdir -p "$fx3" "$out/auto"; cp "$root/tests/ai_news/fixtures/"* "$fx3/"; echo '{"auto":"on"}' > "$fx3/settings.json"
+# รอบที่ 3: เปิดเผยแพร่อัตโนมัติ + ตรวจทานผ่าน + ตั้งค่า API Key / โมเดล / Prompt สร้างภาพค้างไว้ → เผยแพร่ได้และใช้ Prompt/โมเดลที่ตั้งไว้
+fx3="$out/fx-auto"; mkdir -p "$fx3" "$out/auto"; cp "$root/tests/ai_news/fixtures/"* "$fx3/"
+echo '{"auto":"on","image_api_key":"custom-studio-key","image_model":"gemini-3.1-flash-image","image_prompt":"วาดภาพอินโฟกราฟิกเภสัชกรรมโทนอบอุ่นเข้าใจง่าย"}' > "$fx3/settings.json"
 node "$root/tools/ai_news/run.mjs" --offline "$fx3" "$out/auto" >/dev/null
 # รอบที่ 4: บทความ 1876 ไม่สำเร็จมาแล้ว 2 ครั้ง (เช่น CCPE ส่ง PDF ว่าง) → ไม่วนทำซ้ำ เลือกบทความใหม่ (1875)
 fx4="$out/fx-fail"; mkdir -p "$fx4" "$out/fail"; cp "$root/tests/ai_news/fixtures/"* "$fx4/"
@@ -44,19 +45,16 @@ check('ai-news: ค่าเริ่มต้นรอผู้ดูแลต�
 ck = d['check']
 check('ai-news: AI วิเคราะห์ PDF ก่อน (ข้อเท็จจริง + ข้อความอ้างอิง + เลขหน้า)', len(d['facts']['facts']) == 2 and all(f.get('quote') and f.get('page') for f in d['facts']['facts']))
 check('ai-news: ตรวจทานเทียบ PDF → แก้จุดผิด (หัวข้อ) แล้วตรวจซ้ำจนไม่พบจุดผิด', r['title'].startswith('ยาสแตตินแบบทา อาจช่วย') and ck == {'rounds': 2, 'fixed': 1, 'left': 0}, (r['title'], ck))
-check('ai-news: ไม่ใช้ AI วาดภาพ → ภาพแม่แบบ 3 ภาพจากข้อมูลที่ตรวจแล้ว (ภาพหลัก + แกลเลอรี 2 ภาพ)', r['image_path'].endswith('infographic.jpg') and len(r['gallery']) == 2 and 'painter' not in d and not os.path.exists(os.path.join(out, 'ai.jpg')), (r['image_path'], r['gallery']))
+check('ai-news: สร้างภาพด้วย AI ตาม Prompt ที่ค้างไว้อัตโนมัติ ข่าวละ 1 ภาพ (ไม่มีแกลเลอรี 3 ภาพเดิม)', r['image_path'].endswith('-ai.jpg') and r['gallery'] == [] and os.path.exists(os.path.join(out, 'ai.jpg')) and d.get('image_ai', {}).get('model') == 'gemini-2.5-flash-image', (r['image_path'], r['gallery'], d.get('image_ai')))
 d2 = json.load(open(os.path.join(out, 'issues', 'news.json')))
 check('ai-news: ตรวจทานครบ 3 รอบยังพบจุดผิด → ไม่เผยแพร่อัตโนมัติ (รอผู้ดูแลตรวจ)', d2['row']['status'] == 'pending' and d2['check']['rounds'] == 3 and d2['check']['left'] > 0, d2['check'])
 d3 = json.load(open(os.path.join(out, 'auto', 'news.json')))
 check('ai-news: เปิดเผยแพร่อัตโนมัติ + ตรวจทานผ่าน → เผยแพร่ทันที', d3['row']['status'] == 'published' and d3['check']['left'] == 0)
+check('ai-news: ใช้ API Key · โมเดล · Prompt สร้างภาพที่ผู้ดูแลตั้งค้างไว้สร้างภาพข่าวอัตโนมัติ', d3.get('image_ai', {}).get('model') == 'gemini-3.1-flash-image' and d3.get('image_ai', {}).get('used_custom_key') is True and 'วาดภาพอินโฟกราฟิกเภสัชกรรมโทนอบอุ่นเข้าใจง่าย' in d3.get('image_ai', {}).get('prompt', ''), d3.get('image_ai'))
 sv = d.get('source') or {}
 check('ai-news: ถอดข้อความ PDF เก็บไว้ (แบ่งตาม [หน้า n]) ให้ผู้ดูแลตรวจข่าว/แบบทดสอบได้เร็ว', sv.get('method') == 'gemini' and sv.get('pages') == 2 and sv.get('body', '').startswith('[หน้า 1]') and 'อย่าบดยาเม็ด' in sv.get('body', ''), {k: v for k, v in sv.items() if k != 'body'})
-src = open(os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs')).read()
-check('ai-news: ไม่มีโค้ดเรียก AI วาดภาพ (Gemini image / Cloudflare / Pollinations)', not any(x in src for x in ('pollinations', 'cloudflare', 'responseModalities')))
-for k, want in (('infographic', (1240, 1754)), ('comic', (1754, 1240)), ('clinical', (1240, None))):
-    p = os.path.join(out, k + '.jpg'); sz = jpeg_size(p) if os.path.exists(p) else None
-    good = sz and sz[0] == want[0] and (sz[1] == want[1] if want[1] else 1240 <= sz[1] <= 1754)
-    check(f'ai-news: ภาพแม่แบบ {k} กว้าง {want[0]} สัดส่วนไม่เกิน A4 ไม่เกิน 1 MB', good and os.path.getsize(p) <= 1_000_000, sz)
+p = os.path.join(out, 'ai.jpg'); sz = jpeg_size(p) if os.path.exists(p) else None
+check('ai-news: ภาพ AI ข่าวละ 1 ภาพ ขนาดไม่เกิน A4 และไม่เกิน 1 MB', bool(sz and sz[0] == 1240 and sz[1] == 1754 and os.path.getsize(p) <= 1_000_000), sz)
 import subprocess
 js = "import('" + os.path.join(os.environ.get('ROOT_DIR', '.'), 'tools/ai_news/run.mjs') + "')"
 probe = r'''
