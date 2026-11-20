@@ -827,10 +827,13 @@ details.ind-result > summary{cursor:pointer;min-height:32px}
 .ai-img-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
 .ai-key-row{display:flex;gap:6px;align-items:center}
 .ai-key-row .input{flex:1;min-width:0}
-.ai-lock-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ai-lock-sw{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--sunken);cursor:pointer;font-size:13px;font-weight:600;user-select:none}
-.ai-lock-sw:has(input:checked){border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
-.ai-lock-sw input{margin:0;accent-color:var(--primary);width:16px;height:16px;cursor:pointer}
+.ai-lock-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ai-lock-sw{display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:4px 2px;cursor:pointer;font-size:13px;font-weight:600;user-select:none;color:var(--ink)}
+.ai-lock-sw input{appearance:none;-webkit-appearance:none;width:60px;height:32px;border-radius:999px;border:0;margin:0;flex:none;position:relative;cursor:pointer;background:linear-gradient(120deg,#64f4b6 0%,#4fc5d8 52%,#4c82e8 100%);box-shadow:inset 0 1px 2px rgba(15,35,60,.12),0 3px 8px rgba(76,130,232,.22);transition:filter .2s,box-shadow .2s}
+.ai-lock-sw input::after{content:'';position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(15,35,65,.32),0 1px 2px rgba(15,35,65,.18);transition:transform .22s cubic-bezier(.4,0,.2,1)}
+.ai-lock-sw input:checked::after{transform:translateX(28px)}
+.ai-lock-sw input:not(:checked){filter:saturate(.85) brightness(.97)}
+.ai-lock-sw input:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 .ai-img-cfg .input:disabled,.ai-img-cfg textarea:disabled{opacity:.85;background:var(--sunken);cursor:not-allowed}
 /* กล่องตรวจข่าว: แบบทดสอบสำหรับผู้อ่าน (news-quiz.js) */
 .aq-tools{border-top:1px solid var(--line);padding-top:4px}
