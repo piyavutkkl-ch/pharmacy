@@ -1314,7 +1314,9 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const up0 = (await calls(p, (c) => c.upload)).length;
       await fetchSheet('#drSheetUrl', '#drSheetBtn', drRows);
       check('จัดส่งยา Google Sheets: ดึงข้อมูล → ตัวอย่างสรุป (สำเร็จ 3 · ผู้ป่วย 2 คน · ยกเลิก 1)', await visible(p, '#drPreviewWrap') && (await text(p, '#drPreview')).includes('สำเร็จ 3') && (await text(p, '#drPreview')).includes('ยกเลิก 1') && (await p.$$eval('#drPreview .fig .n', (f) => f.map((x) => x.textContent))).slice(0, 2).join('|') === '3|2', await text(p, '#drPreview'));
+      await p.click('#drPreview [data-dr-month-tab="total"]'); await p.waitForTimeout(150);
       check('จัดส่งยา Google Sheets: แยกตามเดือน/ตำบล/ช่องทาง/สิทธิ', (await text(p, '#drPreview')).includes('ไรเดอร์') && (await text(p, '#drPreview')).includes('พ.ค. 69') && (await text(p, '#drPreview')).includes('ทุ่งนุ้ย') && (await text(p, '#drPreview')).includes('Flash Express') && (await text(p, '#drPreview')).includes('ผู้สูงอายุ'));
+      await p.click('#drPreview [data-dr-month-tab="all"]'); await p.waitForTimeout(150);
       await p.click('#drSave'); await p.waitForTimeout(500);
       const ins = (await calls(p, (c) => c.table === 'delivery_reports' && c.op === 'insert')).pop()?.payload || {};
       const raw = JSON.stringify(ins);
