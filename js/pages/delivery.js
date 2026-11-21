@@ -1,15 +1,11 @@
 // บริการจัดส่งยาถึงบ้าน (ขั้น 21)
-//   หน้าหลัก #/delivery: โปสเตอร์เลื่อนซ้าย-ขวา + ข้อความแนะนำ + สถิติการจัดส่ง (ตัวเลขรวม ไม่มีข้อมูลรายบุคคล) → initDelivery()
-//   ผู้ดูแล › ตั้งค่า › จัดส่งยาถึงบ้าน: โปสเตอร์ / ข้อความ / สถิติรายปีงบ × รพ.สต. → initDeliveryAdmin()
+//   หน้าหลัก #/delivery: โปสเตอร์เลื่อนซ้าย-ขวา + ข้อความแนะนำบริการ (ส่วนสรุป Google Sheets อยู่ใน delivery-report.js) → initDelivery()
+//   ผู้ดูแล › จัดส่งยาถึงบ้าน: โปสเตอร์ / ข้อความแนะนำ → initDeliveryAdmin()
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
-import { $, esc, toast, errText, busy, fiscalYearOf } from '../util.js?v=4.4';
-import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
+import { $, esc, toast, errText, busy } from '../util.js?v=4.4';
 import { A4, imagePicker, uploadPublicImage, removeFiles } from '../upload.js?v=4.4';
 
-const CUR_FY = fiscalYearOf();
-const n = (x) => Number(x || 0).toLocaleString('th-TH');
-
-/* ---------- แถวโปสเตอร์ (ใช้ร่วมกับ Health Rider) ---------- */
+/* ---------- แถวโปสเตอร์ (ใช้ร่วมกับผลงาน) ---------- */
 /** ปุ่ม ‹ › ข้างแถวโปสเตอร์ (อยู่ใน .poster-wrap เดียวกัน) */
 export function bindPosterNav(row) {
   row.parentNode.querySelectorAll('[data-poster-nav]').forEach((b) => b.addEventListener('click', () => {
@@ -27,47 +23,26 @@ export function renderPosterRow(row, list, alt) {
 export const paras = (t) => String(t || '').split(/\n+/).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
 
 /* ======================= หน้าหลัก ======================= */
-let dlYear = CUR_FY, dlBound = false, stats = [];
+let dlBound = false;
 
 export async function initDelivery() {
-  const [units, years] = await Promise.all([loadUnits(), loadYears()]);
   if (!dlBound) {
     dlBound = true;
-    $('#dlYears').addEventListener('click', (e) => { const b = e.target.closest('[data-y]'); if (b) { dlYear = +b.dataset.y; renderStats(units, years); } });
     bindPosterNav($('#dlPosters'));
   }
   $('#dlPosters').innerHTML = '<div class="skeleton poster-skel"></div>';
-  const [p, t, s] = await Promise.all([
+  const [p, t] = await Promise.all([
     sb.from('delivery_posters').select('id,title,image_path,sort').order('sort').order('created_at', { ascending: false }),
     sb.from('site_texts').select('body').eq('key', 'delivery_info').maybeSingle(),
-    sb.from('delivery_stats').select('fiscal_year,unit_id,deliveries,patients'),
   ]);
   renderPosterRow($('#dlPosters'), p.data || [], 'โปสเตอร์บริการจัดส่งยาถึงบ้าน');
   $('#dlInfo').innerHTML = paras(t.data?.body) || '<p class="muted">ยังไม่มีข้อมูลบริการ</p>';
-  stats = s.data || [];
-  renderStats(units, years);
-}
-
-function renderStats(units, years) {
-  const ys = [...new Set([...years, ...stats.map((r) => r.fiscal_year)])].filter((y) => y <= CUR_FY).sort((a, b) => a - b);
-  if (!ys.includes(dlYear)) dlYear = ys[ys.length - 1] ?? CUR_FY;
-  $('#dlYears').innerHTML = ys.map((y) => `<button type="button" data-y="${y}" aria-current="${y === dlYear}">ปีงบประมาณ ${y}${y === CUR_FY ? ' (ปัจจุบัน)' : ''}</button>`).join('');
-  const rows = stats.filter((r) => r.fiscal_year === dlYear);
-  const tot = rows.reduce((a, r) => ({ d: a.d + r.deliveries, p: a.p + r.patients }), { d: 0, p: 0 });
-  $('#dlFigs').innerHTML = `<div class="fig"><div class="n num">${n(tot.d)}</div><div class="t">จำนวนครั้งที่จัดส่งยา</div></div>`
-    + `<div class="fig"><div class="n num">${n(tot.p)}</div><div class="t">ผู้ป่วยที่ได้รับบริการ (คน)</div></div>`
-    + `<div class="fig"><div class="n num">${rows.filter((r) => r.deliveries > 0).length}</div><div class="t">รพ.สต. ที่ให้บริการ</div></div>`;
-  const max = Math.max(1, ...rows.map((r) => r.deliveries));
-  $('#dlBars').innerHTML = rows.length ? [...rows].sort((a, b) => b.deliveries - a.deliveries).map((r) => `<div class="bar-row"><div><span>${esc(unitName(r.unit_id))}</span>`
-    + `<b class="num">${n(r.deliveries)} ครั้ง · ${n(r.patients)} คน</b></div><div class="meter"><span style="width:${Math.round(r.deliveries / max * 100)}%"></span></div></div>`).join('')
-    : '<p class="empty">ยังไม่มีสถิติของปีงบนี้</p>';
 }
 
 /* ======================= ผู้ดูแล ======================= */
 let adminBound = false, posters = [], picker = null;
 
 export async function initDeliveryAdmin() {
-  const [units, years] = await Promise.all([loadUnits(), loadYears({ includeHidden: true })]);
   if (!adminBound) {
     adminBound = true;
     picker = imagePicker($('#daImage'), $('#daPreview'), $('#daImageNote'), { fit: A4 });
@@ -75,14 +50,10 @@ export async function initDeliveryAdmin() {
     $('#daList').addEventListener('click', onPosterList);
     $('#daList').addEventListener('change', onPosterSort);
     $('#daInfoSave').addEventListener('click', saveInfo);
-    const ys = [...new Set([...years, CUR_FY, CUR_FY + 1])].sort((a, b) => b - a);
-    $('#daYear').innerHTML = ys.map((y) => `<option value="${y}"${y === CUR_FY ? ' selected' : ''}>ปีงบประมาณ ${y}</option>`).join('');
-    $('#daYear').addEventListener('change', () => loadStats(units));
-    $('#daStatSave').addEventListener('click', () => saveStats(units));
   }
   const t = await sb.from('site_texts').select('body').eq('key', 'delivery_info').maybeSingle();
   $('#daInfo').value = t.data?.body || '';
-  await Promise.all([loadPosters(), loadStats(units)]);
+  await loadPosters();
 }
 
 async function loadPosters() {
@@ -131,29 +102,4 @@ async function saveInfo() {
   const { error } = await sb.from('site_texts').upsert({ key: 'delivery_info', body: $('#daInfo').value.trim() });
   busy(btn, false);
   if (error) toast(errText(error), 'err'); else toast('บันทึกข้อความแล้ว');
-}
-
-async function loadStats(units) {
-  const y = +$('#daYear').value;
-  const { data } = await sb.from('delivery_stats').select('unit_id,deliveries,patients').eq('fiscal_year', y);
-  const m = new Map((data || []).map((r) => [r.unit_id, r]));
-  $('#daStats').innerHTML = units.map((u) => `<div class="da-stat"><span>${esc(u.name)}</span>`
-    + `<label class="small">จัดส่ง (ครั้ง)<input class="input" type="number" inputmode="numeric" min="0" data-u="${u.id}" data-k="deliveries" value="${m.get(u.id)?.deliveries ?? ''}"></label>`
-    + `<label class="small">ผู้ป่วย (คน)<input class="input" type="number" inputmode="numeric" min="0" data-u="${u.id}" data-k="patients" value="${m.get(u.id)?.patients ?? ''}"></label></div>`).join('');
-}
-
-async function saveStats(units) {
-  const y = +$('#daYear').value, rows = [];
-  for (const u of units) {
-    const v = (k) => $(`#daStats [data-u="${u.id}"][data-k="${k}"]`).value;
-    if (v('deliveries') === '' && v('patients') === '') continue;
-    const d = Math.round(+v('deliveries') || 0), p = Math.round(+v('patients') || 0);
-    if (d < 0 || p < 0) { toast('ตัวเลขต้องไม่ติดลบ', 'err'); return; }
-    rows.push({ fiscal_year: y, unit_id: u.id, deliveries: d, patients: p, updated_at: new Date().toISOString() });
-  }
-  if (!rows.length) { toast('ยังไม่ได้กรอกตัวเลข', 'err'); return; }
-  const btn = $('#daStatSave'); busy(btn, true, 'กำลังบันทึก…');
-  const { error } = await sb.from('delivery_stats').upsert(rows);
-  busy(btn, false);
-  if (error) toast(errText(error), 'err'); else toast(`บันทึกสถิติปีงบ ${y} แล้ว (${rows.length} รพ.สต.)`);
 }

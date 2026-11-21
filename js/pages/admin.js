@@ -1,6 +1,6 @@
 // ผู้ดูแล: โครงหน้า + เมนู + ตัวเลขงานค้าง + ข้อเสนอแนะ (อยู่ใน ตั้งค่า › ข้อเสนอแนะ)
 // ข่าว → admin-news.js · ตรวจประเมิน → admin-review.js · ข้อความ → chat.js · เยี่ยมบ้าน → visits.js · เอกสาร → docs.js
-// ข้อมูลยา (#/admin/drugs/dose|db) → admin-settings.js initDoseAdmin + admin-drugs.js · Health Rider (#/admin/rider[/delivery]) → rider.js + delivery.js
+// ข้อมูลยา (#/admin/drugs/dose|db) → admin-settings.js initDoseAdmin + admin-drugs.js · จัดส่งยาถึงบ้าน (#/admin/rider) → delivery.js + delivery-report.js
 // ตั้งค่า → admin-settings.js (ช่องทางติดต่อ) + admin-staff.js (บัญชีเจ้าหน้าที่) + admin-audit.js (ประวัติการเข้าถึงข้อมูลผู้ป่วย)
 import { sb } from '../supabase.js?v=4.4';
 import { $, $$, esc, thaiDate, toast, errText } from '../util.js?v=4.4';
@@ -23,18 +23,17 @@ import { initRoster } from './admin-staff.js?v=4.4';
 import { initAudit } from './admin-audit.js?v=4.4';
 import { initDeliveryAdmin } from './delivery.js?v=4.4';
 import { initDeliveryReportAdmin } from './delivery-report.js?v=4.4';
-import { mountRiderEditor } from './rider.js?v=4.4';
 import { mountSummaries } from './summaries.js?v=4.4';
 import { mountAch, visitTabs } from './staff.js?v=4.4';
 import { mountPost } from './post.js?v=4.4';
 import { mountInbox, unmountInbox } from './chat.js?v=4.4';
 import { mountUnitChat, unmountUnitChat } from './unitchat.js?v=4.4';
 
-export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'นำเสนอผลงาน', achievements: 'นำเสนอผลงาน', rider: 'จัดส่งยาถึงบ้าน · Health Rider', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', drugs: 'ข้อมูลยา', settings: 'ตั้งค่า' };
+export const ADMIN_TABS = { news: 'ข่าวประชาสัมพันธ์', messages: 'ข้อความ', visits: 'นำเสนอผลงาน', achievements: 'นำเสนอผลงาน', rider: 'จัดส่งยาถึงบ้าน', review: 'ตรวจประเมินผลงาน', docs: 'จัดการเอกสาร', drugs: 'ข้อมูลยา', settings: 'ตั้งค่า' };
 const SUBS = { contacts: initContactsAdmin, staff: initRoster, audit: initAudit, feedback: () => initFeedback() };
-// ย้ายจากตั้งค่า: ข้อมูลยา (คำนวณขนาดยา/ฐานข้อมูลยา) → เมนูข้อมูลยา · จัดส่งยาถึงบ้าน → เมนู Health Rider
+// ย้ายจากตั้งค่า: ข้อมูลยา (คำนวณขนาดยา/ฐานข้อมูลยา) → เมนูข้อมูลยา · จัดส่งยาถึงบ้าน → เมนูจัดส่งยาถึงบ้าน
 const DB_PARTS = ['rpst', 'local', 'outside', 'nlem', 'fda', 'ddi', 'mims'];
-const MOVED = { dose: '#/admin/drugs/dose', drugs: '#/admin/drugs/db', delivery: '#/admin/rider/delivery' };
+const MOVED = { dose: '#/admin/drugs/dose', drugs: '#/admin/drugs/db', delivery: '#/admin/rider' };
 
 export async function showAdmin(tab, sub) {
   if (tab === 'staff') { location.replace('#/admin/settings/staff'); return; }   // ลิงก์เดิมจากขั้น 4.1
@@ -76,12 +75,10 @@ export async function showAdmin(tab, sub) {
   if (tab === 'messages') return showMessages(sub);
   if (tab === 'visits') return showVisits(isPatients, postFilter, sub);
   if (tab === 'achievements') return showVisits(false, 'achievement', null);
-  if (tab === 'rider') {   // Health Rider + จัดส่งยาถึงบ้าน
-    const d = sub === 'delivery';
-    subTabs('#arTabs', d ? 'delivery' : 'rider');
-    $$('[data-rider-sub]').forEach((v) => { v.hidden = v.dataset.riderSub !== (d ? 'delivery' : 'rider'); });
-    if (d) { initDeliveryAdmin(); initDeliveryReportAdmin(); return; }
-    return mountRiderEditor($('#adminRiderSlot'));
+  if (tab === 'rider') {   // จัดส่งยาถึงบ้าน
+    initDeliveryAdmin();
+    initDeliveryReportAdmin();
+    return;
   }
   if (tab === 'drugs') {   // ข้อมูลยา
     // ไม่ระบุ/center = ภาพรวม (drug-center.js · หน้าแรก) · work = โปรไฟล์ยา (drug-work.js) · grid = ตารางแก้ไขยา + นำเข้า/ส่งออก (drug-grid.js) · help = วิธีใช้

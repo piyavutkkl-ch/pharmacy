@@ -20,7 +20,6 @@ import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
 import { bindTheme } from './theme.js?v=4.4';
 import { initDelivery } from './pages/delivery.js?v=4.4';
-import { initRider } from './pages/rider.js?v=4.4';
 import { initDeliveryReports } from './pages/delivery-report.js?v=4.4';
 import { showSummary } from './pages/summaries.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
@@ -29,7 +28,7 @@ import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4
 import { unmountUnitChat } from './pages/unitchat.js?v=4.4';
 import { showStaff } from './pages/staff.js?v=4.4';
 
-const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'achievements', 'contact', 'documents'];   // Health Rider อยู่ในช่อง delivery (#/rider เปิดช่องเดียวกัน)
+const HOME_PANELS = ['news', 'dose', 'tracking', 'delivery', 'achievements', 'contact', 'documents'];
 
 function showView(name) {
   $$('[data-view]').forEach((v) => { v.hidden = v.dataset.view !== name; });
@@ -64,7 +63,7 @@ function openPanel(id, scrollTo = null) {
   });
   $$('[data-panel-link]').forEach((a) => a.setAttribute('aria-expanded', a.dataset.panelLink === id ? 'true' : 'false'));
   if (!id) return;
-  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: () => { initDelivery(); initRider(); initDeliveryReports(); },
+  ({ news: () => loadNews().then(renderNewsGrid).catch(() => renderNewsGrid([])), dose: initDose, tracking: initTracking, delivery: () => { initDelivery(); initDeliveryReports(); },
     achievements: initAchievements, contact: initContacts, documents: initDocs })[id]?.();
   const el = scrollTo || document.querySelector(`[data-panel="${id}"]`);
   requestAnimationFrame(() => el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
@@ -89,7 +88,7 @@ async function route() {
   if (a !== 'me') leaveMe();                                 // ปิดห้องแชทที่เปิดค้างเมื่อออกจากหน้า
   if (b !== 'messages') { unmountInbox(); unmountUnitChat(); }
 
-  if (a === 'rider' && !b) { showView('home'); openPanel('delivery', $('#hrBlock')); return; }   // Health Rider = ส่วนหนึ่งของบริการจัดส่งยาถึงบ้าน
+  if (a === 'rider' && !b) { showView('home'); openPanel('delivery'); return; }   // ลิงก์เดิม #/rider → บริการจัดส่งยาถึงบ้าน
   if (!a || HOME_PANELS.includes(a) && !b) {
     showView('home');
     openPanel(a || null);

@@ -227,22 +227,9 @@
       <button type="button" class="poster-nav" data-poster-nav="next" aria-label="เลื่อนไปทางขวา">›</button>
     </div>
     <div class="panel"><div class="article-body dl-info" id="dlInfo"></div></div>
-    <div class="panel">
-      <div class="panel-head"><h2>สถิติการจัดส่งยาถึงบ้าน</h2></div>
-      <div class="unit-tabs" id="dlYears" aria-label="เลือกปีงบประมาณ"></div>
-      <div class="track-figs dl-figs" id="dlFigs" aria-live="polite"></div>
-      <div class="bars" id="dlBars"></div>
-    </div>
     <div class="panel" id="drPanel" hidden>
       <div class="panel-head"><h2>สรุปจากประวัติการจัดส่งยา</h2><select id="drPick" class="input dr-pick" aria-label="เลือกช่วงข้อมูล"></select></div>
       <div id="drView" aria-live="polite"></div>
-    </div>
-    <div class="panel" id="hrBlock">
-      <div class="panel-head"><h2>ผลงาน Health Rider</h2></div>
-      <div class="article-body dl-info" id="hrInfo"></div>
-      <div class="unit-tabs" id="hrYears" aria-label="เลือกปีงบประมาณ"></div>
-      <div class="track-figs dl-figs" id="hrFigs" aria-live="polite"></div>
-      <div class="bars" id="hrBars"></div>
     </div>
   </div>
 
@@ -525,7 +512,7 @@
       <a href="#/admin/visits/posts" data-admin-tab="visits" title="นำเสนอผลงาน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg><span class="lbl">นำเสนอผลงาน</span></a>
       <div class="more-group" id="adminMore">
         <a href="#/admin/review" data-admin-tab="review" title="ตรวจประเมิน"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span class="lbl">ตรวจประเมิน</span><span id="admReviewBadge" class="badge num"></span></a>
-        <a href="#/admin/rider" data-admin-tab="rider" title="จัดส่งยา · Health Rider"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg><span class="lbl">Health Rider</span></a>
+        <a href="#/admin/rider" data-admin-tab="rider" title="จัดส่งยาถึงบ้าน"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2l3 11.5"/><path d="M5.5 17.5 9 10h6l-3.5 7.5H5.5"/><path d="M9 10 7.5 7H5"/></svg><span class="lbl">จัดส่งยาถึงบ้าน</span></a>
         <a href="#/admin/docs" data-admin-tab="docs" title="เอกสาร"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg><span class="lbl">เอกสาร</span></a>
         <a href="#/admin/drugs" data-admin-tab="drugs" title="ข้อมูลยา"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg><span class="lbl">ข้อมูลยา</span><span id="admDrugsBadge" class="badge num" title="AI ตรวจย้อนหลังพบข้อมูลขนาดยาที่ควรตรวจ"></span></a>
         <a href="#/admin/settings" data-admin-tab="settings" title="ตั้งค่า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="lbl">ตั้งค่า</span><span id="admSetBadge" class="badge num"></span></a>
@@ -676,56 +663,43 @@
         <div id="adminVisitsSlot" hidden></div>
       </div>
 
-      <!-- Health Rider: กรอก/นำเข้าตัวเลขผลงานทุก รพ.สต. + ข้อความแนะนำ (rider.js) -->
+      <!-- จัดส่งยาถึงบ้าน: โปสเตอร์ + ข้อความแนะนำ + สรุปจาก Google Sheets ประวัติการจัดส่งยา -->
       <div data-admin-view="rider" hidden>
-        <div class="unit-tabs" id="arTabs" aria-label="เมนูจัดส่งยา">
-          <a class="tab-link" href="#/admin/rider" data-sub="rider">Health Rider</a>
-          <a class="tab-link" href="#/admin/rider/delivery" data-sub="delivery">จัดส่งยาถึงบ้าน</a>
+        <div class="panel">
+          <h2>โปสเตอร์บริการจัดส่งยาถึงบ้าน</h2>
+          <p class="small muted">แสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน เลื่อนซ้าย-ขวาได้ · รูปย่อไม่เกินขนาด A4 อัตโนมัติ</p>
+          <div class="form-grid">
+            <div class="field"><label for="daTitle">ชื่อโปสเตอร์ (ถ้ามี)</label><input id="daTitle" class="input" maxlength="200"></div>
+            <div class="field"><label for="daImage">รูปโปสเตอร์ <span class="req">*</span></label><input id="daImage" class="input" type="file" accept="image/*"><span class="small muted" id="daImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-preview" id="daPreview" hidden><img alt="ตัวอย่างโปสเตอร์"></div></div>
+            <div class="full"><button type="button" class="btn btn-p btn-sm" id="daAdd">เพิ่มโปสเตอร์</button></div>
+          </div>
+          <div class="list" id="daList"></div>
         </div>
-        <div data-rider-sub="rider"><div id="adminRiderSlot" data-rider-slot></div></div>
-        <div data-rider-sub="delivery" hidden>
-          <div class="panel">
-            <h2>โปสเตอร์บริการจัดส่งยาถึงบ้าน</h2>
-            <p class="small muted">แสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน เลื่อนซ้าย-ขวาได้ · รูปย่อไม่เกินขนาด A4 อัตโนมัติ</p>
-            <div class="form-grid">
-              <div class="field"><label for="daTitle">ชื่อโปสเตอร์ (ถ้ามี)</label><input id="daTitle" class="input" maxlength="200"></div>
-              <div class="field"><label for="daImage">รูปโปสเตอร์ <span class="req">*</span></label><input id="daImage" class="input" type="file" accept="image/*"><span class="small muted" id="daImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-preview" id="daPreview" hidden><img alt="ตัวอย่างโปสเตอร์"></div></div>
-              <div class="full"><button type="button" class="btn btn-p btn-sm" id="daAdd">เพิ่มโปสเตอร์</button></div>
+        <div class="panel">
+          <h2>ข้อความแนะนำบริการ</h2>
+          <label for="daInfo" class="small muted">แสดงใต้โปสเตอร์ · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่</label>
+          <textarea id="daInfo" rows="5" maxlength="5000"></textarea>
+          <div><button type="button" class="btn btn-p btn-sm" id="daInfoSave">บันทึกข้อความ</button></div>
+        </div>
+        <div class="panel">
+          <h2>สรุปจาก Google Sheets ประวัติการจัดส่งยา</h2>
+          <p class="small muted">วางลิงก์ Google Sheets จากระบบจัดส่งยา · ระบบสรุปตัวเลขแยกแต่ละเดือนในเครื่องนี้ <b>ไม่อัปโหลดข้อมูลส่วนบุคคล</b> และเก็บเฉพาะตัวเลขสรุป</p>
+          <div class="field">
+            <label for="drSheetUrl">วางลิงก์ Google Sheets</label>
+            <div class="row-btns" style="align-items:center;gap:.5rem">
+              <input id="drSheetUrl" class="input" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" style="flex:1 1 14rem" aria-label="ลิงก์ Google Sheets">
+              <button type="button" class="btn btn-p btn-sm" id="drSheetBtn">ดึงข้อมูลจาก Google Sheets</button>
             </div>
-            <div class="list" id="daList"></div>
+            <span class="small muted">ตั้งค่าแชร์ใน Google Sheets เป็น <b>"ทุกคนที่มีลิงก์มีสิทธิ์อ่าน"</b> หรือ เผยแพร่ไปยังเว็บ (ระบบจะสรุปตัวเลขแยกในแต่ละเดือนให้ตรวจสอบตัวอย่างก่อนบันทึก)</span>
+            <span class="small" id="drMsg" aria-live="polite"></span>
           </div>
-          <div class="panel">
-            <h2>ข้อความแนะนำบริการ</h2>
-            <label for="daInfo" class="small muted">แสดงใต้โปสเตอร์ · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่</label>
-            <textarea id="daInfo" rows="5" maxlength="5000"></textarea>
-            <div><button type="button" class="btn btn-p btn-sm" id="daInfoSave">บันทึกข้อความ</button></div>
+          <div id="drPreviewWrap" class="dr-preview" hidden>
+            <div class="field"><label for="drTitle">ชื่อที่แสดง</label><input id="drTitle" class="input" maxlength="200"></div>
+            <div id="drPreview"></div>
+            <div><button type="button" class="btn btn-p btn-sm" id="drSave">บันทึกและแสดงที่หน้าจัดส่งยา</button></div>
           </div>
-          <div class="panel">
-            <div class="panel-head"><h2>สถิติการจัดส่ง</h2><label class="small" for="daYear">ปีงบประมาณ</label></div>
-            <select id="daYear" class="input"></select>
-            <div class="da-stats" id="daStats"></div>
-            <div><button type="button" class="btn btn-p btn-sm" id="daStatSave">บันทึกสถิติ</button></div>
-          </div>
-          <div class="panel">
-            <h2>สรุปจาก Google Sheets ประวัติการจัดส่งยา</h2>
-            <p class="small muted">วางลิงก์ Google Sheets จากระบบจัดส่งยา · ระบบสรุปตัวเลขแยกแต่ละเดือนในเครื่องนี้ <b>ไม่อัปโหลดข้อมูลส่วนบุคคล</b> และเก็บเฉพาะตัวเลขสรุป</p>
-            <div class="field">
-              <label for="drSheetUrl">วางลิงก์ Google Sheets</label>
-              <div class="row-btns" style="align-items:center;gap:.5rem">
-                <input id="drSheetUrl" class="input" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" style="flex:1 1 14rem" aria-label="ลิงก์ Google Sheets">
-                <button type="button" class="btn btn-p btn-sm" id="drSheetBtn">ดึงข้อมูลจาก Google Sheets</button>
-              </div>
-              <span class="small muted">ตั้งค่าแชร์ใน Google Sheets เป็น <b>"ทุกคนที่มีลิงก์มีสิทธิ์อ่าน"</b> หรือ เผยแพร่ไปยังเว็บ (ระบบจะสรุปตัวเลขแยกในแต่ละเดือนให้ตรวจสอบตัวอย่างก่อนบันทึก)</span>
-              <span class="small" id="drMsg" aria-live="polite"></span>
-            </div>
-            <div id="drPreviewWrap" class="dr-preview" hidden>
-              <div class="field"><label for="drTitle">ชื่อที่แสดง</label><input id="drTitle" class="input" maxlength="200"></div>
-              <div id="drPreview"></div>
-              <div><button type="button" class="btn btn-p btn-sm" id="drSave">บันทึกและแสดงที่หน้าจัดส่งยา</button></div>
-            </div>
-            <h3>สรุปที่บันทึกไว้</h3>
-            <div class="list" id="drList"></div>
-          </div>
+          <h3>สรุปที่บันทึกไว้</h3>
+          <div class="list" id="drList"></div>
         </div>
       </div>
 
