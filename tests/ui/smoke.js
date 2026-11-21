@@ -62,6 +62,8 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.route('**/npm/tabulator-tables@6.3.1/**', tabulator);
     await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
     await p.route(/https:\/\/(img|signed)\.test\//, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+    await p.route(/https:\/\/i\.ytimg\.com\//, (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+    await p.route(/https:\/\/www\.(youtube-nocookie|facebook)\.com\//, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><html><body>embed-mock</body></html>' }));
     await p.goto(`${BASE}${role ? '?mockrole=' + role : ''}${hash}`);
     await p.waitForTimeout(700);
     return p;
