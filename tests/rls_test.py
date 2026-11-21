@@ -1578,5 +1578,30 @@ check("102: pg_net request uses custom API key in header, custom model in URL, a
       f"select (q.url like '%/gemini-3.1-flash-image:generateContent' and q.headers->>'x-goog-api-key' = 'test-studio-key-999' and convert_from(q.body,'utf8') like '%วาดภาพอินโฟกราฟิกเรื่องยาสำหรับประชาชน%')::text from net.http_request_queue q where q.id = (select request_id from ai_image_jobs where id = {j102})",
       eq("true"))
 
+# ---------- 104: โพสต์ประชาสัมพันธ์บริการจัดส่งยาถึงบ้าน (delivery_posts) ----------
+print("== step 104: delivery_posts ==")
+dp104 = check("104: admin adds delivery post with images and https links", "admin",
+              """insert into delivery_posts(title,body,image_path,gallery,links,sort)
+                 values ('แนะนำบริการจัดส่งยาถึงบ้าน','รายละเอียดการรับบริการ','delivery/p1.webp',array['delivery/p2.webp'],
+                 '[{"url":"https://www.youtube.com/shorts/abc12345678","label":"คลิปแนะนำบริการ"}]'::jsonb,0)
+                 returning id""",
+              lambda o: o.strip().isdigit()).strip()
+check("104: anon reads delivery_posts", "anon", f"select title from delivery_posts where id={dp104}", eq("แนะนำบริการจัดส่งยาถึงบ้าน"))
+check("104: staff cannot add delivery_posts", "s2", "insert into delivery_posts(title) values ('x')", "deny")
+check("104: citizen cannot update delivery_posts", "c1", f"update delivery_posts set title='hack' where id={dp104} returning id", rows(0))
+check("104: anon cannot insert delivery_posts", "anon", "insert into delivery_posts(title) values ('x')", "deny")
+check("104: non-https link rejected (XSS guard)", "admin",
+      """insert into delivery_posts(title,links) values ('xss','[{"url":"javascript:alert(1)","label":"bad"}]'::jsonb)""",
+      "deny")
+check("104: http link rejected", "admin",
+      """insert into delivery_posts(title,links) values ('http','[{"url":"http://example.com","label":"bad"}]'::jsonb)""",
+      "deny")
+check("104: admin updates delivery_posts", "admin",
+      f"update delivery_posts set title='แนะนำบริการจัดส่งยา (อัปเดต)' where id={dp104} returning title",
+      eq("แนะนำบริการจัดส่งยา (อัปเดต)"))
+check("104: admin deletes delivery_posts", "admin",
+      f"delete from delivery_posts where id={dp104} returning id",
+      rows(1))
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

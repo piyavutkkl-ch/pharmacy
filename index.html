@@ -221,11 +221,15 @@
 
   <div class="sec reveal" data-panel="delivery" hidden>
     <div class="sec-head"><h2>บริการจัดส่งยาถึงบ้าน (Health Rider)</h2></div>
-    <div class="poster-wrap">
+    <div class="poster-wrap dl-feed-wrap">
       <button type="button" class="poster-nav" data-poster-nav="prev" aria-label="เลื่อนไปทางซ้าย">‹</button>
-      <div class="poster-row" id="dlPosters" tabindex="0" role="region" aria-label="โปสเตอร์บริการจัดส่งยาถึงบ้าน (เลื่อนซ้าย-ขวาได้)"></div>
+      <div class="poster-row dl-feed-row" id="dlPosters" tabindex="0" role="region" aria-label="ฟีดโพสต์บริการจัดส่งยาถึงบ้าน (เลื่อนซ้าย-ขวาได้)"></div>
       <button type="button" class="poster-nav" data-poster-nav="next" aria-label="เลื่อนไปทางขวา">›</button>
     </div>
+    <dialog id="dlPostDialog" class="dlg dl-post-dlg" aria-labelledby="dlPostDlgTitle">
+      <div class="dlg-head"><h3 id="dlPostDlgTitle"></h3><button type="button" class="btn btn-o btn-sm" id="dlPostDlgClose" aria-label="ปิดหน้าต่าง">ปิด ✕</button></div>
+      <div class="dlg-body" id="dlPostDlgBody"></div>
+    </dialog>
     <div class="panel"><div class="article-body dl-info" id="dlInfo"></div></div>
     <div class="panel" id="drPanel" hidden>
       <div class="panel-head"><h2>สรุปจากประวัติการจัดส่งยา</h2><select id="drPick" class="input dr-pick" aria-label="เลือกช่วงข้อมูล"></select></div>
@@ -663,21 +667,41 @@
         <div id="adminVisitsSlot" hidden></div>
       </div>
 
-      <!-- จัดส่งยาถึงบ้าน: โปสเตอร์ + ข้อความแนะนำ + สรุปจาก Google Sheets ประวัติการจัดส่งยา -->
+      <!-- จัดส่งยาถึงบ้าน: โพสต์ประชาสัมพันธ์ + ข้อความแนะนำ + สรุปจาก Google Sheets ประวัติการจัดส่งยา -->
       <div data-admin-view="rider" hidden>
         <div class="panel">
-          <h2>โปสเตอร์บริการจัดส่งยาถึงบ้าน</h2>
-          <p class="small muted">แสดงที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน เลื่อนซ้าย-ขวาได้ · รูปย่อไม่เกินขนาด A4 อัตโนมัติ</p>
+          <h2 id="daFormTitle">โพสต์บริการจัดส่งยาถึงบ้าน</h2>
+          <p class="small muted">แสดงเป็นฟีดเลื่อนซ้าย-ขวาที่หน้าหลัก › บริการจัดส่งยาถึงบ้าน · ใส่หัวข้อ รูปภาพ เนื้อหา และแนบลิงก์ (รองรับตัวอย่าง YouTube Shorts / Facebook Reels)</p>
           <div class="form-grid">
-            <div class="field"><label for="daTitle">ชื่อโปสเตอร์ (ถ้ามี)</label><input id="daTitle" class="input" maxlength="200"></div>
-            <div class="field"><label for="daImage">รูปโปสเตอร์ <span class="req">*</span></label><input id="daImage" class="input" type="file" accept="image/*"><span class="small muted" id="daImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ</span><div class="img-preview" id="daPreview" hidden><img alt="ตัวอย่างโปสเตอร์"></div></div>
-            <div class="full"><button type="button" class="btn btn-p btn-sm" id="daAdd">เพิ่มโปสเตอร์</button></div>
+            <div class="field full"><label for="daTitle">หัวข้อโพสต์ <span class="req">*</span></label><input id="daTitle" class="input" maxlength="200" placeholder="เช่น แนะนำบริการจัดส่งยาถึงบ้าน หรือขั้นตอนลงทะเบียน"></div>
+            <div class="field full"><label for="daBody">เนื้อหา / รายละเอียด</label><textarea id="daBody" rows="4" maxlength="5000" placeholder="เขียนรายละเอียดข่าวหรือคำแนะนำบริการ · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่"></textarea></div>
+            <div class="field full">
+              <label for="daImage">รูปภาพประกอบ (เลือกได้หลายรูป · ไม่บังคับ)</label>
+              <input id="daImage" class="input" type="file" accept="image/*" multiple>
+              <span class="small muted" id="daImageNote">ระบบย่อรูปให้ไม่เกินขนาด A4 อัตโนมัติ · ไม่เกิน 7 รูป · รูปแรกเป็นรูปหลัก</span>
+              <div class="img-grid" id="daImagePreview" hidden></div>
+            </div>
+            <div class="field full">
+              <label for="daLinkUrl">แนบลิงก์ (เว็บ / YouTube Shorts / Facebook Reels)</label>
+              <div class="dl-link-add">
+                <input id="daLinkUrl" class="input" type="url" maxlength="1000" placeholder="https://youtube.com/shorts/... หรือ https://www.facebook.com/reel/...">
+                <input id="daLinkLabel" class="input" maxlength="200" placeholder="ชื่อลิงก์ (ถ้าไม่ใส่จะตั้งให้อัตโนมัติ)">
+                <button type="button" class="btn btn-o btn-sm" id="daLinkAdd">+ เพิ่มลิงก์</button>
+              </div>
+              <span class="small muted">รองรับเฉพาะลิงก์ https:// · วิดีโอ YouTube Shorts / Facebook Reels จะมีตัวอย่างให้กดดูในหน้าหลักอัตโนมัติ</span>
+              <div class="dl-links-edit" id="daLinksList" hidden></div>
+            </div>
+            <div class="full row-btns">
+              <button type="button" class="btn btn-p btn-sm" id="daAdd">โพสต์บริการจัดส่งยา</button>
+              <button type="button" class="btn btn-o btn-sm" id="daCancel" hidden>ยกเลิกการแก้ไข</button>
+            </div>
           </div>
+          <h3>โพสต์ที่เผยแพร่แล้ว</h3>
           <div class="list" id="daList"></div>
         </div>
         <div class="panel">
           <h2>ข้อความแนะนำบริการ</h2>
-          <label for="daInfo" class="small muted">แสดงใต้โปสเตอร์ · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่</label>
+          <label for="daInfo" class="small muted">แสดงใต้ฟีดโพสต์ (ข้อความต้อนรับ) · ขึ้นบรรทัดใหม่ = ย่อหน้าใหม่</label>
           <textarea id="daInfo" rows="5" maxlength="5000"></textarea>
           <div><button type="button" class="btn btn-p btn-sm" id="daInfoSave">บันทึกข้อความ</button></div>
         </div>

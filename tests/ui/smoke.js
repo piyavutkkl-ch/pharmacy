@@ -1212,13 +1212,38 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       (await text(p, '.sidenav [data-admin-tab="rider"]')).trim() === 'จัดส่งยาถึงบ้าน'
       && await count(p, '#arTabs') === 0 && await count(p, '#adminRiderSlot') === 0 && await count(p, '#daStats') === 0
       && await visible(p, '#daAdd') && await visible(p, '#daInfoSave') && await visible(p, '#drSheetUrl'));
-    await p.fill('#daTitle', 'ส่งยาถึงบ้าน ปี 2570'); await p.setInputFiles('#daImage', { name: 'poster.png', mimeType: 'image/png', buffer: PNG }); await p.waitForTimeout(400);
+    await p.fill('#daTitle', 'ส่งยาถึงบ้าน ปี 2570');
+    await p.fill('#daBody', 'ขั้นตอนการรับยาถึงบ้าน\nเพียงลงทะเบียนกับห้องยาหรือ รพ.สต.');
+    await p.setInputFiles('#daImage', { name: 'poster.png', mimeType: 'image/png', buffer: PNG }); await p.waitForTimeout(400);
+    await p.fill('#daLinkUrl', 'https://www.youtube.com/shorts/dQw4w9WgXcQ');
+    await p.fill('#daLinkLabel', 'คลิปแนะนำบริการ');
+    await p.click('#daLinkAdd'); await p.waitForTimeout(150);
+    await p.fill('#daLinkUrl', 'https://www.facebook.com/reel/123456789012345');
     await p.click('#daAdd'); await p.waitForTimeout(500);
-    check('ผู้ดูแล: เพิ่มโปสเตอร์ส่งยาถึงบ้าน (ย่อ ≤ A4)', await count(p, '#daList .da-poster') === 1 && (await calls(p, (c) => c.upload === 'public-images' && c.path.startsWith('delivery/'))).length === 1);
+    check('ผู้ดูแล: โพสต์บริการจัดส่งยา (หัวข้อ + เนื้อหา + รูปย่อ ≤ A4 + แนบลิงก์ YouTube Shorts & Facebook Reels)',
+      await count(p, '#daList .da-poster') >= 1
+      && (await text(p, '#daList')).includes('ส่งยาถึงบ้าน ปี 2570')
+      && (await text(p, '#daList')).includes('2 ลิงก์')
+      && (await calls(p, (c) => c.upload === 'public-images' && c.path.startsWith('delivery/'))).length === 1);
+    await p.fill('#daTitle', 'คลิปแนะนำ Health Rider');
+    await p.fill('#daLinkUrl', 'https://www.youtube.com/shorts/abcdefghijk');
+    await p.click('#daAdd'); await p.waitForTimeout(400);
     await p.fill('#daInfo', 'บริการใหม่\nโทรนัดได้ที่ รพ.สต.'); await p.click('#daInfoSave'); await p.waitForTimeout(300);
-    check('ผู้ดูแล: บันทึกข้อความแนะนำบริการ', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert' && c.payload.key === 'delivery_info')).length === 1);
+    check('ผู้ดูแล: บันทึกข้อความแนะนำบริการ (คงแยกจากโพสต์เหมือนเดิม)', (await calls(p, (c) => c.table === 'site_texts' && c.op === 'upsert' && c.payload.key === 'delivery_info')).length === 1);
     await go(p, '#/delivery'); await p.waitForTimeout(500);
-    check('หน้าหลัก: โปสเตอร์แสดง + ข้อความใหม่ (ไม่มีกล่องสถิติราย รพ.สต. และผลงาน Health Rider)', await count(p, '#dlPosters .poster img') === 1 && (await text(p, '#dlInfo')).includes('บริการใหม่') && await count(p, '#dlFigs') === 0 && await count(p, '#hrBlock') === 0);
+    check('หน้าหลัก: ฟีดโพสต์เลื่อนซ้าย-ขวา + ข้อความแนะนำบริการ (ไม่มีกล่องสถิติราย รพ.สต. และผลงาน Health Rider)',
+      await count(p, '#dlPosters .dl-post-card') >= 2
+      && (await text(p, '#dlPosters')).includes('ส่งยาถึงบ้าน ปี 2570')
+      && (await text(p, '#dlInfo')).includes('บริการใหม่')
+      && await count(p, '#dlFigs') === 0 && await count(p, '#hrBlock') === 0);
+    await p.click('#dlPosters .dl-post-card:has-text("ส่งยาถึงบ้าน ปี 2570") .dl-post-foot [data-dl-open]'); await p.waitForTimeout(300);
+    check('หน้าหลัก: กด "ดูรายละเอียด ›" ด้านล่างฟีด → เปิดรายละเอียดโพสต์ (เนื้อหา + รูป + ตัวอย่าง YouTube Shorts & Facebook Reels + ลิงก์)',
+      await p.$eval('#dlPostDialog', (d) => d.open)
+      && (await text(p, '#dlPostDlgTitle')).includes('ส่งยาถึงบ้าน ปี 2570')
+      && (await text(p, '#dlPostDlgBody')).includes('ขั้นตอนการรับยาถึงบ้าน')
+      && await count(p, '#dlPostDlgBody .dl-embed.vertical iframe') === 2
+      && (await text(p, '#dlPostDlgBody')).includes('คลิปแนะนำบริการ'));
+    await p.click('#dlPostDlgClose'); await p.waitForTimeout(150);
     await p.screenshot({ path: path.join(SHOTS, 'home-delivery-1280.png'), fullPage: true });
     await go(p, '#/rider'); await p.waitForTimeout(400);
     check('ลิงก์ #/rider เดิม: เปิดช่องบริการจัดส่งยาถึงบ้าน', await visible(p, '[data-panel="delivery"]'));
