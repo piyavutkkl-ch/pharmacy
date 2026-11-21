@@ -526,7 +526,7 @@ export function yearHeading(fy, y) {
   return `ภาพรวมปีงบประมาณ ${fy}${range}`;
 }
 
-function renderMonthCard(heading, m, key, isTotal = false) {
+function renderMonthCard(heading, m, key, isTotal = false, hidden = false) {
   const ok = Number(m.ok || 0), total = Number(m.total || ok), patients = Number(m.patients || 0);
   const rate = total > 0 ? pctStr(ok, total) : '0%';
   const svcs = (m.service || []).filter((x) => x[1] > 0);
@@ -538,7 +538,7 @@ function renderMonthCard(heading, m, key, isTotal = false) {
   const monthSec = 4;
   const tamSec = months.length > 0 ? 5 : 4;
 
-  return `<details class="dr-month-card${isTotal ? ' dr-month-total' : ''}" data-month-card="${esc(key)}" open>`
+  return `<details class="dr-month-card${isTotal ? ' dr-month-total' : ''}" data-month-card="${esc(key)}" open${hidden ? ' hidden' : ''}>`
     + `<summary class="dr-month-head">`
     + `<span class="dr-month-title"><h3>${esc(heading)}</h3>`
     + `<span class="small muted dr-month-badge">${n(ok)} ครั้ง (${rate})</span></span>`
@@ -595,50 +595,74 @@ async function copyTextSafe(txt) {
   toast('คัดลอกข้อความสรุปแล้ว');
 }
 
+function fyOfMonth(mk) {
+  const [y, mo] = String(mk || '').split('-');
+  if (!y || !mo) return null;
+  return (+y + 543) + (+mo >= 10 ? 1 : 0);
+}
+
 export function renderDeliveryReport(box, rep) {
   const s = rep.summary || {};
   const period = rep.period_from ? `${thaiDate(rep.period_from)} – ${thaiDate(rep.period_to)}` : '';
   const byYears = getFiscalYearData(s);
   const byMonthDesc = Array.isArray(s.byMonth) ? [...s.byMonth].reverse() : [];
+  const allMonthTotals = (Array.isArray(s.month) && s.month.length)
+    ? s.month
+    : (Array.isArray(s.byMonth) ? s.byMonth.map(([mk, m]) => [mk, Number(m.ok || 0)]) : []);
+  const allYearsData = { ...s, month: allMonthTotals };
+  const allMonthsOk = allMonthTotals.filter((x) => x[1] > 0);
+  const allRange = allMonthsOk.length > 1
+    ? ` (${monthLabel(allMonthsOk[0][0])} – ${monthLabel(allMonthsOk[allMonthsOk.length - 1][0])})`
+    : allMonthsOk.length === 1 ? ` (${monthLabel(allMonthsOk[0][0])})` : '';
+  const allYearsHeading = `ภาพรวมทุกปีงบประมาณ${allRange}`;
+
   const textMap = new Map();
   for (const [mk, m] of byMonthDesc) textMap.set(mk, buildMonthReportText(monthFullLabel(mk), m));
   for (const [fy, y] of byYears) {
     const heading = yearHeading(fy, y);
     textMap.set('fy-' + fy, buildMonthReportText(heading, y));
   }
-  if (byYears.length) {
-    const allFyText = byYears.map(([fy, y]) => buildMonthReportText(yearHeading(fy, y), y)).join('\n\n' + '─'.repeat(40) + '\n\n');
-    textMap.set('total', allFyText);
-  } else {
-    textMap.set('total', buildMonthReportText('สรุปภาพรวมการจัดส่งยา', s));
-  }
+  textMap.set('fy-all', buildMonthReportText(allYearsHeading, allYearsData));
+  textMap.set('total', buildMonthReportText('สรุปภาพรวมการจัดส่งยา', s));
   box._drTexts = textMap;
+  const allTxtParts = [
+    ...byYears.map(([fy]) => textMap.get('fy-' + fy)).filter(Boolean),
+    ...byMonthDesc.map(([mk]) => textMap.get(mk)).filter(Boolean),
+  ];
+  if (!allTxtParts.length) allTxtParts.push(textMap.get('total'));
+  box._drAllText = allTxtParts.filter(Boolean).join('\n\n' + '─'.repeat(40) + '\n\n');
+
+  const defaultFy = byYears.length ? String(byYears[0][0]) : '';
+  const hasTabs = byYears.length > 0 || byMonthDesc.length > 0;
+
+  const fyTabsHtml = byYears.length ? `<div class="unit-tabs dr-fy-tabs" role="tablist" aria-label="เลือกภาพรวมปีงบประมาณ">`
+    + (byYears.length > 1 ? `<button type="button" data-dr-fy-tab="all" aria-current="false">ทุกปีงบ</button>` : '')
+    + byYears.map(([fy]) => `<button type="button" data-dr-fy-tab="${fy}" aria-current="${String(fy) === defaultFy ? 'true' : 'false'}">ภาพรวมปีงบ ${fy}</button>`).join('')
+    + `</div>` : '';
+
+  const monthTabsHtml = byMonthDesc.length ? `<div class="unit-tabs dr-month-tabs" role="tablist" aria-label="เลือกเดือนที่ต้องการดู">`
+    + byMonthDesc.map(([mk]) => {
+      const mFy = String(fyOfMonth(mk) || '');
+      const show = !defaultFy || mFy === defaultFy;
+      return `<button type="button" data-dr-month-tab="${esc(mk)}" data-fy="${esc(mFy)}" aria-current="false"${show ? '' : ' hidden'}>${esc(monthTabLabel(mk))}</button>`;
+    }).join('')
+    + `</div>` : '';
+
+  const totalCardsHtml = byYears.length
+    ? (byYears.length > 1 ? renderMonthCard(allYearsHeading, allYearsData, 'fy-all', true, true) : '')
+      + byYears.map(([fy, y]) => renderMonthCard(yearHeading(fy, y), y, 'fy-' + fy, true, String(fy) !== defaultFy)).join('')
+    : renderMonthCard('สรุปภาพรวมการจัดส่งยา', allYearsData, 'total', true, false);
 
   const monthlyHtml = (byMonthDesc.length || s.ok) ? `<div class="dr-monthly">`
-    + `<div class="dr-monthly-bar"><h3>สรุปผลการดำเนินงานแยกตามเดือน</h3>`
+    + `<div class="dr-monthly-bar"><h3>สรุปผลการดำเนินงานรายปีงบและรายเดือน</h3>`
     + `<div class="row-btns dr-monthly-bar-btns" style="align-items:center;gap:6px">`
     + `<button type="button" class="btn btn-o btn-sm" data-dr-toggle-all>ย่อทั้งหมด</button>`
-    + (byMonthDesc.length > 1 ? `<button type="button" class="btn btn-o btn-sm" data-dr-copy-all>คัดลอกสรุปทุกเดือน</button>` : '')
+    + ((byMonthDesc.length > 1 || byYears.length > 1) ? `<button type="button" class="btn btn-o btn-sm" data-dr-copy-all>คัดลอกสรุปทั้งหมด</button>` : '')
     + `</div></div>`
-    + (byMonthDesc.length > 1 ? `<div class="unit-tabs dr-month-tabs" role="tablist" aria-label="เลือกเดือนที่ต้องการดู">`
-      + `<button type="button" data-dr-month-tab="all" aria-current="true">ทุกเดือน (${byMonthDesc.length} เดือน)</button>`
-      + byMonthDesc.map(([mk]) => `<button type="button" data-dr-month-tab="${esc(mk)}" aria-current="false">${esc(monthTabLabel(mk))}</button>`).join('')
-      + (byYears.length > 1
-        ? `<button type="button" data-dr-month-tab="total" aria-current="false">ภาพรวมแยกปีงบ</button>`
-          + byYears.map(([fy]) => `<button type="button" data-dr-month-tab="fy-${fy}" aria-current="false">ปีงบ ${fy}</button>`).join('')
-        : `<button type="button" data-dr-month-tab="total" aria-current="false">ภาพรวม${byYears.length ? `ปีงบ ${byYears[0][0]}` : 'ทุกเดือน'}</button>`)
-      + `</div>` : '')
-    + `<div class="dr-month-grid">`
-    + (byMonthDesc.length
-        ? byMonthDesc.map(([mk, m]) => renderMonthCard(monthFullLabel(mk), m, mk, false)).join('')
-        : (byYears.length
-            ? byYears.map(([fy, y]) => renderMonthCard(yearHeading(fy, y), y, 'fy-' + fy, true)).join('')
-            : renderMonthCard('สรุปภาพรวมการจัดส่งยา', s, 'total', true)))
-    + `</div>`
-    + (byMonthDesc.length > 1 ? `<div class="dr-total-section" data-month-card="total" hidden>`
-      + (byYears.length
-          ? byYears.map(([fy, y]) => renderMonthCard(yearHeading(fy, y), y, 'fy-' + fy, true)).join('')
-          : renderMonthCard('สรุปภาพรวมการจัดส่งยา', s, 'total', true))
+    + (hasTabs ? `<div class="dr-tab-group">${fyTabsHtml}${monthTabsHtml}</div>` : '')
+    + `<div class="dr-total-section">${totalCardsHtml}</div>`
+    + (byMonthDesc.length ? `<div class="dr-month-grid" hidden>`
+      + byMonthDesc.map(([mk, m]) => renderMonthCard(monthFullLabel(mk), m, mk, false, true)).join('')
       + `</div>` : '')
     + `</div>` : '';
 
@@ -673,39 +697,39 @@ export function renderDeliveryReport(box, rep) {
         tgAll.textContent = anyOpen ? 'ขยายทั้งหมด' : 'ย่อทั้งหมด';
         return;
       }
+      const fyTab = e.target.closest('[data-dr-fy-tab]');
+      if (fyTab) {
+        const fy = fyTab.dataset.drFyTab;
+        box.querySelectorAll('[data-dr-fy-tab]').forEach((b) => b.setAttribute('aria-current', String(b === fyTab)));
+        box.querySelectorAll('[data-dr-month-tab]').forEach((b) => {
+          b.setAttribute('aria-current', 'false');
+          b.hidden = (fy !== 'all' && b.dataset.fy !== fy);
+        });
+        const totalSec = box.querySelector('.dr-total-section');
+        const monthGrid = box.querySelector('.dr-month-grid');
+        if (monthGrid) monthGrid.hidden = true;
+        if (totalSec) {
+          totalSec.hidden = false;
+          const targetKey = fy === 'all' ? 'fy-all' : 'fy-' + fy;
+          totalSec.querySelectorAll('[data-month-card]').forEach((c) => {
+            const isMatch = c.dataset.monthCard === targetKey;
+            c.hidden = !isMatch;
+            if (isMatch) c.open = true;
+          });
+        }
+        syncToggleAll();
+        return;
+      }
       const tab = e.target.closest('[data-dr-month-tab]');
       if (tab) {
         const pick = tab.dataset.drMonthTab;
         box.querySelectorAll('[data-dr-month-tab]').forEach((b) => b.setAttribute('aria-current', String(b === tab)));
         const totalSec = box.querySelector('.dr-total-section');
         const monthGrid = box.querySelector('.dr-month-grid');
-        if (pick === 'all') {
-          if (monthGrid) monthGrid.hidden = false;
-          if (totalSec) totalSec.hidden = true;
-          box.querySelectorAll('.dr-month-grid [data-month-card]').forEach((c) => { c.hidden = false; });
-        } else if (pick === 'total') {
-          if (monthGrid) monthGrid.hidden = true;
-          if (totalSec) {
-            totalSec.hidden = false;
-            totalSec.querySelectorAll('[data-month-card]').forEach((c) => {
-              c.hidden = false;
-              c.open = true;
-            });
-          }
-        } else if (pick.startsWith('fy-')) {
-          if (monthGrid) monthGrid.hidden = true;
-          if (totalSec) {
-            totalSec.hidden = false;
-            totalSec.querySelectorAll('[data-month-card]').forEach((c) => {
-              const isMatch = c.dataset.monthCard === pick;
-              c.hidden = !isMatch;
-              if (isMatch) c.open = true;
-            });
-          }
-        } else {
-          if (monthGrid) monthGrid.hidden = false;
-          if (totalSec) totalSec.hidden = true;
-          box.querySelectorAll('.dr-month-grid [data-month-card]').forEach((c) => {
+        if (totalSec) totalSec.hidden = true;
+        if (monthGrid) {
+          monthGrid.hidden = false;
+          monthGrid.querySelectorAll('[data-month-card]').forEach((c) => {
             const isMatch = c.dataset.monthCard === pick;
             c.hidden = !isMatch;
             if (isMatch) c.open = true;
@@ -723,11 +747,8 @@ export function renderDeliveryReport(box, rep) {
         return;
       }
       const cpAll = e.target.closest('[data-dr-copy-all]');
-      if (cpAll && box._drTexts) {
-        const monthsTxt = byMonthDesc.map(([mk]) => box._drTexts.get(mk)).filter(Boolean);
-        const fyTxt = byYears.map(([fy]) => box._drTexts.get('fy-' + fy)).filter(Boolean);
-        const allTxt = [...monthsTxt, ...fyTxt].join('\n\n' + '─'.repeat(40) + '\n\n');
-        if (allTxt) copyTextSafe(allTxt);
+      if (cpAll && box._drAllText) {
+        copyTextSafe(box._drAllText);
       }
     });
   }

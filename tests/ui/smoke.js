@@ -1314,16 +1314,18 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       const up0 = (await calls(p, (c) => c.upload)).length;
       await fetchSheet('#drSheetUrl', '#drSheetBtn', drRows);
       check('จัดส่งยา Google Sheets: ดึงข้อมูล → ตัวอย่างสรุป (สำเร็จ 3 · ผู้ป่วย 2 คน · ยกเลิก 1)', await visible(p, '#drPreviewWrap') && (await text(p, '#drPreview')).includes('สำเร็จ 3') && (await text(p, '#drPreview')).includes('ยกเลิก 1') && (await p.$$eval('#drPreview .fig .n', (f) => f.map((x) => x.textContent))).slice(0, 2).join('|') === '3|2', await text(p, '#drPreview'));
-      await p.click('#drPreview [data-dr-month-tab="total"]'); await p.waitForTimeout(150);
       const pvPreview = await text(p, '#drPreview');
-      check('จัดส่งยา Google Sheets: แยกตามเดือน/ตำบล/ช่องทาง/สิทธิ',
-        (pvPreview.includes('Health Rider') || pvPreview.includes('ไรเดอร์'))
+      check('จัดส่งยา Google Sheets: เริ่มต้นเปิดการ์ดภาพรวมปีงบพร้อมแยกเดือน/ตำบล/ช่องทาง/สิทธิ',
+        pvPreview.includes('ภาพรวมปีงบประมาณ 2569')
+        && (pvPreview.includes('Health Rider') || pvPreview.includes('ไรเดอร์'))
         && pvPreview.includes('พ.ค. 69')
         && pvPreview.includes('ทุ่งนุ้ย')
         && pvPreview.includes('Flash Express')
         && pvPreview.includes('ผู้สูงอายุ'),
         pvPreview);
-      await p.click('#drPreview [data-dr-month-tab="all"]'); await p.waitForTimeout(150);
+      await p.click('#drPreview [data-dr-month-tab="2026-05"]'); await p.waitForTimeout(150);
+      check('จัดส่งยา Google Sheets: กดเดือน พฤษภาคม 2569 แสดงการ์ดเดือนนั้น', await visible(p, '#drPreview [data-month-card="2026-05"]') && !(await visible(p, '#drPreview .dr-total-section')));
+      await p.click('#drPreview [data-dr-fy-tab="2569"]'); await p.waitForTimeout(150);
       await p.click('#drSave'); await p.waitForTimeout(500);
       const ins = (await calls(p, (c) => c.table === 'delivery_reports' && c.op === 'insert')).pop()?.payload || {};
       const raw = JSON.stringify(ins);
@@ -1337,7 +1339,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('หน้าจัดส่งยา 390px: สรุปไม่ล้นจอ', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
       await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-report-390.png') });
       await p.setViewportSize({ width: 1280, height: 900 });
-      // ทดสอบวางลิงก์ Google Sheets (#drSheetUrl) → สรุปข้อมูลแยกแต่ละเดือน
+      // ทดสอบวางลิงก์ Google Sheets (#drSheetUrl) → สรุปข้อมูลแยกปีงบและเดือน
       await p.unroute('**/spreadsheets/d/**/gviz/tq*');
       await p.route('**/spreadsheets/d/**/gviz/tq*', (r) => {
         const gvizRes = '/*O_o*/\ngoogle.visualization.Query.setResponse({"version":"0.6","status":"ok","sig":"456","table":{"cols":[{"id":"A","label":"สถานะ","type":"string"},{"id":"B","label":"บริการขนส่ง","type":"string"},{"id":"C","label":"HN","type":"string"},{"id":"D","label":"วันเวลาที่สร้างออเดอร์","type":"string"},{"id":"E","label":"ประเภทสิทธิการรักษา","type":"string"},{"id":"F","label":"รายละเอียดสิทธิการรักษา","type":"string"},{"id":"G","label":"ค่าจัดส่ง","type":"string"},{"id":"H","label":"ที่อยู่จัดส่งยา","type":"string"}],"rows":['
@@ -1352,71 +1354,88 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.fill('#drSheetUrl', 'https://docs.google.com/spreadsheets/d/1B69-oplMtU58T1Rl0B_As-i2axNbOFUS8IH_LHhRQlk/edit?usp=drivesdk');
       await p.click('#drSheetBtn');
       await p.waitForTimeout(1000);
+      const pvFy2570 = await text(p, '#drPreview');
+      await p.click('#drPreview [data-dr-fy-tab="all"]'); await p.waitForTimeout(150);
       const pvText = await text(p, '#drPreview');
-      check('Google Sheets จัดส่งยา: สรุปข้อมูลแยกตามเดือน (หัวข้อ 1-2-3 ครบถ้วน)',
-        pvText.includes('เดือน ตุลาคม 2569') && pvText.includes('เดือน กันยายน 2569')
+      check('Google Sheets จัดส่งยา: แสดงภาพรวมปีงบ 2570 และกด "ทุกปีงบ" ได้ครบหัวข้อ 1-5',
+        pvFy2570.includes('ภาพรวมปีงบประมาณ 2570')
+        && pvText.includes('ภาพรวมทุกปีงบประมาณ')
         && pvText.includes('1. ภาพรวมความสำเร็จ (Key Highlights)')
         && pvText.includes('ยอดการจัดส่งยาทั้งสิ้น:') && pvText.includes('จำนวนผู้รับบริการทั้งหมด:') && pvText.includes('คิดเป็นอัตราการจัดส่งสำเร็จ:')
         && pvText.includes('2. ช่องทางการจัดส่ง (Delivery Channels)')
         && pvText.includes('ผ่าน Health Rider:') && pvText.includes('ผ่านพัสดุ (Flash Express):')
         && pvText.includes('3. กลุ่มผู้รับบริการและสิทธิการรักษา (Patient Demographics)')
         && pvText.includes('จำแนกตามสิทธิการรักษาหลัก:') && pvText.includes('สิทธิหลักประกันสุขภาพ (UC / บัตรทอง):') && pvText.includes('สิทธิเบิกจ่ายตรง อปท. (Non-UC):')
-        && pvText.includes('จำแนกตามรายละเอียดกลุ่มเป้าหมาย (สิทธิย่อย):') && pvText.includes('กลุ่มผู้สูงอายุ:') && pvText.includes('กลุ่มผู้พิการ:') && pvText.includes('สิทธิ UC ทั่วไปในเขต:'),
+        && pvText.includes('จำแนกตามรายละเอียดกลุ่มเป้าหมาย (สิทธิย่อย):') && pvText.includes('กลุ่มผู้สูงอายุ:') && pvText.includes('กลุ่มผู้พิการ:') && pvText.includes('สิทธิ UC ทั่วไปในเขต:')
+        && pvText.includes('4. สรุปรายเดือน (จัดส่งสำเร็จ)') && pvText.includes('5. ตามตำบล'),
         pvText);
       await p.click('#drSave'); await p.waitForTimeout(400);
       await go(p, '#/delivery'); await p.waitForTimeout(500);
-      const dvText = await text(p, '#drView');
-      check('หน้าจัดส่งยา: แสดงผลสรุปแยกแต่ละเดือน',
-        dvText.includes('เดือน ตุลาคม 2569') && dvText.includes('1. ภาพรวมความสำเร็จ (Key Highlights)'),
-        dvText);
-      await p.click('#drView [data-dr-month-tab="all"]'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: การ์ดแต่ละเดือนเริ่มต้นเป็นแบบขยาย (open)',
-        await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open));
-      await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-expanded-1280.png') });
-      await p.click('#drView [data-month-card="2026-10"] > summary'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: กดย่อการ์ดเดือน ตุลาคม 2569 ได้',
-        !(await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open)));
-      await p.click('#drView [data-month-card="2026-10"] > summary'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: กดขยายการ์ดเดือน ตุลาคม 2569 กลับมาได้',
-        await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open));
+      const tabsOrderOk = await p.evaluate(() => {
+        const fy = document.querySelector('#drView .dr-fy-tabs');
+        const mo = document.querySelector('#drView .dr-month-tabs');
+        return fy && mo && fy.getBoundingClientRect().top < mo.getBoundingClientRect().top;
+      });
+      check('หน้าจัดส่งยา: แท็บภาพรวมปีงบอยู่ด้านบนแท็บเดือน · ไม่มีปุ่ม "ทุกเดือน" · มีปุ่ม "ทุกปีงบ"',
+        tabsOrderOk
+        && (await count(p, '#drView [data-dr-month-tab="all"]')) === 0
+        && await visible(p, '#drView [data-dr-fy-tab="all"]')
+        && await visible(p, '#drView [data-dr-fy-tab="2570"]')
+        && await visible(p, '#drView [data-dr-fy-tab="2569"]'));
+      check('หน้าจัดส่งยา: เปิดมาแสดงการ์ดภาพรวมปีงบ 2570 ทันที · แท็บเดือนล่างแสดงเฉพาะเดือนในปีงบ 2570 (ต.ค. 69)',
+        await visible(p, '#drView [data-month-card="fy-2570"]')
+        && !(await visible(p, '#drView [data-month-card="fy-2569"]'))
+        && await visible(p, '#drView [data-dr-month-tab="2026-10"]')
+        && !(await visible(p, '#drView [data-dr-month-tab="2026-09"]'))
+        && (await count(p, '#drView .dr-block')) === 0);
+      await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-total-tab-1280.png') });
+      check('หน้าจัดส่งยา: การ์ดภาพรวมเริ่มต้นเป็นแบบขยาย (open)',
+        await p.$eval('#drView [data-month-card="fy-2570"]', (el) => el.open));
+      await p.click('#drView [data-month-card="fy-2570"] > summary'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดย่อการ์ดภาพรวมปีงบ 2570 ได้',
+        !(await p.$eval('#drView [data-month-card="fy-2570"]', (el) => el.open)));
+      await p.click('#drView [data-month-card="fy-2570"] > summary'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดขยายการ์ดภาพรวมปีงบ 2570 กลับมาได้',
+        await p.$eval('#drView [data-month-card="fy-2570"]', (el) => el.open));
       await p.click('#drView [data-dr-toggle-all]'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: กดปุ่ม "ย่อทั้งหมด" ทำให้ทุกการ์ดย่อพร้อมกัน + ปุ่มเปลี่ยนเป็น "ขยายทั้งหมด"',
-        !(await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open))
+      check('หน้าจัดส่งยา: กดปุ่ม "ย่อทั้งหมด" ทำให้การ์ดย่อ + ปุ่มเปลี่ยนเป็น "ขยายทั้งหมด"',
+        !(await p.$eval('#drView [data-month-card="fy-2570"]', (el) => el.open))
         && (await text(p, '#drView [data-dr-toggle-all]')).includes('ขยายทั้งหมด'));
       await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-collapsed-1280.png') });
       await p.click('#drView [data-dr-toggle-all]'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: กดปุ่ม "ขยายทั้งหมด" ทำให้ทุกการ์ดขยายพร้อมกัน',
-        await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open)
+      check('หน้าจัดส่งยา: กดปุ่ม "ขยายทั้งหมด" ทำให้การ์ดขยาย',
+        await p.$eval('#drView [data-month-card="fy-2570"]', (el) => el.open)
         && (await text(p, '#drView [data-dr-toggle-all]')).includes('ย่อทั้งหมด'));
-      await p.click('#drView [data-month-card="2026-10"] [data-dr-copy]'); await p.waitForTimeout(150);
+      await p.click('#drView [data-month-card="fy-2570"] [data-dr-copy]'); await p.waitForTimeout(150);
       check('หน้าจัดส่งยา: กดปุ่มคัดลอกสรุปไม่ทำให้การ์ดย่อ (open ยังคงเดิม)',
-        await p.$eval('#drView [data-month-card="2026-10"]', (el) => el.open));
-      await p.click('#drView [data-dr-month-tab="2026-10"]'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: กดแท็บเลือกดูเฉพาะเดือน ตุลาคม 2569 ได้ และส่วนรวมทุกเดือนซ่อนอยู่',
-        await visible(p, '#drView [data-month-card="2026-10"]') && !(await visible(p, '#drView [data-month-card="2026-09"]'))
+        await p.$eval('#drView [data-month-card="fy-2570"]', (el) => el.open));
+      await p.click('#drView [data-dr-fy-tab="2569"]'); await p.waitForTimeout(150);
+      const fy2569Text = await text(p, '#drView .dr-total-section');
+      check('หน้าจัดส่งยา: กด "ภาพรวมปีงบ 2569" เปิดการ์ดภาพรวมปีงบ 2569 ทันที และปุ่มเดือนล่างเปลี่ยนเป็นเดือนในปีงบ 2569 (ก.ย. 69)',
+        await visible(p, '#drView [data-month-card="fy-2569"]')
+        && !(await visible(p, '#drView [data-month-card="fy-2570"]'))
+        && fy2569Text.includes('ภาพรวมปีงบประมาณ 2569')
+        && fy2569Text.includes('4. สรุปรายเดือน (จัดส่งสำเร็จ)')
+        && fy2569Text.includes('5. ตามตำบล')
+        && await visible(p, '#drView [data-dr-month-tab="2026-09"]')
+        && !(await visible(p, '#drView [data-dr-month-tab="2026-10"]')));
+      await p.click('#drView [data-dr-month-tab="2026-09"]'); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: กดปุ่มเดือน ก.ย. 69 แสดงการ์ดเดือน กันยายน 2569',
+        await visible(p, '#drView [data-month-card="2026-09"]')
         && !(await visible(p, '#drView .dr-total-section')));
-      await p.click('#drView [data-dr-month-tab="total"]'); await p.waitForTimeout(150);
-      const totalText = await text(p, '#drView .dr-total-section');
-      check('หน้าจัดส่งยา: ภาพรวมแยกปีงบ (ปีงบ 2570 และ ปีงบ 2569) รวมรายเดือนและตำบลในการ์ด และไม่มีกราฟสิทธิซ้ำ',
-        await visible(p, '#drView .dr-total-section')
-        && !(await visible(p, '#drView [data-month-card="2026-10"]'))
-        && totalText.includes('ภาพรวมปีงบประมาณ 2570')
-        && totalText.includes('ภาพรวมปีงบประมาณ 2569')
-        && totalText.includes('สรุปรายเดือน (จัดส่งสำเร็จ)')
-        && totalText.includes('ตามตำบล')
-        && totalText.includes('กลุ่มผู้รับบริการและสิทธิการรักษา')
-        && (await count(p, '#drView .dr-block')) === 0);
-      await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-total-tab-1280.png') });
+      await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-expanded-1280.png') });
+      await p.click('#drView [data-dr-fy-tab="all"]'); await p.waitForTimeout(150);
+      const allFyText = await text(p, '#drView .dr-total-section');
+      check('หน้าจัดส่งยา: กด "ทุกปีงบ" แสดงการ์ดรวมทุกปีงบ และปุ่มเดือนล่างแสดงเดือนของทุกปีงบ (ต.ค. 69 และ ก.ย. 69)',
+        await visible(p, '#drView [data-month-card="fy-all"]')
+        && !(await visible(p, '#drView .dr-month-grid'))
+        && allFyText.includes('ภาพรวมทุกปีงบประมาณ')
+        && await visible(p, '#drView [data-dr-month-tab="2026-10"]')
+        && await visible(p, '#drView [data-dr-month-tab="2026-09"]'));
       await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(150);
+      check('หน้าจัดส่งยา: แท็บปีงบและเดือน 390px ไม่ล้นจอ',
+        await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
       await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-total-tab-390.png') });
-      await p.setViewportSize({ width: 1280, height: 900 }); await p.waitForTimeout(150);
-      await p.click('#drView [data-dr-month-tab="fy-2570"]'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: เลือกแท็บ "ปีงบ 2570" แสดงเฉพาะการ์ดปีงบ 2570',
-        await visible(p, '#drView [data-month-card="fy-2570"]')
-        && !(await visible(p, '#drView [data-month-card="fy-2569"]')));
-      await p.click('#drView [data-dr-month-tab="all"]'); await p.waitForTimeout(150);
-      check('หน้าจัดส่งยา: แท็บ "ทุกเดือน" ไม่แสดงส่วนรวมทุกเดือน',
-        await visible(p, '#drView [data-month-card="2026-10"]') && !(await visible(p, '#drView .dr-total-section')));
       await p.setViewportSize({ width: 1280, height: 900 });
     } }
     await go(p, '#/admin/drugs/dose');
