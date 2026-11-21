@@ -1426,10 +1426,12 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await (await p.$('#drPanel')).screenshot({ path: path.join(SHOTS, 'delivery-monthly-expanded-1280.png') });
       await p.click('#drView [data-dr-fy-tab="all"]'); await p.waitForTimeout(150);
       const allFyText = await text(p, '#drView .dr-total-section');
-      check('หน้าจัดส่งยา: กด "ทุกปีงบ" แสดงการ์ดรวมทุกปีงบ และปุ่มเดือนล่างแสดงเดือนของทุกปีงบ (ต.ค. 69 และ ก.ย. 69)',
-        await visible(p, '#drView [data-month-card="fy-all"]')
+      const allFyVisibleCount = await p.$$eval('#drView details.dr-month-card', (els) => els.filter((e) => !e.hidden && !e.closest('[hidden]')).length);
+      check('หน้าจัดส่งยา: กด "ทุกปีงบ" แสดงเพียง 1 การ์ดสรุปรวมทั้งหมด (ไม่ใช่ทุกเดือน) และปุ่มเดือนล่างแสดงเดือนของทุกปีงบ',
+        allFyVisibleCount === 1
+        && await visible(p, '#drView [data-month-card="fy-all"]')
         && !(await visible(p, '#drView .dr-month-grid'))
-        && allFyText.includes('ภาพรวมทุกปีงบประมาณ')
+        && allFyText.includes('ภาพรวมทุกปีงบประมาณ (รวมทั้งหมด')
         && await visible(p, '#drView [data-dr-month-tab="2026-10"]')
         && await visible(p, '#drView [data-dr-month-tab="2026-09"]'));
       await p.setViewportSize({ width: 390, height: 900 }); await p.waitForTimeout(150);

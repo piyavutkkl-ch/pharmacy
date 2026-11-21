@@ -612,9 +612,9 @@ export function renderDeliveryReport(box, rep) {
   const allYearsData = { ...s, month: allMonthTotals };
   const allMonthsOk = allMonthTotals.filter((x) => x[1] > 0);
   const allRange = allMonthsOk.length > 1
-    ? ` (${monthLabel(allMonthsOk[0][0])} – ${monthLabel(allMonthsOk[allMonthsOk.length - 1][0])})`
-    : allMonthsOk.length === 1 ? ` (${monthLabel(allMonthsOk[0][0])})` : '';
-  const allYearsHeading = `ภาพรวมทุกปีงบประมาณ${allRange}`;
+    ? ` ${monthLabel(allMonthsOk[0][0])} – ${monthLabel(allMonthsOk[allMonthsOk.length - 1][0])}`
+    : allMonthsOk.length === 1 ? ` ${monthLabel(allMonthsOk[0][0])}` : '';
+  const allYearsHeading = `ภาพรวมทุกปีงบประมาณ (รวมทั้งหมด${allRange})`;
 
   const textMap = new Map();
   for (const [mk, m] of byMonthDesc) textMap.set(mk, buildMonthReportText(monthFullLabel(mk), m));
