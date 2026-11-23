@@ -707,7 +707,7 @@ export function renderDeliveryReport(box, rep) {
     + `<div class="fig"><div class="n num">${fmtDuration(s.riderHoursMedian)}</div><div class="t">ระยะเวลาส่งภายในเขตอำเภอ (Health Rider)</div></div>`
     + `<div class="fig"><div class="n num">${fmtDuration(s.postHoursMedian)}</div><div class="t">ระยะเวลาส่งนอกเขตอำเภอ (พัสดุ)</div></div>`
     + '</div>'
-    + `<p class="small muted">รายการทั้งหมด ${n(s.total)} · สำเร็จ ${n(s.ok)} · ยกเลิก ${n(s.cancel)}${s.other ? ' · อื่น ๆ ' + n(s.other) : ''}${ucFreeTxt} · ค่าจัดส่งรวม ${n(s.fee)} บาท</p>`
+    + `<p class="small muted">รายการทั้งหมด ${n(s.total)} · สำเร็จ ${n(s.ok)} · ยกเลิก ${n(s.cancel)}${s.other ? ' · อื่น ๆ ' + n(s.other) : ''}${ucFreeTxt}</p>`
     + (rep.ai_status === 'done' && rep.ai_text ? `<div class="dr-ai"><h3>สรุปโดย AI</h3>${String(rep.ai_text).split(/\n+/).filter((l) => l.trim()).map((l) => `<p>${esc(l)}</p>`).join('')}</div>` : '')
     + monthlyHtml;
 

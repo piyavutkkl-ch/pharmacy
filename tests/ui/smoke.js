@@ -1283,6 +1283,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
         && pvPreview.includes('ระยะเวลาส่งภายในเขตอำเภอ (Health Rider)')
         && pvPreview.includes('ระยะเวลาส่งนอกเขตอำเภอ (พัสดุ)')
         && pvPreview.includes('สิทธิบัตรทองส่งฟรี 100%')
+        && !pvPreview.includes('ค่าจัดส่งรวม')
         && pvNums.join('|') === '3|2|6 ชม.|1.3 วัน',
         pvNums.join('|') + ' :: ' + pvPreview);
       check('จัดส่งยา Google Sheets: เริ่มต้นเปิดการ์ดภาพรวมปีงบพร้อมแยกเดือน/ตำบล/ช่องทาง/สิทธิ',
