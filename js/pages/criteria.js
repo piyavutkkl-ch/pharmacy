@@ -34,7 +34,7 @@ async function load() {
     sb.from('criteria_items').select('id,topic_no,topic_title,sub_id,sub_label,evidence,evidence_samples,item_no,body,sort').eq('fiscal_year', year).order('sort'),
     sb.from('item_status').select('id,item_id,status,detail,evidence_paths,review_comment,review_files,submitted_at,trashed_at').eq('unit_id', auth.profile.unit_id),
     sb.from('achievements').select('id,title,image_path,item_ids,created_at').eq('unit_id', auth.profile.unit_id).order('created_at', { ascending: false }),
-    sb.from('documents').select('id,title,file_path,file_name,item_ids').order('title'),   // RLS: เฉพาะที่หน่วยนี้เห็น
+    sb.from('documents').select('id,title,file_path,file_name,item_ids,link_url').order('title'),   // RLS: เฉพาะที่หน่วยนี้เห็น
   ]);
   if (ci.error) { $('#scList').innerHTML = `<p class="empty">${esc(errText(ci.error))}</p>`; return; }
   items = sortItems(ci.data);
@@ -127,7 +127,11 @@ function box(it, editable) {
 /** เอกสารดาวน์โหลดที่ผู้ดูแลผูกกับข้อนี้ */
 function docsHtml(id) {
   const list = docs.filter((d) => d.item_ids.includes(id));
-  return list.length ? `<div class="ci-docs"><p class="small muted">เอกสารที่เกี่ยวข้อง (จากผู้ดูแล)</p>${list.map((d) => `<button type="button" class="btn btn-o btn-sm" data-docdl="${esc(d.id)}">⬇ ${esc(d.title)}</button>`).join('')}</div>` : '';
+  return list.length ? `<div class="ci-docs"><p class="small muted">เอกสารที่เกี่ยวข้อง (จากผู้ดูแล)</p>${list.map((d) => {
+    const link = typeof d.link_url === 'string' && /^https:\/\//i.test(d.link_url) ? d.link_url : '';
+    return (d.file_path ? `<button type="button" class="btn btn-o btn-sm" data-docdl="${esc(d.id)}">⬇ ${esc(d.title)}</button>` : '')
+      + (link ? `<a class="btn btn-o btn-sm" href="${esc(link)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(d.title)}</a>` : '');
+  }).join('')}</div>` : '';
 }
 
 function bind() {

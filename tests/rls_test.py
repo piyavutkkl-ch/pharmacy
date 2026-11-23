@@ -1181,6 +1181,11 @@ check("admin links document to standard items (unknown ids dropped)", "admin", f
 check("anon reads linked items of public document", "anon", f"select cardinality(item_ids) from documents where id='{pdoc}'", eq(1))
 check("staff cannot link items", "s1", f"update documents set item_ids='{{}}' where id='{pdoc}' returning id", lambda o: o.strip() == '')
 check("anon cannot insert documents", "anon", "insert into documents(title,file_path,file_name,is_public) values ('x','all/x','x',true)", "deny")
+ldoc = run("insert into documents(title,category,link_url,is_public) values ('ลิงก์แบบฟอร์ม','แบบฟอร์ม','https://example.com/form',true) returning id")[1]
+check("anon reads link_url of link-only public document", "anon", f"select link_url from documents where id='{ldoc}'", eq("https://example.com/form"))
+check("document rejects non-https link_url", "admin", "insert into documents(title,link_url) values ('bad','http://example.com')", "deny")
+check("document requires file or link_url", "admin", "insert into documents(title) values ('empty')", "deny")
+run(f"delete from documents where id='{ldoc}'")
 
 print("== step 71: avatar ==")
 check("staff sets own avatar path", "s1", f"update profiles set avatar_path='avatars/{U['s1']}/a.webp' where id=auth.uid() returning avatar_path", lambda o: 'avatars/' in o)

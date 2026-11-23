@@ -1032,6 +1032,15 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
     await p.click('#adSubmit'); await p.waitForTimeout(500);
     { const ins = (await calls(p, (c) => c.table === 'documents' && c.op === 'insert')).pop()?.payload || {};
       check('เอกสาร (ผู้ดูแล): บันทึก is_public + for_unit null + item_ids', ins.is_public === true && ins.for_unit === null && ins.item_ids?.length === 1, JSON.stringify(ins)); }
+    await p.fill('#adTitle', 'ลิงก์เอกสารทดสอบ');
+    await p.fill('#adLink', 'http://example.com/bad');
+    await p.click('#adSubmit'); await p.waitForTimeout(150);
+    check('เอกสาร (ผู้ดูแล): ลิงก์ไม่ใช่ https:// → แจ้งเตือนไม่บันทึก', (await text(p, '#adMsg')).includes('https://'));
+    await p.fill('#adLink', 'https://example.com/doc');
+    await p.click('#adSubmit'); await p.waitForTimeout(500);
+    { const ins = (await calls(p, (c) => c.table === 'documents' && c.op === 'insert')).pop()?.payload || {};
+      check('เอกสาร (ผู้ดูแล): แนบลิงก์อย่างเดียวไม่ต้องมีไฟล์ → บันทึก link_url + แสดงปุ่มเปิดลิงก์',
+        ins.link_url === 'https://example.com/doc' && !ins.file_path && (await text(p, '#adList')).includes('เปิดลิงก์'), JSON.stringify(ins)); }
     await p.selectOption('#adWho', 'staff');
     check('เอกสาร (ผู้ดูแล): กลับเป็นเจ้าหน้าที่ → เลือก รพ.สต. ได้อีก', !(await p.$eval('#adFor', (e) => e.disabled)));
     check('เมนูผู้ดูแล: รวมเยี่ยมบ้านกับผลงานเป็น "นำเสนอผลงาน" · Health Rider อยู่ใต้ตรวจประเมิน · ตรวจประเมินอยู่เหนือเอกสาร + ข้อเสนอแนะอยู่ในตั้งค่า', (await p.$$eval('.sidenav [data-admin-tab]', (a) => a.map((x) => x.dataset.adminTab).join(','))) === 'news,messages,visits,review,rider,docs,drugs,settings' && (await text(p, '.sidenav [data-admin-tab="visits"]')).trim() === 'นำเสนอผลงาน' && await count(p, '#afList .li') > 0);
