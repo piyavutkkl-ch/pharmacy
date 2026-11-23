@@ -206,7 +206,7 @@ export function summarizeDelivery(rows) {
   const title = String(rows.slice(0, hi).flat().find((c) => String(c).trim()) || '').replace(/\d{6,}/g, '').replace(/\s+/g, ' ').trim().slice(0, 200) || 'ประวัติรายการจัดส่งยา';
   const get = (r, k) => (col[k] >= 0 ? String(r[col[k]] ?? '').trim() : '');
   const s = { total: 0, ok: 0, cancel: 0, other: 0 }, hnOk = new Set(), hnAll = new Set();
-  const service = new Map(), month = new Map(), tambon = new Map(), rights = new Map(), cover = new Map(), hours = [], byMonthMap = new Map(), byYearMap = new Map();
+  const service = new Map(), month = new Map(), tambon = new Map(), rights = new Map(), cover = new Map(), hours = [], riderHours = [], postHours = [], byMonthMap = new Map(), byYearMap = new Map();
   const getMonthBucket = (mk) => {
     let b = byMonthMap.get(mk);
     if (!b) {
@@ -231,7 +231,7 @@ export function summarizeDelivery(rows) {
     }
     return b;
   };
-  let fee = 0, free = 0, paid = 0, from = null, to = null;
+  let fee = 0, free = 0, paid = 0, ucFree = 0, ucPaid = 0, from = null, to = null;
   for (const r of rows.slice(hi + 1)) {
     const st = get(r, 'status'); if (!st) continue;
     s.total++;
@@ -265,10 +265,15 @@ export function summarizeDelivery(rows) {
     }
     if (mb) mb.ok++;
     if (yb) yb.ok++;
-    const svc = serviceName(get(r, 'service'));
+    const rawSvc = get(r, 'service');
+    const rawCover = get(r, 'cover');
+    const rawRights = get(r, 'rights');
+    const svc = serviceName(rawSvc);
     const tam = tambonOf(get(r, 'address'));
-    const rig = rightsLabel(get(r, 'rights'));
-    const cov = coverLabel(get(r, 'cover'), get(r, 'rights'));
+    const rig = rightsLabel(rawRights);
+    const cov = coverLabel(rawCover, rawRights);
+    const isUc = cov === 'สิทธิหลักประกันสุขภาพ (UC / บัตรทอง)'
+      || (!/non[- ]?uc/i.test(rawCover) && (/^ucs?\b|บัตรทอง|หลักประกันสุขภาพ/i.test(rawCover) || /^ucs\b|บัตรทอง|หลักประกันสุขภาพ/i.test(rawRights)));
     add(service, svc);
     if (mk) add(month, mk);
     add(tambon, tam);
@@ -287,18 +292,39 @@ export function summarizeDelivery(rows) {
       add(yb.rights, rig);
       add(yb.cover, cov);
     }
-    const f = +get(r, 'fee').replace(/[^\d.]/g, '');
-    if (Number.isFinite(f) && get(r, 'fee') !== '' && get(r, 'fee') !== '-') {
-      fee += f; if (f > 0) paid++; else free++;
+    const feeRaw = get(r, 'fee');
+    const f = +feeRaw.replace(/[^\d.]/g, '');
+    if (Number.isFinite(f) && feeRaw !== '' && feeRaw !== '-') {
+      fee += f;
+      if (f > 0) {
+        paid++;
+        if (isUc) ucPaid++;
+      } else {
+        free++;
+        if (isUc) ucFree++;
+      }
       if (mb) { mb.fee += f; if (f > 0) mb.paid++; else mb.free++; }
       if (yb) { yb.fee += f; if (f > 0) yb.paid++; else yb.free++; }
     }
     const d = thDate(get(r, 'done'));
-    if (c && d && d >= c) hours.push((d - c) / 3600000);
+    if (c && d && d >= c) {
+      const h = (d - c) / 3600000;
+      hours.push(h);
+      if (isRider(rawSvc)) riderHours.push(h);
+      else if (rawSvc && rawSvc !== '-') postHours.push(h);
+    }
   }
   if (!s.total) throw new Error('ไม่พบรายการจัดส่งในไฟล์');
-  hours.sort((a, b) => a - b);
   const r1 = (x) => Math.round(x * 10) / 10;
+  const calcStats = (arr) => {
+    if (!arr.length) return { avg: null, median: null };
+    const sorted = [...arr].sort((a, b) => a - b);
+    return {
+      avg: r1(sorted.reduce((a, b) => a + b, 0) / sorted.length),
+      median: r1(sorted[Math.floor(sorted.length / 2)]),
+    };
+  };
+  const allTime = calcStats(hours), riderTime = calcStats(riderHours), postTime = calcStats(postHours);
   const byMonth = [...byMonthMap.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([k, m]) => [k, {
@@ -322,8 +348,10 @@ export function summarizeDelivery(rows) {
       v: 1, ...s, patients: hnOk.size, patientsAll: hnAll.size,
       service: top(service), month: [...month.entries()].sort((a, b) => a[0].localeCompare(b[0])), tambon: top(tambon), rights: top(rights), cover: top(cover),
       byMonth, byYear,
-      fee: Math.round(fee), free, paid,
-      hoursAvg: hours.length ? r1(hours.reduce((a, b) => a + b, 0) / hours.length) : null, hoursMedian: hours.length ? r1(hours[Math.floor(hours.length / 2)]) : null,
+      fee: Math.round(fee), free, paid, ucFree, ucPaid,
+      hoursAvg: allTime.avg, hoursMedian: allTime.median,
+      riderHoursAvg: riderTime.avg, riderHoursMedian: riderTime.median,
+      postHoursAvg: postTime.avg, postHoursMedian: postTime.median,
     },
   };
 }
@@ -666,14 +694,20 @@ export function renderDeliveryReport(box, rep) {
       + `</div>` : '')
     + `</div>` : '';
 
+  const fmtDuration = (h) => (h == null ? '–' : h < 24 ? `${n(h)} ชม.` : `${n(Math.round((h / 24) * 10) / 10)} วัน`);
+  const ucTot = (s.ucFree ?? 0) + (s.ucPaid ?? 0);
+  const ucFreeTxt = s.ucFree != null
+    ? (ucTot > 0 ? ` · สิทธิบัตรทองส่งฟรี ${Math.round((s.ucFree / ucTot) * 100)}%` : '')
+    : (s.ok && (s.free + s.paid) > 0 ? ` · ส่งฟรี ${Math.round((s.free / Math.max(1, s.free + s.paid)) * 100)}%` : '');
+
   box.innerHTML = `<p class="small muted">${esc(rep.title)}${period ? ' · ' + esc(period) : ''} · ตัวเลขสรุปเท่านั้น ไม่มีข้อมูลรายบุคคล</p>`
     + '<div class="track-figs dl-figs">'
     + `<div class="fig"><div class="n num">${n(s.ok)}</div><div class="t">จัดส่งยาสำเร็จ (ครั้ง)</div></div>`
     + `<div class="fig"><div class="n num">${n(s.patients)}</div><div class="t">ผู้ป่วยที่ได้รับยา (คน)</div></div>`
-    + `<div class="fig"><div class="n num">${s.ok ? Math.round((s.free / Math.max(1, s.free + s.paid)) * 100) : 0}%</div><div class="t">ส่งฟรี (ไม่เสียค่าจัดส่ง)</div></div>`
-    + (s.hoursMedian != null ? `<div class="fig"><div class="n num">${s.hoursMedian < 24 ? n(s.hoursMedian) + ' ชม.' : n(Math.round(s.hoursMedian / 24 * 10) / 10) + ' วัน'}</div><div class="t">ระยะเวลาส่งถึงมือ (ค่ากลาง)</div></div>` : '')
+    + `<div class="fig"><div class="n num">${fmtDuration(s.riderHoursMedian)}</div><div class="t">ระยะเวลาส่งภายในเขตอำเภอ (Health Rider)</div></div>`
+    + `<div class="fig"><div class="n num">${fmtDuration(s.postHoursMedian)}</div><div class="t">ระยะเวลาส่งนอกเขตอำเภอ (พัสดุ)</div></div>`
     + '</div>'
-    + `<p class="small muted">รายการทั้งหมด ${n(s.total)} · สำเร็จ ${n(s.ok)} · ยกเลิก ${n(s.cancel)}${s.other ? ' · อื่น ๆ ' + n(s.other) : ''} · ค่าจัดส่งรวม ${n(s.fee)} บาท</p>`
+    + `<p class="small muted">รายการทั้งหมด ${n(s.total)} · สำเร็จ ${n(s.ok)} · ยกเลิก ${n(s.cancel)}${s.other ? ' · อื่น ๆ ' + n(s.other) : ''}${ucFreeTxt} · ค่าจัดส่งรวม ${n(s.fee)} บาท</p>`
     + (rep.ai_status === 'done' && rep.ai_text ? `<div class="dr-ai"><h3>สรุปโดย AI</h3>${String(rep.ai_text).split(/\n+/).filter((l) => l.trim()).map((l) => `<p>${esc(l)}</p>`).join('')}</div>` : '')
     + monthlyHtml;
 

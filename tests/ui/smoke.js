@@ -1266,17 +1266,25 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       };
       const head = ['ลำดับ', 'รหัสโรงพยาบาล', 'โรงพยาบาล', 'บริการขนส่ง', 'น้ำหนัก (กรัม)', 'ขนาด (กว้าง x ยาว x สูง)', 'สถานะ', 'รายละเอียดการขนส่ง', 'สถานะเดิม', 'เวลาที่อัปเดตสถานะ', 'เลขที่การจัดส่ง', 'ชื่อผู้ขับ', 'เบอร์โทรผู้ขับ', 'เลขออเดอร์', 'HN', 'VN', 'ชื่อผู้ใช้บริการ', 'หมายเลขบัตรประชาชน', 'เบอร์โทร', 'วันเวลาที่ลงทะเบียน', 'วันเวลาที่สร้างออเดอร์', 'ประเภทสิทธิการรักษา', 'รายละเอียดสิทธิการรักษา', 'ค่าจัดส่ง', 'วัน-เวลา จัดส่งพัสดุสำเร็จ', 'ที่อยู่จัดส่งยา', 'แพทย์/เจ้าหน้าที่', 'บริการ'];
       const row = (i, svc, st, hn, mo, tam, rights, fee, done) => [i, '99999', 'โรงพยาบาลตัวอย่าง', svc, '-', '-', st, st, '-', '-', 'DX' + i, '-', '-', 'ORD' + i, hn, '690000000' + i, 'ชื่อสมมติ ทดสอบ' + i, '1100000000' + String(i).padStart(3, '0'), '0800000000',
-        `วันที่ 01/${mo}/2569 เวลา 9:00 น.`, `วันที่ 01/${mo}/2569 เวลา 9:10 น.`, rights.startsWith('CSH') ? 'NON UC' : 'UC', rights, fee, done ? `วันที่ 01/${mo}/2569 เวลา 15:10 น.` : '-',
+        `วันที่ 01/${mo}/2569 เวลา 9:00 น.`, `วันที่ 01/${mo}/2569 เวลา 9:10 น.`, rights.startsWith('CSH') ? 'NON UC' : 'UC', rights, fee, typeof done === 'string' ? done : done ? `วันที่ 01/${mo}/2569 เวลา 15:10 น.` : '-',
         `บ้านเลขที่ 1 หมู่ 1 ตำบล ${tam} อำเภอ ตัวอย่าง จังหวัด สตูล รหัสไปรษณีย์ 91130`, 'หมอสมมติ', 'hosxp'];
       const drRows = [['ประวัติรายการจัดส่งยา วันที่ 01 พฤษภาคม 2569 - 30 มิถุนายน 2569'], head,
         row(1, 'rider', 'สำเร็จ', '000000001', '05', 'ควนกาหลง', 'UCS : ผู้สูงอายุ', 0, true), row(2, 'rider', 'สำเร็จ', '000000002', '05', 'ควนกาหลง', 'UCS : ผู้สูงอายุ', 0, true),
-        row(3, 'post (Flash Express (Mobilyst))', 'สำเร็จ', '000000001', '06', 'ทุ่งนุ้ย', 'CSH : ชำระเงินเอง', 55, true), row(4, 'rider', 'ยกเลิก', '000000003', '06', 'อุใดเจริญ', 'UCS : ผู้พิการ', 65, false)];
+        row(3, 'post (Flash Express (Mobilyst))', 'สำเร็จ', '000000001', '06', 'ทุ่งนุ้ย', 'CSH : ชำระเงินเอง', 55, 'วันที่ 02/06/2569 เวลา 15:10 น.'), row(4, 'rider', 'ยกเลิก', '000000003', '06', 'อุใดเจริญ', 'UCS : ผู้พิการ', 65, false)];
       await go(p, '#/admin/rider/delivery'); await p.waitForTimeout(500);
       check('จัดส่งยาถึงบ้าน: ไม่มีช่องเลือกไฟล์ในเครื่อง (เหลือเฉพาะวางลิงก์ Google Sheets)', !(await p.$('#drFile')) && await visible(p, '#drSheetUrl') && await visible(p, '#drSheetBtn'));
       const up0 = (await calls(p, (c) => c.upload)).length;
       await fetchSheet('#drSheetUrl', '#drSheetBtn', drRows);
-      check('จัดส่งยา Google Sheets: ดึงข้อมูล → ตัวอย่างสรุป (สำเร็จ 3 · ผู้ป่วย 2 คน · ยกเลิก 1)', await visible(p, '#drPreviewWrap') && (await text(p, '#drPreview')).includes('สำเร็จ 3') && (await text(p, '#drPreview')).includes('ยกเลิก 1') && (await p.$$eval('#drPreview .fig .n', (f) => f.map((x) => x.textContent))).slice(0, 2).join('|') === '3|2', await text(p, '#drPreview'));
       const pvPreview = await text(p, '#drPreview');
+      const pvNums = await p.$$eval('#drPreview .fig .n', (f) => f.map((x) => x.textContent));
+      check('จัดส่งยา Google Sheets: ดึงข้อมูล → ตัวอย่างสรุป (สำเร็จ 3 · ผู้ป่วย 2 คน · ในเขต 6 ชม. · นอกเขต 1.3 วัน · สิทธิบัตรทองส่งฟรี 100%)',
+        await visible(p, '#drPreviewWrap')
+        && pvPreview.includes('สำเร็จ 3') && pvPreview.includes('ยกเลิก 1')
+        && pvPreview.includes('ระยะเวลาส่งภายในเขตอำเภอ (Health Rider)')
+        && pvPreview.includes('ระยะเวลาส่งนอกเขตอำเภอ (พัสดุ)')
+        && pvPreview.includes('สิทธิบัตรทองส่งฟรี 100%')
+        && pvNums.join('|') === '3|2|6 ชม.|1.3 วัน',
+        pvNums.join('|') + ' :: ' + pvPreview);
       check('จัดส่งยา Google Sheets: เริ่มต้นเปิดการ์ดภาพรวมปีงบพร้อมแยกเดือน/ตำบล/ช่องทาง/สิทธิ',
         pvPreview.includes('ภาพรวมปีงบประมาณ 2569')
         && (pvPreview.includes('Health Rider') || pvPreview.includes('ไรเดอร์'))
@@ -1291,7 +1299,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await p.click('#drSave'); await p.waitForTimeout(500);
       const ins = (await calls(p, (c) => c.table === 'delivery_reports' && c.op === 'insert')).pop()?.payload || {};
       const raw = JSON.stringify(ins);
-      check('จัดส่งยา Google Sheets: บันทึกเฉพาะตัวเลขสรุป (ไม่มีชื่อ/เลขบัตร/HN/เบอร์/ที่อยู่ · ไม่อัปโหลดไฟล์)', ins.summary?.ok === 3 && ins.summary?.patients === 2 && ins.period_from === '2026-05-01' && !/ชื่อสมมติ|1100000000|000000001|0800000000|บ้านเลขที่|หมอสมมติ|\d{9,}/.test(raw) && (await calls(p, (c) => c.upload)).length === up0, raw);
+      check('จัดส่งยา Google Sheets: บันทึกเฉพาะตัวเลขสรุป (รวมเวลาแยกช่องทางและบัตรทองส่งฟรี · ไม่มีข้อมูลส่วนบุคคล)', ins.summary?.ok === 3 && ins.summary?.patients === 2 && ins.summary?.riderHoursMedian === 6 && ins.summary?.postHoursMedian === 30 && ins.summary?.ucFree === 2 && ins.summary?.ucPaid === 0 && ins.period_from === '2026-05-01' && !/ชื่อสมมติ|1100000000|000000001|0800000000|บ้านเลขที่|หมอสมมติ|\d{9,}/.test(raw) && (await calls(p, (c) => c.upload)).length === up0, raw);
       check('จัดส่งยา Google Sheets: รายการที่บันทึก + ปุ่มให้ AI สรุป', (await text(p, '#drList')).includes('สำเร็จ 3 ครั้ง') && await count(p, '#drList [data-ai]') === 1);
       await p.click('#drList [data-ai]'); await p.waitForTimeout(6500);
       check('จัดส่งยา Google Sheets: กดให้ AI สรุป → มีข้อความสรุป', (await text(p, '#drList')).includes('มีสรุปจาก AI แล้ว'));
