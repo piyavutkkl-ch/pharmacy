@@ -12,7 +12,8 @@ import { auth } from '../auth.js?v=4.4';
 const CATS = ['แบบฟอร์ม', 'คู่มือ / แนวทาง', 'หนังสือสั่งการ / ประกาศ', 'อื่น ๆ'];
 const TYPES = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', csv: 'text/csv', txt: 'text/plain' };
 const MAX = 5 * 1024 * 1024;
-const COLS = 'id,title,category,for_unit,note,file_path,file_name,file_size,content_type,version,updated_at,is_public,item_ids';
+const COLS = 'id,title,category,for_unit,note,file_path,file_name,file_size,content_type,version,updated_at,is_public,item_ids,link_url';
+const safeHttps = (u) => (typeof u === 'string' && /^https:\/\//i.test(u) ? u : '');
 
 const size = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
 const folderOf = (forUnit) => (forUnit == null ? 'all' : String(forUnit));
@@ -46,25 +47,44 @@ function applyTools(list, pre, catOverride) {
   const q = $(`#${pre}Q`).value.trim().toLowerCase(), c = catOverride ?? $(`#${pre}FCat`)?.value ?? 'all';
   const [key, dir] = $(`#${pre}Sort`).value.split('_'), k = dir === 'asc' ? 1 : -1;
   const val = { updated: (d) => d.updated_at, title: (d) => d.title, dl: (d) => d.downloads || 0 }[key];
-  return list.filter((d) => (c === 'all' || d.category === c) && (!q || `${d.title} ${d.file_name} ${d.note || ''}`.toLowerCase().includes(q)))
+  return list.filter((d) => (c === 'all' || d.category === c) && (!q || `${d.title} ${d.file_name || ''} ${d.note || ''} ${d.link_url || ''}`.toLowerCase().includes(q)))
     .sort((a, b) => (key === 'title' ? a.title.localeCompare(b.title, 'th') : val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : 0) * k);
+}
+
+function bumpStat(d, after) {
+  sb.rpc('bump_doc_download', { p_doc: d.id }).then(({ data: n }) => { if (n) { d.downloads = n; after?.(); } }, () => {});
 }
 
 /** ดาวน์โหลดด้วยลิงก์ชั่วคราว 5 นาที (ตั้งชื่อไฟล์ตามต้นฉบับ) + นับจำนวนดาวน์โหลด · ใช้ในหน้ามาตรฐาน (criteria.js) ด้วย */
 export async function download(d, after) {
+  if (!d.file_path) {
+    const u = safeHttps(d.link_url);
+    if (!u) return;
+    bumpStat(d, after);
+    window.open(u, '_blank', 'noopener,noreferrer');
+    return;
+  }
   const { data, error } = await sb.storage.from('documents').createSignedUrl(d.file_path, 300, { download: d.file_name });
   if (error) { toast('เปิดไฟล์ไม่สำเร็จ: ' + errText(error), 'err'); return; }
-  sb.rpc('bump_doc_download', { p_doc: d.id }).then(({ data: n }) => { if (n) { d.downloads = n; after?.(); } }, () => {});
+  bumpStat(d, after);
   const a = document.createElement('a');
   a.href = data.signedUrl; a.rel = 'noopener'; a.target = '_blank';
   document.body.append(a); a.click(); a.remove();
 }
 
-const docRow = (d, actions) => `<div class="li"><div class="l"><b>${esc(d.title)}</b>`
-  + `<span class="small muted">${esc(d.category)} · ${d.is_public ? 'ประชาชนทั่วไป' : d.for_unit == null ? 'เจ้าหน้าที่ทุก รพ.สต.' : 'เจ้าหน้าที่ รพ.สต. ' + esc(unitName(d.for_unit))}`
-  + ` · ${esc(d.file_name)} (${size(d.file_size || 0)})${d.version > 1 ? ' · ฉบับที่ ' + d.version : ''} · ปรับปรุง ${esc(thaiDate(d.updated_at))} · ดาวน์โหลด ${(d.downloads || 0).toLocaleString('th-TH')} ครั้ง</span>`
-  + (critLabel(d.item_ids) ? `<span class="small">ตรวจประเมินมาตรฐานข้อ ${esc(critLabel(d.item_ids))}</span>` : '')
-  + (d.note ? `<span class="small">${esc(d.note)}</span>` : '') + `</div><div class="actions">${actions}</div></div>`;
+const docRow = (d, actions) => {
+  const link = safeHttps(d.link_url);
+  const fileInfo = d.file_path
+    ? ` · ${esc(d.file_name)} (${size(d.file_size || 0)})${d.version > 1 ? ' · ฉบับที่ ' + d.version : ''}`
+    : ' · ลิงก์แนบ';
+  return `<div class="li"><div class="l"><b>${esc(d.title)}</b>`
+    + `<span class="small muted">${esc(d.category)} · ${d.is_public ? 'ประชาชนทั่วไป' : d.for_unit == null ? 'เจ้าหน้าที่ทุก รพ.สต.' : 'เจ้าหน้าที่ รพ.สต. ' + esc(unitName(d.for_unit))}`
+    + `${fileInfo} · ปรับปรุง ${esc(thaiDate(d.updated_at))} · ดาวน์โหลด ${(d.downloads || 0).toLocaleString('th-TH')} ครั้ง</span>`
+    + (critLabel(d.item_ids) ? `<span class="small">ตรวจประเมินมาตรฐานข้อ ${esc(critLabel(d.item_ids))}</span>` : '')
+    + (d.note ? `<span class="small">${esc(d.note)}</span>` : '')
+    + (link ? `<span class="small" style="word-break:break-all">ลิงก์: <a href="${esc(link)}" target="_blank" rel="noopener noreferrer">${esc(link)}</a></span>` : '')
+    + `</div><div class="actions">${actions}</div></div>`;
+};
 
 /* ======================= ผู้ดูแล ======================= */
 let docs = [], editing = null, adminBound = false;
@@ -130,10 +150,14 @@ async function reloadDocs() {
 function renderAdminDocs() {
   const list = applyTools(docs, 'ad');
   $('#adCount').textContent = list.length === docs.length ? `(${docs.length})` : `(${list.length} จาก ${docs.length})`;
-  $('#adList').innerHTML = !docs.length ? '<p class="empty">ยังไม่มีเอกสาร · อัปโหลดได้จากแบบฟอร์มด้านบน</p>' : !list.length ? '<p class="empty">ไม่พบเอกสารที่ค้นหา</p>' : list.map((d) => docRow(d,
-    `<button type="button" class="btn btn-o btn-sm" data-dl="${d.id}">ดาวน์โหลด</button>`
-    + `<button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">แก้ไข</button>`
-    + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button>`)).join('');
+  $('#adList').innerHTML = !docs.length ? '<p class="empty">ยังไม่มีเอกสาร · อัปโหลดได้จากแบบฟอร์มด้านบน</p>' : !list.length ? '<p class="empty">ไม่พบเอกสารที่ค้นหา</p>' : list.map((d) => {
+    const link = safeHttps(d.link_url);
+    return docRow(d,
+      (d.file_path ? `<button type="button" class="btn btn-o btn-sm" data-dl="${d.id}">ดาวน์โหลด</button>` : '')
+      + (link ? `<a class="btn btn-o btn-sm" href="${esc(link)}" target="_blank" rel="noopener noreferrer" data-openlink="${d.id}">เปิดลิงก์</a>` : '')
+      + `<button type="button" class="btn btn-o btn-sm" data-edit="${d.id}">แก้ไข</button>`
+      + `<button type="button" class="btn btn-no btn-sm" data-del="${d.id}">ลบ</button>`);
+  }).join('');
 }
 
 /** ประชาชนทั่วไป = เอกสาร "ทุก รพ.สต." เท่านั้น (ฐานข้อมูลไม่แสดงเอกสารเฉพาะหน่วยให้ประชาชน) */
@@ -152,7 +176,7 @@ function resetDocForm() {
   syncWho();
   picked.clear(); $('#adCritFold').open = false; renderCritPick();
   $('#adFormTitle').textContent = 'อัปโหลดเอกสาร';
-  $('#adFileLabel').innerHTML = 'ไฟล์ <span class="req">*</span>';
+  $('#adFileLabel').textContent = 'ไฟล์ (หรือแนบลิงก์ด้านล่าง)';
   $('#adFileNote').textContent = '';
   $('#adSubmit').textContent = 'อัปโหลด';
   $('#adCancel').hidden = true;
@@ -162,12 +186,14 @@ function resetDocForm() {
 function startEdit(d) {
   editing = d;
   $('#adTitle').value = d.title; $('#adCat').value = CATS.includes(d.category) ? d.category : 'อื่น ๆ';
-  $('#adFor').value = d.for_unit == null ? '' : String(d.for_unit); $('#adNote').value = d.note || ''; $('#adFile').value = '';
+  $('#adFor').value = d.for_unit == null ? '' : String(d.for_unit); $('#adNote').value = d.note || ''; $('#adLink').value = d.link_url || ''; $('#adFile').value = '';
   $('#adWho').value = d.is_public ? 'public' : 'staff'; syncWho();
   picked.clear(); (d.item_ids || []).forEach((id) => picked.add(id)); $('#adCritQ').value = ''; renderCritPick(); $('#adCritFold').open = picked.size > 0;
   $('#adFormTitle').textContent = 'แก้ไขเอกสาร';
-  $('#adFileLabel').textContent = 'เปลี่ยนไฟล์ (ถ้ามีฉบับใหม่)';
-  $('#adFileNote').textContent = `ไฟล์ปัจจุบัน: ${d.file_name} · ฉบับที่ ${d.version} — เลือกไฟล์ใหม่จะแทนที่และนับเป็นฉบับที่ ${d.version + 1}`;
+  $('#adFileLabel').textContent = d.file_path ? 'เปลี่ยนไฟล์ (ถ้ามีฉบับใหม่)' : 'แนบไฟล์เพิ่ม (ถ้ามี)';
+  $('#adFileNote').textContent = d.file_path
+    ? `ไฟล์ปัจจุบัน: ${d.file_name} · ฉบับที่ ${d.version} — เลือกไฟล์ใหม่จะแทนที่และนับเป็นฉบับที่ ${d.version + 1}`
+    : 'ยังไม่ได้อัปโหลดไฟล์ (ใช้ลิงก์แนบ)';
   $('#adSubmit').textContent = 'บันทึกการแก้ไข';
   $('#adCancel').hidden = false;
   msg('');
@@ -176,12 +202,13 @@ function startEdit(d) {
 
 async function saveDoc(e) {
   e.preventDefault();
-  const title = $('#adTitle').value.trim(), f = $('#adFile').files[0];
+  const title = $('#adTitle').value.trim(), f = $('#adFile').files[0], linkUrl = $('#adLink').value.trim();
   const pub = $('#adWho').value === 'public';
   const forUnit = pub || $('#adFor').value === '' ? null : +$('#adFor').value;
   if (!title) { msg('กรุณาใส่ชื่อเอกสาร'); $('#adTitle').focus(); return; }
-  if (!editing && !f) { msg('กรุณาเลือกไฟล์'); return; }
-  const row = { title, category: $('#adCat').value, for_unit: forUnit, note: $('#adNote').value.trim() || null, is_public: pub, item_ids: [...picked] };
+  if (linkUrl && !safeHttps(linkUrl)) { msg('ลิงก์ต้องขึ้นต้นด้วย https:// เท่านั้น'); $('#adLink').focus(); return; }
+  if (!f && !linkUrl && !editing?.file_path) { msg('กรุณาเลือกไฟล์ หรือใส่ลิงก์แนบอย่างน้อย 1 อย่าง'); return; }
+  const row = { title, category: $('#adCat').value, for_unit: forUnit, note: $('#adNote').value.trim() || null, link_url: linkUrl || null, is_public: pub, item_ids: [...picked] };
   const btn = $('#adSubmit'); busy(btn, true, 'กำลังบันทึก…'); msg('');
   let uploaded = null;
   try {
@@ -191,8 +218,8 @@ async function saveDoc(e) {
       if (error) throw error;
     } else {
       const { id, version, file_path: oldPath, for_unit: oldUnit } = editing;   // เก็บค่าเดิมไว้ก่อนบันทึก
-      if (f) row.version = version + 1;
-      else if (folderOf(oldUnit) !== folderOf(forUnit)) {        // ย้ายโฟลเดอร์ตามสิทธิ์การมองเห็นใหม่
+      if (f && oldPath) row.version = version + 1;
+      else if (oldPath && folderOf(oldUnit) !== folderOf(forUnit)) {        // ย้ายโฟลเดอร์ตามสิทธิ์การมองเห็นใหม่
         const to = `${folderOf(forUnit)}/${oldPath.split('/').pop()}`;
         const { error } = await sb.storage.from('documents').move(oldPath, to);
         if (error) throw error;
@@ -200,10 +227,10 @@ async function saveDoc(e) {
       }
       const { error } = await sb.from('documents').update(row).eq('id', id);
       if (error) {
-        if (row.file_path && !f) await sb.storage.from('documents').move(row.file_path, oldPath);   // ย้ายกลับ
+        if (row.file_path && !f && oldPath) await sb.storage.from('documents').move(row.file_path, oldPath);   // ย้ายกลับ
         throw error;
       }
-      if (f) await sb.storage.from('documents').remove([oldPath]);
+      if (f && oldPath) await sb.storage.from('documents').remove([oldPath]);
     }
     toast(editing ? 'บันทึกการแก้ไขแล้ว' : 'อัปโหลดเอกสารแล้ว');
     resetDocForm();
@@ -215,6 +242,12 @@ async function saveDoc(e) {
 }
 
 async function onAdminList(e) {
+  const linkEl = e.target.closest('[data-openlink]');
+  if (linkEl) {
+    const d = docs.find((x) => x.id === linkEl.dataset.openlink);
+    if (d) bumpStat(d, renderAdminDocs);
+    return;
+  }
   const b = e.target.closest('button'); if (!b) return;
   const d = docs.find((x) => x.id === (b.dataset.dl || b.dataset.edit || b.dataset.del)); if (!d) return;
   if (b.dataset.dl) return download(d, renderAdminDocs);
@@ -222,7 +255,7 @@ async function onAdminList(e) {
   if (!confirm(`ลบเอกสาร "${d.title}"? ผู้ที่เคยดาวน์โหลดได้จะดาวน์โหลดไม่ได้อีก`)) return;
   const { error } = await sb.from('documents').delete().eq('id', d.id);
   if (error) { toast(errText(error), 'err'); return; }
-  await sb.storage.from('documents').remove([d.file_path]);
+  if (d.file_path) await sb.storage.from('documents').remove([d.file_path]);
   if (editing?.id === d.id) resetDocForm();
   toast('ลบเอกสารแล้ว');
   reloadDocs();
@@ -237,6 +270,12 @@ export async function initDocs() {
     staffBound = true;
     $('#sdCats').addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (b) { cat = b.dataset.c; renderStaff(); } });
     $('#sdList').addEventListener('click', (e) => {
+      const linkEl = e.target.closest('[data-openlink]');
+      if (linkEl) {
+        const d = staffDocs.find((x) => x.id === linkEl.dataset.openlink);
+        if (d) bumpStat(d, renderStaff);
+        return;
+      }
       const b = e.target.closest('[data-dl]'); if (!b) return;
       const d = staffDocs.find((x) => x.id === b.dataset.dl); if (d) download(d, renderStaff);
     });
@@ -259,6 +298,11 @@ function renderStaff() {
     .map((c) => `<button type="button" data-c="${esc(c)}" aria-current="${cat === c}">${c === 'all' ? 'ทั้งหมด' : esc(c)} (${n(c)})</button>`).join('');
   const list = applyTools(staffDocs, 'sd', cat);
   $('#sdList').innerHTML = list.length
-    ? list.map((d) => docRow(d, `<button type="button" class="btn btn-p btn-sm" data-dl="${d.id}">ดาวน์โหลด</button>`)).join('')
+    ? list.map((d) => {
+      const link = safeHttps(d.link_url);
+      return docRow(d,
+        (d.file_path ? `<button type="button" class="btn btn-p btn-sm" data-dl="${d.id}">ดาวน์โหลด</button>` : '')
+        + (link ? `<a class="btn ${d.file_path ? 'btn-o' : 'btn-p'} btn-sm" href="${esc(link)}" target="_blank" rel="noopener noreferrer" data-openlink="${d.id}">เปิดลิงก์</a>` : ''));
+    }).join('')
     : `<p class="empty">${staffDocs.length ? 'ไม่พบเอกสารที่ค้นหา' : 'ยังไม่มีเอกสารให้ดาวน์โหลด'}</p>`;
 }
