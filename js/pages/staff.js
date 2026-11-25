@@ -204,21 +204,28 @@ export const todayYmd = () => { const d = new Date(); return `${d.getFullYear()}
 const ALL_UNITS = 'all';
 
 export async function loadAchievementsData(unit, unitFilter) {
-  const q = sb.from('achievements').select('id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date');
-  let filteredQ = q;
+  const cols = 'id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date,author_id';
+  const order = (q) => q.order('work_date', { ascending: false }).order('created_at', { ascending: false });
+  let filteredQ = sb.from('achievements').select(cols);
   if (unit === 'all') {
-    if (unitFilter && unitFilter !== 'all') filteredQ = q.eq('unit_id', unitFilter);
+    if (unitFilter && unitFilter !== 'all') filteredQ = filteredQ.eq('unit_id', unitFilter);
   } else {
-    filteredQ = q.eq('unit_id', unit);
+    filteredQ = filteredQ.eq('unit_id', unit);
   }
-  const { data, error } = await filteredQ.order('work_date', { ascending: false }).order('created_at', { ascending: false });
-  if (error) throw error;
+  const [a, mine] = await Promise.all([
+    order(filteredQ),
+    unit === 'all' || !auth.profile ? Promise.resolve({ data: [] }) : order(sb.from('achievements').select(cols).eq('author_id', auth.profile.id)),
+  ]);
+  if (a.error) throw a.error;
+  const seen = new Set();
+  const data = [...(a.data || []), ...(mine.data || [])].filter((x) => !seen.has(x.id) && seen.add(x.id));
+  data.sort((x, y) => String(y.work_date || y.created_at).localeCompare(String(x.work_date || x.created_at)) || String(y.created_at).localeCompare(String(x.created_at)));
   const aiMap = new Map();
-  if (data?.length) {
-    const { data: ms } = await sb.from('ai_matches').select('id,achievement_id,status,matches,note,created_at').in('achievement_id', data.map((a) => a.id)).order('created_at', { ascending: false });
+  if (data.length) {
+    const { data: ms } = await sb.from('ai_matches').select('id,achievement_id,status,matches,note,created_at').in('achievement_id', data.map((x) => x.id)).order('created_at', { ascending: false });
     (ms || []).forEach((m) => { if (!aiMap.has(m.achievement_id)) aiMap.set(m.achievement_id, m); });
   }
-  return { data: data || [], aiOf: aiMap };
+  return { data, aiOf: aiMap };
 }
 
 export async function deleteAchievementData(a) {

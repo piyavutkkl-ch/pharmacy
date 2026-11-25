@@ -85,12 +85,47 @@ export function renderSummaryPoster(box, list, fallback) {
 }
 
 /* ======================= หน้าอ่าน #/summary/<id> ======================= */
+let currentSum = null;
+
+/** สิทธิ์แก้ไขโพสต์จากหน้าสาธารณะ: ผู้ดูแลได้ทุกโพสต์ · เจ้าหน้าที่ได้เฉพาะโพสต์ของตัวเอง */
+export function canEditPost(post) {
+  const p = auth.profile;
+  if (!p || !post) return false;
+  if (p.role === 'admin') return true;
+  if (p.role === 'staff') return !!post.author_id && post.author_id === p.id;
+  return false;
+}
+
+export function goEditPost(type, id) {
+  const role = auth.profile?.role;
+  if (role !== 'admin' && role !== 'staff') return;
+  try { sessionStorage.setItem('pcps_post_edit', JSON.stringify({ type, id })); } catch { /* ไม่เป็นไร */ }
+  location.hash = role === 'admin' ? '#/admin/visits/posts' : '#/staff/visits/posts';
+}
+
+export function renderSmEditState() {
+  const box = $('#smActions');
+  if (!box) return;
+  box.hidden = !canEditPost(currentSum);
+}
+
+export function bindSummary() {
+  $('#smEditBtn')?.addEventListener('click', () => {
+    if (!canEditPost(currentSum)) return;
+    goEditPost('visit', currentSum.id);
+  });
+}
+
 export async function showSummary(id) {
+  currentSum = null;
+  renderSmEditState();
   $('#smTitle').textContent = 'กำลังโหลด…';
   $('#smTag').textContent = ''; $('#smDate').textContent = ''; $('#smPeople').hidden = true; $('#smBody').innerHTML = ''; $('#smCover').innerHTML = ''; $('#smCover').className = 'cover'; $('#smFile').hidden = true;
   await loadUnits();
   const { data: s, error } = await sb.from('visit_summaries').select(COLS).eq('id', +id || 0).maybeSingle();
   if (error || !s) { $('#smTitle').textContent = 'ไม่พบสรุปผลงานนี้'; $('#smBody').innerHTML = '<p class="muted">อาจถูกลบไปแล้ว</p>'; return; }
+  currentSum = s;
+  renderSmEditState();
   document.title = s.title + ' · Primary Care Pharmacy Services';
   $('#smTag').textContent = label(s);
   $('#smTitle').textContent = s.title;

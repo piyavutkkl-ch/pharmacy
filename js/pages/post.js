@@ -269,6 +269,51 @@ export async function mountPost(slot, unit, options = {}) {
 
   // โหลดรายการ
   await loadCombinedList();
+
+  // ถ้ามาจากปุ่ม "แก้ไข" บนหน้าอ่านผลงาน/สรุปผลงาน → เปิดฟอร์มแก้ไขโพสต์นั้นทันที
+  await openPendingEdit();
+}
+
+async function openPendingEdit() {
+  let raw = null;
+  try {
+    raw = sessionStorage.getItem('pcps_post_edit');
+    if (raw) sessionStorage.removeItem('pcps_post_edit');
+  } catch { return; }
+  if (!raw) return;
+  let req;
+  try { req = JSON.parse(raw); } catch { return; }
+  if (!req?.id) return;
+
+  if (req.type === 'visit') {
+    let s = P.sumList.find((x) => String(x.id) === String(req.id));
+    if (!s) {
+      const { data } = await sb.from('visit_summaries').select(SUM_COLS).eq('id', +req.id || 0).maybeSingle();
+      if (data) s = data;
+    }
+    if (!s) { toast('ไม่พบสรุปผลงานที่ต้องการแก้ไข', 'err'); return; }
+    if (P.unit === 'all' && P.unitFilter !== 'all' && P.unitFilter !== s.unit_id) {
+      P.unitFilter = 'all';
+      renderAdminUnitChips();
+      renderCombinedList();
+    }
+    editVisit(s);
+  } else if (req.type === 'achievement') {
+    let a = P.achList.find((x) => String(x.id) === String(req.id));
+    if (!a) {
+      const { data } = await sb.from('achievements')
+        .select('id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date,author_id')
+        .eq('id', req.id).maybeSingle();
+      if (data) a = data;
+    }
+    if (!a) { toast('ไม่พบผลงานที่ต้องการแก้ไข', 'err'); return; }
+    if (P.unit === 'all' && P.unitFilter !== 'all' && P.unitFilter !== a.unit_id) {
+      P.unitFilter = 'all';
+      renderAdminUnitChips();
+      renderCombinedList();
+    }
+    editAchievement(a);
+  }
 }
 
 /* ================== ฟอร์ม & การสลับประเภท ================== */

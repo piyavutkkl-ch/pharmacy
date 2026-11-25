@@ -2,7 +2,7 @@
 import { sb, publicImageUrl } from '../supabase.js?v=4.4';
 import { $, esc, art, thaiDate, fiscalYearOf, errText, toast, busy, deviceToken } from '../util.js?v=4.4';
 import { loadUnits, loadYears, unitName } from '../data.js?v=4.4';
-import { loadSummaryList, renderSummaryPoster } from './summaries.js?v=4.4';
+import { loadSummaryList, renderSummaryPoster, canEditPost, goEditPost } from './summaries.js?v=4.4';
 import { bindPosterNav } from './delivery.js?v=4.4';
 import { smartCover } from '../lightbox.js?v=4.4';
 import { paras } from './delivery.js?v=4.4';
@@ -194,6 +194,12 @@ export function renderAchCommentState() {
   $('#acCommentForm').hidden = currentAch.comments_closed;
 }
 
+export function renderAchEditState() {
+  const btn = $('#acEditBtn');
+  if (!btn) return;
+  btn.hidden = !canEditPost(currentAch);
+}
+
 async function loadAchLikes() {
   if (!currentAch) return;
   const id = currentAch.id;
@@ -265,6 +271,11 @@ export function bindAchievement() {
     else $('#acShareMsg').textContent = url;
   });
 
+  $('#acEditBtn').addEventListener('click', () => {
+    if (!canEditPost(currentAch)) return;
+    goEditPost('achievement', currentAch.id);
+  });
+
   $('#acCommentForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const inp = $('#acCommentText'), text = inp.value.trim(), msg = $('#acCommentMsg');
@@ -288,12 +299,13 @@ export function bindAchievement() {
 
 export async function showAchievement(id) {
   currentAch = null;
+  renderAchEditState();
   ['#acTag', '#acTitle', '#acDate'].forEach((s) => { $(s).textContent = ''; });
   $('#acTitle').textContent = 'กำลังโหลด…'; $('#acBody').innerHTML = ''; $('#acCover').innerHTML = ''; $('#acCover').className = 'cover'; $('#acCrit').hidden = true; $('#acHidden').hidden = true;
   $('#acComments').innerHTML = ''; $('#acCommentMsg').textContent = ''; $('#acShareMsg').textContent = '';
   await loadUnits();
   const { data: a, error } = await sb.from('achievements')
-    .select('id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date,view_count,comments_closed')
+    .select('id,unit_id,title,body,image_path,item_ids,hidden,created_at,work_date,view_count,comments_closed,author_id')
     .eq('id', id).maybeSingle();
   if (error || !a) { $('#acTitle').textContent = 'ไม่พบผลงานนี้'; $('#acBody').innerHTML = '<p class="muted">อาจถูกลบหรือระงับการแสดงแล้ว</p>'; return; }
   currentAch = a;
@@ -318,6 +330,7 @@ export async function showAchievement(id) {
     a.view_count = (+a.view_count || 0) + 1;
   }
   $('#acViewCount').textContent = (+a.view_count || 0).toLocaleString('th-TH') + ' ผู้เข้าชม';
+  renderAchEditState();
   renderAchCommentState();
   loadAchLikes();
   loadAchComments();

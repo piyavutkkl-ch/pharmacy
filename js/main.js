@@ -14,14 +14,14 @@ import { $, $$, esc, toast, errText, busy } from './util.js?v=4.4';
 import { auth, initAuth, onAuth, signIn, signOut, ROLE_LABEL, ROLE_HOME, takePostLoginRedirect } from './auth.js?v=4.4';
 import { loadNews, loadAchSlides, renderSlides, renderNewsGrid, bindSlider, startAuto, stopAuto, showArticle, bindArticle, renderCommentState, showAllNews } from './pages/news.js?v=4.4';
 import { initDose } from './pages/dose.js?v=4.4';
-import { initTracking, initAchievements, initContacts, showAchievement, bindAchievement, renderAchCommentState } from './pages/stats.js?v=4.4';
+import { initTracking, initAchievements, initContacts, showAchievement, bindAchievement, renderAchCommentState, renderAchEditState } from './pages/stats.js?v=4.4';
 import { initDocs } from './pages/docs.js?v=4.4';
 import { showAdmin } from './pages/admin.js?v=4.4';
 import { bindMoreSheets } from './nav.js?v=4.4';
 import { bindTheme } from './theme.js?v=4.4';
 import { initDelivery } from './pages/delivery.js?v=4.4';
 import { initDeliveryReports } from './pages/delivery-report.js?v=4.4';
-import { showSummary } from './pages/summaries.js?v=4.4';
+import { showSummary, bindSummary, renderSmEditState } from './pages/summaries.js?v=4.4';
 import { showMe, leaveMe } from './pages/me.js?v=4.4';
 import { myAvatarUrl, paintAvatars } from './profile.js?v=4.4';
 import { startChatWatch, stopChatWatch, unmountInbox } from './pages/chat.js?v=4.4';
@@ -182,7 +182,7 @@ function checkVersion() {
 async function boot() {
   checkVersion();
   showAuthErrorFromUrl();
-  bindSlider(); bindArticle(); bindAchievement(); bindFooter(); bindMoreSheets(); bindTheme();
+  bindSlider(); bindArticle(); bindAchievement(); bindSummary(); bindFooter(); bindMoreSheets(); bindTheme();
   $('#googleBtn').addEventListener('click', async () => {
     const btn = $('#googleBtn'); busy(btn, true, 'กำลังไปที่ Google…');
     const { error } = await signIn();
@@ -204,6 +204,8 @@ async function boot() {
     if (auth.profile) startChatWatch();                      // ตัวเลขข้อความใหม่แบบ real-time
     renderCommentState();
     renderAchCommentState();
+    renderAchEditState();
+    renderSmEditState();
     if (location.search.includes('code=')) history.replaceState(null, '', location.pathname + location.hash);
     const dest = takePostLoginRedirect();
     if (dest && location.hash !== dest) location.hash = dest; else route();

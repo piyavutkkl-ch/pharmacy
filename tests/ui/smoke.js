@@ -2244,6 +2244,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       check('หน้าผลงาน: กดถูกใจอีกครั้งเพื่อยกเลิกได้', (await calls(q, (c) => c.rpc === 'like_achievement_anon')).some((c) => c.args.p_on === false && c.args.p_token === achLk?.p_token) && +(await text(q, '#acLikeCount')) === beforeAchLike);
       await q.click('#acShareBtn'); await q.waitForTimeout(200);
       check('หน้าผลงาน: กดแชร์แล้วแสดงข้อความคัดลอกลิงก์', (await text(q, '#acShareMsg')).includes('คัดลอกลิงก์แล้ว') || (await text(q, '#acShareMsg')).includes('#/achievement/'));
+      check('หน้าผลงาน: ไม่ล็อกอินไม่เห็นปุ่มแก้ไข', !(await visible(q, '#acEditBtn')));
       await q.fill('#acCommentText', 'ดีมากครับ'); await q.click('#acCommentForm button'); await q.waitForTimeout(400);
       await q.screenshot({ path: path.join(SHOTS, 'achievement-1280.png'), fullPage: true });
       await q.close(); }
@@ -2251,6 +2252,79 @@ const freePort = () => new Promise((r) => { const s = net.createServer(); s.list
       await m.click('#trkSums a.ach-poster:has-text("ตู้เย็นเก็บยา")'); await m.waitForTimeout(600);
       await m.screenshot({ path: path.join(SHOTS, 'achievement-390.png'), fullPage: true });
       await m.close(); }
+    // ปุ่มแก้ไขบนหน้าที่โพสไปแล้ว (#/achievement/<id> และ #/summary/<id>) → เด้งไปแก้ไขในแท็บนำเสนอผลงาน
+    { const aidOwn = await p.evaluate(() => window.__db.achievements.find((a) => a.title.includes('ตู้เย็นเก็บยา')).id);
+      const aidOther = await p.evaluate(() => window.__db.achievements.find((a) => a.title.includes('FEFO')).id);
+      const patchPosts = async (page) => {
+        await page.evaluate(() => {
+          const db = window.__db;
+          const b2 = db.profiles.find((x) => x.email === 's2@gmail.com').id;
+          const b3 = db.profiles.find((x) => x.email === 's3@gmail.com').id;
+          db.achievements.push({ id: '00000000-0000-0000-0000-0000000ac002', unit_id: 2, title: 'ผลงานเพื่อนร่วมหน่วย', body: 'ทดสอบสิทธิ์', item_ids: [], hidden: false, author_id: b3, work_date: '2026-10-01', created_at: '2026-10-01T08:00:00Z' });
+          db.visit_summaries.push(
+            { id: 901, unit_id: 2, fiscal_year: 2570, title: 'สรุปของฉัน', body: 'รายละเอียด', image_path: 'summaries/2/a.webp', gallery: [], author_id: b2, summary_date: '2026-10-02', created_at: '2026-10-02T08:00:00Z', participant_ids: [], participant_others: [] },
+            { id: 902, unit_id: 2, fiscal_year: 2570, title: 'สรุปของคนอื่น', body: 'รายละเอียด', image_path: 'summaries/2/b.webp', gallery: [], author_id: b3, summary_date: '2026-10-02', created_at: '2026-10-02T08:00:00Z', participant_ids: [], participant_others: [] },
+          );
+        });
+      };
+      const cz = await open('citizen', `#/achievement/${aidOwn}`); await cz.waitForTimeout(500);
+      check('หน้าผลงาน: ประชาชนไม่เห็นปุ่มแก้ไข', !(await visible(cz, '#acEditBtn')));
+      await cz.close();
+
+      const st = await open('staff', `#/achievement/${aidOwn}`); await st.waitForTimeout(500);
+      await patchPosts(st);
+      check('หน้าผลงาน (เจ้าหน้าที่): โพสต์ของ ID ตัวเอง → เห็นปุ่มแก้ไข', await visible(st, '#acEditBtn'));
+      await st.click('#acEditBtn'); await st.waitForTimeout(600);
+      check('หน้าผลงาน (เจ้าหน้าที่): กดแก้ไข → เด้งไปแท็บนำเสนอผลงาน + เปิดฟอร์มแก้ไขโพสต์นั้น',
+        await st.evaluate(() => location.hash === '#/staff/visits/posts')
+        && await visible(st, '[data-staff-view="visits"]')
+        && await st.$eval('#ppFold', (d) => d.open)
+        && (await text(st, '#ppFormTitle')).includes('แก้ไขผลงาน')
+        && (await st.inputValue('#ppTitle')).includes('ตู้เย็นเก็บยา'));
+      await go(st, `#/achievement/${aidOther}`); await st.waitForTimeout(500);
+      check('หน้าผลงาน (เจ้าหน้าที่): โพสต์ของคนอื่น → ไม่เห็นปุ่มแก้ไข', !(await visible(st, '#acEditBtn')));
+      await go(st, '#/achievement/00000000-0000-0000-0000-0000000ac002'); await st.waitForTimeout(500);
+      check('หน้าผลงาน (เจ้าหน้าที่): โพสต์หน่วยเดียวกันแต่คนละ ID → ไม่เห็นปุ่มแก้ไข', !(await visible(st, '#acEditBtn')));
+      await go(st, '#/summary/901'); await st.waitForTimeout(500);
+      check('หน้าสรุปเยี่ยมบ้าน (เจ้าหน้าที่): โพสต์ของ ID ตัวเอง → เห็นปุ่มแก้ไข', await visible(st, '#smEditBtn'));
+      await st.click('#smEditBtn'); await st.waitForTimeout(600);
+      check('หน้าสรุปเยี่ยมบ้าน (เจ้าหน้าที่): กดแก้ไข → เด้งไปแท็บนำเสนอผลงาน + เปิดฟอร์มแก้ไขสรุปนั้น',
+        await st.evaluate(() => location.hash === '#/staff/visits/posts')
+        && await st.$eval('#ppFold', (d) => d.open)
+        && (await text(st, '#ppFormTitle')).includes('แก้ไขสรุปผลงาน')
+        && (await st.inputValue('#ppTitle')) === 'สรุปของฉัน');
+      await go(st, '#/summary/902'); await st.waitForTimeout(500);
+      check('หน้าสรุปเยี่ยมบ้าน (เจ้าหน้าที่): โพสต์ของคนอื่น → ไม่เห็นปุ่มแก้ไข', !(await visible(st, '#smEditBtn')));
+      await st.close();
+
+      const ad = await open('admin', `#/achievement/${aidOwn}`); await ad.waitForTimeout(500);
+      await patchPosts(ad);
+      check('หน้าผลงาน (ผู้ดูแล): เห็นปุ่มแก้ไขในโพสต์ของเจ้าหน้าที่', await visible(ad, '#acEditBtn'));
+      await ad.screenshot({ path: path.join(SHOTS, 'achievement-admin-edit-1280.png'), fullPage: true });
+      await ad.setViewportSize({ width: 768, height: 1024 }); await ad.waitForTimeout(200);
+      await ad.screenshot({ path: path.join(SHOTS, 'achievement-admin-edit-768.png'), fullPage: true });
+      await ad.setViewportSize({ width: 390, height: 844 }); await ad.waitForTimeout(200);
+      check('หน้าผลงาน (390px + ปุ่มแก้ไข): ไม่ล้นจอ', (await overflow(ad)) <= 1);
+      await ad.screenshot({ path: path.join(SHOTS, 'achievement-admin-edit-390.png'), fullPage: true });
+      await ad.setViewportSize({ width: 1280, height: 900 }); await ad.waitForTimeout(100);
+      await ad.click('#acEditBtn'); await ad.waitForTimeout(600);
+      check('หน้าผลงาน (ผู้ดูแล): กดแก้ไข → เด้งไปผู้ดูแล › แท็บนำเสนอผลงาน + เปิดฟอร์มแก้ไข',
+        await ad.evaluate(() => location.hash === '#/admin/visits/posts')
+        && await visible(ad, '[data-admin-view="visits"]')
+        && await ad.$eval('#ppFold', (d) => d.open)
+        && (await text(ad, '#ppFormTitle')).includes('แก้ไขผลงาน')
+        && (await ad.inputValue('#ppTitle')).includes('ตู้เย็นเก็บยา'));
+      await go(ad, `#/achievement/${aidOther}`); await ad.waitForTimeout(500);
+      check('หน้าผลงาน (ผู้ดูแล): เห็นปุ่มแก้ไขทุกโพสต์ (รวม รพ.สต. อื่น)', await visible(ad, '#acEditBtn'));
+      await go(ad, '#/summary/902'); await ad.waitForTimeout(500);
+      check('หน้าสรุปเยี่ยมบ้าน (ผู้ดูแล): เห็นปุ่มแก้ไขทุกโพสต์ + กดเด้งไปแท็บนำเสนอผลงาน', await visible(ad, '#smEditBtn'));
+      await ad.click('#smEditBtn'); await ad.waitForTimeout(600);
+      check('หน้าสรุปเยี่ยมบ้าน (ผู้ดูแล): กดแก้ไข → เด้งไปผู้ดูแล › แท็บนำเสนอผลงาน + เปิดฟอร์มแก้ไขสรุปนั้น',
+        await ad.evaluate(() => location.hash === '#/admin/visits/posts')
+        && await ad.$eval('#ppFold', (d) => d.open)
+        && (await text(ad, '#ppFormTitle')).includes('แก้ไขสรุปผลงาน')
+        && (await ad.inputValue('#ppTitle')) === 'สรุปของคนอื่น');
+      await ad.close(); }
     { const q = await open('staff', '#/staff/achievements'); await q.waitForTimeout(500);
       const aid = await q.evaluate(() => window.__db.achievements.find((a) => a.title.includes('ตู้เย็นเก็บยา')).id);
       await q.click(`[data-hide="${aid}"]`); await q.waitForTimeout(400);
